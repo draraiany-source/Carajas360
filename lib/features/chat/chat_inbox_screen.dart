@@ -16,10 +16,13 @@ class ChatInboxScreen extends StatelessWidget {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(title: const Text('Mensagens')),
       body: uid == null
-          ? const EmptyState(
+          ? EmptyState(
               emoji: '💬',
               title: 'Faça login',
-              subtitle: 'Entre na conta para ver suas conversas')
+              subtitle: 'Entre na conta para ver suas conversas',
+              actionLabel: 'Entrar',
+              onAction: () => Navigator.pushNamed(context, Routes.login),
+            )
           : StreamBuilder<List<ChatRoomPreview>>(
               stream: FS.chatRoomsStream(),
               builder: (_, snap) {

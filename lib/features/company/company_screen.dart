@@ -97,7 +97,7 @@ class _RegisterCompanyFormState extends State<_RegisterCompanyForm> {
       createdAt: DateTime.now(),
     );
     await FS.saveCompany(company);
-    await FS.updateUser({'type': 'company'});
+    await FS.switchProfileType('company');
     if (mounted) {
       setState(() => _loading = false);
       snack(context, '✅ Empresa cadastrada! Aguarde aprovação.',

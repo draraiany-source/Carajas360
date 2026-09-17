@@ -442,12 +442,16 @@ class ShimCard extends StatelessWidget {
 class EmptyState extends StatelessWidget {
   final String emoji, title, subtitle;
   final String? asset;
+  final String? actionLabel;
+  final VoidCallback? onAction;
   const EmptyState(
       {super.key,
       required this.emoji,
       required this.title,
       required this.subtitle,
-      this.asset});
+      this.asset,
+      this.actionLabel,
+      this.onAction});
   @override
   Widget build(BuildContext context) => Center(
       child: Padding(
@@ -464,6 +468,10 @@ class EmptyState extends StatelessWidget {
             Text(subtitle,
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.center),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 20),
+              ElevatedButton(onPressed: onAction, child: Text(actionLabel!)),
+            ],
           ])));
 }
 

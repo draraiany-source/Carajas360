@@ -45,6 +45,8 @@ abstract class Col {
   /// Resolve Carajás — solicitações abertas e propostas.
   static const resolveRequests = 'resolveRequests';
   static const resolveProposals = 'resolveProposals';
+  static const financialAudits = 'financialAudits';
+  static const rateLimits = 'rateLimits';
 }
 
 abstract class Routes {

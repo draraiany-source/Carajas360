@@ -10,6 +10,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/runtime_config.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../core/security/order_policy.dart';
 import '../../shared/widgets/widgets.dart';
 
 class _GCtx {
@@ -474,13 +475,22 @@ class _GpsState extends State<GpsScreen> with TickerProviderStateMixin {
           Expanded(
               child: ElevatedButton(
                   onPressed: () async {
-                    if (widget.orderId != null)
-                      await FS.completeOrder(widget.orderId!);
-                    if (mounted) {
-                      Navigator.pop(context);
-                      snack(context,
-                          '✅ Serviço concluído! Cashback creditado na carteira.',
-                          bg: AppColors.secondary);
+                    try {
+                      if (widget.orderId != null) {
+                        await FS.completeOrder(widget.orderId!);
+                      }
+                      if (mounted) {
+                        Navigator.pop(context);
+                        snack(context, '✅ Serviço concluído!',
+                            bg: AppColors.secondary);
+                      }
+                    } on CloudCallException catch (e) {
+                      if (mounted) snack(context, e.message, bg: AppColors.error);
+                    } catch (e) {
+                      if (mounted) {
+                        snack(context, 'Não foi possível concluir o pedido.',
+                            bg: AppColors.error);
+                      }
                     }
                   },
                   style: ElevatedButton.styleFrom(

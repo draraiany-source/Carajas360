@@ -79,10 +79,11 @@ abstract class PaymentGateway {
             pending: true);
 
       case PaymentMethod.wallet:
-        final ok = await FS.debit(amount, description, '👜');
+        final ok = await FS.payOrderWithWallet(orderId);
         return ok
             ? PaymentResult.ok(orderId)
-            : PaymentResult.fail('Saldo insuficiente na carteira.');
+            : PaymentResult.fail(
+                'Não foi possível pagar com a carteira. Confira o saldo e o preço do pedido.');
 
       case PaymentMethod.creditCard:
         // O fluxo de cartão passa por tela dedicada (tokenização PCI).

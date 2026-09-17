@@ -3,107 +3,162 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     function isAuth() { return request.auth != null; }
-    function isOwner(uid) { return isAuth() && request.auth.uid == uid; }
+    function uid() { return request.auth.uid; }
+    function isOwner(id) { return isAuth() && uid() == id; }
+    function isAdminClaim() {
+      return isAuth() && (
+        request.auth.token.admin == true ||
+        request.auth.token.role == 'admin'
+      );
+    }
     function isAdmin() {
-      return isAuth() &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.type == 'admin';
+      return isAdminClaim() ||
+        (isAuth() &&
+          exists(/databases/$(database)/documents/users/$(uid())) &&
+          get(/databases/$(database)/documents/users/$(uid())).data.type == 'admin');
+    }
+    function userProtectedKeys() {
+      return [
+        'type', 'role', 'roles', 'adminRole', 'verified', 'active', 'plan',
+        'walletId', 'financialStatus', 'permissions', 'createdAt', 'xp', 'status'
+      ];
+    }
+    function ownsCompany(companyId) {
+      return isAuth() && (
+        isAdmin() ||
+        (exists(/databases/$(database)/documents/companies/$(companyId)) &&
+          get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == uid())
+      );
     }
 
     match /users/{userId} {
-      // Perfil: leitura autenticada (busca/chat). Escrita pelo dono,
-      // sem poder se promover a admin nem alterar campos privilegiados.
-      allow read: if isAuth();
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       allow create: if isOwner(userId) &&
         request.resource.data.type in ['client', 'provider', 'deliverer', 'company'] &&
         !('adminRole' in request.resource.data.keys());
       allow update: if (isOwner(userId) &&
-        !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['type', 'adminRole', 'verified', 'status', 'plan'])) ||
+          !request.resource.data.diff(resource.data).affectedKeys()
+            .hasAny(userProtectedKeys())) ||
         isAdmin();
-      allow delete: if isAdmin();
+      allow delete: if isOwner(userId) || isAdmin();
     }
 
     match /providers/{providerId} {
       allow read: if true;
-      allow write: if isOwner(providerId) || isAdmin();
+      allow create: if isOwner(providerId) &&
+        request.resource.data.get('verified', false) == false &&
+        request.resource.data.get('userId', providerId) == uid();
+      allow update: if isAdmin() || (
+        isOwner(providerId) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['verified', 'plan', 'status', 'rating', 'totalReviews', 'userId']) &&
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['active']) ||
+          resource.data.verified == true
+        )
+      );
+      allow delete: if isAdmin();
     }
 
     match /companies/{companyId} {
       allow read: if true;
-      allow create: if isAuth() && request.resource.data.ownerId == request.auth.uid;
-      allow update: if isOwner(companyId) || isAdmin();
+      allow create: if isAuth() &&
+        request.resource.data.ownerId == uid() &&
+        request.resource.data.get('verified', false) == false &&
+        request.resource.data.get('plan', 'free') == 'free';
+      allow update: if isAdmin() || (
+        resource.data.ownerId == uid() &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['verified', 'plan', 'ownerId', 'active'])
+      );
       allow delete: if isAdmin();
     }
 
-    // Equipe, filiais e contratos (Vol.15: Empresas). Só o dono da
-    // empresa (ownerId == uid, verificado via consulta ao documento
-    // da empresa) ou admin pode gerenciar.
     match /employees/{employeeId} {
-      allow read: if isAuth();
-      allow create, update, delete: if isAuth() &&
-        (get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.ownerId == request.auth.uid || isAdmin());
+      allow read: if isAdmin() ||
+        (isAuth() && resource.data.get('userId', '') == uid()) ||
+        (isAuth() && ownsCompany(resource.data.companyId));
+      allow create: if ownsCompany(request.resource.data.companyId);
+      allow update: if ownsCompany(resource.data.companyId);
+      allow delete: if ownsCompany(resource.data.companyId);
     }
 
     match /branches/{branchId} {
       allow read: if true;
-      allow create, update, delete: if isAuth() &&
-        (get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.ownerId == request.auth.uid || isAdmin());
+      allow create: if ownsCompany(request.resource.data.companyId);
+      allow update: if ownsCompany(resource.data.companyId);
+      allow delete: if ownsCompany(resource.data.companyId);
     }
 
-    // Marketplace: lojas e produtos. Leitura pública (vitrine);
-    // escrita apenas pelo dono da loja ou admin.
     match /stores/{storeId} {
       allow read: if true;
-      allow create: if isAuth() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.ownerId == uid();
       allow update, delete: if isAuth() &&
-        (resource.data.ownerId == request.auth.uid || isAdmin());
+        (resource.data.ownerId == uid() || isAdmin());
     }
 
     match /products/{productId} {
       allow read: if true;
-      allow create, update, delete: if isAuth() &&
-        (get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.ownerId == request.auth.uid || isAdmin());
+      allow create: if isAuth() &&
+        (ownsCompany(request.resource.data.get('companyId', '')) ||
+         get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.ownerId == uid() ||
+         isAdmin());
+      allow update: if isAuth() &&
+        (get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == uid() || isAdmin());
+      allow delete: if isAuth() &&
+        (get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == uid() || isAdmin());
     }
 
-    // Locação: anúncios de veículos e máquinas. Vitrine pública;
-    // escrita apenas pelo dono do anúncio ou admin.
     match /rentals/{rentalId} {
       allow read: if true;
-      allow create: if isAuth() && request.resource.data.ownerId == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.ownerId == uid();
       allow update, delete: if isAuth() &&
-        (resource.data.ownerId == request.auth.uid || isAdmin());
+        (resource.data.ownerId == uid() || isAdmin());
     }
 
-    // Reservas de locação: visíveis ao locatário e ao anunciante.
     match /bookings/{bookingId} {
       allow read: if isAuth() &&
-        (resource.data.clientId == request.auth.uid ||
-         resource.data.ownerId == request.auth.uid || isAdmin());
-      allow create: if isAuth() && request.resource.data.clientId == request.auth.uid;
+        (resource.data.clientId == uid() ||
+         resource.data.ownerId == uid() || isAdmin());
+      allow create: if isAuth() && request.resource.data.clientId == uid();
       allow update: if isAuth() &&
-        (resource.data.ownerId == request.auth.uid ||
-         resource.data.clientId == request.auth.uid || isAdmin());
+        (resource.data.ownerId == uid() ||
+         resource.data.clientId == uid() || isAdmin()) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['price', 'total', 'clientId', 'ownerId', 'rentalId']);
     }
 
     match /contracts/{contractId} {
-      allow read: if isAuth();
-      allow create, update: if isAuth() &&
-        (get(/databases/$(database)/documents/companies/$(request.resource.data.companyId)).data.ownerId == request.auth.uid || isAdmin());
+      allow read: if isAdmin() || ownsCompany(resource.data.companyId);
+      allow create, update: if ownsCompany(request.resource.data.companyId) || isAdmin();
       allow delete: if isAdmin();
     }
 
     match /orders/{orderId} {
       allow read: if isAuth() && (
-        resource.data.clientId == request.auth.uid ||
-        resource.data.providerId == request.auth.uid ||
+        resource.data.clientId == uid() ||
+        resource.data.providerId == uid() ||
         isAdmin()
       );
-      allow create: if isAuth() && request.resource.data.clientId == request.auth.uid;
-      allow update: if isAuth() && (
-        resource.data.clientId == request.auth.uid ||
-        resource.data.providerId == request.auth.uid ||
-        isAdmin()
+      allow create: if isAuth()
+        && request.resource.data.clientId == uid()
+        && request.resource.data.status == 'pending'
+        && request.resource.data.get('payoutProcessed', false) == false
+        && request.resource.data.get('paymentStatus', 'unpaid') in ['unpaid', 'pending']
+        && !request.resource.data.keys().hasAny([
+          'commission', 'platformFee', 'providerAmount', 'payoutStatus',
+          'transactionId', 'cashbackGranted'
+        ]);
+      // Client/prestador só marcam review. Status/preço/repasse: Cloud Functions (Admin SDK).
+      allow update: if isAdmin() || (
+        isAuth() &&
+        (resource.data.clientId == uid() || resource.data.providerId == uid()) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed']) &&
+        resource.data.status == 'completed' &&
+        request.resource.data.reviewed == true
       );
+      allow delete: if isAdmin();
     }
 
     match /chatRooms/{roomId} {
@@ -130,8 +185,6 @@ service cloud.firestore {
       }
     }
 
-    // Carteira / extrato: SOMENTE Admin SDK (Cloud Functions).
-    // O client NÃO pode alterar saldo nem fabricar lançamentos.
     match /wallets/{userId} {
       allow read: if isOwner(userId) || isAdmin();
       allow write: if false;
@@ -143,14 +196,21 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
-    // Pagamentos (PIX/cartão) — escrito pelas Cloud Functions.
     match /payments/{paymentId} {
       allow read: if isAuth() &&
         (resource.data.userId == request.auth.uid || isAdmin());
       allow write: if false;
     }
 
-    // GPS entregas: só participantes (cliente / motorista / entregador).
+    match /financialAudits/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /rateLimits/{id} {
+      allow read, write: if false;
+    }
+
     match /deliveries/{deliveryId} {
       allow read: if isAuth() && (
         resource.data.clientId == request.auth.uid ||
@@ -168,7 +228,6 @@ service cloud.firestore {
       );
     }
 
-    // Agendamentos Saúde: só cliente ou profissional do agendamento.
     match /appointments/{appointmentId} {
       allow read: if isAuth() && (
         resource.data.clientId == request.auth.uid ||
@@ -184,20 +243,17 @@ service cloud.firestore {
       );
     }
 
-    // Favoritos de prestador e produto (Vol.3/Vol.12 — ver
-    // FS.toggleFavorite/toggleProductFavorite). Documento identificado
-    // por "{uid}_{targetId}", só o dono pode gerenciar os próprios.
     match /favorites/{favId} {
       allow read: if isAuth() && resource.data.userId == request.auth.uid;
       allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 
-    // Review só do cliente do pedido concluído (anti fake-review).
     match /reviews/{reviewId} {
       allow read: if true;
       allow create: if isAuth()
-        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.clientId == uid()
+        && reviewId == request.resource.data.orderId + '_' + uid()
         && request.resource.data.orderId is string
         && request.resource.data.orderId.size() > 0
         && request.resource.data.stars is int
@@ -205,24 +261,21 @@ service cloud.firestore {
         && request.resource.data.stars <= 5
         && exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId))
         && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.clientId
-             == request.auth.uid
+             == uid()
         && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.status
              == 'completed';
       allow update, delete: if false;
     }
 
-    // Notificações: client só lê/marca como lida; criação via Functions.
     match /notifications/{notifId} {
-      allow read, update: if isAuth() && resource.data.userId == request.auth.uid
+      allow read: if isAuth() && resource.data.userId == uid();
+      allow update: if isAuth() && resource.data.userId == uid()
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
-      allow create: if false;
+      allow create, delete: if false;
     }
 
-    // Denúncias (Vol.20: Administração). Qualquer usuário autenticado
-    // pode denunciar; só o admin pode ler a fila e atualizar status —
-    // o denunciante não deve conseguir ver o andamento da moderação.
     match /reports/{reportId} {
-      allow create: if isAuth() && request.resource.data.reporterId == request.auth.uid;
+      allow create: if isAuth() && request.resource.data.reporterId == uid();
       allow read, update: if isAdmin();
     }
 
@@ -242,8 +295,8 @@ service cloud.firestore {
     }
 
     match /support/{ticketId} {
-      allow read: if isAuth();
-      allow create: if isAuth();
+      allow read: if isAdmin() || (isAuth() && resource.data.userId == uid());
+      allow create: if isAuth() && request.resource.data.userId == uid();
       allow update: if isAdmin();
     }
 
@@ -253,22 +306,16 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
-    // Configurações da plataforma (Vol.20: Administração). Leitura
-    // pública porque qualquer tela pode precisar checar modo de
-    // manutenção ou dados de suporte; só o admin escreve.
     match /config/{doc} {
       allow read: if true;
       allow write: if isAdmin();
     }
 
-    // Resolve Carajás — pedidos abertos e propostas.
     match /resolveRequests/{id} {
       allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.clientId == request.auth.uid;
-      // Cliente gerencia o próprio pedido; prestador autenticado pode
-      // apenas incrementar proposalCount (envio de proposta).
+      allow create: if isAuth() && request.resource.data.clientId == uid();
       allow update: if isAuth() && (
-        resource.data.clientId == request.auth.uid ||
+        resource.data.clientId == uid() ||
         isAdmin() ||
         (
           request.resource.data.diff(resource.data).affectedKeys()
@@ -281,11 +328,15 @@ service cloud.firestore {
     }
 
     match /resolveProposals/{id} {
-      allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.providerId == request.auth.uid;
+      allow read: if isAuth() && (
+        resource.data.providerId == uid() ||
+        isAdmin() ||
+        get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == uid()
+      );
+      allow create: if isAuth() && request.resource.data.providerId == uid();
       allow update: if isAuth() && (
-        resource.data.providerId == request.auth.uid ||
-        get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == request.auth.uid ||
+        resource.data.providerId == uid() ||
+        get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == uid() ||
         isAdmin()
       );
       allow delete: if isAdmin();

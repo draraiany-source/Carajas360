@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -14,6 +15,7 @@ import '../../core/constants/runtime_config.dart';
 import '../../core/utils/firebase_bootstrap.dart';
 import '../../firebase_options.dart';
 import '../../core/utils/platform_info.dart';
+import '../../core/security/order_policy.dart';
 import 'apple_sign_in.dart';
 import 'local_notifications.dart';
 
@@ -302,10 +304,15 @@ class FS {
 
   static Future<void> updateUser(Map<String, dynamic> data) async {
     if (_uid == null) return;
+    final sanitized = Map<String, dynamic>.from(data);
+    for (final k in OrderPolicy.protectedUserFields) {
+      sanitized.remove(k);
+    }
+    if (sanitized.isEmpty) return;
     await _db
         .collection(Col.users)
         .doc(_uid)
-        .update({...data, 'updatedAt': FieldValue.serverTimestamp()});
+        .update({...sanitized, 'updatedAt': FieldValue.serverTimestamp()});
   }
 
   /// Exportação LGPD (portabilidade) — perfil, pedidos e favoritos do usuário.
@@ -422,11 +429,8 @@ class FS {
   }
 
   static Future<void> addXp(int xp) async {
-    if (_uid == null) return;
-    await _db
-        .collection(Col.users)
-        .doc(_uid)
-        .update({'xp': FieldValue.increment(xp)});
+    // XP só via Cloud Functions (review / cadastro). Client não incrementa.
+    debugPrint('addXp ignorado no client (xp=$xp)');
   }
 
   static Stream<List<ProviderModel>> providersStream(
@@ -506,28 +510,48 @@ class FS {
   }
 
   static Future<String> createOrder(Map<String, dynamic> data) async {
+    final sanitized = Map<String, dynamic>.from(data);
+    for (final k in OrderPolicy.sensitiveFields) {
+      if (k != 'providerId' && k != 'price') sanitized.remove(k);
+    }
+    sanitized.remove('commission');
+    sanitized.remove('platformFee');
+    sanitized.remove('providerAmount');
+    sanitized.remove('transactionId');
+    sanitized.remove('cashbackGranted');
     final doc = await _db.collection(Col.orders).add({
-      ...data,
+      ...sanitized,
       'clientId': _uid,
       'status': 'pending',
+      'paymentStatus': 'unpaid',
+      'payoutProcessed': false,
+      'payoutStatus': 'none',
       'createdAt': FieldValue.serverTimestamp()
     });
     return doc.id;
   }
 
-  static Future<void> updateOrder(String orderId, Map<String, dynamic> data) =>
-      _db.collection(Col.orders).doc(orderId).update(data);
+  static Future<void> updateOrder(String orderId, Map<String, dynamic> data) {
+    throw const CloudCallException(
+        'Atualização direta de pedido bloqueada. Use as ações oficiais.',
+        code: 'permission-denied');
+  }
+
+  static Future<Map<String, dynamic>> _transition(
+      String orderId, String action, {Map<String, dynamic>? extra}) async {
+    return CloudFn.call('transitionOrder', {
+      'orderId': orderId,
+      'action': action,
+      ...?extra,
+    });
+  }
 
   static Future<void> completeOrder(String orderId) async {
-    final doc = await _db.collection(Col.orders).doc(orderId).get();
-    if (!doc.exists) return;
-    final data = doc.data()!;
-    await _db.collection(Col.orders).doc(orderId).update(
-        {'status': 'completed', 'completedAt': FieldValue.serverTimestamp()});
-    final price = (data['price'] as num?)?.toDouble();
-    final clientId = data['clientId'] as String?;
-    if (price != null && price > 0 && clientId != null) {
+    await _transition(orderId, 'complete');
+    try {
       await grantCashback(orderId);
+    } catch (e) {
+      debugPrint('cashback: $e');
     }
   }
 
@@ -573,50 +597,22 @@ class FS {
         .toList());
   }
 
-  static Future<void> acceptOrder(String orderId) async {
-    await _db.collection(Col.orders).doc(orderId).update(
-        {'status': 'accepted', 'acceptedAt': FieldValue.serverTimestamp()});
-    final doc = await _db.collection(Col.orders).doc(orderId).get();
-    final clientId = doc.data()?['clientId'] as String?;
-    if (clientId != null)
-      await pushNotif(clientId, '✅ Pedido aceito!',
-          'Um profissional aceitou seu pedido. Confira o chat.', 'order');
+  static Future<void> acceptOrder(String orderId, {double? price}) async {
+    await _transition(orderId, 'accept', extra: {
+      if (price != null) 'price': price,
+    });
   }
 
   static Future<void> declineOrder(String orderId) async {
-    await _db.collection(Col.orders).doc(orderId).update(
-        {'status': 'cancelled', 'cancelReason': 'Recusado pelo profissional'});
-    final doc = await _db.collection(Col.orders).doc(orderId).get();
-    final clientId = doc.data()?['clientId'] as String?;
-    if (clientId != null)
-      await pushNotif(
-          clientId,
-          '❌ Pedido recusado',
-          'O profissional não pôde atender sua solicitação desta vez.',
-          'order');
+    await _transition(orderId, 'decline');
   }
 
-  // Cancelamento pelo próprio cliente (Vol.3: Prestação de Serviços
-  // — Cancelamento). Só permitido antes do serviço estar em
-  // andamento — depois disso, a UI direciona para o suporte.
   static Future<void> cancelOrder(String orderId) async {
-    final doc = await _db.collection(Col.orders).doc(orderId).get();
-    final providerId = doc.data()?['providerId'] as String?;
-    await _db.collection(Col.orders).doc(orderId).update(
-        {'status': 'cancelled', 'cancelReason': 'Cancelado pelo cliente'});
-    if (providerId != null)
-      await pushNotif(providerId, '❌ Pedido cancelado',
-          'O cliente cancelou a solicitação.', 'order');
+    await _transition(orderId, 'cancel', extra: {'reason': 'Cancelado pelo cliente'});
   }
 
   static Future<void> startOrder(String orderId) async {
-    await _db.collection(Col.orders).doc(orderId).update(
-        {'status': 'inProgress', 'startedAt': FieldValue.serverTimestamp()});
-    final doc = await _db.collection(Col.orders).doc(orderId).get();
-    final clientId = doc.data()?['clientId'] as String?;
-    if (clientId != null)
-      await pushNotif(clientId, '🔧 Profissional a caminho!',
-          'Seu serviço está em andamento. Acompanhe pelo mapa.', 'order');
+    await _transition(orderId, 'start');
   }
 
   static Future<String> getOrCreateRoom(String otherUserId) async {
@@ -781,6 +777,26 @@ class FS {
     );
   }
 
+  static Future<bool> payOrderWithWallet(String orderId) async {
+    try {
+      await CloudFn.call('payOrderWithWallet', {'orderId': orderId});
+      return true;
+    } catch (e) {
+      debugPrint('payOrderWithWallet: $e');
+      return false;
+    }
+  }
+
+  static Future<bool> switchProfileType(String type) async {
+    try {
+      await CloudFn.call('switchProfileType', {'type': type});
+      return true;
+    } catch (e) {
+      debugPrint('switchProfileType: $e');
+      return false;
+    }
+  }
+
   // Saque para conta bancária via PIX. Cloud Function debita o saldo.
   static Future<bool> withdraw(double amount, String pixKey) async {
     if (amount < 10) return false;
@@ -803,26 +819,15 @@ class FS {
   }) async {
     if (_uid == null) return false;
     try {
-      final token = await AuthService.current?.getIdToken();
-      if (token == null) return false;
-      final r = await http
-          .post(
-            Uri.parse('${CloudFn.base}/walletOp'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({
-              'op': op,
-              if (amount != null) 'amount': amount,
-              if (description != null) 'description': description,
-              if (icon != null) 'icon': icon,
-              if (pixKey != null) 'pixKey': pixKey,
-              if (orderId != null) 'orderId': orderId,
-            }),
-          )
-          .timeout(const Duration(seconds: 25));
-      return r.statusCode == 200;
+      await CloudFn.call('walletOp', {
+        'op': op,
+        if (amount != null) 'amount': amount,
+        if (description != null) 'description': description,
+        if (icon != null) 'icon': icon,
+        if (pixKey != null) 'pixKey': pixKey,
+        if (orderId != null) 'orderId': orderId,
+      });
+      return true;
     } catch (e) {
       debugPrint('walletOp error: $e');
       return false;
@@ -830,7 +835,8 @@ class FS {
   }
 
   static Future<void> saveReview(ReviewModel r) async {
-    await _db.collection(Col.reviews).add({
+    final reviewId = '${r.orderId}_${r.clientId}';
+    await _db.collection(Col.reviews).doc(reviewId).set({
       'orderId': r.orderId,
       'clientId': r.clientId,
       'providerId': r.providerId,
@@ -847,44 +853,17 @@ class FS {
           .doc(r.orderId)
           .update({'reviewed': true});
     }
-    if (r.providerId != null) {
-      final snap = await _db
-          .collection(Col.reviews)
-          .where('providerId', isEqualTo: r.providerId)
-          .get();
-      if (snap.docs.isNotEmpty) {
-        final avg = snap.docs.fold(0,
-                (sum, d) => sum + ((d.data()['stars'] as num?)?.toInt() ?? 0)) /
-            snap.docs.length;
-        await _db.collection(Col.providers).doc(r.providerId).update({
-          'rating': double.parse(avg.toStringAsFixed(1)),
-          'totalReviews': snap.docs.length
-        });
-      }
-    }
-    await addXp(AppConst.xpPerReview);
   }
 
   static Future<void> pushNotif(
       String uid, String title, String body, String type) async {
     try {
-      final token = await AuthService.current?.getIdToken();
-      if (token == null) return;
-      await http
-          .post(
-            Uri.parse('${CloudFn.base}/createNotification'),
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': 'Bearer $token',
-            },
-            body: jsonEncode({
-              'userId': uid,
-              'title': title,
-              'body': body,
-              'type': type,
-            }),
-          )
-          .timeout(const Duration(seconds: 15));
+      await CloudFn.call('createNotification', {
+        'userId': uid,
+        'title': title,
+        'body': body,
+        'type': type,
+      });
     } catch (e) {
       debugPrint('createNotification error: $e');
     }
@@ -1913,18 +1892,33 @@ class FS {
   }
 }
 
-/// Base URL das Cloud Functions — usa o projectId de firebase_options
-/// (não hardcode YOUR_PROJECT_ID).
+/// Callables autenticadas (região us-central1). Sem CORS aberto.
 abstract final class CloudFn {
   static String get projectId =>
       DefaultFirebaseOptions.currentPlatform.projectId;
   static String get base =>
       'https://us-central1-$projectId.cloudfunctions.net';
+
+  static FirebaseFunctions get _fn =>
+      FirebaseFunctions.instanceFor(region: 'us-central1');
+
+  static Future<Map<String, dynamic>> call(
+      String name, [Map<String, dynamic>? data]) async {
+    try {
+      final result = await _fn.httpsCallable(name).call(data ?? {});
+      final raw = result.data;
+      if (raw is Map) {
+        return Map<String, dynamic>.from(raw);
+      }
+      return {'data': raw};
+    } on FirebaseFunctionsException catch (e) {
+      throw CloudCallException(e.message ?? 'Falha na operação',
+          code: e.code);
+    }
+  }
 }
 
 class PaySvc {
-  static String get _base => CloudFn.base;
-
   // Public Key do Mercado Pago via --dart-define=MERCADOPAGO_PUBLIC_KEY=...
   static String get _mpPublicKey => RuntimeConfig.mercadoPagoPublicKey;
 
@@ -1936,39 +1930,23 @@ class PaySvc {
       String? userId,
       String purpose = 'order'}) async {
     try {
-      final r = await http
-          .post(Uri.parse('$_base/generatePix'),
-              headers: {'Content-Type': 'application/json'},
-              body: jsonEncode({
-                'amount': amount,
-                'description': description,
-                'email': email,
-                'orderId': orderId,
-                if (userId != null) 'userId': userId,
-                'purpose': purpose,
-              }))
-          .timeout(const Duration(seconds: 30));
-      if (r.statusCode == 200)
-        return jsonDecode(r.body) as Map<String, dynamic>;
-      return null;
+      return await CloudFn.call('generatePix', {
+        'amount': amount,
+        'description': description,
+        'email': email,
+        if (orderId.isNotEmpty) 'orderId': orderId,
+        'purpose': purpose,
+      });
     } catch (e) {
       debugPrint('PIX error: $e');
       return null;
     }
   }
 
-  // Verifica o status real de um pagamento PIX na Cloud Function
-  // checkPayment (que consulta o Mercado Pago). Retorna o status
-  // ('approved', 'pending', 'rejected'...) ou null se a chamada
-  // falhar (ex.: gateway não configurado — o app cai no modo demo).
   static Future<String?> checkPayment(String paymentId) async {
     try {
-      final r = await http
-          .get(Uri.parse('$_base/checkPayment?id=$paymentId'))
-          .timeout(const Duration(seconds: 15));
-      if (r.statusCode == 200)
-        return (jsonDecode(r.body) as Map)['status'] as String?;
-      return null;
+      final data = await CloudFn.call('checkPayment', {'id': paymentId});
+      return data['status'] as String?;
     } catch (e) {
       debugPrint('checkPayment error: $e');
       return null;
@@ -2026,24 +2004,14 @@ class PaySvc {
     String? docNumber,
   }) async {
     try {
-      final r = await http
-          .post(
-            Uri.parse('$_base/processCardPayment'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({
-              'amount': amount,
-              'description': description,
-              'email': email,
-              'orderId': orderId,
-              'cardToken': cardToken,
-              'installments': installments,
-              'payerDocNumber': docNumber,
-            }),
-          )
-          .timeout(const Duration(seconds: 30));
-      if (r.statusCode == 200)
-        return jsonDecode(r.body) as Map<String, dynamic>;
-      return null;
+      return await CloudFn.call('processCardPayment', {
+        'description': description,
+        'email': email,
+        'orderId': orderId,
+        'cardToken': cardToken,
+        'installments': installments,
+        'payerDocNumber': docNumber,
+      });
     } catch (e) {
       debugPrint('Erro no pagamento com cartão: $e');
       return null;
@@ -2063,21 +2031,14 @@ class PaySvc {
 // IA cai automaticamente no modo de respostas locais (fallback),
 // garantindo que o assistente nunca trave para o usuário.
 class AiSvc {
-  static String get _base => CloudFn.base;
-
   static Future<String?> ask(
       String message, List<Map<String, dynamic>> history) async {
     try {
-      final r = await http
-          .post(
-            Uri.parse('$_base/aiAssistant'),
-            headers: {'Content-Type': 'application/json'},
-            body: jsonEncode({'message': message, 'history': history}),
-          )
-          .timeout(const Duration(seconds: 20));
-      if (r.statusCode == 200)
-        return (jsonDecode(r.body) as Map)['reply'] as String?;
-      return null;
+      final data = await CloudFn.call('aiAssistant', {
+        'message': message,
+        'history': history,
+      });
+      return data['reply'] as String?;
     } catch (e) {
       debugPrint('IA error: $e');
       return null;

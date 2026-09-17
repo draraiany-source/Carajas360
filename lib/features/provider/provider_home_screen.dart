@@ -9,6 +9,7 @@ import '../../core/utils/chat_nav.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../core/security/order_policy.dart';
 import '../../shared/widgets/widgets.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -384,10 +385,18 @@ class _OrderList extends StatelessWidget {
                           Expanded(
                               child: ElevatedButton(
                                   onPressed: () async {
-                                    await FS.completeOrder(o.id);
-                                    if (context.mounted)
-                                      snack(context, '✅ Serviço concluído!',
-                                          bg: AppColors.secondary);
+                                    try {
+                                      await FS.completeOrder(o.id);
+                                      if (context.mounted) {
+                                        snack(context, '✅ Serviço concluído!',
+                                            bg: AppColors.secondary);
+                                      }
+                                    } on CloudCallException catch (e) {
+                                      if (context.mounted) {
+                                        snack(context, e.message,
+                                            bg: AppColors.error);
+                                      }
+                                    }
                                   },
                                   style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.secondary,

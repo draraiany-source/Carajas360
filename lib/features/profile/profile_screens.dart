@@ -24,10 +24,13 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: uid == null
-          ? const EmptyState(
+          ? EmptyState(
               emoji: '👤',
               title: 'Não autenticado',
-              subtitle: 'Faça login para ver seu perfil')
+              subtitle: 'Faça login para ver seu perfil',
+              actionLabel: 'Entrar',
+              onAction: () => Navigator.pushNamed(context, Routes.login),
+            )
           : StreamBuilder<UserModel?>(
               stream: FS.userStream(uid),
               builder: (_, snap) {

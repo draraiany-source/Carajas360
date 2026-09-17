@@ -33,6 +33,7 @@ import 'package:servico_conecta/features/admin/admin_screen.dart';
 import 'package:servico_conecta/features/company/company_screen.dart';
 import 'package:servico_conecta/features/orders/orders_screen.dart';
 import 'package:servico_conecta/features/provider/provider_home_screen.dart';
+import 'package:servico_conecta/core/auth/access_control.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -127,7 +128,9 @@ class ServicoConectaApp extends StatelessWidget {
                     deliveryId: a?['deliveryId'],
                     orderId: a?['orderId']));
               case Routes.wallet:
-                return _route(const WalletScreen());
+                return _route(const RequireAuth(title: 'Carteira', child: WalletScreen()));
+              case Routes.admin:
+                return _route(const AdminGate(child: AdminScreen()));
               case Routes.health:
                 return _route(const HealthScreen());
               case Routes.marketplace:
@@ -155,15 +158,13 @@ class ServicoConectaApp extends StatelessWidget {
                     providerId: a?['providerId'],
                     providerName: a?['providerName']));
               case Routes.support:
-                return _route(const SupportScreen());
+                return _route(const RequireAuth(title: 'Suporte', child: SupportScreen()));
               case Routes.coupons:
                 return _route(const CouponsScreen());
-              case Routes.admin:
-                return _route(const AdminScreen());
               case Routes.aiAssistant:
-                return _route(const AiAssistantScreen());
+                return _route(const RequireAuth(title: 'Assistente', child: AiAssistantScreen()));
               case Routes.companyProfile:
-                return _route(const CompanyProfileScreen());
+                return _route(const RequireAuth(title: 'Empresa', child: CompanyProfileScreen()));
               case Routes.favorites:
                 return _route(const FavoritesScreen());
               case Routes.myOrders:

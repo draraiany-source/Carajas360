@@ -484,11 +484,10 @@ class _WalletState extends State<WalletScreen>
 
   void _subscribe(BuildContext context, Map<String, dynamic> plan) {
     final price = plan['priceValue'] as double;
-    final tier = plan['tier'] as PlanTier;
     if (price <= 0) {
-      FS.updateUser({'plan': tier.name});
-      snack(context, '✅ Plano ${plan['name']} ativado!',
-          bg: AppColors.secondary);
+      snack(context,
+          'Planos pagos ficam disponíveis quando o faturamento real estiver ativo.',
+          bg: AppColors.warning);
       return;
     }
     showModalBottomSheet(
@@ -520,8 +519,11 @@ class _WalletState extends State<WalletScreen>
                             builder: (_) => PixScreen(
                                 amount: price,
                                 desc: 'Assinatura ${plan['name']}',
-                                onPaid: () =>
-                                    FS.updateUser({'plan': tier.name}))));
+                                onPaid: () async {
+                                  snack(context,
+                                      'Assinatura depende de pagamento real (desligado em staging).',
+                                      bg: AppColors.warning);
+                                })));
                   },
                 ),
                 ListTile(
@@ -539,8 +541,11 @@ class _WalletState extends State<WalletScreen>
                             builder: (_) => CardPaymentScreen(
                                 amount: price,
                                 desc: 'Assinatura ${plan['name']}',
-                                onPaid: () =>
-                                    FS.updateUser({'plan': tier.name}))));
+                                onPaid: () async {
+                                  snack(context,
+                                      'Assinatura depende de pagamento real (desligado em staging).',
+                                      bg: AppColors.warning);
+                                })));
                   },
                 ),
               ]),

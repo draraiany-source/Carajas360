@@ -366,9 +366,17 @@ class _MyOrdersState extends State<MyOrdersScreen> {
               TextButton(
                   onPressed: () async {
                     Navigator.pop(context);
-                    await FS.cancelOrder(orderId);
-                    if (context.mounted)
-                      snack(context, 'Pedido cancelado', bg: AppColors.error);
+                    try {
+                      await FS.cancelOrder(orderId);
+                      if (context.mounted) {
+                        snack(context, 'Pedido cancelado', bg: AppColors.error);
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        snack(context, 'Não foi possível cancelar.',
+                            bg: AppColors.error);
+                      }
+                    }
                   },
                   child: const Text('Cancelar pedido',
                       style: TextStyle(color: AppColors.error))),
