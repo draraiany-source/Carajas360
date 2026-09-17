@@ -1,0 +1,99 @@
+# Flutter / Dart
+.dart_tool/
+.packages
+.pub-cache/
+.pub/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Node / Firebase tools
+node_modules/
+npm-debug.log*
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+*.log
+
+# Secrets / credentials (NÃO versionar)
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.jks
+*.keystore
+key.properties
+**/service-account*.json
+**/ServiceAccount*.json
+*credentials*.json
+serviceAccount*.json
+**/secrets/
+# Firebase client configs no projeto atual são placeholders (podem ir ao Git).
+# Se trocar por chaves reais de produção, NÃO faça commit — use:
+#   git update-index --assume-unchanged android/app/google-services.json
+# Contas de serviço e keystores continuam bloqueadas acima.
+android/local.properties
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+
+# Local machine / backups
+*.apk
+*.aab
+*.ipa
+Carajas360_*.apk
+
+# Audit / build noise (logs locais)
+analyze_*.txt
+*_analyze*.txt
+*_out.txt
+*_out2.txt
+*_out3.txt
+*_stdout.txt
+*_stderr.txt
+*_exit.txt
+*_verify*.txt
+*_audit*.txt
+*_e2e*.txt
+*_fb_*.txt
+*_firebase_emu*.txt
+*_shell_probe.txt
+*_stat2.txt
+*_verify_heartbeat.txt
+*_web_build_audit.txt
+*_outdated_audit.txt
+apk_*.txt
+appbundle_build.log
+auth_*.txt
+b13_*.txt
+bloqueadores_*.txt
+build_*.txt
+continue_*.txt
+final_*.txt
+flutter_*.txt
+phase1_*.txt
+pub_get_*.txt
+report_*.txt
+resume_*.txt
+test_*.txt
+validate_*.txt
+verify_*.txt
+audit_*.txt
+
+# Coverage / misc
+coverage/
+*.g.dart.bak
+*.freezed.dart.bak
