@@ -49,6 +49,7 @@ serviceAccount*.json
 android/local.properties
 ios/Flutter/Generated.xcconfig
 ios/Flutter/flutter_export_environment.sh
+ios/Flutter/ephemeral/
 
 # Local machine / backups
 *.apk
