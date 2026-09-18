@@ -19,7 +19,7 @@ Future<void> showLocalNotification({
   required String title,
   required String body,
 }) async {
-  const a = AndroidNotificationDetails('sc_main', 'ServiçoConecta',
+  const a = AndroidNotificationDetails('sc_main', 'Carajás 360',
       channelDescription: 'Notificações',
       importance: Importance.high,
       priority: Priority.high);

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_assets.dart';
@@ -625,8 +624,9 @@ class _MarketState extends State<MarketplaceScreen> {
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   const SheetHandle(),
                   const SizedBox(height: 20),
-                  SvgPicture.asset(AppAssets.mktCarrinhoVazio,
-                      width: 150, height: 150),
+                  SafeSvg(AppAssets.mktCarrinhoVazio,
+                      width: 150, height: 150,
+                      fallback: const Text('🛒', style: TextStyle(fontSize: 56))),
                   const SizedBox(height: 16),
                   const Text('Seu carrinho está vazio',
                       style:

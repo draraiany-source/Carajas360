@@ -34,7 +34,7 @@ if (localPropertiesFile.exists()) {
 def mapsApiKey = localProperties.getProperty('MAPS_API_KEY') ?: 'COLE_SUA_GOOGLE_MAPS_API_KEY_AQUI'
 
 android {
-    namespace "br.com.servicoconecta"
+    namespace "br.com.carajas360"
     compileSdk flutter.compileSdkVersion
     ndkVersion flutter.ndkVersion
 
@@ -47,7 +47,7 @@ android {
     sourceSets { main.java.srcDirs += 'src/main/kotlin' }
 
     defaultConfig {
-        applicationId "br.com.servicoconecta"
+        applicationId "br.com.carajas360"
         minSdkVersion flutter.minSdkVersion
         targetSdkVersion flutter.targetSdkVersion
         versionCode flutter.versionCode

@@ -3,7 +3,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-/// Design System SpanEnglish adaptado para telas premium do ServiçoConecta.
+/// Design System SpanEnglish adaptado para telas premium do Carajás 360.
 /// Paleta oficial: Petroleum #13647C · Vibrant #307ABA · Accent #C14344 · Soft #F0F5F4
 abstract final class SpanDs {
   // ── Cores oficiais (versão dark premium do SpanEnglish) ───────────────────

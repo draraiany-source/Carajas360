@@ -13,74 +13,106 @@ import 'core/constants/app_constants.dart';
 import 'core/utils/firebase_bootstrap.dart';
 import 'shared/services/firebase_service.dart';
 
-import 'package:servico_conecta/features/auth/auth_screen.dart';
-import 'package:servico_conecta/features/home/home_screen.dart'
+import 'package:carajas_360/features/auth/auth_screen.dart';
+import 'package:carajas_360/features/home/home_screen.dart'
     show SearchScreen, ServicesHubScreen;
-import 'package:servico_conecta/features/home/carajas_home_screen.dart';
-import 'package:servico_conecta/features/resolve/resolve_screen.dart';
-import 'package:servico_conecta/features/chat/chat_screen.dart';
-import 'package:servico_conecta/features/chat/chat_inbox_screen.dart';
-import 'package:servico_conecta/features/gps/gps_screen.dart';
-import 'package:servico_conecta/features/wallet/wallet_screen.dart';
-import 'package:servico_conecta/features/health/health_screen.dart';
-import 'package:servico_conecta/features/marketplace/marketplace_screen.dart';
-import 'package:servico_conecta/features/marketplace/store_screen.dart';
-import 'package:servico_conecta/features/rental/rental_screen.dart';
-import 'package:servico_conecta/features/profile/profile_screens.dart';
-import 'package:servico_conecta/features/support/support_screens.dart';
-import 'package:servico_conecta/features/ai_assistant/ai_screen.dart';
-import 'package:servico_conecta/features/admin/admin_screen.dart';
-import 'package:servico_conecta/features/company/company_screen.dart';
-import 'package:servico_conecta/features/orders/orders_screen.dart';
-import 'package:servico_conecta/features/provider/provider_home_screen.dart';
-import 'package:servico_conecta/core/auth/access_control.dart';
+import 'package:carajas_360/features/home/carajas_home_screen.dart';
+import 'package:carajas_360/features/resolve/resolve_screen.dart';
+import 'package:carajas_360/features/chat/chat_screen.dart';
+import 'package:carajas_360/features/chat/chat_inbox_screen.dart';
+import 'package:carajas_360/features/gps/gps_screen.dart';
+import 'package:carajas_360/features/wallet/wallet_screen.dart';
+import 'package:carajas_360/features/health/health_screen.dart';
+import 'package:carajas_360/features/marketplace/marketplace_screen.dart';
+import 'package:carajas_360/features/marketplace/store_screen.dart';
+import 'package:carajas_360/features/rental/rental_screen.dart';
+import 'package:carajas_360/features/profile/profile_screens.dart';
+import 'package:carajas_360/features/support/support_screens.dart';
+import 'package:carajas_360/features/ai_assistant/ai_screen.dart';
+import 'package:carajas_360/features/admin/admin_screen.dart';
+import 'package:carajas_360/features/company/company_screen.dart';
+import 'package:carajas_360/features/orders/orders_screen.dart';
+import 'package:carajas_360/features/provider/provider_home_screen.dart';
+import 'package:carajas_360/core/auth/access_control.dart';
+import 'core/auth/dev_bypass_auth.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  ErrorWidget.builder = (details) {
+    debugPrint('ErrorWidget: ${details.exceptionAsString()}');
+    return const Material(
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Não foi possível carregar esta tela.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  };
   // setPreferredOrientations é no-op seguro no Web.
   try {
     await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   } catch (_) {}
-  await ThemeController.instance.load();
-
-  bool firebaseOk = false;
   try {
-    await FirebaseBootstrap.initialize();
-    // FCM/Analytics podem falhar nos emuladores — nao bloqueiam auth.
-    try {
-      await PushSvc.init();
-    } catch (e) {
-      debugPrint('PushSvc.init: $e');
-    }
-    // Crashlytics nao e suportado no Web — usa handlers locais nesse caso.
-    if (!kIsWeb) {
-      FlutterError.onError =
-          FirebaseCrashlytics.instance.recordFlutterFatalError;
-      PlatformDispatcher.instance.onError = (error, stack) {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-        return true;
-      };
-    } else {
-      FlutterError.onError = (details) {
-        FlutterError.presentError(details);
-        debugPrint('FlutterError: ${details.exceptionAsString()}');
-      };
-      PlatformDispatcher.instance.onError = (error, stack) {
-        debugPrint('Uncaught: $error\n$stack');
-        return true;
-      };
-    }
-    firebaseOk = true;
+    await ThemeController.instance
+        .load()
+        .timeout(Duration(seconds: DevBypassAuth.enabled ? 2 : 8));
   } catch (e) {
-    debugPrint('Firebase nao configurado — modo demonstracao: $e');
+    debugPrint('ThemeController.load: $e');
   }
 
-  runApp(ServicoConectaApp(firebaseOk: firebaseOk));
+  bool firebaseOk = false;
+  if (DevBypassAuth.enabled) {
+    debugPrint(
+        'DEV_BYPASS_LOGIN ativo — smoke sem Auth (uid=${DevBypassAuth.uid}). '
+        'Pulando Firebase/emulador para não travar o preview. NÃO usar em produção.');
+  } else {
+    try {
+      await FirebaseBootstrap.initialize();
+      try {
+        await FirebaseBootstrap.maybeActivateAppCheck();
+      } catch (e) {
+        debugPrint('App Check: $e');
+      }
+      // FCM/Analytics podem falhar nos emuladores — nao bloqueiam auth.
+      try {
+        await PushSvc.init();
+      } catch (e) {
+        debugPrint('PushSvc.init: $e');
+      }
+      // Crashlytics nao e suportado no Web — usa handlers locais nesse caso.
+      if (!kIsWeb) {
+        FlutterError.onError =
+            FirebaseCrashlytics.instance.recordFlutterFatalError;
+        PlatformDispatcher.instance.onError = (error, stack) {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+          return true;
+        };
+      } else {
+        FlutterError.onError = (details) {
+          FlutterError.presentError(details);
+          debugPrint('FlutterError: ${details.exceptionAsString()}');
+        };
+        PlatformDispatcher.instance.onError = (error, stack) {
+          debugPrint('Uncaught: $error\n$stack');
+          return true;
+        };
+      }
+      firebaseOk = true;
+    } catch (e) {
+      debugPrint('Firebase nao configurado — modo demonstracao: $e');
+    }
+  }
+
+  runApp(Carajas360App(firebaseOk: firebaseOk));
 }
 
-class ServicoConectaApp extends StatelessWidget {
+class Carajas360App extends StatelessWidget {
   final bool firebaseOk;
-  const ServicoConectaApp({super.key, this.firebaseOk = false});
+  const Carajas360App({super.key, this.firebaseOk = false});
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(
@@ -88,6 +120,16 @@ class ServicoConectaApp extends StatelessWidget {
         builder: (context, themeMode, _) => MaterialApp(
           title: AppInfo.name,
           debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            final page = child ?? const SizedBox.shrink();
+            if (!DevBypassAuth.enabled) return page;
+            return Banner(
+              message: 'DEV BYPASS',
+              location: BannerLocation.topEnd,
+              color: const Color(0xFFE65100),
+              child: page,
+            );
+          },
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: themeMode,
@@ -97,12 +139,22 @@ class ServicoConectaApp extends StatelessWidget {
                       analytics: FirebaseAnalytics.instance)
                 ]
               : const <NavigatorObserver>[],
-          initialRoute: Routes.splash,
+          initialRoute: DevBypassAuth.entryRoute,
           onGenerateRoute: (settings) {
+            final name = settings.name ?? '';
+            if (name == Routes.admin || name.startsWith('/admin/')) {
+              return _route(const AdminGate(child: AdminScreen()));
+            }
             switch (settings.name) {
               case Routes.splash:
+                if (DevBypassAuth.enabled) {
+                  return _route(const MainNav());
+                }
                 return _route(SplashScreen(firebaseReady: firebaseOk));
               case Routes.onboarding:
+                if (DevBypassAuth.enabled) {
+                  return _route(const MainNav());
+                }
                 return _route(const OnboardingScreen());
               case Routes.login:
                 return _route(const LoginScreen());
@@ -116,10 +168,14 @@ class ServicoConectaApp extends StatelessWidget {
                     SearchScreen(initialCategory: sa?['category'] as String?));
               case Routes.chat:
                 final a = settings.arguments as Map<String, dynamic>?;
-                return _route(ChatScreen(
-                  roomId: a?['roomId'] ?? a?['id'] ?? 'demo',
-                  otherName: a?['name'] ?? 'Profissional',
-                  otherPhoto: a?['photo'],
+                return _route(RequireAuth(
+                  title: 'Chat',
+                  subtitle: 'Entre na conta para enviar e ler mensagens.',
+                  child: ChatScreen(
+                    roomId: a?['roomId'] ?? a?['id'] ?? 'demo',
+                    otherName: a?['name'] ?? 'Profissional',
+                    otherPhoto: a?['photo'],
+                  ),
                 ));
               case Routes.gps:
                 final a = settings.arguments as Map<String, dynamic>?;
@@ -129,8 +185,6 @@ class ServicoConectaApp extends StatelessWidget {
                     orderId: a?['orderId']));
               case Routes.wallet:
                 return _route(const RequireAuth(title: 'Carteira', child: WalletScreen()));
-              case Routes.admin:
-                return _route(const AdminGate(child: AdminScreen()));
               case Routes.health:
                 return _route(const HealthScreen());
               case Routes.marketplace:
@@ -142,7 +196,8 @@ class ServicoConectaApp extends StatelessWidget {
                 return _route(
                     RentalScreen(initialTab: (ra?['tab'] as int?) ?? 0));
               case Routes.bookings:
-                return _route(const MyBookingsScreen());
+                return _route(const RequireAuth(
+                    title: 'Reservas', child: MyBookingsScreen()));
               case Routes.stores:
                 return _route(const StoresListScreen());
               case Routes.delivery:
@@ -150,13 +205,19 @@ class ServicoConectaApp extends StatelessWidget {
               case Routes.profile:
                 return _route(const ProfileScreen());
               case Routes.notifications:
-                return _route(const NotificationsScreen());
+                return _route(const RequireAuth(
+                    title: 'Notificações', child: NotificationsScreen()));
               case Routes.reviews:
                 final a = settings.arguments as Map<String, dynamic>?;
-                return _route(ReviewScreen(
+                return _route(RequireAuth(
+                  title: 'Avaliar serviço',
+                  subtitle: 'Entre na conta para avaliar um pedido concluído.',
+                  child: ReviewScreen(
                     orderId: a?['orderId'] ?? 'demo',
                     providerId: a?['providerId'],
-                    providerName: a?['providerName']));
+                    providerName: a?['providerName'],
+                  ),
+                ));
               case Routes.support:
                 return _route(const RequireAuth(title: 'Suporte', child: SupportScreen()));
               case Routes.coupons:
@@ -166,19 +227,26 @@ class ServicoConectaApp extends StatelessWidget {
               case Routes.companyProfile:
                 return _route(const RequireAuth(title: 'Empresa', child: CompanyProfileScreen()));
               case Routes.favorites:
-                return _route(const FavoritesScreen());
+                return _route(const RequireAuth(
+                    title: 'Favoritos', child: FavoritesScreen()));
               case Routes.myOrders:
-                return _route(const MyOrdersScreen());
+                return _route(const RequireAuth(
+                    title: 'Meus pedidos', child: MyOrdersScreen()));
               case Routes.requestService:
                 final a = settings.arguments as Map<String, dynamic>?;
-                return _route(RequestServiceScreen(
-                  providerId: a?['providerId'] ?? '',
-                  providerName: a?['providerName'] ?? 'Profissional',
-                  category: a?['category'] ?? '',
-                  providerColor: a?['providerColor'] ?? AppColors.primary,
+                return _route(RequireAuth(
+                  title: 'Solicitar serviço',
+                  child: RequestServiceScreen(
+                    providerId: a?['providerId'] ?? '',
+                    providerName: a?['providerName'] ?? 'Profissional',
+                    category: a?['category'] ?? '',
+                    providerColor: a?['providerColor'] ?? AppColors.primary,
+                  ),
                 ));
               case Routes.providerHome:
-                return _route(const ProviderHomeScreen());
+                return _route(const RequireAuth(
+                    title: 'Área do prestador',
+                    child: ProviderHomeScreen()));
               case Routes.providerOnboarding:
                 return _route(const ProviderOnboardingScreen());
               case Routes.servicesHub:
@@ -189,15 +257,22 @@ class ServicoConectaApp extends StatelessWidget {
                 final a = settings.arguments as Map<String, dynamic>?;
                 final rid = a?['id'] as String? ?? '';
                 if (rid.isEmpty) {
-                  return _route(const MyResolveScreen());
+                  return _route(const RequireAuth(
+                      title: 'Meus Resolve', child: MyResolveScreen()));
                 }
-                return _route(ResolveDetailScreen(requestId: rid));
+                return _route(RequireAuth(
+                    title: 'Pedido Resolve',
+                    child: ResolveDetailScreen(requestId: rid)));
               case Routes.resolveOpportunities:
-                return _route(const ResolveOpportunitiesScreen());
+                return _route(const RequireAuth(
+                    title: 'Oportunidades',
+                    child: ResolveOpportunitiesScreen()));
               case Routes.myResolve:
-                return _route(const MyResolveScreen());
+                return _route(const RequireAuth(
+                    title: 'Meus Resolve', child: MyResolveScreen()));
               case Routes.chatInbox:
-                return _route(const ChatInboxScreen());
+                return _route(const RequireAuth(
+                    title: 'Mensagens', child: ChatInboxScreen()));
               default:
                 // Rota desconhecida: volta ao app principal (evita splash “presa”).
                 return _route(const MainNav());

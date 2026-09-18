@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
-import 'package:servico_conecta/core/utils/firebase_bootstrap.dart';
-import 'package:servico_conecta/shared/models/models.dart';
-import 'package:servico_conecta/shared/services/firebase_service.dart';
+import 'package:carajas_360/core/utils/firebase_bootstrap.dart';
+import 'package:carajas_360/shared/models/models.dart';
+import 'package:carajas_360/shared/services/firebase_service.dart';
 
 /// Smoke tecnico completo (Auth, Firestore, Storage, Chat, Notificacoes).
 /// Google: valida caminho federado no emulador (signInWithPopup disponivel).

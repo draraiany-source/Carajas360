@@ -30,6 +30,13 @@ class ChatInboxScreen extends StatelessWidget {
                     !snap.hasData) {
                   return const Center(child: CircularProgressIndicator());
                 }
+                if (snap.hasError) {
+                  return const EmptyState(
+                    emoji: '⚠️',
+                    title: 'Falha ao carregar conversas',
+                    subtitle: 'Verifique a conexão e tente novamente.',
+                  );
+                }
                 final rooms = snap.data ?? [];
                 if (rooms.isEmpty) {
                   return const EmptyState(

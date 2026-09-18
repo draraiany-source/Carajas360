@@ -27,6 +27,12 @@ class FavoritesScreen extends StatelessWidget {
                   itemCount: 3,
                   itemBuilder: (_, __) => const ShimCard());
             }
+            if (snap.hasError) {
+              return const EmptyState(
+                  emoji: '⚠️',
+                  title: 'Falha ao carregar favoritos',
+                  subtitle: 'Verifique a conexão e tente novamente.');
+            }
             final favs = snap.data ?? [];
             if (favs.isEmpty)
               return const EmptyState(
@@ -140,7 +146,20 @@ class _MyOrdersState extends State<MyOrdersScreen> {
   ];
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    if (!AuthService.isAuth) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('📋 Meus Pedidos')),
+        body: EmptyState(
+          emoji: '📋',
+          title: 'Faça login',
+          subtitle: 'Entre na conta para ver seus pedidos.',
+          actionLabel: 'Entrar',
+          onAction: () => Navigator.pushNamed(context, Routes.login),
+        ),
+      );
+    }
+    return Scaffold(
         appBar: AppBar(
           title: const Text('📋 Meus Pedidos'),
           actions: [
@@ -197,6 +216,16 @@ class _MyOrdersState extends State<MyOrdersScreen> {
               child: StreamBuilder<List<OrderModel>>(
             stream: FS.orderHistoryStream(status: _filter),
             builder: (_, snap) {
+              if (snap.connectionState == ConnectionState.waiting &&
+                  !snap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return const EmptyState(
+                    emoji: '⚠️',
+                    title: 'Falha ao carregar pedidos',
+                    subtitle: 'Verifique a conexão e tente novamente.');
+              }
               final orders = DemoData.orEmpty(
                   snap.data,
                   _demo
@@ -295,6 +324,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
           )),
         ]),
       );
+  }
 
   Widget _filterChip(String label, OrderStatus? status) {
     final sel = _filter == status;
@@ -327,12 +357,17 @@ class _MyOrdersState extends State<MyOrdersScreen> {
         return const Color(0xFFE3F0FF);
       case OrderStatus.inProgress:
         return const Color(0xFFE1F5FE);
+      case OrderStatus.awaitingPayment:
+      case OrderStatus.paid:
+        return const Color(0xFFE8EAF6);
       case OrderStatus.completed:
         return const Color(0xFFE8F5E9);
       case OrderStatus.cancelled:
         return const Color(0xFFFFEBEE);
       case OrderStatus.disputed:
         return const Color(0xFFFFF3E0);
+      case OrderStatus.refunded:
+        return const Color(0xFFF3E5F5);
     }
   }
 
@@ -344,12 +379,17 @@ class _MyOrdersState extends State<MyOrdersScreen> {
         return AppColors.primary;
       case OrderStatus.inProgress:
         return AppColors.info;
+      case OrderStatus.awaitingPayment:
+      case OrderStatus.paid:
+        return AppColors.primary;
       case OrderStatus.completed:
         return AppColors.secondary;
       case OrderStatus.cancelled:
         return AppColors.error;
       case OrderStatus.disputed:
         return AppColors.orange;
+      case OrderStatus.refunded:
+        return AppColors.textLight;
     }
   }
 
@@ -414,6 +454,20 @@ class _RequestServiceState extends State<RequestServiceScreen> {
   String? _budgetSuggestion;
 
   @override
+  void initState() {
+    super.initState();
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    FS.userStream(uid).first.then((u) {
+      if (!mounted) return;
+      final addr = u?.address?.trim();
+      if (addr != null && addr.isNotEmpty && _address.text.isEmpty) {
+        _address.text = addr;
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _title.dispose();
     _description.dispose();
@@ -458,6 +512,12 @@ class _RequestServiceState extends State<RequestServiceScreen> {
   }
 
   Future<void> _submit() async {
+    if (!AuthService.isAuth) {
+      snack(context, 'Faça login para solicitar um serviço.',
+          bg: AppColors.warning);
+      Navigator.pushNamed(context, Routes.login);
+      return;
+    }
     if (!_form.currentState!.validate()) return;
     setState(() => _loading = true);
 

@@ -1,11 +1,14 @@
-# ✅ ServiçoConecta — Como compilar
+# Carajás 360 — Como compilar (staging)
+
+Os IDs técnicos (`br.com.carajas360`, projeto Firebase `carajas360-a17c5`, package Dart `carajas_360`) **não** são o nome de vitrine. Ver `IDENTIDADE_TECNICA.md`.
+Checklists: `CHECKLIST_FIREBASE_STAGING.md`, `CHECKLIST_GOOGLE_MAPS.md`.
 
 ## 1. Firebase (15 min)
 1. https://console.firebase.google.com → criar projeto
 2. Ative: Authentication (Phone + Email), Firestore, Storage, Cloud Messaging
-3. Adicione app Android (`br.com.servicoconecta`) → baixe `google-services.json` → substitua em `android/app/`
-4. Adicione app iOS (`br.com.servicoconecta`) → baixe `GoogleService-Info.plist` → substitua em `ios/Runner/`
-5. Rode: `dart pub global activate flutterfire_cli && flutterfire configure --project=SEU_PROJETO`
+3. Adicione app Android (`br.com.carajas360`) → baixe `google-services.json` → substitua em `android/app/`
+4. Adicione app iOS (`br.com.carajas360`) → baixe `GoogleService-Info.plist` → substitua em `ios/Runner/`
+5. Rode: `dart pub global activate flutterfire_cli && flutterfire configure --project=carajas360-a17c5`
    Isso substitui `lib/firebase_options.dart` automaticamente.
 6. No Firebase Console → Authentication → Sign-in method → ative também o **Google**.
 7. Publique as regras de segurança:
@@ -19,40 +22,40 @@
    No Android não é necessário nenhum passo extra além do `google-services.json` real.
 
 ## 2. Google Maps + Geolocalização (10 min)
-1. console.cloud.google.com → ative "Maps SDK for Android", "Maps SDK for iOS" e **"Directions API"**
-2. Crie uma API Key
-3. Cole em `android/app/src/main/AndroidManifest.xml` (campo `COLE_SUA_GOOGLE_MAPS_API_KEY_AQUI`)
-4. Cole em `ios/Runner/AppDelegate.swift` (mesmo campo)
-5. Cole a mesma key em `lib/features/gps/gps_screen.dart`, método `_fetchRoute` (campo `COLE_SUA_GOOGLE_MAPS_API_KEY_AQUI`) — é usada para calcular a rota real seguindo ruas e o tempo estimado de chegada via Directions API.
-6. As permissões de localização (`ACCESS_FINE_LOCATION`, `NSLocationWhenInUseUsageDescription`) já estão
-   configuradas no Android/iOS. O app usa a localização real do usuário na tela de rastreamento (GPS).
 
-**Nota sobre custo:** a Directions API é cobrada por chamada após a cota gratuita mensal do Google Cloud
-(consulte a página de preços atual). Se a chave não estiver configurada ou a chamada falhar, o app usa
-automaticamente uma rota em linha reta como alternativa — nunca trava a tela.
+Siga `CHECKLIST_GOOGLE_MAPS.md`. Resumo:
+
+1. console.cloud.google.com → ative Maps SDK Android, Maps SDK iOS e Directions API.
+2. Crie keys **restritas** (não a mesma key irrestrita para tudo).
+3. Android: `MAPS_API_KEY` em `android/local.properties` (gitignored). Modelo: `android/local.properties.example`.
+4. iOS: `GMSApiKey` em `ios/Runner/Info.plist`. `AppDelegate` ignora placeholder.
+5. Directions: `--dart-define=GOOGLE_MAPS_API_KEY=...` (`RuntimeConfig`). Sem key, a tela GPS usa linha reta e **não quebra**.
+6. **Não** cole a key no Manifest, no AppDelegate ou no Dart.
+
+**Nota sobre custo:** a Directions API é cobrada por chamada após a cota gratuita. Sem key ou com falha, o app cai na linha reta.
 
 ## 3. Mercado Pago / Cloud Functions (pagamentos)
+
+Pagamentos reais ficam **desligados** (`PAYMENTS_ENABLED=false`). Ver `PAGAMENTOS_STAGING.md`.
+
 ```bash
 cd functions
 npm install
-firebase functions:config:set mercadopago.token="SEU_ACCESS_TOKEN"
-firebase deploy --only functions
+# NÃO use functions.config() (depreciado).
+# firebase functions:secrets:set MERCADOPAGO_ACCESS_TOKEN   # só sandbox TEST-, se a Raiany autorizar
+# Nunca commitar o token. Nunca ligar PAYMENTS_ENABLED neste bloco.
 ```
-Depois, atualize a constante `_base` em `lib/shared/services/firebase_service.dart` (classe `PaySvc`) com a URL do seu projeto.
 
-**Pagamento com cartão de crédito:** além do Access Token acima (usado só no backend), o app
-tokeniza o cartão direto com o Mercado Pago usando a **Public Key** (chave pública, segura para
-expor no client — equivalente à `publishable_key` do Stripe). Pegue-a em
-https://www.mercadopago.com.br/developers/panel/app e cole em `_mpPublicKey`, na mesma classe
-`PaySvc`. **Nunca** use a Access Token secreta no app — ela fica só na Cloud Function.
+Public key de teste (cliente): `--dart-define=MERCADOPAGO_PUBLIC_KEY=TEST-...`  
+**Nunca** coloque o Access Token no app.
 
 ## 4. Assistente de IA (Claude API)
+
 ```bash
-firebase functions:config:set anthropic.key="SUA_API_KEY_ANTHROPIC"
-firebase deploy --only functions
+# firebase functions:secrets:set ANTHROPIC_API_KEY
 ```
-Atualize a constante `_base` em `lib/shared/services/firebase_service.dart` (classe `AiSvc`) com a URL do seu projeto.
-**Sem essa chave configurada, o assistente de IA continua funcionando** com respostas locais por palavra-chave (fallback automático) — o app nunca trava.
+
+Sem essa chave, o assistente continua com respostas locais (fallback). O app não trava.
 
 ## 5. Instalar dependências e rodar
 ```bash

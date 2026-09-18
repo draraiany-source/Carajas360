@@ -5,9 +5,11 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_assets.dart';
+import '../../core/utils/auth_validators.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../shared/services/payment_service.dart';
 import '../../shared/widgets/widgets.dart';
 
 class WalletScreen extends StatefulWidget {
@@ -482,74 +484,16 @@ class _WalletState extends State<WalletScreen>
         ]),
       );
 
-  void _subscribe(BuildContext context, Map<String, dynamic> plan) {
-    final price = plan['priceValue'] as double;
-    if (price <= 0) {
-      snack(context,
-          'Planos pagos ficam disponíveis quando o faturamento real estiver ativo.',
-          bg: AppColors.warning);
-      return;
-    }
-    showModalBottomSheet(
-        context: context,
-        builder: (_) => Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SheetHandle(),
-                const SizedBox(height: 16),
-                Text('Assinar ${plan['name']}',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 4),
-                Text('Escolha a forma de pagamento',
-                    style: const TextStyle(
-                        fontSize: 13, color: AppColors.textLight)),
-                const SizedBox(height: 16),
-                ListTile(
-                  leading: const Text('⚡', style: TextStyle(fontSize: 22)),
-                  title: const Text('PIX',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: const Text('Confirmação instantânea',
-                      style: TextStyle(fontSize: 11)),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => PixScreen(
-                                amount: price,
-                                desc: 'Assinatura ${plan['name']}',
-                                onPaid: () async {
-                                  snack(context,
-                                      'Assinatura depende de pagamento real (desligado em staging).',
-                                      bg: AppColors.warning);
-                                })));
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.credit_card_rounded,
-                      color: AppColors.primary),
-                  title: const Text('Cartão de crédito',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle:
-                      const Text('Em até 12x', style: TextStyle(fontSize: 11)),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => CardPaymentScreen(
-                                amount: price,
-                                desc: 'Assinatura ${plan['name']}',
-                                onPaid: () async {
-                                  snack(context,
-                                      'Assinatura depende de pagamento real (desligado em staging).',
-                                      bg: AppColors.warning);
-                                })));
-                  },
-                ),
-              ]),
-            ));
+  void _subscribe(BuildContext context, Map<String, dynamic> plan) async {
+    final tier = plan['tier'] as PlanTier;
+    snack(context, 'Registrando pedido de plano (sandbox, sem cobrança)...');
+    final result = await PaymentService.requestPlanChange(tier);
+    if (!context.mounted) return;
+    snack(
+      context,
+      result.message,
+      bg: result.ok ? AppColors.warning : AppColors.error,
+    );
   }
 
   static final _demoTxs = [
@@ -707,7 +651,7 @@ class _PixState extends State<PixScreen> {
       setState(() {
         _loading = false;
         _code =
-            '00020126580014BR.GOV.BCB.PIX0136${_uid.isNotEmpty ? _uid : 'demo'}@servicoconecta.com.br5204000053039865802BR5925ServicoConecta6009SAO PAULO62070503***6304ABCD';
+            '00020126580014BR.GOV.BCB.PIX0136${_uid.isNotEmpty ? _uid : 'demo'}@servicoconecta.com.br5204000053039865802BR5925Carajas 3606009SAO PAULO62070503***6304ABCD';
       });
       _countdownStart();
       if (mounted) {
@@ -774,7 +718,11 @@ class _PixState extends State<PixScreen> {
                   child: Column(children: [
                     _paid
                         ? Lottie.asset(AppAssets.lottiePagamentoAprovado,
-                            width: 80, height: 80, repeat: false)
+                            width: 80,
+                            height: 80,
+                            repeat: false,
+                            errorBuilder: (_, __, ___) => const Text('✅',
+                                style: TextStyle(fontSize: 40)))
                         : const Text('⚡', style: TextStyle(fontSize: 40)),
                     const SizedBox(height: 8),
                     Text(
@@ -1127,12 +1075,7 @@ class _CardPaymentState extends State<CardPaymentScreen> {
                               decoration: const InputDecoration(
                                   hintText: 'CPF do titular',
                                   prefixIcon: Icon(Icons.badge_outlined)),
-                              validator: (v) =>
-                                  (v?.replaceAll(RegExp(r'\D'), '').length ??
-                                              0) <
-                                          11
-                                      ? 'CPF inválido'
-                                      : null),
+                              validator: (v) => AuthValidators.cpfError(v)),
                           const SizedBox(height: 14),
                           Container(
                               decoration: AppDecorations.card(r: 14),

@@ -2,24 +2,45 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../shared/widgets/widgets.dart';
 import '../../core/constants/app_constants.dart';
+import 'dev_bypass_auth.dart';
 
 /// Autorização de rotas/telas sensíveis (claims + perfil).
 abstract final class AccessControl {
+  static bool _adminAccessLogged = false;
+
   static Future<bool> isAdmin() async {
+    // Mock de smoke nunca é admin (sem claims, type=client).
+    if (DevBypassAuth.enabled && AuthService.current == null) return false;
     final user = AuthService.current;
     if (user == null) return false;
     try {
       final token = await user.getIdTokenResult();
       final claims = token.claims ?? const <String, dynamic>{};
       if (claims['admin'] == true || claims['role'] == 'admin') {
+        await _logAdminLoginOnce();
         return true;
       }
     } on FirebaseAuthException {
       return false;
     }
+    // Papel admin no documento (claim é a fonte preferencial).
+    // adminRole sozinho NÃO libera o painel.
     final profile = await FS.getUser();
-    return profile?.type == UserType.admin || profile?.adminRole != null;
+    final ok = profile?.type == UserType.admin;
+    if (ok) await _logAdminLoginOnce();
+    return ok;
+  }
+
+  static Future<void> _logAdminLoginOnce() async {
+    if (_adminAccessLogged) return;
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    _adminAccessLogged = true;
+    try {
+      await FS.logAdminAction('admin_login', target: uid);
+    } catch (_) {}
   }
 }
 
@@ -30,12 +51,16 @@ class AdminGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!AuthService.isAuth) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
-          Navigator.pushReplacementNamed(context, Routes.login);
-        }
-      });
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(title: const Text('Admin')),
+        body: EmptyState(
+          emoji: '🔐',
+          title: 'Faça login',
+          subtitle: 'O painel administrativo exige uma conta com permissão.',
+          actionLabel: 'Entrar',
+          onAction: () => Navigator.pushNamed(context, Routes.login),
+        ),
+      );
     }
     return FutureBuilder<bool>(
       future: AccessControl.isAdmin(),
@@ -73,25 +98,26 @@ class AdminGate extends StatelessWidget {
 class RequireAuth extends StatelessWidget {
   final Widget child;
   final String title;
-  const RequireAuth({super.key, required this.child, this.title = 'Área protegida'});
+  final String? subtitle;
+  const RequireAuth({
+    super.key,
+    required this.child,
+    this.title = 'Área protegida',
+    this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (AuthService.isAuth) return child;
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Faça login para continuar.', textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.pushReplacementNamed(context, Routes.login),
-              child: const Text('Entrar'),
-            ),
-          ]),
-        ),
+      body: EmptyState(
+        emoji: '🔐',
+        title: 'Faça login para continuar',
+        subtitle: subtitle ??
+            'Esta área precisa de uma conta. Seus dados não são exibidos sem autenticação.',
+        actionLabel: 'Entrar',
+        onAction: () => Navigator.pushNamed(context, Routes.login),
       ),
     );
   }

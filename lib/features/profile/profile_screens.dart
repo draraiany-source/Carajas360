@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
@@ -10,6 +9,7 @@ import '../../core/theme/theme_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/demo_data.dart';
+import '../../core/utils/app_error.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -34,6 +34,18 @@ class ProfileScreen extends StatelessWidget {
           : StreamBuilder<UserModel?>(
               stream: FS.userStream(uid),
               builder: (_, snap) {
+                if (snap.connectionState == ConnectionState.waiting &&
+                    !snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return const EmptyState(
+                    emoji: '⚠️',
+                    title: 'Não foi possível carregar o perfil',
+                    subtitle:
+                        'Verifique a conexão ou tente sair e entrar de novo.',
+                  );
+                }
                 final user = snap.data;
                 final xp = user?.xp ?? 0;
                 return CustomScrollView(slivers: [
@@ -128,8 +140,10 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '📍',
                                   'Endereços',
-                                  'Gerenciar endereços',
-                                  () => _editProfile(context, user)),
+                                  user?.address?.isNotEmpty == true
+                                      ? user!.address!
+                                      : 'Cadastrar endereço de atendimento',
+                                  () => _editAddress(context, user)),
                               _item(
                                   context,
                                   '🔔',
@@ -253,8 +267,7 @@ class ProfileScreen extends StatelessWidget {
                                     () => Navigator.pushNamed(
                                         context, Routes.companyProfile)),
                               ]),
-                            if (user?.type == UserType.admin ||
-                                user?.adminRole != null)
+                            if (user?.type == UserType.admin)
                               _section('Administração', [
                                 _item(
                                     context,
@@ -353,7 +366,7 @@ class ProfileScreen extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        snack(context, 'Não foi possível exportar: $e', bg: AppColors.error);
+        snack(context, AppError.userMessage(e, message: 'Não foi possível exportar os dados.'), bg: AppColors.error);
       }
     }
   }
@@ -364,8 +377,9 @@ class ProfileScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Excluir conta?'),
         content: const Text(
-            'Isso apaga seu perfil e remove o acesso ao app. '
-            'Ação irreversível. Pedidos antigos podem permanecer anonimizados no histórico operacional.'),
+            'Seu perfil e dados pessoais serão anonimizados. '
+            'Pedidos, pagamentos, contratos e registros fiscais são mantidos '
+            'pelo prazo legal, sem identificação. Esta ação não pode ser desfeita.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -379,17 +393,17 @@ class ProfileScreen extends StatelessWidget {
     );
     if (ok != true || !context.mounted) return;
     try {
-      await FS.deleteMyAccountData();
       await AuthService.deleteAccount();
       if (context.mounted) {
-        snack(context, 'Conta excluída.', bg: AppColors.secondary);
+        snack(context, 'Conta excluída e dados pessoais anonimizados.',
+            bg: AppColors.secondary);
         Navigator.pushReplacementNamed(context, Routes.login);
       }
     } on AuthFailure catch (e) {
       if (context.mounted) snack(context, e.message, bg: AppColors.error);
     } catch (e) {
       if (context.mounted) {
-        snack(context, 'Erro ao excluir: $e', bg: AppColors.error);
+        snack(context, AppError.userMessage(e, message: 'Não foi possível excluir a conta.'), bg: AppColors.error);
       }
     }
   }
@@ -427,6 +441,78 @@ class ProfileScreen extends StatelessWidget {
             const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
         onTap: onTap,
       );
+
+  void _editAddress(BuildContext ctx, UserModel? user) {
+    final addressCtrl = TextEditingController(text: user?.address ?? '');
+    final cityCtrl = TextEditingController(text: user?.city ?? '');
+    final stateCtrl = TextEditingController(text: user?.state ?? '');
+    showModalBottomSheet(
+        context: ctx,
+        isScrollControlled: true,
+        builder: (_) => Padding(
+              padding: EdgeInsets.fromLTRB(
+                  20, 0, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const SizedBox(height: 8),
+                const SheetHandle(),
+                const SizedBox(height: 16),
+                const Text('Seu endereço',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                const Text(
+                    'Usado nas solicitações de serviço e no GPS. Não é público.',
+                    style:
+                        TextStyle(fontSize: 12, color: AppColors.textLight)),
+                const SizedBox(height: 16),
+                TextFormField(
+                    controller: addressCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                        hintText: 'Rua, número, bairro',
+                        prefixIcon: Icon(Icons.home_outlined))),
+                const SizedBox(height: 10),
+                TextFormField(
+                    controller: cityCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                        hintText: 'Cidade',
+                        prefixIcon: Icon(Icons.location_city_outlined))),
+                const SizedBox(height: 10),
+                TextFormField(
+                    controller: stateCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    maxLength: 2,
+                    decoration: const InputDecoration(
+                        hintText: 'UF',
+                        prefixIcon: Icon(Icons.map_outlined),
+                        counterText: '')),
+                const SizedBox(height: 14),
+                SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                        onPressed: () async {
+                          final street = addressCtrl.text.trim();
+                          if (street.isEmpty) {
+                            snack(ctx, 'Informe a rua e o número.',
+                                bg: AppColors.warning);
+                            return;
+                          }
+                          await FS.updateUser({
+                            'address': street,
+                            'city': cityCtrl.text.trim(),
+                            'state': stateCtrl.text.trim().toUpperCase(),
+                          });
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                            snack(ctx, '✅ Endereço salvo',
+                                bg: AppColors.secondary);
+                          }
+                        },
+                        child: const Text('Salvar endereço'))),
+              ]),
+            ));
+  }
 
   void _editProfile(BuildContext ctx, UserModel? user) {
     final nameCtrl = TextEditingController(text: user?.name);
@@ -514,7 +600,7 @@ class ProfileScreen extends StatelessWidget {
         applicationName: AppInfo.name,
         applicationVersion: AppInfo.version,
         applicationIcon:
-            SvgPicture.asset(AppAssets.logoMark, width: 48, height: 48),
+            SafeSvg(AppAssets.logoMark, width: 48, height: 48),
         children: [
           const SizedBox(height: 12),
           const Text(AppInfo.slogan,
@@ -662,9 +748,27 @@ class NotificationsScreen extends StatelessWidget {
     final uid = AuthService.uid;
     return Scaffold(
       appBar: AppBar(title: const Text('Notificações')),
-      body: StreamBuilder<List<NotifModel>>(
-        stream: uid != null ? FS.notifStream() : const Stream.empty(),
+      body: uid == null
+          ? EmptyState(
+              emoji: '🔔',
+              title: 'Faça login',
+              subtitle: 'Entre na conta para ver suas notificações.',
+              actionLabel: 'Entrar',
+              onAction: () => Navigator.pushNamed(context, Routes.login),
+            )
+          : StreamBuilder<List<NotifModel>>(
+        stream: FS.notifStream(),
         builder: (_, snap) {
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return const EmptyState(
+                emoji: '⚠️',
+                title: 'Falha ao carregar',
+                subtitle: 'Verifique a conexão e tente novamente.');
+          }
           final notifs = DemoData.orEmpty(snap.data, _demo);
           if (notifs.isEmpty)
             return const EmptyState(

@@ -8,6 +8,8 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/auth/access_control.dart';
+import '../../core/utils/app_error.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -26,6 +28,7 @@ class AdminScreen extends StatefulWidget {
 class _AdminState extends State<AdminScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
+  bool? _allowed;
   static const _tabs = [
     'Usuários',
     'Validação',
@@ -42,6 +45,9 @@ class _AdminState extends State<AdminScreen>
   void initState() {
     super.initState();
     _tab = TabController(length: _tabs.length, vsync: this);
+    AccessControl.isAdmin().then((ok) {
+      if (mounted) setState(() => _allowed = ok);
+    });
   }
 
   @override
@@ -51,7 +57,34 @@ class _AdminState extends State<AdminScreen>
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    if (_allowed != true) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: Center(
+          child: _allowed == false
+              ? Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    const Text('⛔', style: TextStyle(fontSize: 48)),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Você não tem permissão para abrir o painel admin.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 20),
+                    ElevatedButton(
+                      onPressed: () =>
+                          Navigator.pushReplacementNamed(context, Routes.main),
+                      child: const Text('Voltar ao início'),
+                    ),
+                  ]),
+                )
+              : const CircularProgressIndicator(),
+        ),
+      );
+    }
+    return Scaffold(
         backgroundColor: AppColors.background,
         body: NestedScrollView(
           headerSliverBuilder: (_, __) => [
@@ -129,6 +162,7 @@ class _AdminState extends State<AdminScreen>
           ]),
         ),
       );
+  }
 
   Widget _kpi(String val, String lbl) => Expanded(
       child: Container(
@@ -788,7 +822,7 @@ class _FinancialTab extends StatelessWidget {
             XFile.fromData(Uint8List.fromList(bytes),
                 name: name, mimeType: 'text/csv'),
           ],
-          text: 'Relatório financeiro — ServiçoConecta',
+          text: 'Relatório financeiro — Carajás 360',
         ));
       } else {
         final doc = pw.Document();
@@ -800,7 +834,7 @@ class _FinancialTab extends StatelessWidget {
                     style: pw.TextStyle(
                         fontSize: 22, fontWeight: pw.FontWeight.bold)),
                 pw.Text(
-                    'ServiçoConecta — ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                    'Carajás 360 — ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
                     style: const pw.TextStyle(
                         fontSize: 11, color: PdfColors.grey700)),
                 pw.SizedBox(height: 20),
@@ -847,12 +881,12 @@ class _FinancialTab extends StatelessWidget {
           files: [
             XFile.fromData(pdfBytes, name: name, mimeType: 'application/pdf'),
           ],
-          text: 'Relatório financeiro — ServiçoConecta',
+          text: 'Relatório financeiro — Carajás 360',
         ));
       }
     } catch (e) {
       if (context.mounted)
-        snack(context, 'Erro ao gerar relatório: $e', bg: AppColors.error);
+        snack(context, AppError.userMessage(e, message: 'Não foi possível gerar o relatório.'), bg: AppColors.error);
     }
   }
 }
@@ -1437,7 +1471,7 @@ class _SettingsTabState extends State<_SettingsTab> {
                         controller: _emailCtrl,
                         decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.email_outlined),
-                            hintText: 'suporte@servicoconecta.com.br')),
+                            hintText: AppInfo.supportEmail)),
                     const SizedBox(height: 10),
                     TextFormField(
                         controller: _phoneCtrl,

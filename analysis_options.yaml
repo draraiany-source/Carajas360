@@ -1,4 +1,4 @@
-# Regras de análise estática do ServiçoConecta.
+# Regras de análise estática do Carajás 360.
 # Baseado no conjunto recomendado do Flutter (flutter_lints, já no pubspec).
 # Configurado de forma equilibrada: pega problemas reais sem gerar centenas
 # de avisos de estilo (const/final) que exigiriam uma passada manual com o

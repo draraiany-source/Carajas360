@@ -3,6 +3,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/modules/platform_modules.dart';
 import '../../core/utils/chat_nav.dart';
+import '../../core/utils/app_error.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -56,7 +57,10 @@ class _ResolveScreenState extends State<ResolveScreen> {
       Navigator.pushReplacementNamed(context, Routes.resolveDetail,
           arguments: {'id': id});
     } catch (e) {
-      if (mounted) snack(context, 'Erro ao enviar: $e', bg: AppColors.error);
+      if (mounted) {
+        snack(context, AppError.userMessage(e, message: 'Não foi possível enviar o pedido.'),
+            bg: AppColors.error);
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -498,7 +502,8 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
       snack(context, 'Proposta enviada!', bg: AppColors.secondary);
     } catch (e) {
       if (!mounted) return;
-      snack(context, 'Erro: $e', bg: AppColors.error);
+      snack(context, AppError.userMessage(e, message: 'Não foi possível enviar a proposta.'),
+          bg: AppColors.error);
     }
   }
 

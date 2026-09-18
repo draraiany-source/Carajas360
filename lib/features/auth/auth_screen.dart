@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -9,6 +8,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/platform_info.dart';
+import '../../core/auth/dev_bypass_auth.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -35,11 +35,19 @@ class _SplashState extends State<SplashScreen>
     _scale = Tween<double>(begin: 0.8, end: 1.0)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
     _ctrl.forward();
-    Future.delayed(const Duration(seconds: 3), _navigate);
+    if (DevBypassAuth.enabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _navigate());
+    } else {
+      Future.delayed(const Duration(seconds: 3), _navigate);
+    }
   }
 
   void _navigate() {
     if (!mounted) return;
+    if (DevBypassAuth.enabled) {
+      Navigator.pushReplacementNamed(context, Routes.main);
+      return;
+    }
     if (!widget.firebaseReady) {
       Navigator.pushReplacementNamed(context, Routes.onboarding);
       return;
@@ -60,7 +68,7 @@ class _SplashState extends State<SplashScreen>
           decoration: const BoxDecoration(gradient: AppGradients.splash),
           child: Stack(children: [
             Positioned.fill(
-                child: SvgPicture.asset(AppAssets.bgSplash, fit: BoxFit.cover)),
+                child: SafeSvg(AppAssets.bgSplash, fit: BoxFit.cover)),
             SafeArea(
                 child: FadeTransition(
                     opacity: _fade,
@@ -69,7 +77,7 @@ class _SplashState extends State<SplashScreen>
                         child: Center(
                           child:
                               Column(mainAxisSize: MainAxisSize.min, children: [
-                            SvgPicture.asset(AppAssets.logoMarkWhite,
+                            SafeSvg(AppAssets.logoMarkWhite,
                                 width: 104, height: 104),
                             const SizedBox(height: 22),
                             Text(AppInfo.name,
@@ -122,11 +130,20 @@ class _SplashState extends State<SplashScreen>
                                                 fontWeight: FontWeight.w600))))
                                     .toList()),
                             const SizedBox(height: 56),
-                            const SizedBox(
-                                width: 28,
-                                height: 28,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white54, strokeWidth: 2)),
+                            if (DevBypassAuth.enabled)
+                              TextButton(
+                                onPressed: _navigate,
+                                child: const Text('Entrar no app (teste)',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700)),
+                              )
+                            else
+                              const SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white54, strokeWidth: 2)),
                             const SizedBox(height: 20),
                             if (!widget.firebaseReady)
                               Container(
@@ -216,7 +233,7 @@ class _OnboardState extends State<OnboardingScreen> {
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
                               const SizedBox(height: 40),
-                              SvgPicture.asset(
+                              SafeSvg(
                                   AppAssets.onboarding[s['img'] as int],
                                   height: 240,
                                   fit: BoxFit.contain),
@@ -447,7 +464,7 @@ class _LoginState extends State<LoginScreen>
                   padding: const EdgeInsets.fromLTRB(22, 20, 22, 28),
                   child: Column(children: [
                     const SizedBox(height: 28),
-                    SvgPicture.asset(AppAssets.logoMarkWhite,
+                    SafeSvg(AppAssets.logoMarkWhite,
                         width: 80, height: 80),
                     const SizedBox(height: 14),
                     Text(AppInfo.name,
@@ -854,7 +871,7 @@ class _RegState extends State<RegisterScreen>
         await FS.addXp(50);
         await FS.pushNotif(
             uid,
-            'Bem-vindo ao ServicoConecta!',
+            'Bem-vindo ao Carajás 360!',
             _type == UserType.provider
                 ? 'Sua conta foi criada. Seu cadastro de prestador esta em analise.'
                 : 'Sua conta foi criada. Explore os servicos.',
@@ -1174,7 +1191,7 @@ class _RegState extends State<RegisterScreen>
                                         size: 15, weight: FontWeight.w700)),
                                 const SizedBox(height: 6),
                                 Text(
-                                    'Escolha como você vai usar o ServiçoConecta',
+                                    'Escolha como você vai usar o Carajás 360',
                                     style: SpanDs.poppins(
                                         size: 12, color: SpanDs.textSecondary)),
                                 const SizedBox(height: 14),
@@ -1426,7 +1443,7 @@ class _RegState extends State<RegisterScreen>
                 child: Image.asset(
                   AppAssets.registerMascot,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => SvgPicture.asset(
+                  errorBuilder: (_, __, ___) => SafeSvg(
                       AppAssets.ilBoasVindas,
                       fit: BoxFit.contain),
                 ),

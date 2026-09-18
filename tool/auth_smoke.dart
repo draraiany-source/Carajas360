@@ -29,7 +29,7 @@ Future<Map<String, dynamic>> httpJson(
 }
 
 Future<void> main() async {
-  const projectId = 'servicoconecta';
+  const projectId = 'carajas360-a17c5';
   const apiKey = 'fake-api-key';
   final ts = DateTime.now().millisecondsSinceEpoch;
   final email = 'auth_smoke_$ts@test.com';

@@ -4,12 +4,12 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_assets.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
@@ -33,7 +33,7 @@ class ChatScreen extends StatefulWidget {
 class _ChatState extends State<ChatScreen> {
   final _msgCtrl = TextEditingController();
   final _scroll = ScrollController();
-  final String _uid = AuthService.uid ?? 'me';
+  String get _uid => AuthService.uid ?? '';
   MessageModel? _replyTo; // mensagem sendo respondida
   String _searchQuery = ''; // filtro de busca na conversa
   bool _searching = false;
@@ -41,7 +41,7 @@ class _ChatState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    FS.markMessagesRead(widget.roomId);
+    if (AuthService.isAuth) FS.markMessagesRead(widget.roomId);
   }
 
   @override
@@ -444,7 +444,23 @@ class _ChatState extends State<ChatScreen> {
   ];
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    if (!AuthService.isAuth) {
+      return Scaffold(
+        appBar: AppBar(title: Text(widget.otherName)),
+        body: EmptyState(
+          emoji: '💬',
+          title: 'Faça login para conversar',
+          subtitle: 'O chat só fica disponível com uma conta.',
+          actionLabel: 'Entrar',
+          onAction: () => Navigator.pushNamed(context, Routes.login),
+        ),
+      );
+    }
+    return _authenticatedChat(context);
+  }
+
+  Widget _authenticatedChat(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
         appBar: AppBar(
           backgroundColor: AppColors.white,
@@ -564,8 +580,9 @@ class _ChatState extends State<ChatScreen> {
                         padding: const EdgeInsets.all(32),
                         child:
                             Column(mainAxisSize: MainAxisSize.min, children: [
-                          SvgPicture.asset(AppAssets.chatSemMensagens,
-                              width: 150, height: 150),
+                          SafeSvg(AppAssets.chatSemMensagens,
+                              width: 150, height: 150,
+                              fallback: const Text('💬', style: TextStyle(fontSize: 56))),
                           const SizedBox(height: 16),
                           const Text('Nenhuma mensagem ainda',
                               style: TextStyle(

@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:servico_conecta/core/utils/auth_validators.dart';
+import 'package:carajas_360/core/utils/auth_validators.dart';
 
 void main() {
   group('AuthValidators', () {
@@ -28,9 +28,14 @@ void main() {
       expect(AuthValidators.confirmPasswordError('abc123', 'abc123'), isNull);
     });
 
-    test('CPF e telefone exigem quantidade minima de digitos', () {
+    test('CPF exige dígitos verificadores e rejeita sequências', () {
       expect(AuthValidators.cpfError('123'), 'CPF inválido');
-      expect(AuthValidators.cpfError('12345678901'), isNull);
+      expect(AuthValidators.cpfError('12345678901'), 'CPF inválido');
+      expect(AuthValidators.cpfError('000.000.000-00'), 'CPF inválido');
+      expect(AuthValidators.cpfError('11111111111'), 'CPF inválido');
+      expect(AuthValidators.isValidCpf('52998224725'), isTrue);
+      expect(AuthValidators.isValidCpf('529.982.247-25'), isTrue);
+      expect(AuthValidators.cpfError('529.982.247-25'), isNull);
       expect(AuthValidators.phoneError('11999'), 'Telefone inválido');
       expect(AuthValidators.phoneError('11999999999'), isNull);
     });
