@@ -7,6 +7,8 @@ import '../../core/constants/app_constants.dart';
 
 /// Autorização de rotas/telas sensíveis (claims + perfil).
 abstract final class AccessControl {
+  static bool _adminAccessLogged = false;
+
   static Future<bool> isAdmin() async {
     final user = AuthService.current;
     if (user == null) return false;
@@ -14,6 +16,7 @@ abstract final class AccessControl {
       final token = await user.getIdTokenResult();
       final claims = token.claims ?? const <String, dynamic>{};
       if (claims['admin'] == true || claims['role'] == 'admin') {
+        await _logAdminLoginOnce();
         return true;
       }
     } on FirebaseAuthException {
@@ -22,7 +25,19 @@ abstract final class AccessControl {
     // Papel admin no documento (claim é a fonte preferencial).
     // adminRole sozinho NÃO libera o painel.
     final profile = await FS.getUser();
-    return profile?.type == UserType.admin;
+    final ok = profile?.type == UserType.admin;
+    if (ok) await _logAdminLoginOnce();
+    return ok;
+  }
+
+  static Future<void> _logAdminLoginOnce() async {
+    if (_adminAccessLogged) return;
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    _adminAccessLogged = true;
+    try {
+      await FS.logAdminAction('admin_login', target: uid);
+    } catch (_) {}
   }
 }
 

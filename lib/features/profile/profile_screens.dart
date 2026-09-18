@@ -9,6 +9,7 @@ import '../../core/theme/theme_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/demo_data.dart';
+import '../../core/utils/app_error.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -365,7 +366,7 @@ class ProfileScreen extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        snack(context, 'Não foi possível exportar: $e', bg: AppColors.error);
+        snack(context, AppError.userMessage(e, message: 'Não foi possível exportar os dados.'), bg: AppColors.error);
       }
     }
   }
@@ -402,7 +403,7 @@ class ProfileScreen extends StatelessWidget {
       if (context.mounted) snack(context, e.message, bg: AppColors.error);
     } catch (e) {
       if (context.mounted) {
-        snack(context, 'Erro ao excluir: $e', bg: AppColors.error);
+        snack(context, AppError.userMessage(e, message: 'Não foi possível excluir a conta.'), bg: AppColors.error);
       }
     }
   }

@@ -37,6 +37,20 @@ import 'package:servico_conecta/core/auth/access_control.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  ErrorWidget.builder = (details) {
+    debugPrint('ErrorWidget: ${details.exceptionAsString()}');
+    return const Material(
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            'Não foi possível carregar esta tela.',
+            textAlign: TextAlign.center,
+          ),
+        ),
+      ),
+    );
+  };
   // setPreferredOrientations é no-op seguro no Web.
   try {
     await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);

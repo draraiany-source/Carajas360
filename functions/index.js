@@ -15,6 +15,8 @@ const policy = require('./orderPolicy');
 const security = require('./security');
 const deletion = require('./accountDeletion');
 const planChange = require('./planChange');
+const audit = require('./auditLog');
+const { directionsDecision } = require('./directionsProxy');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -163,7 +165,10 @@ function requirePaymentsGateway() {
 }
 
 function wrapGateway(err) {
-  console.error('gateway error', err && err.response && err.response.status, err && err.message);
+  audit.structuredLog('error', 'gateway_error', {
+    status: err && err.response && err.response.status,
+    message: err && err.message,
+  });
   throw httpsError('unavailable', security.safeGatewayMessage());
 }
 
@@ -348,7 +353,25 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
       await notify(o.providerId, '❌ Pedido cancelado', 'O cliente cancelou a solicitação.', 'order');
     }
   } catch (e) {
-    console.error('notify after transition', e);
+    audit.structuredLog('error', 'notify_after_transition', { message: e && e.message });
+  }
+  if (action === 'cancel' || action === 'decline') {
+    await audit.writeAudit(db, {
+      actorId: auth.uid,
+      actorType: adminUser ? 'admin' : 'user',
+      action: action === 'cancel' ? audit.ACTIONS.ORDER_CANCELLED : audit.ACTIONS.ORDER_DECLINED,
+      target: orderId,
+      details: { action },
+    });
+  }
+  if (action === 'complete' && result.payoutProcessed) {
+    await audit.writeAudit(db, {
+      actorId: auth.uid,
+      actorType: adminUser ? 'admin' : 'user',
+      action: audit.ACTIONS.PAYOUT,
+      target: orderId,
+      details: { via: 'complete' },
+    });
   }
   return result;
 });
@@ -359,7 +382,7 @@ exports.processPayout = functions.region(REGION).https.onCall(async (data, conte
   if (!orderId) throw httpsError('invalid-argument', 'orderId obrigatório');
 
   const adminUser = await isAdmin(auth);
-  return db.runTransaction(async (tx) => {
+  const payout = await db.runTransaction(async (tx) => {
     const orderRef = db.collection('orders').doc(orderId);
     const snap = await tx.get(orderRef);
     if (!snap.exists) throw httpsError('not-found', 'Pedido não encontrado');
@@ -371,18 +394,26 @@ exports.processPayout = functions.region(REGION).https.onCall(async (data, conte
       return { ok: true, already: true, payoutProcessed: true };
     }
     const { paymentId, payment } = await loadConfirmedPayment(tx, order, orderId);
-    const payout = await applyOfficialPayout(tx, {
+    const result = await applyOfficialPayout(tx, {
       order,
       orderId,
       payment,
       paymentId,
       actorUid: auth.uid,
     });
-    if (payout.orderUpdates && Object.keys(payout.orderUpdates).length) {
-      tx.update(orderRef, payout.orderUpdates);
+    if (result.orderUpdates && Object.keys(result.orderUpdates).length) {
+      tx.update(orderRef, result.orderUpdates);
     }
-    return payout;
+    return result;
   });
+  await audit.writeAudit(db, {
+    actorId: auth.uid,
+    actorType: adminUser ? 'admin' : 'user',
+    action: audit.ACTIONS.PAYOUT,
+    target: orderId,
+    details: { already: Boolean(payout.already) },
+  });
+  return payout;
 });
 
 exports.payOrderWithWallet = functions.region(REGION).https.onCall(async (data, context) => {
@@ -390,7 +421,7 @@ exports.payOrderWithWallet = functions.region(REGION).https.onCall(async (data, 
   const orderId = String(data && data.orderId || '');
   if (!orderId) throw httpsError('invalid-argument', 'orderId obrigatório');
 
-  return db.runTransaction(async (tx) => {
+  const paid = await db.runTransaction(async (tx) => {
     const orderRef = db.collection('orders').doc(orderId);
     const snap = await tx.get(orderRef);
     if (!snap.exists) throw httpsError('not-found', 'Pedido não encontrado');
@@ -433,6 +464,14 @@ exports.payOrderWithWallet = functions.region(REGION).https.onCall(async (data, 
     });
     return { ok: true, already: false, paymentStatus: 'paid', id: paymentId };
   });
+  await audit.writeAudit(db, {
+    actorId: auth.uid,
+    actorType: 'user',
+    action: audit.ACTIONS.PAYMENT,
+    target: orderId,
+    details: { method: 'wallet', already: Boolean(paid.already) },
+  });
+  return paid;
 });
 
 exports.generatePix = functions.region(REGION).https.onCall(async (data, context) => {
@@ -512,6 +551,13 @@ exports.generatePix = functions.region(REGION).https.onCall(async (data, context
       gatewayTransactionId: String(id),
     });
   }
+  await audit.writeAudit(db, {
+    actorId: auth.uid,
+    actorType: 'user',
+    action: audit.ACTIONS.PAYMENT,
+    target: orderId || String(id),
+    details: { method: 'pix', purpose, amount, paymentId: String(id) },
+  });
 
   const qr = point_of_interaction && point_of_interaction.transaction_data || {};
   return {
@@ -748,6 +794,15 @@ exports.walletOp = functions.region(REGION).https.onCall(async (data, context) =
       }
       tx.update(orderRef, { cashbackGranted: true });
       return { ok: true, cashback };
+    }).then(async (out) => {
+      await audit.writeAudit(db, {
+        actorId: auth.uid,
+        actorType: 'user',
+        action: audit.ACTIONS.WALLET,
+        target: orderId,
+        details: { op: 'cashback', already: Boolean(out.already) },
+      });
+      return out;
     });
   }
 
@@ -764,6 +819,13 @@ exports.walletOp = functions.region(REGION).https.onCall(async (data, context) =
       (data && data.icon) || (op === 'withdraw' ? '📤' : '👜'),
       op === 'withdraw' ? { pixKey: (data && data.pixKey) || null } : {},
     );
+  });
+  await audit.writeAudit(db, {
+    actorId: auth.uid,
+    actorType: 'user',
+    action: audit.ACTIONS.WALLET,
+    target: auth.uid,
+    details: { op, amount: value },
   });
   return { ok: true };
 });
@@ -829,6 +891,15 @@ exports.processRefund = functions.region(REGION).https.onCall(async (data, conte
       note: 'Estorno marcado. Reversão de saldo/gateway depende de operação manual em staging.',
     });
     return { ok: true, already: false, status: 'refunded' };
+  }).then(async (out) => {
+    await audit.writeAudit(db, {
+      actorId: auth.uid,
+      actorType: 'admin',
+      action: audit.ACTIONS.REFUND,
+      target: orderId,
+      details: { already: Boolean(out.already), amount: amount > 0 ? amount : null },
+    });
+    return out;
   });
 });
 
@@ -1024,17 +1095,16 @@ exports.deleteMyAccount = functions.region(REGION).https.onCall(async (data, con
     }
   }
 
-  await db.collection('auditLogs').add({
-    adminId: uid,
-    adminName: 'self',
-    action: 'lgpd_account_anonymized',
+  await audit.writeAudit(db, {
+    actorId: uid,
+    actorType: 'self',
+    action: audit.ACTIONS.ACCOUNT_DELETED,
     target: uid,
     details: {
       authDeleted,
       retained: deletion.RETAIN_COLLECTIONS,
       deleted: deletion.DELETE_ON_REQUEST,
     },
-    timestamp: now,
   });
 
   await db.collection('legalRetention').doc(uid).set({
@@ -1061,7 +1131,15 @@ exports.switchProfileType = functions.region(REGION).https.onCall(async (data, c
   if (snap.exists && snap.data().type === 'admin') {
     throw httpsError('permission-denied', 'Perfil admin não pode ser alterado por esta operação');
   }
+  const previous = snap.exists ? snap.data().type : null;
   await ref.set({ type: next, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
+  await audit.writeAudit(db, {
+    actorId: auth.uid,
+    actorType: 'user',
+    action: audit.ACTIONS.PERMISSION_CHANGE,
+    target: auth.uid,
+    details: { from: previous || null, to: next },
+  });
   return { ok: true, type: next };
 });
 
@@ -1255,13 +1333,44 @@ exports.processCardPaymentHttp = functions.https.onRequest(gone);
 exports.aiAssistantHttp = functions.https.onRequest(gone);
 
 /**
- * Stub sandbox Mercado Pago.
- * NÃO aplica crédito, payout ou mudança de status.
- * Sem secret de webhook no repo — recusa payload não autenticado.
- * Implementação real (assinatura + sandbox) fica no BLOCO E.
+ * Webhook sandbox Mercado Pago.
+ * Sem secret: 501. Com secret inválido: 401. Válido: 202.
+ * NUNCA cobra nem altera pedido/carteira (charged/applied sempre false).
  */
 const { mercadoPagoWebhookDecision } = require('./webhookSandbox');
 exports.mercadoPagoWebhook = functions.https.onRequest((req, res) => {
-  const decision = mercadoPagoWebhookDecision(req.method);
+  const data = req.body && req.body.data ? req.body.data : {};
+  const decision = mercadoPagoWebhookDecision(req.method, {
+    secret: process.env.MERCADOPAGO_WEBHOOK_SECRET || '',
+    signature: req.get('x-signature'),
+    requestId: req.get('x-request-id'),
+    dataId: data.id,
+  });
+  audit.structuredLog('info', 'mp_webhook', {
+    status: decision.status,
+    reason: decision.body && decision.body.reason,
+    charged: false,
+    applied: false,
+  });
   res.status(decision.status).json(decision.body);
+});
+
+/**
+ * Directions proxy. Sem GOOGLE_MAPS_SERVER_KEY: recusa.
+ * Com key: ainda NÃO chama a API Google (evita cobrança Maps).
+ */
+exports.getDirections = functions.region(REGION).https.onCall(async (data, context) => {
+  requireAuth(context);
+  const decision = directionsDecision({
+    serverKey: process.env.GOOGLE_MAPS_SERVER_KEY || '',
+    origin: data && data.origin,
+    destination: data && data.destination,
+  });
+  if (!decision.ok) return decision;
+  return {
+    ok: false,
+    reason: 'directions_proxy_not_enabled',
+    charged: false,
+    message: 'Key de servidor presente, mas o HTTP Directions está desligado para não gerar cobrança.',
+  };
 });

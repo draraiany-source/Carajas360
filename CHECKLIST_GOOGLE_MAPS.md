@@ -48,7 +48,7 @@ O app chama `https://maps.googleapis.com/maps/api/directions/json?key=...` do di
 
 - Restrição de API: **somente Directions API**.
 - Restrição de app: Android package+SHA-1 e iOS bundle (o Google aplica no SDK; para HTTP puro a restrição de app às vezes não pega — nesse caso use **cota baixa** + monitoramento de billing).
-- Melhor médio prazo (BLOCO D+): mover Directions para uma Cloud Function com key de **servidor** restrita por IP da Function. **Não feito agora** (não inventamos key de servidor).
+- Callable `getDirections` existe (BLOCO E) e recusa se `GOOGLE_MAPS_SERVER_KEY` estiver vazia. **Não chama** a API Google mesmo com key (evita cobrança). GPS no client permanece até a Raiany criar a key de servidor e autorizar o proxy.
 
 Uso: `--dart-define=GOOGLE_MAPS_API_KEY=<key B>`.
 

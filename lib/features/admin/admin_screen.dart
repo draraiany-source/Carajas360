@@ -9,6 +9,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/auth/access_control.dart';
+import '../../core/utils/app_error.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -885,7 +886,7 @@ class _FinancialTab extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted)
-        snack(context, 'Erro ao gerar relatório: $e', bg: AppColors.error);
+        snack(context, AppError.userMessage(e, message: 'Não foi possível gerar o relatório.'), bg: AppColors.error);
     }
   }
 }

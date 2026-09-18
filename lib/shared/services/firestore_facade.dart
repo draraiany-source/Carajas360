@@ -300,10 +300,13 @@ class FS {
     }, SetOptions(merge: true));
   }
 
-  static Future<void> approveProvider(String id) => _db
-      .collection(Col.providers)
-      .doc(id)
-      .update({'verified': true, 'active': true, 'approved': true});
+  static Future<void> approveProvider(String id) async {
+    await _db
+        .collection(Col.providers)
+        .doc(id)
+        .update({'verified': true, 'active': true, 'approved': true});
+    await logAdminAction('provider_approved', target: id);
+  }
 
   // Atualiza os documentos de validação enviados no onboarding do
   // prestador (foto, RG/CNH, selfie, certificados, áreas atendidas).

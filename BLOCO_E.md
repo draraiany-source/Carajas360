@@ -1,21 +1,18 @@
-# BLOCO E — pendências conscientes (não executadas no D)
+# BLOCO E — Fases 25–30 (entregue)
 
-Restrições: sem produção, sem pagamento real, sem inventar secrets.
+Restrições: sem produção, sem pagamento real, sem inventar secrets, sem merge em `main`.
 
-## Directions via Cloud Function
-O GPS ainda chama a Directions API no client (`RuntimeConfig.googleMapsApiKey`).  
-Mover para uma callable exige **key de servidor restrita por IP da Function**, que só a Raiany pode criar. Sem essa key, não implementamos o proxy (evita inventar secret e deixar rota aberta).
+## Feito
+- Fases 25–26: `ANDROID_RELEASE_CHECKLIST.md`, `IOS_RELEASE_CHECKLIST.md` (prep only; sem keystore).
+- Fase 27: `BACKLOG_FASE_2.md` (P0–P3). Voz/vídeo, Pay, OCR pago, SMS/WhatsApp **não** implementados.
+- Fase 28: `OCR_DOCUMENTOS.md` (arquitetura; sem serviço pago).
+- Fase 29: `functions/auditLog.js` — login admin, permissão, aprovação prestador, pagamento, cancelamento, reembolso, payout, carteira, exclusão. Sem secrets.
+- Fase 30: Crashlytics/Analytics já no `main`; `AppError` / `AppTelemetry`; `ErrorWidget` sem stack; `functions.logger` estruturado.
 
-## Firestore Rules no emulador
-CI atual: auditoria estática (`functions/firestoreRules.audit.js`).  
-Testes `@firebase/rules-unit-testing` pedem Emulator Suite + Java no runner. Configurar no GitHub quando a Raiany habilitar o workflow com `firebase emulators:exec`.
+## Pendências D (tratadas sem bloquear)
+- Directions: `getDirections` + `directionsProxy.js` — recusa sem key; **não** chama Google (cobrança Maps).
+- Rules emulador: não viável neste CI sem `emulators:exec` — audit estático permanece.
+- Webhook MP: HMAC se `MERCADOPAGO_WEBHOOK_SECRET` existir; senão 501; **nunca** aplica crédito.
+- Split `FS`: não movido o corpo (risco). Fachadas mantidas.
 
-## Webhook Mercado Pago
-`mercadoPagoWebhook` + `webhookSandbox.js` respondem **501** e **não** alteram pedido/carteira.  
-Falta: secret de webhook (Secret Manager), verificação de assinatura, ambiente sandbox `TEST-`. Não ligar `PAYMENTS_ENABLED`.
-
-## App Check enforce
-Ainda `ENFORCE_APP_CHECK=false` até as keys reais (BLOCO C).
-
-## Corpo de `FS`
-Fachadas (`UserService`, `OrderService`, …) já existem. Próximo corte: mover o corpo de `firestore_facade.dart` para esses arquivos.
+Próximo: **BLOCO F** (`BLOCO_F.md`).
