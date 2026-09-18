@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../shared/widgets/widgets.dart';
 import '../../core/constants/app_constants.dart';
 
 /// Autorização de rotas/telas sensíveis (claims + perfil).
@@ -32,12 +33,16 @@ class AdminGate extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (!AuthService.isAuth) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
-          Navigator.pushReplacementNamed(context, Routes.login);
-        }
-      });
-      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+      return Scaffold(
+        appBar: AppBar(title: const Text('Admin')),
+        body: EmptyState(
+          emoji: '🔐',
+          title: 'Faça login',
+          subtitle: 'O painel administrativo exige uma conta com permissão.',
+          actionLabel: 'Entrar',
+          onAction: () => Navigator.pushNamed(context, Routes.login),
+        ),
+      );
     }
     return FutureBuilder<bool>(
       future: AccessControl.isAdmin(),
@@ -75,25 +80,26 @@ class AdminGate extends StatelessWidget {
 class RequireAuth extends StatelessWidget {
   final Widget child;
   final String title;
-  const RequireAuth({super.key, required this.child, this.title = 'Área protegida'});
+  final String? subtitle;
+  const RequireAuth({
+    super.key,
+    required this.child,
+    this.title = 'Área protegida',
+    this.subtitle,
+  });
 
   @override
   Widget build(BuildContext context) {
     if (AuthService.isAuth) return child;
     return Scaffold(
       appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Faça login para continuar.', textAlign: TextAlign.center),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: () => Navigator.pushReplacementNamed(context, Routes.login),
-              child: const Text('Entrar'),
-            ),
-          ]),
-        ),
+      body: EmptyState(
+        emoji: '🔐',
+        title: 'Faça login para continuar',
+        subtitle: subtitle ??
+            'Esta área precisa de uma conta. Seus dados não são exibidos sem autenticação.',
+        actionLabel: 'Entrar',
+        onAction: () => Navigator.pushNamed(context, Routes.login),
       ),
     );
   }

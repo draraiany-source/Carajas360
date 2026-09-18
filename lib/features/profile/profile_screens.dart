@@ -33,6 +33,18 @@ class ProfileScreen extends StatelessWidget {
           : StreamBuilder<UserModel?>(
               stream: FS.userStream(uid),
               builder: (_, snap) {
+                if (snap.connectionState == ConnectionState.waiting &&
+                    !snap.hasData) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+                if (snap.hasError) {
+                  return const EmptyState(
+                    emoji: '⚠️',
+                    title: 'Não foi possível carregar o perfil',
+                    subtitle:
+                        'Verifique a conexão ou tente sair e entrar de novo.',
+                  );
+                }
                 final user = snap.data;
                 final xp = user?.xp ?? 0;
                 return CustomScrollView(slivers: [
@@ -127,8 +139,10 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '📍',
                                   'Endereços',
-                                  'Gerenciar endereços',
-                                  () => _editProfile(context, user)),
+                                  user?.address?.isNotEmpty == true
+                                      ? user!.address!
+                                      : 'Cadastrar endereço de atendimento',
+                                  () => _editAddress(context, user)),
                               _item(
                                   context,
                                   '🔔',
@@ -427,6 +441,78 @@ class ProfileScreen extends StatelessWidget {
         onTap: onTap,
       );
 
+  void _editAddress(BuildContext ctx, UserModel? user) {
+    final addressCtrl = TextEditingController(text: user?.address ?? '');
+    final cityCtrl = TextEditingController(text: user?.city ?? '');
+    final stateCtrl = TextEditingController(text: user?.state ?? '');
+    showModalBottomSheet(
+        context: ctx,
+        isScrollControlled: true,
+        builder: (_) => Padding(
+              padding: EdgeInsets.fromLTRB(
+                  20, 0, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const SizedBox(height: 8),
+                const SheetHandle(),
+                const SizedBox(height: 16),
+                const Text('Seu endereço',
+                    style:
+                        TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 8),
+                const Text(
+                    'Usado nas solicitações de serviço e no GPS. Não é público.',
+                    style:
+                        TextStyle(fontSize: 12, color: AppColors.textLight)),
+                const SizedBox(height: 16),
+                TextFormField(
+                    controller: addressCtrl,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: const InputDecoration(
+                        hintText: 'Rua, número, bairro',
+                        prefixIcon: Icon(Icons.home_outlined))),
+                const SizedBox(height: 10),
+                TextFormField(
+                    controller: cityCtrl,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: const InputDecoration(
+                        hintText: 'Cidade',
+                        prefixIcon: Icon(Icons.location_city_outlined))),
+                const SizedBox(height: 10),
+                TextFormField(
+                    controller: stateCtrl,
+                    textCapitalization: TextCapitalization.characters,
+                    maxLength: 2,
+                    decoration: const InputDecoration(
+                        hintText: 'UF',
+                        prefixIcon: Icon(Icons.map_outlined),
+                        counterText: '')),
+                const SizedBox(height: 14),
+                SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                        onPressed: () async {
+                          final street = addressCtrl.text.trim();
+                          if (street.isEmpty) {
+                            snack(ctx, 'Informe a rua e o número.',
+                                bg: AppColors.warning);
+                            return;
+                          }
+                          await FS.updateUser({
+                            'address': street,
+                            'city': cityCtrl.text.trim(),
+                            'state': stateCtrl.text.trim().toUpperCase(),
+                          });
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                            snack(ctx, '✅ Endereço salvo',
+                                bg: AppColors.secondary);
+                          }
+                        },
+                        child: const Text('Salvar endereço'))),
+              ]),
+            ));
+  }
+
   void _editProfile(BuildContext ctx, UserModel? user) {
     final nameCtrl = TextEditingController(text: user?.name);
     final cityCtrl = TextEditingController(text: user?.city);
@@ -661,9 +747,27 @@ class NotificationsScreen extends StatelessWidget {
     final uid = AuthService.uid;
     return Scaffold(
       appBar: AppBar(title: const Text('Notificações')),
-      body: StreamBuilder<List<NotifModel>>(
-        stream: uid != null ? FS.notifStream() : const Stream.empty(),
+      body: uid == null
+          ? EmptyState(
+              emoji: '🔔',
+              title: 'Faça login',
+              subtitle: 'Entre na conta para ver suas notificações.',
+              actionLabel: 'Entrar',
+              onAction: () => Navigator.pushNamed(context, Routes.login),
+            )
+          : StreamBuilder<List<NotifModel>>(
+        stream: FS.notifStream(),
         builder: (_, snap) {
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return const EmptyState(
+                emoji: '⚠️',
+                title: 'Falha ao carregar',
+                subtitle: 'Verifique a conexão e tente novamente.');
+          }
           final notifs = DemoData.orEmpty(snap.data, _demo);
           if (notifs.isEmpty)
             return const EmptyState(

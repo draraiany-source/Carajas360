@@ -125,10 +125,14 @@ class Carajas360App extends StatelessWidget {
                     SearchScreen(initialCategory: sa?['category'] as String?));
               case Routes.chat:
                 final a = settings.arguments as Map<String, dynamic>?;
-                return _route(ChatScreen(
-                  roomId: a?['roomId'] ?? a?['id'] ?? 'demo',
-                  otherName: a?['name'] ?? 'Profissional',
-                  otherPhoto: a?['photo'],
+                return _route(RequireAuth(
+                  title: 'Chat',
+                  subtitle: 'Entre na conta para enviar e ler mensagens.',
+                  child: ChatScreen(
+                    roomId: a?['roomId'] ?? a?['id'] ?? 'demo',
+                    otherName: a?['name'] ?? 'Profissional',
+                    otherPhoto: a?['photo'],
+                  ),
                 ));
               case Routes.gps:
                 final a = settings.arguments as Map<String, dynamic>?;
@@ -149,7 +153,8 @@ class Carajas360App extends StatelessWidget {
                 return _route(
                     RentalScreen(initialTab: (ra?['tab'] as int?) ?? 0));
               case Routes.bookings:
-                return _route(const MyBookingsScreen());
+                return _route(const RequireAuth(
+                    title: 'Reservas', child: MyBookingsScreen()));
               case Routes.stores:
                 return _route(const StoresListScreen());
               case Routes.delivery:
@@ -157,7 +162,8 @@ class Carajas360App extends StatelessWidget {
               case Routes.profile:
                 return _route(const ProfileScreen());
               case Routes.notifications:
-                return _route(const NotificationsScreen());
+                return _route(const RequireAuth(
+                    title: 'Notificações', child: NotificationsScreen()));
               case Routes.reviews:
                 final a = settings.arguments as Map<String, dynamic>?;
                 return _route(ReviewScreen(
@@ -173,19 +179,26 @@ class Carajas360App extends StatelessWidget {
               case Routes.companyProfile:
                 return _route(const RequireAuth(title: 'Empresa', child: CompanyProfileScreen()));
               case Routes.favorites:
-                return _route(const FavoritesScreen());
+                return _route(const RequireAuth(
+                    title: 'Favoritos', child: FavoritesScreen()));
               case Routes.myOrders:
-                return _route(const MyOrdersScreen());
+                return _route(const RequireAuth(
+                    title: 'Meus pedidos', child: MyOrdersScreen()));
               case Routes.requestService:
                 final a = settings.arguments as Map<String, dynamic>?;
-                return _route(RequestServiceScreen(
-                  providerId: a?['providerId'] ?? '',
-                  providerName: a?['providerName'] ?? 'Profissional',
-                  category: a?['category'] ?? '',
-                  providerColor: a?['providerColor'] ?? AppColors.primary,
+                return _route(RequireAuth(
+                  title: 'Solicitar serviço',
+                  child: RequestServiceScreen(
+                    providerId: a?['providerId'] ?? '',
+                    providerName: a?['providerName'] ?? 'Profissional',
+                    category: a?['category'] ?? '',
+                    providerColor: a?['providerColor'] ?? AppColors.primary,
+                  ),
                 ));
               case Routes.providerHome:
-                return _route(const ProviderHomeScreen());
+                return _route(const RequireAuth(
+                    title: 'Área do prestador',
+                    child: ProviderHomeScreen()));
               case Routes.providerOnboarding:
                 return _route(const ProviderOnboardingScreen());
               case Routes.servicesHub:

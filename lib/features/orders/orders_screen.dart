@@ -140,7 +140,20 @@ class _MyOrdersState extends State<MyOrdersScreen> {
   ];
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) {
+    if (!AuthService.isAuth) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('📋 Meus Pedidos')),
+        body: EmptyState(
+          emoji: '📋',
+          title: 'Faça login',
+          subtitle: 'Entre na conta para ver seus pedidos.',
+          actionLabel: 'Entrar',
+          onAction: () => Navigator.pushNamed(context, Routes.login),
+        ),
+      );
+    }
+    return Scaffold(
         appBar: AppBar(
           title: const Text('📋 Meus Pedidos'),
           actions: [
@@ -197,6 +210,16 @@ class _MyOrdersState extends State<MyOrdersScreen> {
               child: StreamBuilder<List<OrderModel>>(
             stream: FS.orderHistoryStream(status: _filter),
             builder: (_, snap) {
+              if (snap.connectionState == ConnectionState.waiting &&
+                  !snap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError) {
+                return const EmptyState(
+                    emoji: '⚠️',
+                    title: 'Falha ao carregar pedidos',
+                    subtitle: 'Verifique a conexão e tente novamente.');
+              }
               final orders = DemoData.orEmpty(
                   snap.data,
                   _demo
@@ -295,6 +318,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
           )),
         ]),
       );
+  }
 
   Widget _filterChip(String label, OrderStatus? status) {
     final sel = _filter == status;
@@ -424,6 +448,20 @@ class _RequestServiceState extends State<RequestServiceScreen> {
   String? _budgetSuggestion;
 
   @override
+  void initState() {
+    super.initState();
+    final uid = AuthService.uid;
+    if (uid == null) return;
+    FS.userStream(uid).first.then((u) {
+      if (!mounted) return;
+      final addr = u?.address?.trim();
+      if (addr != null && addr.isNotEmpty && _address.text.isEmpty) {
+        _address.text = addr;
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _title.dispose();
     _description.dispose();
@@ -468,6 +506,12 @@ class _RequestServiceState extends State<RequestServiceScreen> {
   }
 
   Future<void> _submit() async {
+    if (!AuthService.isAuth) {
+      snack(context, 'Faça login para solicitar um serviço.',
+          bg: AppColors.warning);
+      Navigator.pushNamed(context, Routes.login);
+      return;
+    }
     if (!_form.currentState!.validate()) return;
     setState(() => _loading = true);
 
