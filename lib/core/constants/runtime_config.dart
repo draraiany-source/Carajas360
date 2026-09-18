@@ -3,6 +3,7 @@
 /// Exemplos:
 ///   flutter run --dart-define=GOOGLE_MAPS_API_KEY=AIza...
 ///   flutter run --dart-define=MERCADOPAGO_PUBLIC_KEY=TEST-...
+///   flutter run --dart-define=DEV_BYPASS_LOGIN=true  # só debug; ver DEV_BYPASS_LOGIN.md
 ///
 /// Android Maps nativo: defina MAPS_API_KEY em android/local.properties
 /// (ver comentário em android/app/build.gradle).
@@ -36,4 +37,8 @@ abstract final class RuntimeConfig {
   static bool get hasAppCheckWebSiteKey =>
       appCheckWebRecaptchaSiteKey.isNotEmpty &&
       !appCheckWebRecaptchaSiteKey.contains('COLE_SUA');
+
+  /// Smoke sem Firebase Auth. Default false. Release ignora (DevBypassAuth).
+  static const devBypassLoginDefine =
+      bool.fromEnvironment('DEV_BYPASS_LOGIN', defaultValue: false);
 }

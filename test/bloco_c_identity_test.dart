@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:carajas_360/core/auth/dev_bypass_auth.dart';
 import 'package:carajas_360/core/constants/app_constants.dart';
+import 'package:carajas_360/core/constants/runtime_config.dart';
 import 'package:carajas_360/firebase_options.dart';
 import 'package:carajas_360/shared/models/models.dart';
 import 'package:carajas_360/shared/services/payment_gateway.dart';
@@ -38,5 +40,11 @@ void main() {
     expect(PaymentMethod.wallet.label.contains('Carajás 360'), isTrue);
     expect(PlanTier.values.map((e) => e.name),
         containsAll(['free', 'professional', 'premium', 'corporate']));
+  });
+
+  test('DEV_BYPASS_LOGIN default false e mock não é admin', () {
+    expect(RuntimeConfig.devBypassLoginDefine, isFalse);
+    expect(DevBypassAuth.mockUser.type, UserType.client);
+    expect(DevBypassAuth.enabledFor(releaseMode: true, defineOn: true), isFalse);
   });
 }

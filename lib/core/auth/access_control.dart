@@ -4,12 +4,15 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../core/constants/app_constants.dart';
+import 'dev_bypass_auth.dart';
 
 /// Autorização de rotas/telas sensíveis (claims + perfil).
 abstract final class AccessControl {
   static bool _adminAccessLogged = false;
 
   static Future<bool> isAdmin() async {
+    // Mock de smoke nunca é admin (sem claims, type=client).
+    if (DevBypassAuth.enabled && AuthService.current == null) return false;
     final user = AuthService.current;
     if (user == null) return false;
     try {

@@ -8,6 +8,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/platform_info.dart';
+import '../../core/auth/dev_bypass_auth.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -39,6 +40,10 @@ class _SplashState extends State<SplashScreen>
 
   void _navigate() {
     if (!mounted) return;
+    if (DevBypassAuth.enabled) {
+      Navigator.pushReplacementNamed(context, Routes.main);
+      return;
+    }
     if (!widget.firebaseReady) {
       Navigator.pushReplacementNamed(context, Routes.onboarding);
       return;

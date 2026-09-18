@@ -1,5 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
+import '../../core/auth/dev_bypass_auth.dart';
 import '../../core/security/order_policy.dart';
 import '../../firebase_options.dart';
 
@@ -17,6 +19,20 @@ abstract final class CloudFn {
 
   static Future<Map<String, dynamic>> call(
       String name, [Map<String, dynamic>? data]) async {
+    if (DevBypassAuth.enabled) {
+      User? real;
+      try {
+        real = FirebaseAuth.instance.currentUser;
+      } catch (_) {
+        real = null;
+      }
+      if (real == null) {
+        throw const CloudCallException(
+          'Modo teste (DEV_BYPASS_LOGIN): callables exigem login Firebase real.',
+          code: 'unauthenticated',
+        );
+      }
+    }
     try {
       final result = await _fn.httpsCallable(name).call(data ?? {});
       final raw = result.data;

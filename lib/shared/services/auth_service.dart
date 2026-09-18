@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../core/auth/dev_bypass_auth.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/security/order_policy.dart';
 import '../../core/utils/firebase_bootstrap.dart';
@@ -21,9 +22,24 @@ class AuthFailure implements Exception {
 
 class AuthService {
   static final _a = FirebaseAuth.instance;
-  static User? get current => _a.currentUser;
-  static String? get uid => _a.currentUser?.uid;
-  static bool get isAuth => _a.currentUser != null;
+
+  /// Firebase Auth real. Nunca inventa um [User] no bypass.
+  static User? get current {
+    try {
+      return _a.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static String? get uid {
+    final real = current?.uid;
+    if (real != null) return real;
+    if (DevBypassAuth.enabled) return DevBypassAuth.uid;
+    return null;
+  }
+
+  static bool get isAuth => current != null || DevBypassAuth.enabled;
 
   static Future<void> verifyPhone({
     required String phone,
@@ -215,12 +231,19 @@ class AuthService {
     } catch (e) {
       debugPrint('Erro ao sair do Google: $e');
     }
-    await _a.signOut();
+    try {
+      await _a.signOut();
+    } catch (e) {
+      debugPrint('signOut Firebase: $e');
+    }
   }
 
   /// Exclusão LGPD: Cloud Function anonimiza e remove o Auth.
   static Future<void> deleteAccount() async {
-    if (_a.currentUser == null) {
+    if (DevBypassAuth.enabled && current == null) {
+      throw const AuthFailure('Modo teste: não há conta real para excluir.');
+    }
+    if (current == null) {
       throw const AuthFailure('Faça login para excluir a conta.');
     }
     try {

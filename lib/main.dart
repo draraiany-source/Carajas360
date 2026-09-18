@@ -34,6 +34,7 @@ import 'package:carajas_360/features/company/company_screen.dart';
 import 'package:carajas_360/features/orders/orders_screen.dart';
 import 'package:carajas_360/features/provider/provider_home_screen.dart';
 import 'package:carajas_360/core/auth/access_control.dart';
+import 'core/auth/dev_bypass_auth.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -94,6 +95,12 @@ Future<void> main() async {
     debugPrint('Firebase nao configurado — modo demonstracao: $e');
   }
 
+  if (DevBypassAuth.enabled) {
+    debugPrint(
+        'DEV_BYPASS_LOGIN ativo — smoke sem Auth (uid=${DevBypassAuth.uid}). '
+        'NÃO usar em produção.');
+  }
+
   runApp(Carajas360App(firebaseOk: firebaseOk));
 }
 
@@ -107,6 +114,16 @@ class Carajas360App extends StatelessWidget {
         builder: (context, themeMode, _) => MaterialApp(
           title: AppInfo.name,
           debugShowCheckedModeBanner: false,
+          builder: (context, child) {
+            final page = child ?? const SizedBox.shrink();
+            if (!DevBypassAuth.enabled) return page;
+            return Banner(
+              message: 'DEV BYPASS',
+              location: BannerLocation.topEnd,
+              color: const Color(0xFFE65100),
+              child: page,
+            );
+          },
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: themeMode,

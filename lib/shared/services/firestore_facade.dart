@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import '../models/models.dart';
+import '../../core/auth/dev_bypass_auth.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/security/order_policy.dart';
 import '../../core/utils/auth_validators.dart';
@@ -13,7 +14,16 @@ class FS {
   static final _db = FirebaseFirestore.instance;
   static String? get _uid => AuthService.uid;
 
+  static bool get _bypassLocalOnly =>
+      DevBypassAuth.enabled && AuthService.current == null;
+
+  static Stream<List<T>> _emptyList<T>() => Stream<List<T>>.value(<T>[]);
+
   static Future<void> saveUser(UserModel u) async {
+    if (_bypassLocalOnly) {
+      debugPrint('DEV_BYPASS_LOGIN: saveUser ignorado (sem Auth real)');
+      return;
+    }
     final ref = _db.collection(Col.users).doc(u.id);
     var isNew = true;
     try {
@@ -71,6 +81,9 @@ class FS {
   static Future<UserModel?> getUser([String? id]) async {
     final target = id ?? _uid;
     if (target == null) return null;
+    if (_bypassLocalOnly && target == DevBypassAuth.uid) {
+      return DevBypassAuth.mockUser;
+    }
     final d = await _db.collection(Col.users).doc(target).get();
     if (!d.exists) return null;
     final data = Map<String, dynamic>.from(d.data()!);
@@ -97,6 +110,9 @@ class FS {
   static Stream<UserModel?> userStream([String? id]) {
     final target = id ?? _uid;
     if (target == null) return Stream.value(null);
+    if (_bypassLocalOnly && target == DevBypassAuth.uid) {
+      return Stream.value(DevBypassAuth.mockUser);
+    }
     return _db.collection(Col.users).doc(target).snapshots().asyncMap((s) async {
       if (!s.exists) return null;
       final data = Map<String, dynamic>.from(s.data()!);
@@ -377,19 +393,23 @@ class FS {
     }
   }
 
-  static Stream<List<OrderModel>> myOrdersStream() => _db
+  static Stream<List<OrderModel>> myOrdersStream() {
+    if (_bypassLocalOnly) return _emptyList<OrderModel>();
+    return _db
       .collection(Col.orders)
       .where('clientId', isEqualTo: _uid)
       .orderBy('createdAt', descending: true)
       .snapshots()
       .map((s) =>
           s.docs.map((d) => OrderModel.fromMap(d.id, d.data())).toList());
+  }
 
   // ── Pedidos do lado do Prestador (Vol.3: Perfil do Profissional) ─
   // Pedidos endereçados diretamente a este prestador (providerId == uid).
   /// Perfil de prestador do usuário logado (null se não for prestador).
   static Stream<ProviderModel?> myProviderStream() {
     if (_uid == null) return Stream.value(null);
+    if (_bypassLocalOnly) return Stream.value(null);
     return _db
         .collection(Col.providers)
         .where('userId', isEqualTo: _uid)
@@ -407,6 +427,7 @@ class FS {
 
   static Stream<List<OrderModel>> providerOrdersStream(
       {List<OrderStatus>? statuses}) {
+    if (_bypassLocalOnly) return _emptyList<OrderModel>();
     Query q = _db
         .collection(Col.orders)
         .where('providerId', isEqualTo: _uid)
@@ -567,13 +588,18 @@ class FS {
     await batch.commit();
   }
 
-  static Stream<WalletModel?> walletStream() => _db
+  static Stream<WalletModel?> walletStream() {
+    if (_bypassLocalOnly) return Stream.value(null);
+    return _db
       .collection(Col.wallets)
       .doc(_uid)
       .snapshots()
       .map((s) => s.exists ? WalletModel.fromMap(s.data()!) : null);
+  }
 
-  static Stream<List<TransactionModel>> txStream() => _db
+  static Stream<List<TransactionModel>> txStream() {
+    if (_bypassLocalOnly) return _emptyList<TransactionModel>();
+    return _db
       .collection(Col.transactions)
       .where('userId', isEqualTo: _uid)
       .orderBy('createdAt', descending: true)
@@ -581,6 +607,7 @@ class FS {
       .snapshots()
       .map((s) =>
           s.docs.map((d) => TransactionModel.fromMap(d.id, d.data())).toList());
+  }
 
   static Future<bool> credit(double amount, String desc, String icon) async {
     // Crédito livre pelo client foi removido (fraude). Use recarga PIX
@@ -681,7 +708,9 @@ class FS {
     debugPrint('pushNotif ignorado no client ($type → $uid)');
   }
 
-  static Stream<List<NotifModel>> notifStream() => _db
+  static Stream<List<NotifModel>> notifStream() {
+    if (_bypassLocalOnly) return _emptyList<NotifModel>();
+    return _db
       .collection(Col.notifications)
       .where('userId', isEqualTo: _uid)
       .orderBy('createdAt', descending: true)
@@ -689,6 +718,7 @@ class FS {
       .snapshots()
       .map((s) =>
           s.docs.map((d) => NotifModel.fromMap(d.id, d.data())).toList());
+  }
 
   static Future<void> markNotifRead(String id) =>
       _db.collection(Col.notifications).doc(id).update({'read': true});
@@ -722,6 +752,7 @@ class FS {
   // os agendamentos do cliente, mais recentes primeiro.
   static Stream<List<Map<String, dynamic>>> appointmentsStream() {
     if (_uid == null) return const Stream.empty();
+    if (_bypassLocalOnly) return _emptyList<Map<String, dynamic>>();
     return _db
         .collection(Col.appointments)
         .where('clientId', isEqualTo: _uid)
@@ -1432,6 +1463,7 @@ class FS {
 
   static Stream<List<ProviderModel>> favoritesStream() {
     if (_uid == null) return const Stream.empty();
+    if (_bypassLocalOnly) return _emptyList<ProviderModel>();
     return _db
         .collection(Col.favorites)
         .where('userId', isEqualTo: _uid)
@@ -1494,6 +1526,7 @@ class FS {
 
   // ── Histórico de pedidos do cliente (Vol.3: Perfil do Cliente) ──
   static Stream<List<OrderModel>> orderHistoryStream({OrderStatus? status}) {
+    if (_bypassLocalOnly) return _emptyList<OrderModel>();
     Query q = _db
         .collection(Col.orders)
         .where('clientId', isEqualTo: _uid)
@@ -1535,6 +1568,7 @@ class FS {
 
   static Stream<List<ResolveRequest>> myResolveRequestsStream() {
     if (_uid == null) return const Stream.empty();
+    if (_bypassLocalOnly) return _emptyList<ResolveRequest>();
     return _db
         .collection(Col.resolveRequests)
         .where('clientId', isEqualTo: _uid)
@@ -1649,6 +1683,7 @@ class FS {
   /// Lista salas do usuário autenticado (inbox unificado).
   static Stream<List<ChatRoomPreview>> chatRoomsStream() {
     if (_uid == null) return const Stream.empty();
+    if (_bypassLocalOnly) return _emptyList<ChatRoomPreview>();
     final me = _uid!;
     // Sem orderBy no Firestore para evitar exclusão de salas antigas
     // sem lastMsgTime; ordenação feita no client.
