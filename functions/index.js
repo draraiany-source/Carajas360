@@ -1253,3 +1253,22 @@ exports.generatePixHttp = functions.https.onRequest(gone);
 exports.checkPaymentHttp = functions.https.onRequest(gone);
 exports.processCardPaymentHttp = functions.https.onRequest(gone);
 exports.aiAssistantHttp = functions.https.onRequest(gone);
+
+/**
+ * Stub sandbox Mercado Pago.
+ * NÃO aplica crédito, payout ou mudança de status.
+ * Sem secret de webhook no repo — recusa payload não autenticado.
+ * Implementação real (assinatura + sandbox) fica no BLOCO E.
+ */
+exports.mercadoPagoWebhook = functions.https.onRequest((req, res) => {
+  if (req.method !== 'POST') {
+    res.status(405).json({ ok: false, reason: 'method_not_allowed' });
+    return;
+  }
+  res.status(501).json({
+    ok: false,
+    reason: 'webhook_sandbox_not_configured',
+    charged: false,
+    applied: false,
+  });
+});
