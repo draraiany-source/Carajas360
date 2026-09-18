@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:servico_conecta/core/security/order_policy.dart';
+import 'package:carajas_360/core/security/order_policy.dart';
 
 enum UserType { client, provider, deliverer, company, admin }
 

@@ -1,37 +1,54 @@
 # Identidade — Carajás 360 vs IDs técnicos
 
-Nome de produto (display): **Carajás 360**.  
-Este bloco atualiza textos, splash, onboarding, compartilhamento, Manifest/plist **visíveis**.  
+Nome de produto (display): **Carajás 360**.
 
-## IDs que NÃO foram alterados
+## Decisão (autorizada pela Raiany)
 
-| ID | Valor atual | Por quê não mudar automaticamente |
+Os IDs técnicos **foram migrados de propósito** neste PR. Não é um rename acidental.
+
+| ID | Antes (legado) | Agora (código) |
 |---|---|---|
-| Dart package (`pubspec.yaml` `name`) | `servico_conecta` | Todos os `import 'package:servico_conecta/...'` quebram; testes, ferramentas e `widget_test` usam esse nome |
-| Android `applicationId` / `namespace` | `br.com.servicoconecta` | Liga `google-services.json`, OAuth, SHA-1, Maps, FCM, Play Console. App novo na Play se mudar |
-| Android Kotlin package | `br.com.servicoconecta` | Precisa mover `MainActivity.kt` e o manifesto |
-| iOS `CFBundleIdentifier` | `br.com.servicoconecta` | Liga `GoogleService-Info.plist`, Sign in with Apple, Maps, App Store |
-| Firebase `projectId` | `servicoconecta` | Auth/Firestore/Functions/Storage/FCM do projeto atual |
-| Storage bucket / authDomain | `servicoconecta.appspot.com` / `servicoconecta.firebaseapp.com` | Vêm do projeto Firebase |
-| Functions npm name | `servicoconecta-functions` | Só metadado; irrelevante para o app. Descrição atualizada para Carajás 360 |
+| Dart package (`pubspec.yaml` `name`) | `servico_conecta` | `carajas_360` |
+| Imports Dart | `package:servico_conecta/` | `package:carajas_360/` |
+| Android `applicationId` / `namespace` | `br.com.servicoconecta` | `br.com.carajas360` |
+| Android Kotlin package | `br.com.servicoconecta` | `br.com.carajas360` (`MainActivity.kt` movido) |
+| iOS `CFBundleIdentifier` | `br.com.servicoconecta` | `br.com.carajas360` |
+| Firebase `projectId` / `.firebaserc` default | `servicoconecta` | `carajas360-a17c5` |
+| Storage bucket / authDomain (derivados do projectId) | `servicoconecta.appspot.com` / `servicoconecta.firebaseapp.com` | `carajas360-a17c5.appspot.com` / `carajas360-a17c5.firebaseapp.com` |
+| Functions npm name | `servicoconecta-functions` | **não migrado** (metadado; residual A) |
 
-**Impacto se a Raiany quiser IDs `br.com.carajas360` / projeto `carajas360` no futuro:**
+Constantes no app: `AppInfo.dartPackage`, `AppInfo.applicationId`, `AppInfo.iosBundleId`, `AppInfo.firebaseProjectId`.
 
-1. Criar apps novos no Firebase (ou migrar) e gerar `google-services.json` + `GoogleService-Info.plist` + `firebase_options.dart` novos.
-2. Recadastrar SHA-1, OAuth clients, Google Sign-In reversed URL scheme, Apple Service ID.
-3. Recriar restrições das keys de Maps.
-4. App Check do zero.
-5. Play Console: novo `applicationId` = **app novo** (não é rename in-place). Transferência de usuários não é automática.
-6. App Store: novo bundle = app novo, salvo fluxo oficial de change (raro e burocrático).
-7. Cloud Functions / FCM tokens antigos deixam de valer para o app novo.
-8. Deep links / Intent filters (hoje só o scheme do Google Sign-In placeholder) teriam de ser republicados.
+`ios/Runner.xcodeproj` continua **ausente** no Git. `Info.plist` e `GoogleService-Info.plist` foram atualizados mesmo assim. Ao restaurar o Xcode, alinhar `PRODUCT_BUNDLE_IDENTIFIER` a `br.com.carajas360`.
 
-**Não execute essa migração neste PR.** Só com decisão explícita da proprietária e janela de publicação.
+## O que este agente NÃO fez
 
-## E-mails e domínio
+- Não registrou apps no Firebase Console.
+- Não rodou `flutterfire configure` (precisa da conta da Raiany).
+- Não inventou API keys / `appId` / `messagingSenderId` / tokens — placeholders `COLE_SUA_…` permanecem.
+- Não inventou e-mails `@carajas360.com.br`.
+- Não publicou lojas, não merge em `main`, não produção.
+- Não apagou logs históricos `analyze_*.txt` / `build_*.txt` por conterem o nome antigo.
 
-Textos de suporte/privacidade continuam `@servicoconecta.com.br` — **não inventamos** `@carajas360.com.br`. Quando houver domínio oficial, trocar `AppInfo.supportEmail` / `AppInfo.privacyEmail`.
+## Próximo passo (Raiany, local)
+
+1. Firebase Console → projeto **`carajas360-a17c5`**.
+2. Cadastrar apps Android e iOS com ID **`br.com.carajas360`** (este agente não fez isso).
+3. Baixar `google-services.json` e `GoogleService-Info.plist` reais e substituir os placeholders.
+4. `flutterfire configure --project=carajas360-a17c5`.
+5. Recadastrar SHA-1/256, OAuth, Google Sign-In (`REVERSED_CLIENT_ID`), restrições Maps no **novo** package/bundle.
+6. Pull desta branch.
+
+Apps antigos `br.com.servicoconecta` no Console, se existirem, **não** batem mais com este código.
+
+## E-mails e domínio (residual A — intencional)
+
+Textos de suporte/privacidade e PIX demo continuam `@servicoconecta.com.br` — **não inventamos** `@carajas360.com.br`. Quando houver domínio oficial, trocar `AppInfo.supportEmail` / `AppInfo.privacyEmail` e o e-mail demo da carteira.
 
 ## Deep links
 
-Não há `servicoconecta://` / `carajas360://` no código. Único URL scheme iOS: Google Sign-In (`REVERSED_CLIENT_ID` placeholder). Nada a migrar além desse valor oficial.
+Não há `servicoconecta://` / `carajas360://` no código. Único URL scheme iOS: Google Sign-In (`REVERSED_CLIENT_ID` placeholder). Nada a migrar além do valor oficial do plist real.
+
+## Residuals intencionais (A)
+
+Ver relatório da migração. Em resumo: e-mails `@servicoconecta.com.br`; npm `servicoconecta-functions`; relatórios/ZIPs/histórico (`RELATORIO_DE_COMPILACAO.md`, `ServicoConecta_v1.5_*`, `analyze_*.txt` / `build_*.txt` se existirem).

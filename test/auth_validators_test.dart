@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:servico_conecta/core/utils/auth_validators.dart';
+import 'package:carajas_360/core/utils/auth_validators.dart';
 
 void main() {
   group('AuthValidators', () {

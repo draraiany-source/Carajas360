@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:servico_conecta/core/security/order_policy.dart';
-import 'package:servico_conecta/core/utils/demo_data.dart';
+import 'package:carajas_360/core/security/order_policy.dart';
+import 'package:carajas_360/core/utils/demo_data.dart';
 
 void main() {
   group('DemoData', () {

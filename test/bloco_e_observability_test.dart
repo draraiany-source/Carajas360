@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:servico_conecta/core/utils/app_error.dart';
+import 'package:carajas_360/core/utils/app_error.dart';
 
 void main() {
   group('AppError — não vaza stack ao usuário', () {

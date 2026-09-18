@@ -35,8 +35,8 @@ A key do Maps SDK **é de cliente**: ela aparece no APK/IPA. Isso é o modelo do
 
 Restrições de aplicativo:
 
-- Android: nome do pacote `br.com.servicoconecta` + SHA-1 do keystore **debug** e do **upload/release**.
-- iOS: bundle `br.com.servicoconecta`.
+- Android: nome do pacote `br.com.carajas360` + SHA-1 do keystore **debug** e do **upload/release**.
+- iOS: bundle `br.com.carajas360`.
 
 Restrições de API: **somente** Maps SDK for Android e Maps SDK for iOS.
 
@@ -78,7 +78,7 @@ Billing: ativar faturamento no GCP (obrigatório para Maps). Definir **quota ale
 2. Com Key A: mapa carrega em dispositivo/emulador com Play Services (Android) / simulador iOS.
 3. Com Key B: polyline e ETA reais na tela GPS (`lib/features/gps/gps_screen.dart`).
 4. Key errada / API não ativada: fallback de linha reta (já tratado).
-5. Verificar no Cloud Console → Credentials que as restrições de pacote/bundle batem com `br.com.servicoconecta`.
+5. Verificar no Cloud Console → Credentials que as restrições de pacote/bundle batem com `br.com.carajas360`.
 
 ---
 

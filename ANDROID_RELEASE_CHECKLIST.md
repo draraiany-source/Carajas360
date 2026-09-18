@@ -8,9 +8,9 @@ Restrições: sem Play Store, sem pagamento real, sem inventar secrets.
 | Campo | Valor atual no repo |
 |---|---|
 | Display name | Carajás 360 (`android/app/src/main/res/values/strings.xml`) |
-| `applicationId` / `namespace` | `br.com.servicoconecta` |
-| Pacote Dart | `servico_conecta` |
-| Firebase `project_id` | `servicoconecta` |
+| `applicationId` / `namespace` | `br.com.carajas360` |
+| Pacote Dart | `carajas_360` |
+| Firebase `project_id` | `carajas360-a17c5` |
 | `versionName` / `versionCode` | `1.0.0` / `1` (`pubspec.yaml` `1.0.0+1`) |
 | `minSdk` / `targetSdk` / `compileSdk` | via Flutter SDK (CI: Flutter stable) |
 | `minifyEnabled` / `shrinkResources` | `true` no `release` |
@@ -19,10 +19,11 @@ Restrições: sem Play Store, sem pagamento real, sem inventar secrets.
 | Splash | `drawable/launch_background.xml` + `splash_logo.png` |
 | Cleartext | `usesCleartextTraffic=false` |
 
-## 1. Identidade (não mudar sem migração Firebase)
+## 1. Identidade (migrada de propósito)
 
-- [ ] Confirmar `applicationId` = `br.com.servicoconecta` (já está).
-- [ ] **Não** trocar para `br.com.carajas360` sem projeto Firebase novo + SHA.
+- [ ] Confirmar `applicationId` / `namespace` = `br.com.carajas360` (já no Gradle + `MainActivity`).
+- [ ] Pacote Dart `carajas_360`. Firebase `project_id` `carajas360-a17c5`.
+- [ ] Cadastrar o app Android **`br.com.carajas360`** no Console do projeto `carajas360-a17c5` (este agente **não** registrou).
 - [ ] `google-services.json` no repo ainda é **placeholder** (`project_number` `000000000000`, key `COLE_SUA_…`). A Raiany baixa o arquivo real do Console e **não** commita se a política for secretar.
 
 ## 2. Keystore / signing (Raiany, local)

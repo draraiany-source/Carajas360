@@ -1,14 +1,14 @@
 # Carajás 360 — Como compilar (staging)
 
-Os IDs técnicos (`br.com.servicoconecta`, projeto Firebase `servicoconecta`) **não** são o nome de vitrine. Ver `IDENTIDADE_TECNICA.md`.
+Os IDs técnicos (`br.com.carajas360`, projeto Firebase `carajas360-a17c5`, package Dart `carajas_360`) **não** são o nome de vitrine. Ver `IDENTIDADE_TECNICA.md`.
 Checklists: `CHECKLIST_FIREBASE_STAGING.md`, `CHECKLIST_GOOGLE_MAPS.md`.
 
 ## 1. Firebase (15 min)
 1. https://console.firebase.google.com → criar projeto
 2. Ative: Authentication (Phone + Email), Firestore, Storage, Cloud Messaging
-3. Adicione app Android (`br.com.servicoconecta`) → baixe `google-services.json` → substitua em `android/app/`
-4. Adicione app iOS (`br.com.servicoconecta`) → baixe `GoogleService-Info.plist` → substitua em `ios/Runner/`
-5. Rode: `dart pub global activate flutterfire_cli && flutterfire configure --project=SEU_PROJETO`
+3. Adicione app Android (`br.com.carajas360`) → baixe `google-services.json` → substitua em `android/app/`
+4. Adicione app iOS (`br.com.carajas360`) → baixe `GoogleService-Info.plist` → substitua em `ios/Runner/`
+5. Rode: `dart pub global activate flutterfire_cli && flutterfire configure --project=carajas360-a17c5`
    Isso substitui `lib/firebase_options.dart` automaticamente.
 6. No Firebase Console → Authentication → Sign-in method → ative também o **Google**.
 7. Publique as regras de segurança:

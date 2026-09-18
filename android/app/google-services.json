@@ -1,14 +1,14 @@
 {
   "project_info": {
     "project_number": "000000000000",
-    "project_id": "servicoconecta",
-    "storage_bucket": "servicoconecta.appspot.com"
+    "project_id": "carajas360-a17c5",
+    "storage_bucket": "carajas360-a17c5.appspot.com"
   },
   "client": [
     {
       "client_info": {
         "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
-        "android_client_info": { "package_name": "br.com.servicoconecta" }
+        "android_client_info": { "package_name": "br.com.carajas360" }
       },
       "oauth_client": [],
       "api_key": [{ "current_key": "COLE_SUA_ANDROID_API_KEY_AQUI" }],

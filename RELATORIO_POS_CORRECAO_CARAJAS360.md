@@ -9,6 +9,8 @@
 
 **Não é publicação.** Sem Play Store, App Store, pagamento real, keystore no Git ou merge em `main`.
 
+> **Atualização pós-F (IDs):** a Raiany autorizou a migração de IDs no código. Valores atuais: Dart `carajas_360`, Android/iOS `br.com.carajas360`, Firebase `carajas360-a17c5`. Placeholders `COLE_SUA_…` permanecem. E-mails `@servicoconecta.com.br` são residual A. Ver `IDENTIDADE_TECNICA.md`.
+
 ---
 
 ## CLASSIFICAÇÃO FINAL
@@ -27,7 +29,7 @@ Ainda faltam credenciais essenciais (Firebase/Maps reais), App Check sem enforce
 
 ## 1. Resumo executivo
 
-O Carajás 360 (IDs técnicos `servico_conecta` / `br.com.servicoconecta` / Firebase `servicoconecta`) saiu de um estado em que o client escrevia dinheiro e as Functions HTTP de pagamento existiam, para um núcleo **staging-safe**:
+O Carajás 360 (IDs técnicos atuais `carajas_360` / `br.com.carajas360` / Firebase `carajas360-a17c5`; e-mails ainda `@servicoconecta.com.br`) saiu de um estado em que o client escrevia dinheiro e as Functions HTTP de pagamento existiam, para um núcleo **staging-safe**:
 
 - Máquina de estados de pedido + payout idempotente no backend.
 - Client **não** grava wallet, payment, XP, plan, verified.
@@ -104,7 +106,7 @@ Nenhum destes autoriza ligar pagamento real ou publicar.
 
 ## 5. Problemas que dependem da proprietária (Raiany)
 
-1. Projeto Firebase **staging** + baixar `google-services.json`, `GoogleService-Info.plist`, `flutterfire configure` (IDs `br.com.servicoconecta` / `servicoconecta` salvo decisão explícita de migração — `IDENTIDADE_TECNICA.md`).
+1. Projeto Firebase **staging** `carajas360-a17c5` + cadastrar apps `br.com.carajas360` + baixar `google-services.json`, `GoogleService-Info.plist`, `flutterfire configure --project=carajas360-a17c5` (`IDENTIDADE_TECNICA.md`).
 2. SHA-1/256 debug (e depois upload) no Firebase.
 3. Ativar Auth: e-mail, Google, Apple, telefone.
 4. Deploy **staging** de rules + Functions (`PAYMENTS_ENABLED=false`).
@@ -131,7 +133,7 @@ Checklist operacional no **final deste arquivo**.
 
 **CI / docs:** `.github/workflows/ci.yml`, `ANDROID_RELEASE_CHECKLIST.md`, `IOS_RELEASE_CHECKLIST.md`, `BACKLOG_FASE_2.md`, `OCR_DOCUMENTOS.md`, `CHECKLIST_FIREBASE_STAGING.md`, `CHECKLIST_GOOGLE_MAPS.md`, `PAGAMENTOS_STAGING.md`, `IDENTIDADE_TECNICA.md`, `LGPD_DATA_RETENTION.md`, `BLOCO_E.md`, `BLOCO_F.md`, este relatório.
 
-IDs **não** mudados: `servico_conecta`, `br.com.servicoconecta`, `servicoconecta`.
+IDs **migrados de propósito** (pós-F, autorização da Raiany): `carajas_360`, `br.com.carajas360`, `carajas360-a17c5`. E-mails `@servicoconecta.com.br` e npm `servicoconecta-functions` ficaram como residual A.
 
 ---
 
@@ -209,7 +211,7 @@ Exportação pelo perfil. CPF validado no backend.
 
 ## 13. Android
 
-`applicationId` `br.com.servicoconecta`. `1.0.0+1`. R8/ProGuard no release.  
+`applicationId` `br.com.carajas360`. `1.0.0+1`. R8/ProGuard no release.  
 Release **não** assina debug se faltar `key.properties` (falha de propósito).  
 Permissões: localização, câmera, microfone, fotos, notificações.  
 `google-services.json` placeholder. Sem adaptive icon. Ver `ANDROID_RELEASE_CHECKLIST.md`.
@@ -218,7 +220,7 @@ Permissões: localização, câmera, microfone, fotos, notificações.
 
 ## 14. iOS
 
-Display **Carajás 360**, bundle `br.com.servicoconecta`.  
+Display **Carajás 360**, bundle `br.com.carajas360`.  
 Privacy strings no plist. Push/Maps sem entitlements no Git.  
 **`Runner.xcodeproj` ausente** — archive impossível até a Raiany restaurar.  
 Plist Firebase / `GMSApiKey` / `REVERSED_CLIENT_ID` placeholders. Ver `IOS_RELEASE_CHECKLIST.md`.
@@ -292,12 +294,12 @@ Ordem sugerida. Nada disso foi executado neste agente (evita inventar secret / d
 
 ### A. Firebase staging (obrigatório para o app falar com backend real)
 
-- [ ] Console Firebase → projeto `servicoconecta` (ou avisar se o ID for outro **antes** de trocar código).
-- [ ] Apps Android/iOS `br.com.servicoconecta`.
+- [ ] Console Firebase → projeto `carajas360-a17c5`.
+- [ ] Cadastrar apps Android/iOS `br.com.carajas360` (este agente **não** registrou).
 - [ ] Ativar Auth, Firestore, Storage, Functions, FCM, Crashlytics, Analytics.
 - [ ] Baixar `google-services.json` → `android/app/google-services.json`.
 - [ ] Baixar `GoogleService-Info.plist` → `ios/Runner/`.
-- [ ] `flutterfire configure --project=servicoconecta` → `lib/firebase_options.dart`.
+- [ ] `flutterfire configure --project=carajas360-a17c5` → `lib/firebase_options.dart`.
 - [ ] Colar `REVERSED_CLIENT_ID` no `Info.plist`.
 - [ ] SHA-1/256 do **debug** no app Android.
 - [ ] Auth: e-mail, Google, Apple, telefone.
@@ -333,7 +335,7 @@ flutter run --debug
 - [ ] Não criar keystore no Git.
 - [ ] Não publicar Play / TestFlight produção.
 - [ ] Não merge em `main` sem review.
-- [ ] Não trocar `applicationId` / bundle / `projectId` sem ler `IDENTIDADE_TECNICA.md`.
+- [ ] Não trocar IDs de volta para `br.com.servicoconecta` / `servico_conecta` / `servicoconecta` — a migração já foi autorizada (`IDENTIDADE_TECNICA.md`).
 
 ### E. Depois do staging estável (fora deste PR)
 

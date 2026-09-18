@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:servico_conecta/core/constants/app_constants.dart';
-import 'package:servico_conecta/shared/models/models.dart';
-import 'package:servico_conecta/shared/services/firebase_service.dart';
+import 'package:carajas_360/core/constants/app_constants.dart';
+import 'package:carajas_360/shared/models/models.dart';
+import 'package:carajas_360/shared/services/firebase_service.dart';
 
 void main() {
   group('XP / Gamificação', () {

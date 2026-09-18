@@ -1,10 +1,12 @@
 # Checklist — Firebase Staging (Carajás 360)
 
-**Não inventamos chaves, App IDs, SHA-1 nem tokens.** Os arquivos no repositório são *placeholders* de forma decente para o app compilar em debug/emulador. Staging real só depois que a Raiany colar os arquivos oficiais do Console Firebase.
+**Não inventamos chaves, App IDs reais, SHA-1 nem tokens.** Os arquivos no repositório são *placeholders* de forma decente para o app compilar em debug/emulador. Staging real só depois que a Raiany cadastrar os apps no Console e colar os arquivos oficiais.
 
-Projeto referenciado no código (não alterado neste bloco): `servicoconecta`.  
-IDs técnicos do app: Android `br.com.servicoconecta` · iOS `br.com.servicoconecta`.  
-**Não troque esses IDs sem ler `IDENTIDADE_TECNICA.md`** — quebram Firebase, Maps, Play/App Store e OAuth.
+Projeto referenciado no código (migrado de propósito): **`carajas360-a17c5`**.  
+IDs técnicos do app: Android **`br.com.carajas360`** · iOS **`br.com.carajas360`**.  
+Dart package: **`carajas_360`**. Ver `IDENTIDADE_TECNICA.md`.
+
+Este agente **não** registrou apps no Firebase Console. Placeholders `COLE_SUA_…` permanecem até o `flutterfire configure` local.
 
 Pagamentos reais: **desligados** (`PAYMENTS_ENABLED=false`). Não publicar produção neste bloco.
 
@@ -14,9 +16,9 @@ Pagamentos reais: **desligados** (`PAYMENTS_ENABLED=false`). Não publicar produ
 
 | Item | Arquivo | Estado | Pode ir para o Git? | Secret? |
 |---|---|---|---|---|
-| FlutterFire options | `lib/firebase_options.dart` | Placeholders `COLE_SUA_*_API_KEY`, `appId`/`senderId` fictícios, `projectId: servicoconecta` | Sim **enquanto for placeholder**. Depois do `flutterfire configure`, o arquivo contém API keys *de cliente* — aceitável no Git se o app for só staging e as keys estiverem restritas; **não** commitar se for produção sem restrição | Cliente (não é service account). Tratar como confidencial de produção |
-| Android Google Services | `android/app/google-services.json` | `project_number` 000…, API key placeholder, package `br.com.servicoconecta` | Idem: placeholder sim; arquivo real de **produção** preferir `assume-unchanged` / CI secret | Cliente |
-| iOS GoogleService | `ios/Runner/GoogleService-Info.plist` | Mesmos placeholders, `BUNDLE_ID` `br.com.servicoconecta` | Idem | Cliente |
+| FlutterFire options | `lib/firebase_options.dart` | Placeholders `COLE_SUA_*_API_KEY`, `appId`/`senderId` fictícios, `projectId: carajas360-a17c5`, bundle `br.com.carajas360` | Sim **enquanto for placeholder**. Depois do `flutterfire configure`, o arquivo contém API keys *de cliente* — aceitável no Git se o app for só staging e as keys estiverem restritas; **não** commitar se for produção sem restrição | Cliente (não é service account). Tratar como confidencial de produção |
+| Android Google Services | `android/app/google-services.json` | `project_number` 000…, API key placeholder, package `br.com.carajas360`, `project_id` `carajas360-a17c5` | Idem: placeholder sim; arquivo real de **produção** preferir `assume-unchanged` / CI secret | Cliente |
+| iOS GoogleService | `ios/Runner/GoogleService-Info.plist` | Mesmos placeholders, `BUNDLE_ID` `br.com.carajas360`, `PROJECT_ID` `carajas360-a17c5` | Idem | Cliente |
 | Reversed client ID (Google Sign-In iOS) | `ios/Runner/Info.plist` → `CFBundleURLSchemes` | `COLE_SEU_REVERSED_CLIENT_ID_AQUI` | Placeholder sim. Valor real vem do plist (`REVERSED_CLIENT_ID`) | Cliente |
 | Web OAuth client | `web/index.html` `google-signin-client_id` | Placeholder | Placeholder sim | Cliente |
 | Service account / Admin SDK | — | **Ausente (correto)** | **Nunca** | **Sim** |
@@ -37,9 +39,9 @@ Pagamentos reais: **desligados** (`PAYMENTS_ENABLED=false`). Não publicar produ
 
 ### 1. Projeto Firebase de STAGING
 
-1. [Firebase Console](https://console.firebase.google.com/) → projeto de staging (se o ID real **não** for `servicoconecta`, avisar antes de trocar `projectId`).
+1. [Firebase Console](https://console.firebase.google.com/) → projeto **`carajas360-a17c5`**.
 2. Ativar: **Authentication**, **Firestore**, **Storage**, **Functions**, **Cloud Messaging**, **Crashlytics**, **Analytics**, **App Check** (depois).
-3. Apps: Android `br.com.servicoconecta` + iOS `br.com.servicoconecta` (+ Web se for usar).
+3. Cadastrar apps: Android **`br.com.carajas360`** + iOS **`br.com.carajas360`** (+ Web se for usar). **Este agente não cadastrou.**
 
 ### 2. Arquivos de cliente
 
@@ -47,7 +49,7 @@ Pagamentos reais: **desligados** (`PAYMENTS_ENABLED=false`). Não publicar produ
 |---|---|---|---|
 | `google-services.json` | Console → Project settings → Android app → Download | `android/app/google-services.json` | Placeholder atual: sim. Arquivo **real de produção**: não commitar |
 | `GoogleService-Info.plist` | Idem, app iOS | `ios/Runner/GoogleService-Info.plist` | Idem |
-| `firebase_options.dart` | `dart pub global activate flutterfire_cli` + `flutterfire configure --project=<ID>` | `lib/firebase_options.dart` (substitui o placeholder) | Idem |
+| `firebase_options.dart` | `dart pub global activate flutterfire_cli` + `flutterfire configure --project=carajas360-a17c5` | `lib/firebase_options.dart` (substitui o placeholder) | Idem |
 | `REVERSED_CLIENT_ID` | chave no plist iOS | `ios/Runner/Info.plist` → `CFBundleURLSchemes` | Cliente |
 | Web client ID | Google Cloud → APIs & Services → Credentials (OAuth Web) | `web/index.html` `google-signin-client_id` | Cliente |
 
@@ -55,7 +57,7 @@ Comando (máquina da Raiany, com Flutter):
 
 ```bash
 dart pub global activate flutterfire_cli
-flutterfire configure --project=servicoconecta
+flutterfire configure --project=carajas360-a17c5
 ```
 
 Não rodamos isso aqui: exigiria login Google e criaria IDs reais.
@@ -152,7 +154,7 @@ Não usamos `functions.config()` (depreciado). Só `process.env` / Secret Manage
 ## Como validar staging (ordem segura)
 
 1. `firebase emulators:start` + `flutter run --dart-define=USE_FIREBASE_EMULATOR=true` (debug).
-2. Substituir os 3 arquivos de cliente pelos oficiais **de staging**.
+2. Substituir os 3 arquivos de cliente pelos oficiais **de staging** (apps `br.com.carajas360` no projeto `carajas360-a17c5`).
 3. `flutter run` **sem** emulador apontando para o projeto staging.
 4. Auth e-mail → Firestore write de perfil → Storage upload de foto → callable `switchProfileType`.
 5. Crashlytics/Analytics no Console após um evento.
@@ -163,8 +165,8 @@ Não usamos `functions.config()` (depreciado). Só `process.env` / Secret Manage
 ## O que NÃO foi feito (bloqueado de propósito)
 
 - Não geramos `flutterfire configure` (precisa da conta da Raiany).
-- Não criamos projeto Firebase novo.
+- Não cadastramos apps no Firebase Console.
 - Não inventamos API keys, `appId`, `measurementId`, SHA-1, OAuth client IDs.
 - Não ativamos App Check enforce.
 - Não fizemos deploy.
-- Não mudamos `applicationId` / `bundleId` / `projectId`.
+- IDs de código **foram** migrados (autorização da Raiany): `carajas_360` / `br.com.carajas360` / `carajas360-a17c5`.

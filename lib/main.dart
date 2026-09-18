@@ -13,27 +13,27 @@ import 'core/constants/app_constants.dart';
 import 'core/utils/firebase_bootstrap.dart';
 import 'shared/services/firebase_service.dart';
 
-import 'package:servico_conecta/features/auth/auth_screen.dart';
-import 'package:servico_conecta/features/home/home_screen.dart'
+import 'package:carajas_360/features/auth/auth_screen.dart';
+import 'package:carajas_360/features/home/home_screen.dart'
     show SearchScreen, ServicesHubScreen;
-import 'package:servico_conecta/features/home/carajas_home_screen.dart';
-import 'package:servico_conecta/features/resolve/resolve_screen.dart';
-import 'package:servico_conecta/features/chat/chat_screen.dart';
-import 'package:servico_conecta/features/chat/chat_inbox_screen.dart';
-import 'package:servico_conecta/features/gps/gps_screen.dart';
-import 'package:servico_conecta/features/wallet/wallet_screen.dart';
-import 'package:servico_conecta/features/health/health_screen.dart';
-import 'package:servico_conecta/features/marketplace/marketplace_screen.dart';
-import 'package:servico_conecta/features/marketplace/store_screen.dart';
-import 'package:servico_conecta/features/rental/rental_screen.dart';
-import 'package:servico_conecta/features/profile/profile_screens.dart';
-import 'package:servico_conecta/features/support/support_screens.dart';
-import 'package:servico_conecta/features/ai_assistant/ai_screen.dart';
-import 'package:servico_conecta/features/admin/admin_screen.dart';
-import 'package:servico_conecta/features/company/company_screen.dart';
-import 'package:servico_conecta/features/orders/orders_screen.dart';
-import 'package:servico_conecta/features/provider/provider_home_screen.dart';
-import 'package:servico_conecta/core/auth/access_control.dart';
+import 'package:carajas_360/features/home/carajas_home_screen.dart';
+import 'package:carajas_360/features/resolve/resolve_screen.dart';
+import 'package:carajas_360/features/chat/chat_screen.dart';
+import 'package:carajas_360/features/chat/chat_inbox_screen.dart';
+import 'package:carajas_360/features/gps/gps_screen.dart';
+import 'package:carajas_360/features/wallet/wallet_screen.dart';
+import 'package:carajas_360/features/health/health_screen.dart';
+import 'package:carajas_360/features/marketplace/marketplace_screen.dart';
+import 'package:carajas_360/features/marketplace/store_screen.dart';
+import 'package:carajas_360/features/rental/rental_screen.dart';
+import 'package:carajas_360/features/profile/profile_screens.dart';
+import 'package:carajas_360/features/support/support_screens.dart';
+import 'package:carajas_360/features/ai_assistant/ai_screen.dart';
+import 'package:carajas_360/features/admin/admin_screen.dart';
+import 'package:carajas_360/features/company/company_screen.dart';
+import 'package:carajas_360/features/orders/orders_screen.dart';
+import 'package:carajas_360/features/provider/provider_home_screen.dart';
+import 'package:carajas_360/core/auth/access_control.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();

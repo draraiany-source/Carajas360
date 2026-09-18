@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
-import 'package:servico_conecta/core/utils/firebase_bootstrap.dart';
-import 'package:servico_conecta/shared/models/models.dart';
-import 'package:servico_conecta/shared/services/firebase_service.dart';
+import 'package:carajas_360/core/utils/firebase_bootstrap.dart';
+import 'package:carajas_360/shared/models/models.dart';
+import 'package:carajas_360/shared/services/firebase_service.dart';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();

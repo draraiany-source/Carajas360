@@ -60,18 +60,18 @@ Dez pontos. Uma verificação cada.
 
 ## 3. Deploy staging — ordem exata (Raiany)
 
-Confirme no Console que o projeto é **staging** (`servicoconecta`, salvo outro ID **antes** de trocar código). IDs do app: `br.com.servicoconecta`. Ver `IDENTIDADE_TECNICA.md` e `CHECKLIST_FIREBASE_STAGING.md`.
+Confirme no Console que o projeto é **staging** (`carajas360-a17c5`). IDs do app: `br.com.carajas360`. Ver `IDENTIDADE_TECNICA.md` e `CHECKLIST_FIREBASE_STAGING.md`.
 
 ### 3.1 Arquivos de cliente
 
-1. Firebase Console → apps Android e iOS `br.com.servicoconecta`.
+1. Firebase Console → cadastrar apps Android e iOS **`br.com.carajas360`** no projeto `carajas360-a17c5` (este agente **não** registrou).
 2. Ativar: Authentication, Firestore, Storage, Functions, FCM, Crashlytics, Analytics. **App Check depois** (passo 3.2).
 3. Baixar `google-services.json` → `android/app/google-services.json`.
 4. Baixar `GoogleService-Info.plist` → `ios/Runner/GoogleService-Info.plist`.
 5. Na máquina com Flutter:
    ```bash
    dart pub global activate flutterfire_cli
-   flutterfire configure --project=servicoconecta
+   flutterfire configure --project=carajas360-a17c5
    ```
    Isso substitui `lib/firebase_options.dart`.
 6. Copiar `REVERSED_CLIENT_ID` do plist para `ios/Runner/Info.plist` (`CFBundleURLSchemes`).
@@ -102,8 +102,8 @@ Confirme no Console: Functions Node **20**; `PAYMENTS_ENABLED` não true; HTTP `
 
 ### 3.4 Maps (GPS real; senão pule)
 
-1. Key Android: package `br.com.servicoconecta` + SHA debug; só Maps SDK Android.
-2. Key iOS: bundle `br.com.servicoconecta`; só Maps SDK iOS.
+1. Key Android: package `br.com.carajas360` + SHA debug; só Maps SDK Android.
+2. Key iOS: bundle `br.com.carajas360`; só Maps SDK iOS.
 3. `android/local.properties` → `MAPS_API_KEY=…` (arquivo gitignored).
 4. iOS: `GMSApiKey` no plist **sem** commitar key irrestrita.
 5. Debug:

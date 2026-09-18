@@ -46,7 +46,7 @@ Prazo de guarda dos registros retidos: **5 anos** a partir da exclusão (`legalR
 
 No app: **Perfil → Excluir minha conta** (confirmação). Portabilidade: **Exportar meus dados**.
 
-Encarregado (texto atual do app): `privacidade@servicoconecta.com.br` — confirmar com a Raiany se o e-mail definitivo muda.
+Encarregado (texto atual do app): `privacidade@servicoconecta.com.br` — residual A (domínio de e-mail ainda não migrado; **não** inventar `@carajas360.com.br`). Confirmar com a Raiany se o e-mail definitivo muda.
 
 ## O que a Function **não** faz (de propósito)
 

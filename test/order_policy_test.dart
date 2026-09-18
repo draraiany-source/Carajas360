@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:servico_conecta/core/security/order_policy.dart';
+import 'package:carajas_360/core/security/order_policy.dart';
 
 void main() {
   group('máquina de estados do pedido', () {

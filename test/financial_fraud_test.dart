@@ -1,6 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:servico_conecta/core/security/order_policy.dart';
-import 'package:servico_conecta/shared/models/models.dart';
+import 'package:carajas_360/core/security/order_policy.dart';
+import 'package:carajas_360/shared/models/models.dart';
 
 void main() {
   group('BLOCO A — testes de fraude financeira (devem ser bloqueados)', () {
