@@ -7,6 +7,9 @@ abstract class AppInfo {
   /// Nome legado do núcleo de serviços (módulo Serviços).
   static const servicesModuleName = 'Serviços';
   static const servicesModuleLegacy = 'Serviço Conecta';
+  /// Domínio de e-mail ainda não migrado — não inventar @carajas360.com.br.
+  static const supportEmail = 'suporte@servicoconecta.com.br';
+  static const privacyEmail = 'privacidade@servicoconecta.com.br';
 }
 
 abstract class AppConst {
@@ -47,6 +50,7 @@ abstract class Col {
   static const resolveProposals = 'resolveProposals';
   static const financialAudits = 'financialAudits';
   static const rateLimits = 'rateLimits';
+  static const planChangeRequests = 'planChangeRequests';
 }
 
 abstract class Routes {

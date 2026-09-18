@@ -1,6 +1,9 @@
 /**
  * Carajás 360 — Cloud Functions (staging-safe)
  *
+ * Runtime: Node.js 20 (1ª geração; nodejs22 não é suportado em GCF Gen1).
+ * Secrets via process.env / Secret Manager — NÃO usamos functions.config().
+ *
  * Pagamentos reais (Mercado Pago) só rodam se:
  *   PAYMENTS_ENABLED=true  E  MERCADOPAGO_ACCESS_TOKEN no env/Secret Manager.
  * Por padrão o gateway real permanece DESLIGADO.
@@ -11,6 +14,7 @@ const axios = require('axios');
 const policy = require('./orderPolicy');
 const security = require('./security');
 const deletion = require('./accountDeletion');
+const planChange = require('./planChange');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -826,6 +830,61 @@ exports.processRefund = functions.region(REGION).https.onCall(async (data, conte
     });
     return { ok: true, already: false, status: 'refunded' };
   });
+});
+
+exports.requestPlanChange = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  const uid = auth.uid;
+  await enforceRateLimit(uid, 'plan_change', 8, 60 * 60 * 1000);
+
+  const userRef = db.collection('users').doc(uid);
+  const snap = await userRef.get();
+  const existing = snap.exists ? snap.data() || {} : {};
+  if (existing.status === 'deleted' || existing.anonymized === true) {
+    throw httpsError('failed-precondition', 'Conta indisponível');
+  }
+  const currentPlan = existing.plan || 'free';
+  const decision = planChange.buildPlanChangeDecision({
+    requestedPlan: data && data.plan,
+    currentPlan,
+    paymentsEnabled: PAYMENTS_ENABLED,
+  });
+  if (!decision.ok) {
+    throw httpsError(decision.code, decision.message);
+  }
+
+  const docRef = db.collection('planChangeRequests').doc();
+  await docRef.set({
+    userId: uid,
+    currentPlan: decision.currentPlan,
+    requestedPlan: decision.requestedPlan,
+    status: decision.status,
+    charged: false,
+    applied: false,
+    paymentsEnabled: PAYMENTS_ENABLED,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+
+  try {
+    await notify(
+      uid,
+      'Pedido de plano registrado',
+      decision.message,
+      'plan',
+    );
+  } catch (e) {
+    console.error('notify plan change', e);
+  }
+
+  return {
+    ok: true,
+    charged: false,
+    applied: false,
+    status: decision.status,
+    message: decision.message,
+    requestId: docRef.id,
+    requestedPlan: decision.requestedPlan,
+  };
 });
 
 exports.deleteMyAccount = functions.region(REGION).https.onCall(async (data, context) => {

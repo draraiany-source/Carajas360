@@ -267,6 +267,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /planChangeRequests/{id} {
+      allow read: if isAuth() && (resource.data.userId == uid() || isAdmin());
+      allow create, update, delete: if false;
+    }
+
     match /deliveries/{deliveryId} {
       allow read: if isAuth() && (
         resource.data.clientId == request.auth.uid ||

@@ -1,15 +1,15 @@
 {
   "name": "servicoconecta-functions",
-  "description": "Cloud Functions - ServiçoConecta",
+  "description": "Cloud Functions - Carajás 360 (Firebase project id técnico: servicoconecta)",
   "scripts": {
-    "test": "node --test orderPolicy.test.js security.test.js blocoB.test.js",
-    "lint": "node --check index.js && node --check orderPolicy.js && node --check security.js && node --check accountDeletion.js",
+    "test": "node --test orderPolicy.test.js security.test.js blocoB.test.js blocoC.test.js",
+    "lint": "node --check index.js && node --check orderPolicy.js && node --check security.js && node --check accountDeletion.js && node --check planChange.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "deploy": "firebase deploy --only functions",
     "logs": "firebase functions:log"
   },
-  "engines": { "node": "18" },
+  "engines": { "node": "20" },
   "main": "index.js",
   "dependencies": {
     "firebase-admin": "^12.0.0",
