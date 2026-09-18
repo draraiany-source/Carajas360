@@ -16,6 +16,7 @@ import '../../core/utils/firebase_bootstrap.dart';
 import '../../firebase_options.dart';
 import '../../core/utils/platform_info.dart';
 import '../../core/security/order_policy.dart';
+import '../../core/utils/auth_validators.dart';
 import 'apple_sign_in.dart';
 import 'local_notifications.dart';
 
@@ -235,20 +236,21 @@ class AuthService {
     await _a.signOut();
   }
 
-  /// Exclusão definitiva da conta (LGPD). Pode exigir login recente.
+  /// Exclusão LGPD: Cloud Function anonimiza e remove o Auth.
+  /// Não apaga só o Firebase Auth nem registros financeiros.
   static Future<void> deleteAccount() async {
-    final user = _a.currentUser;
-    if (user == null) {
+    if (_a.currentUser == null) {
       throw const AuthFailure('Faça login para excluir a conta.');
     }
     try {
-      await user.delete();
-    } on FirebaseAuthException catch (e) {
-      if (e.code == 'requires-recent-login') {
-        throw const AuthFailure(
-            'Por segurança, saia e entre novamente antes de excluir a conta.');
-      }
-      throw AuthFailure(_mapAuthError(e), code: e.code);
+      await FS.deleteMyAccountData();
+    } on CloudCallException catch (e) {
+      throw AuthFailure(e.message, code: e.code);
+    }
+    try {
+      await signOut();
+    } catch (e) {
+      debugPrint('signOut após exclusão: $e');
     }
   }
 }
@@ -274,11 +276,18 @@ class FS {
     }
     // Campos privilegiados só na criação; updates não elevam privilégios.
     final data = u.toMap();
+    data.remove('xp');
+    data.remove('anonymized');
+    data.remove('deletedAt');
     final pii = <String, dynamic>{};
     for (final k in OrderPolicy.piiFields) {
       if (data.containsKey(k)) {
         pii[k] = data.remove(k);
       }
+    }
+    if (pii['cpf'] != null &&
+        !AuthValidators.isValidCpf(pii['cpf']?.toString())) {
+      pii.remove('cpf');
     }
     if (!isNew) {
       for (final k in OrderPolicy.protectedUserFields) {
@@ -364,6 +373,10 @@ class FS {
     for (final k in OrderPolicy.protectedUserFields) {
       sanitized.remove(k);
     }
+    if (sanitized.containsKey('cpf') &&
+        !AuthValidators.isValidCpf(sanitized['cpf']?.toString())) {
+      throw const CloudCallException('CPF inválido', code: 'invalid-argument');
+    }
     if (sanitized.isEmpty) return;
     await _db
         .collection(Col.users)
@@ -418,26 +431,10 @@ class FS {
     };
   }
 
-  /// Apaga dados pessoais principais do Firestore antes da exclusão Auth.
+  /// Pedido LGPD de exclusão: Function autenticada (anonimiza + retenção legal).
   static Future<void> deleteMyAccountData() async {
-    if (_uid == null) return;
-    final uid = _uid!;
-    try {
-      final favs = await _db
-          .collection(Col.favorites)
-          .where('userId', isEqualTo: uid)
-          .get();
-      for (final d in favs.docs) {
-        await d.reference.delete();
-      }
-    } catch (e) {
-      debugPrint('deleteMyAccountData favorites: $e');
-    }
-    try {
-      await _db.collection(Col.users).doc(uid).delete();
-    } catch (e) {
-      debugPrint('deleteMyAccountData user: $e');
-    }
+    if (_uid == null) throw const AuthFailure('Não autenticado');
+    await CloudFn.call('deleteMyAccount');
   }
 
   // Upload de foto de perfil do usuário (Vol.3: Cadastro de

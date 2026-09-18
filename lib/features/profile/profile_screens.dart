@@ -363,8 +363,9 @@ class ProfileScreen extends StatelessWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Excluir conta?'),
         content: const Text(
-            'Isso apaga seu perfil e remove o acesso ao app. '
-            'Ação irreversível. Pedidos antigos podem permanecer anonimizados no histórico operacional.'),
+            'Seu perfil e dados pessoais serão anonimizados. '
+            'Pedidos, pagamentos, contratos e registros fiscais são mantidos '
+            'pelo prazo legal, sem identificação. Esta ação não pode ser desfeita.'),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
@@ -378,10 +379,10 @@ class ProfileScreen extends StatelessWidget {
     );
     if (ok != true || !context.mounted) return;
     try {
-      await FS.deleteMyAccountData();
       await AuthService.deleteAccount();
       if (context.mounted) {
-        snack(context, 'Conta excluída.', bg: AppColors.secondary);
+        snack(context, 'Conta excluída e dados pessoais anonimizados.',
+            bg: AppColors.secondary);
         Navigator.pushReplacementNamed(context, Routes.login);
       }
     } on AuthFailure catch (e) {

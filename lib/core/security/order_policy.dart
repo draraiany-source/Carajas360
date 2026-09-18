@@ -45,6 +45,8 @@ abstract final class OrderPolicy {
     'xp',
     'status',
     'moderationStatus',
+    'anonymized',
+    'deletedAt',
   };
 
   static const protectedProviderFields = <String>{

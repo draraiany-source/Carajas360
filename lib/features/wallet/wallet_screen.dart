@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_assets.dart';
+import '../../core/utils/auth_validators.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
@@ -1127,12 +1128,7 @@ class _CardPaymentState extends State<CardPaymentScreen> {
                               decoration: const InputDecoration(
                                   hintText: 'CPF do titular',
                                   prefixIcon: Icon(Icons.badge_outlined)),
-                              validator: (v) =>
-                                  (v?.replaceAll(RegExp(r'\D'), '').length ??
-                                              0) <
-                                          11
-                                      ? 'CPF inválido'
-                                      : null),
+                              validator: (v) => AuthValidators.cpfError(v)),
                           const SizedBox(height: 14),
                           Container(
                               decoration: AppDecorations.card(r: 14),
