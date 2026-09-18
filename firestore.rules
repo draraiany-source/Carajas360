@@ -20,8 +20,16 @@ service cloud.firestore {
     function userProtectedKeys() {
       return [
         'type', 'role', 'roles', 'adminRole', 'verified', 'active', 'plan',
-        'walletId', 'financialStatus', 'permissions', 'createdAt', 'xp', 'status'
+        'walletId', 'financialStatus', 'permissions', 'createdAt', 'xp', 'status',
+        'moderationStatus'
       ];
+    }
+    function chatId(a, b) {
+      return a < b ? a + '_' + b : b + '_' + a;
+    }
+    function sharesChat(otherId) {
+      return isAuth() &&
+        exists(/databases/$(database)/documents/chatRooms/$(chatId(uid(), otherId)));
     }
     function ownsCompany(companyId) {
       return isAuth() && (
@@ -30,29 +38,47 @@ service cloud.firestore {
           get(/databases/$(database)/documents/companies/$(companyId)).data.ownerId == uid())
       );
     }
+    function isOrderParty() {
+      return isAuth() && (
+        resource.data.clientId == uid() ||
+        resource.data.providerId == uid()
+      );
+    }
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin();
+      allow get: if isOwner(userId) || isAdmin() || sharesChat(userId);
       allow list: if isAdmin();
       allow create: if isOwner(userId) &&
         request.resource.data.type in ['client', 'provider', 'deliverer', 'company'] &&
-        !('adminRole' in request.resource.data.keys());
+        !('adminRole' in request.resource.data.keys()) &&
+        !('permissions' in request.resource.data.keys()) &&
+        !('walletId' in request.resource.data.keys()) &&
+        request.resource.data.get('verified', false) == false &&
+        request.resource.data.get('plan', 'free') == 'free' &&
+        request.resource.data.get('moderationStatus', 'none') in ['none', 'pending', ''];
       allow update: if (isOwner(userId) &&
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(userProtectedKeys())) ||
         isAdmin();
       allow delete: if isOwner(userId) || isAdmin();
+
+      match /private/{docId} {
+        allow read, write: if isOwner(userId) || isAdmin();
+      }
     }
 
     match /providers/{providerId} {
       allow read: if true;
       allow create: if isOwner(providerId) &&
         request.resource.data.get('verified', false) == false &&
+        request.resource.data.get('approved', false) == false &&
+        request.resource.data.get('active', false) == false &&
+        request.resource.data.get('plan', 'free') in ['free', ''] &&
         request.resource.data.get('userId', providerId) == uid();
       allow update: if isAdmin() || (
         isOwner(providerId) &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['verified', 'plan', 'status', 'rating', 'totalReviews', 'userId']) &&
+          .hasAny(['verified', 'approved', 'plan', 'status', 'rating', 'totalReviews', 'userId']) &&
         (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['active']) ||
           resource.data.verified == true
@@ -66,11 +92,13 @@ service cloud.firestore {
       allow create: if isAuth() &&
         request.resource.data.ownerId == uid() &&
         request.resource.data.get('verified', false) == false &&
+        request.resource.data.get('approved', false) == false &&
+        request.resource.data.get('active', false) == false &&
         request.resource.data.get('plan', 'free') == 'free';
       allow update: if isAdmin() || (
         resource.data.ownerId == uid() &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['verified', 'plan', 'ownerId', 'active'])
+          .hasAny(['verified', 'approved', 'plan', 'ownerId', 'active'])
       );
       allow delete: if isAdmin();
     }
@@ -93,9 +121,15 @@ service cloud.firestore {
 
     match /stores/{storeId} {
       allow read: if true;
-      allow create: if isAuth() && request.resource.data.ownerId == uid();
-      allow update, delete: if isAuth() &&
-        (resource.data.ownerId == uid() || isAdmin());
+      allow create: if isAuth() &&
+        request.resource.data.ownerId == uid() &&
+        request.resource.data.get('verified', false) == false;
+      allow update: if isAdmin() || (
+        isAuth() && resource.data.ownerId == uid() &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['verified', 'ownerId'])
+      );
+      allow delete: if isAuth() && (resource.data.ownerId == uid() || isAdmin());
     }
 
     match /products/{productId} {
@@ -130,8 +164,16 @@ service cloud.firestore {
     }
 
     match /contracts/{contractId} {
-      allow read: if isAdmin() || ownsCompany(resource.data.companyId);
-      allow create, update: if ownsCompany(request.resource.data.companyId) || isAdmin();
+      allow read: if isAdmin() ||
+        ownsCompany(resource.data.companyId) ||
+        (isAuth() && resource.data.get('clientId', '') == uid()) ||
+        (isAuth() && resource.data.get('ownerId', '') == uid());
+      allow create: if ownsCompany(request.resource.data.companyId) || isAdmin();
+      allow update: if isAdmin() || (
+        ownsCompany(resource.data.companyId) &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['companyId', 'value', 'clientId'])
+      );
       allow delete: if isAdmin();
     }
 
@@ -143,17 +185,17 @@ service cloud.firestore {
       );
       allow create: if isAuth()
         && request.resource.data.clientId == uid()
-        && request.resource.data.status == 'pending'
+        && request.resource.data.status in ['pending', 'created']
         && request.resource.data.get('payoutProcessed', false) == false
         && request.resource.data.get('paymentStatus', 'unpaid') in ['unpaid', 'pending']
         && !request.resource.data.keys().hasAny([
           'commission', 'platformFee', 'providerAmount', 'payoutStatus',
-          'transactionId', 'cashbackGranted'
+          'transactionId', 'gatewayTransactionId', 'cashbackGranted',
+          'payoutProcessedAt', 'payoutTransactionId', 'walletId'
         ]);
-      // Client/prestador só marcam review. Status/preço/repasse: Cloud Functions (Admin SDK).
       allow update: if isAdmin() || (
         isAuth() &&
-        (resource.data.clientId == uid() || resource.data.providerId == uid()) &&
+        isOrderParty() &&
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed']) &&
         resource.data.status == 'completed' &&
         request.resource.data.reviewed == true
@@ -167,8 +209,11 @@ service cloud.firestore {
       }
       allow read: if isAuth() && request.auth.uid in resource.data.participants;
       allow create: if isAuth() &&
-        request.auth.uid in request.resource.data.participants;
-      allow update: if isAuth() && request.auth.uid in resource.data.participants;
+        request.auth.uid in request.resource.data.participants &&
+        request.resource.data.participants.size() == 2;
+      allow update: if isAuth() &&
+        request.auth.uid in resource.data.participants &&
+        request.resource.data.participants == resource.data.participants;
 
       match /messages/{msgId} {
         allow read: if isAuth() && request.auth.uid in roomParticipants();
@@ -225,7 +270,8 @@ service cloud.firestore {
         resource.data.driverId == request.auth.uid ||
         resource.data.delivererId == request.auth.uid ||
         isAdmin()
-      );
+      ) && !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['clientId', 'price', 'total', 'amount']);
     }
 
     match /appointments/{appointmentId} {
@@ -240,7 +286,8 @@ service cloud.firestore {
         resource.data.clientId == request.auth.uid ||
         resource.data.providerId == request.auth.uid ||
         isAdmin()
-      );
+      ) && !request.resource.data.diff(resource.data).affectedKeys()
+        .hasAny(['clientId', 'providerId', 'price', 'total']);
     }
 
     match /favorites/{favId} {
@@ -263,7 +310,12 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.clientId
              == uid()
         && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.status
-             == 'completed';
+             == 'completed'
+        && (
+          !('providerId' in get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.keys()) ||
+          get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.providerId
+            == request.resource.data.providerId
+        );
       allow update, delete: if false;
     }
 
@@ -298,6 +350,7 @@ service cloud.firestore {
       allow read: if isAdmin() || (isAuth() && resource.data.userId == uid());
       allow create: if isAuth() && request.resource.data.userId == uid();
       allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     match /auditLogs/{logId} {
@@ -307,22 +360,32 @@ service cloud.firestore {
     }
 
     match /config/{doc} {
-      allow read: if true;
+      allow read: if isAuth();
       allow write: if isAdmin();
     }
 
     match /resolveRequests/{id} {
-      allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.clientId == uid();
-      allow update: if isAuth() && (
-        resource.data.clientId == uid() ||
+      allow get: if isAdmin() ||
+        (isAuth() && resource.data.clientId == uid()) ||
+        (isAuth() && resource.data.get('matchedProviderId', '') == uid()) ||
+        (isAuth() && resource.data.status == 'open');
+      allow list: if isAuth() && (
         isAdmin() ||
-        (
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['proposalCount']) &&
-          request.resource.data.proposalCount ==
-            resource.data.proposalCount + 1
-        )
+        resource.data.clientId == uid() ||
+        resource.data.get('matchedProviderId', '') == uid() ||
+        resource.data.status == 'open'
+      );
+      allow create: if isAuth() && request.resource.data.clientId == uid();
+      allow update: if isAdmin() || (
+        isAuth() && resource.data.clientId == uid() &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['clientId', 'leadFee'])
+      ) || (
+        isAuth() &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['proposalCount']) &&
+        request.resource.data.proposalCount ==
+          resource.data.proposalCount + 1
       );
       allow delete: if isAdmin();
     }
@@ -334,10 +397,16 @@ service cloud.firestore {
         get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == uid()
       );
       allow create: if isAuth() && request.resource.data.providerId == uid();
-      allow update: if isAuth() && (
-        resource.data.providerId == uid() ||
-        get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == uid() ||
-        isAdmin()
+      allow update: if isAdmin() || (
+        isAuth() && resource.data.providerId == uid() &&
+        resource.data.accepted != true &&
+        !request.resource.data.diff(resource.data).affectedKeys()
+          .hasAny(['providerId', 'requestId', 'accepted'])
+      ) || (
+        isAuth() &&
+        get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == uid() &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accepted']) &&
+        request.resource.data.accepted == true
       );
       allow delete: if isAdmin();
     }
