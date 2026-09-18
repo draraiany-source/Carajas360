@@ -10,6 +10,7 @@ const admin = require('firebase-admin');
 const axios = require('axios');
 const policy = require('./orderPolicy');
 const security = require('./security');
+const deletion = require('./accountDeletion');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -76,6 +77,42 @@ async function notify(userId, title, body, type) {
     read: false,
     createdAt: admin.firestore.FieldValue.serverTimestamp(),
   });
+}
+
+async function grantXp(uid, reason, key) {
+  const amount = security.xpAmountFor(reason);
+  if (!uid || !(amount > 0)) return { ok: false, skipped: true };
+  const eventId = security.xpEventId(reason, key);
+  return db.runTransaction(async (tx) => {
+    const evRef = db.collection('xpEvents').doc(eventId);
+    const ev = await tx.get(evRef);
+    if (ev.exists) return { ok: true, already: true, amount: 0 };
+    const userRef = db.collection('users').doc(uid);
+    const user = await tx.get(userRef);
+    if (!user.exists) return { ok: false, skipped: true };
+    const data = user.data() || {};
+    if (data.status === 'deleted' || data.anonymized === true) {
+      return { ok: false, skipped: true };
+    }
+    tx.set(evRef, {
+      uid,
+      reason,
+      amount,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    tx.update(userRef, { xp: admin.firestore.FieldValue.increment(amount) });
+    return { ok: true, already: false, amount };
+  });
+}
+
+async function deleteByQuery(query) {
+  let snap = await query.limit(400).get();
+  while (!snap.empty) {
+    const batch = db.batch();
+    snap.docs.forEach((d) => batch.delete(d.ref));
+    await batch.commit();
+    snap = await query.limit(400).get();
+  }
 }
 
 async function adjustWalletTx(tx, uid, type, amount, description, icon, extra, docId) {
@@ -562,8 +599,11 @@ exports.processCardPayment = functions.region(REGION).https.onCall(async (data, 
   const email = String(data && data.email || '').trim();
   const installments = Number(data && data.installments || 1);
   const payerDocNumber = data && data.payerDocNumber
-    ? String(data.payerDocNumber).replace(/\D/g, '')
+    ? security.digitsOnly(data.payerDocNumber)
     : undefined;
+  if (payerDocNumber && !security.isValidCpf(payerDocNumber)) {
+    throw httpsError('invalid-argument', 'CPF inválido');
+  }
 
   let response;
   try {
@@ -788,6 +828,169 @@ exports.processRefund = functions.region(REGION).https.onCall(async (data, conte
   });
 });
 
+exports.deleteMyAccount = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  const uid = auth.uid;
+  await enforceRateLimit(uid, 'delete_account', 3, 24 * 60 * 60 * 1000);
+
+  const userRef = db.collection('users').doc(uid);
+  const snap = await userRef.get();
+  const existing = snap.exists ? snap.data() || {} : {};
+  if (existing.type === 'admin') {
+    throw httpsError(
+      'failed-precondition',
+      'Conta admin não pode ser excluída por este fluxo. Peça a outro admin.',
+    );
+  }
+
+  let pii = {};
+  try {
+    const piiSnap = await userRef.collection('private').doc('pii').get();
+    if (piiSnap.exists) pii = piiSnap.data() || {};
+  } catch (e) {
+    console.error('deleteMyAccount pii', e);
+  }
+
+  const now = admin.firestore.FieldValue.serverTimestamp();
+  const retentionUntil = deletion.retentionUntil(new Date());
+
+  await db.collection('legalRetention').doc(uid).set({
+    uid,
+    createdAtOriginal: existing.createdAt || null,
+    deletedAt: now,
+    retentionUntil: admin.firestore.Timestamp.fromDate(retentionUntil),
+    cpfHash: security.hashPii(pii.cpf || existing.cpf),
+    phoneHash: security.hashPii(pii.phone || existing.phone),
+    hadWallet: true,
+    status: 'anonymized',
+    reason: 'user_request_lgpd',
+  }, { merge: true });
+
+  await userRef.set({
+    ...deletion.userAnonymizedProfile(),
+    deletedAt: now,
+    updatedAt: now,
+  }, { merge: true });
+
+  try {
+    const priv = await userRef.collection('private').get();
+    const batch = db.batch();
+    priv.docs.forEach((d) => batch.delete(d.ref));
+    if (!priv.empty) await batch.commit();
+  } catch (e) {
+    console.error('deleteMyAccount private', e);
+  }
+
+  await db.collection('providers').doc(uid).set(
+    { ...deletion.providerAnonymizedProfile(), updatedAt: now },
+    { merge: true },
+  );
+
+  const companies = await db.collection('companies').where('ownerId', '==', uid).limit(20).get();
+  if (!companies.empty) {
+    const batch = db.batch();
+    companies.docs.forEach((d) => {
+      batch.set(d.ref, { ...deletion.companyAnonymizedProfile(), updatedAt: now }, { merge: true });
+    });
+    await batch.commit();
+  }
+
+  const reviews = await db.collection('reviews').where('clientId', '==', uid).limit(100).get();
+  if (!reviews.empty) {
+    const batch = db.batch();
+    reviews.docs.forEach((d) => {
+      batch.update(d.ref, {
+        clientName: deletion.ANONYMOUS_NAME,
+        clientPhoto: null,
+      });
+    });
+    await batch.commit();
+  }
+
+  const tickets = await db.collection('support').where('userId', '==', uid).limit(100).get();
+  if (!tickets.empty) {
+    const batch = db.batch();
+    tickets.docs.forEach((d) => {
+      batch.update(d.ref, { userName: deletion.ANONYMOUS_NAME });
+    });
+    await batch.commit();
+  }
+
+  const resolveReqs = await db.collection('resolveRequests').where('clientId', '==', uid).limit(50).get();
+  if (!resolveReqs.empty) {
+    const batch = db.batch();
+    resolveReqs.docs.forEach((d) => {
+      batch.update(d.ref, {
+        clientName: deletion.ANONYMOUS_NAME,
+        address: null,
+      });
+    });
+    await batch.commit();
+  }
+
+  try {
+    await deleteByQuery(db.collection('favorites').where('userId', '==', uid));
+  } catch (e) {
+    console.error('deleteMyAccount favorites', e);
+  }
+  try {
+    await deleteByQuery(db.collection('notifications').where('userId', '==', uid));
+  } catch (e) {
+    console.error('deleteMyAccount notifications', e);
+  }
+
+  await db.collection('wallets').doc(uid).set({
+    userId: uid,
+    status: 'closed',
+    closedAt: now,
+  }, { merge: true });
+
+  try {
+    const bucket = admin.storage().bucket();
+    await bucket.deleteFiles({ prefix: `users/${uid}/` });
+    await bucket.deleteFiles({ prefix: `providers/${uid}/` });
+  } catch (e) {
+    console.error('deleteMyAccount storage', e && e.message);
+  }
+
+  let authDeleted = false;
+  try {
+    await admin.auth().deleteUser(uid);
+    authDeleted = true;
+  } catch (e) {
+    if (e && e.code === 'auth/user-not-found') {
+      authDeleted = true;
+    } else {
+      console.error('deleteMyAccount auth', e);
+    }
+  }
+
+  await db.collection('auditLogs').add({
+    adminId: uid,
+    adminName: 'self',
+    action: 'lgpd_account_anonymized',
+    target: uid,
+    details: {
+      authDeleted,
+      retained: deletion.RETAIN_COLLECTIONS,
+      deleted: deletion.DELETE_ON_REQUEST,
+    },
+    timestamp: now,
+  });
+
+  await db.collection('legalRetention').doc(uid).set({
+    authDeleted,
+    updatedAt: now,
+  }, { merge: true });
+
+  return {
+    ok: true,
+    anonymized: true,
+    authDeleted,
+    already: existing.status === 'deleted',
+  };
+});
+
 exports.switchProfileType = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
   const next = String(data && data.type || '');
@@ -840,10 +1043,7 @@ exports.updateProviderRating = functions.firestore
       totalReviews: reviews.size,
     });
     if (clientId) {
-      await db.collection('users').doc(clientId).set(
-        { xp: admin.firestore.FieldValue.increment(30) },
-        { merge: true },
-      );
+      await grantXp(clientId, 'review', snap.id);
     }
     return null;
   });
@@ -851,9 +1051,7 @@ exports.updateProviderRating = functions.firestore
 exports.onUserCreateGrantXp = functions.firestore
   .document('users/{uid}')
   .onCreate(async (snap) => {
-    const xp = Number(snap.data().xp || 0);
-    if (xp > 0) return null;
-    await snap.ref.update({ xp: 50 });
+    await grantXp(snap.id, 'signup', snap.id);
     return null;
   });
 
@@ -864,8 +1062,9 @@ exports.sanitizeUserPii = functions.firestore
     const data = change.after.data() || {};
     const pii = security.piiFromUser(data);
     if (!Object.keys(pii).length) return null;
+    const cleaned = security.sanitizePiiWrite(pii);
     await change.after.ref.collection('private').doc('pii').set(
-      { ...pii, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
+      { ...cleaned, updatedAt: admin.firestore.FieldValue.serverTimestamp() },
       { merge: true },
     );
     const del = {};
@@ -873,6 +1072,29 @@ exports.sanitizeUserPii = functions.firestore
       del[k] = admin.firestore.FieldValue.delete();
     });
     await change.after.ref.update(del);
+    return null;
+  });
+
+exports.sanitizePrivatePii = functions.firestore
+  .document('users/{uid}/private/{docId}')
+  .onWrite(async (change) => {
+    if (!change.after.exists) return null;
+    const after = change.after.data() || {};
+    if (!Object.prototype.hasOwnProperty.call(after, 'cpf')) return null;
+    if (after.cpf == null || after.cpf === '') return null;
+    if (security.isValidCpf(after.cpf)) {
+      const digits = security.digitsOnly(after.cpf);
+      if (digits === after.cpf && !after.cpfRejected) return null;
+      await change.after.ref.update({
+        cpf: digits,
+        cpfRejected: admin.firestore.FieldValue.delete(),
+      });
+      return null;
+    }
+    await change.after.ref.update({
+      cpf: admin.firestore.FieldValue.delete(),
+      cpfRejected: true,
+    });
     return null;
   });
 

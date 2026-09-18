@@ -21,7 +21,7 @@ service cloud.firestore {
       return [
         'type', 'role', 'roles', 'adminRole', 'verified', 'active', 'plan',
         'walletId', 'financialStatus', 'permissions', 'createdAt', 'xp', 'status',
-        'moderationStatus'
+        'moderationStatus', 'anonymized', 'deletedAt'
       ];
     }
     function chatId(a, b) {
@@ -55,12 +55,14 @@ service cloud.firestore {
         !('walletId' in request.resource.data.keys()) &&
         request.resource.data.get('verified', false) == false &&
         request.resource.data.get('plan', 'free') == 'free' &&
+        request.resource.data.get('xp', 0) == 0 &&
+        request.resource.data.get('anonymized', false) == false &&
         request.resource.data.get('moderationStatus', 'none') in ['none', 'pending', ''];
       allow update: if (isOwner(userId) &&
           !request.resource.data.diff(resource.data).affectedKeys()
             .hasAny(userProtectedKeys())) ||
         isAdmin();
-      allow delete: if isOwner(userId) || isAdmin();
+      allow delete: if false;
 
       match /private/{docId} {
         allow read, write: if isOwner(userId) || isAdmin();
@@ -250,6 +252,15 @@ service cloud.firestore {
     match /financialAudits/{id} {
       allow read: if isAdmin();
       allow write: if false;
+    }
+
+    match /legalRetention/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /xpEvents/{id} {
+      allow read, write: if false;
     }
 
     match /rateLimits/{id} {

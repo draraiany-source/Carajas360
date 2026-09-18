@@ -2,8 +2,8 @@
   "name": "servicoconecta-functions",
   "description": "Cloud Functions - ServiçoConecta",
   "scripts": {
-    "test": "node --test orderPolicy.test.js security.test.js",
-    "lint": "node --check index.js && node --check orderPolicy.js && node --check security.js",
+    "test": "node --test orderPolicy.test.js security.test.js blocoB.test.js",
+    "lint": "node --check index.js && node --check orderPolicy.js && node --check security.js && node --check accountDeletion.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "deploy": "firebase deploy --only functions",

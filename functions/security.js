@@ -5,8 +5,52 @@ const policy = require('./orderPolicy');
 const USER_PROTECTED_KEYS = [
   'type', 'role', 'roles', 'adminRole', 'verified', 'active', 'plan',
   'walletId', 'financialStatus', 'permissions', 'createdAt', 'xp', 'status',
-  'moderationStatus',
+  'moderationStatus', 'anonymized', 'deletedAt',
 ];
+
+const XP_REWARDS = {
+  signup: 50,
+  review: 30,
+};
+
+function digitsOnly(value) {
+  return String(value || '').replace(/\D/g, '');
+}
+
+function isValidCpf(value) {
+  const cpf = digitsOnly(value);
+  if (cpf.length !== 11) return false;
+  if (/^(\d)\1{10}$/.test(cpf)) return false;
+  let sum = 0;
+  for (let i = 0; i < 9; i += 1) sum += Number(cpf[i]) * (10 - i);
+  let check = (sum * 10) % 11;
+  if (check === 10) check = 0;
+  if (check !== Number(cpf[9])) return false;
+  sum = 0;
+  for (let i = 0; i < 10; i += 1) sum += Number(cpf[i]) * (11 - i);
+  check = (sum * 10) % 11;
+  if (check === 10) check = 0;
+  return check === Number(cpf[10]);
+}
+
+function hashPii(value) {
+  const raw = digitsOnly(value) || String(value || '').trim();
+  if (!raw) return null;
+  const crypto = require('crypto');
+  return crypto.createHash('sha256').update(raw).digest('hex');
+}
+
+function clientMayWriteXp() {
+  return false;
+}
+
+function xpAmountFor(reason) {
+  return Number(XP_REWARDS[reason] || 0);
+}
+
+function xpEventId(reason, key) {
+  return `${reason}_${key}`;
+}
 
 const PROVIDER_PROTECTED_KEYS = [
   'verified', 'approved', 'plan', 'status', 'rating', 'totalReviews', 'userId',
@@ -184,6 +228,20 @@ function corsOriginAllowed(origin, allowlist) {
   return allowlist.includes(origin);
 }
 
+function sanitizePiiWrite(data) {
+  const out = Object.assign({}, data || {});
+  if (Object.prototype.hasOwnProperty.call(out, 'cpf')) {
+    if (!isValidCpf(out.cpf)) {
+      delete out.cpf;
+      out.cpfRejected = true;
+    } else {
+      out.cpf = digitsOnly(out.cpf);
+      delete out.cpfRejected;
+    }
+  }
+  return out;
+}
+
 module.exports = {
   USER_PROTECTED_KEYS,
   PROVIDER_PROTECTED_KEYS,
@@ -212,4 +270,12 @@ module.exports = {
   piiFromUser,
   walletOpAllowed,
   corsOriginAllowed,
+  XP_REWARDS,
+  digitsOnly,
+  isValidCpf,
+  hashPii,
+  clientMayWriteXp,
+  xpAmountFor,
+  xpEventId,
+  sanitizePiiWrite,
 };
