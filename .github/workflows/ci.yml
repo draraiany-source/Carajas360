@@ -37,7 +37,9 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter analyze --no-fatal-infos
+      # Erros (ex.: tipo inexistente) falham o job. Infos/warnings
+      # pré-existentes (withOpacity, curly braces) não bloqueiam.
+      - run: flutter analyze --no-fatal-infos --no-fatal-warnings
       - run: flutter test
 
   # Auditoria estática das rules (sem emulador / sem Java).

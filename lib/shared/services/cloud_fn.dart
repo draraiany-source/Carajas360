@@ -3,6 +3,8 @@ import 'package:cloud_functions/cloud_functions.dart';
 import '../../core/security/order_policy.dart';
 import '../../firebase_options.dart';
 
+export '../../core/security/order_policy.dart' show CloudCallException;
+
 /// Callables autenticadas (região us-central1). Sem CORS aberto.
 abstract final class CloudFn {
   static String get projectId =>

@@ -1,6 +1,8 @@
 /// Barrel do Firebase client. Classes públicas estáveis:
 /// [AuthService], [FS], [CloudFn], [PaySvc], [PushSvc], [AiSvc]
 /// e os services de domínio (próximo corte move o corpo de [FS]).
+library;
+
 export 'ai_service.dart';
 export 'auth_service.dart';
 export 'chat_service.dart';
