@@ -1,0 +1,4 @@
+sdk.dir=COLE_O_CAMINHO_DO_ANDROID_SDK
+# Key A (Maps SDK Android), restrita ao package br.com.servicoconecta + SHA-1.
+# NÃO commitar android/local.properties com valor real.
+MAPS_API_KEY=COLE_SUA_GOOGLE_MAPS_API_KEY_AQUI
