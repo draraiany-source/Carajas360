@@ -458,7 +458,7 @@ class EmptyState extends StatelessWidget {
           padding: const EdgeInsets.all(32),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             asset != null
-                ? SvgPicture.asset(asset!, width: 140, height: 140)
+                ? SafeSvg(asset!, width: 140, height: 140, fallback: Text(emoji, style: const TextStyle(fontSize: 56)))
                 : Text(emoji, style: const TextStyle(fontSize: 56)),
             const SizedBox(height: 16),
             Text(title,
@@ -506,7 +506,10 @@ class CatChip extends StatelessWidget {
     final iconPath =
         categoryId != null ? AppAssets.categoryIcon(categoryId!) : null;
     final Widget icon = iconPath != null
-        ? SvgPicture.asset(iconPath, width: 18, height: 18)
+        ? SafeSvg(iconPath,
+            width: 18,
+            height: 18,
+            fallback: Text(emoji, style: const TextStyle(fontSize: 15)))
         : Text(emoji, style: const TextStyle(fontSize: 15));
     return GestureDetector(
         onTap: onTap,
@@ -607,3 +610,32 @@ String fmtDate(DateTime dt) {
 
 String fmtTime(DateTime dt) =>
     '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+/// SVG com fallback: tela não quebra se o arquivo sumir do bundle.
+class SafeSvg extends StatelessWidget {
+  final String asset;
+  final double? width;
+  final double? height;
+  final BoxFit fit;
+  final Widget? fallback;
+  const SafeSvg(this.asset,
+      {super.key, this.width, this.height, this.fit = BoxFit.contain, this.fallback});
+
+  @override
+  Widget build(BuildContext context) {
+    final fb = fallback ??
+        SizedBox(
+          width: width ?? 24,
+          height: height ?? 24,
+          child: const ColoredBox(color: Color(0x11000000)),
+        );
+    return SvgPicture.asset(
+      asset,
+      width: width,
+      height: height,
+      fit: fit,
+      placeholderBuilder: (_) => fb,
+      errorBuilder: (_, __, ___) => fb,
+    );
+  }
+}

@@ -2,7 +2,7 @@
 ///
 /// Exemplos:
 ///   flutter run --dart-define=GOOGLE_MAPS_API_KEY=AIza...
-///   flutter run --dart-define=MERCADOPAGO_PUBLIC_KEY=APP_USR-...
+///   flutter run --dart-define=MERCADOPAGO_PUBLIC_KEY=TEST-...
 ///
 /// Android Maps nativo: defina MAPS_API_KEY em android/local.properties
 /// (ver comentário em android/app/build.gradle).
@@ -17,9 +17,23 @@ abstract final class RuntimeConfig {
     defaultValue: 'COLE_SUA_MERCADOPAGO_PUBLIC_KEY_AQUI',
   );
 
+  /// App Check: só ligar depois das chaves reais (ver CHECKLIST_FIREBASE_STAGING.md).
+  static const appCheckEnabled =
+      bool.fromEnvironment('APP_CHECK_ENABLED', defaultValue: false);
+
+  /// Site key reCAPTCHA v3 (Web). Vazio = não ativar provider web. Nunca inventar.
+  static const appCheckWebRecaptchaSiteKey = String.fromEnvironment(
+    'APP_CHECK_WEB_RECAPTCHA_SITE_KEY',
+    defaultValue: '',
+  );
+
   static bool get hasPlaceholderMaps =>
       googleMapsApiKey.contains('COLE_SUA');
 
   static bool get hasPlaceholderMercadoPago =>
       mercadoPagoPublicKey.contains('COLE_SUA');
+
+  static bool get hasAppCheckWebSiteKey =>
+      appCheckWebRecaptchaSiteKey.isNotEmpty &&
+      !appCheckWebRecaptchaSiteKey.contains('COLE_SUA');
 }

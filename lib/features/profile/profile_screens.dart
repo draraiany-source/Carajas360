@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
@@ -514,7 +513,7 @@ class ProfileScreen extends StatelessWidget {
         applicationName: AppInfo.name,
         applicationVersion: AppInfo.version,
         applicationIcon:
-            SvgPicture.asset(AppAssets.logoMark, width: 48, height: 48),
+            SafeSvg(AppAssets.logoMark, width: 48, height: 48),
         children: [
           const SizedBox(height: 12),
           const Text(AppInfo.slogan,

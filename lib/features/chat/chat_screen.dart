@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -564,8 +563,9 @@ class _ChatState extends State<ChatScreen> {
                         padding: const EdgeInsets.all(32),
                         child:
                             Column(mainAxisSize: MainAxisSize.min, children: [
-                          SvgPicture.asset(AppAssets.chatSemMensagens,
-                              width: 150, height: 150),
+                          SafeSvg(AppAssets.chatSemMensagens,
+                              width: 150, height: 150,
+                              fallback: const Text('💬', style: TextStyle(fontSize: 56))),
                           const SizedBox(height: 16),
                           const Text('Nenhuma mensagem ainda',
                               style: TextStyle(

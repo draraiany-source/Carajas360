@@ -2,9 +2,9 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleDisplayName</key><string>ServiçoConecta</string>
+	<key>CFBundleDisplayName</key><string>Carajás 360</string>
 	<key>CFBundleIdentifier</key><string>br.com.servicoconecta</string>
-	<key>CFBundleName</key><string>ServicoConecta</string>
+	<key>CFBundleName</key><string>Carajas360</string>
 	<key>CFBundleShortVersionString</key><string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleVersion</key><string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>CFBundlePackageType</key><string>APPL</string>
@@ -18,6 +18,10 @@
 	<key>NSMicrophoneUsageDescription</key><string>Microfone usado para chamadas de vídeo e mensagens de voz no chat.</string>
 	<key>io.flutter.embedded_views_preview</key><true/>
 	<key>FirebaseAppDelegateProxyEnabled</key><false/>
+	<!-- Google Maps: placeholder. Key real via CHECKLIST_GOOGLE_MAPS.md.
+	     AppDelegate só chama provideAPIKey se não for placeholder. -->
+	<key>GMSApiKey</key>
+	<string>COLE_SUA_GOOGLE_MAPS_API_KEY_AQUI</string>
 	<!-- Google Sign-In: substitua REVERSED_CLIENT_ID pelo valor real do
 	     seu GoogleService-Info.plist (chave REVERSED_CLIENT_ID) após
 	     rodar `flutterfire configure`. Sem isso, o login com Google

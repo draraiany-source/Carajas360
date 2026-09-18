@@ -821,7 +821,7 @@ class _FinancialTab extends StatelessWidget {
             XFile.fromData(Uint8List.fromList(bytes),
                 name: name, mimeType: 'text/csv'),
           ],
-          text: 'Relatório financeiro — ServiçoConecta',
+          text: 'Relatório financeiro — Carajás 360',
         ));
       } else {
         final doc = pw.Document();
@@ -833,7 +833,7 @@ class _FinancialTab extends StatelessWidget {
                     style: pw.TextStyle(
                         fontSize: 22, fontWeight: pw.FontWeight.bold)),
                 pw.Text(
-                    'ServiçoConecta — ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                    'Carajás 360 — ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
                     style: const pw.TextStyle(
                         fontSize: 11, color: PdfColors.grey700)),
                 pw.SizedBox(height: 20),
@@ -880,7 +880,7 @@ class _FinancialTab extends StatelessWidget {
           files: [
             XFile.fromData(pdfBytes, name: name, mimeType: 'application/pdf'),
           ],
-          text: 'Relatório financeiro — ServiçoConecta',
+          text: 'Relatório financeiro — Carajás 360',
         ));
       }
     } catch (e) {
@@ -1470,7 +1470,7 @@ class _SettingsTabState extends State<_SettingsTab> {
                         controller: _emailCtrl,
                         decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.email_outlined),
-                            hintText: 'suporte@servicoconecta.com.br')),
+                            hintText: AppInfo.supportEmail)),
                     const SizedBox(height: 10),
                     TextFormField(
                         controller: _phoneCtrl,

@@ -46,6 +46,11 @@ Future<void> main() async {
   bool firebaseOk = false;
   try {
     await FirebaseBootstrap.initialize();
+    try {
+      await FirebaseBootstrap.maybeActivateAppCheck();
+    } catch (e) {
+      debugPrint('App Check: $e');
+    }
     // FCM/Analytics podem falhar nos emuladores — nao bloqueiam auth.
     try {
       await PushSvc.init();
@@ -75,12 +80,12 @@ Future<void> main() async {
     debugPrint('Firebase nao configurado — modo demonstracao: $e');
   }
 
-  runApp(ServicoConectaApp(firebaseOk: firebaseOk));
+  runApp(Carajas360App(firebaseOk: firebaseOk));
 }
 
-class ServicoConectaApp extends StatelessWidget {
+class Carajas360App extends StatelessWidget {
   final bool firebaseOk;
-  const ServicoConectaApp({super.key, this.firebaseOk = false});
+  const Carajas360App({super.key, this.firebaseOk = false});
 
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(

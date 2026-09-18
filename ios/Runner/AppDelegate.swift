@@ -9,8 +9,11 @@ import FirebaseCore
     _ application: UIApplication,
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
-    // SUBSTITUA pela sua Google Maps API Key
-    GMSServices.provideAPIKey("COLE_SUA_GOOGLE_MAPS_API_KEY_AQUI")
+    if let key = Bundle.main.object(forInfoDictionaryKey: "GMSApiKey") as? String,
+       !key.isEmpty,
+       !key.contains("COLE_SUA") {
+      GMSServices.provideAPIKey(key)
+    }
     FirebaseApp.configure()
     GeneratedPluginRegistrant.register(with: self)
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)

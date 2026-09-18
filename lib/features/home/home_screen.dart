@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
@@ -116,9 +115,14 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                                 const SizedBox(height: 4),
                                 Padding(
                                     padding: const EdgeInsets.only(top: 2),
-                                    child: SvgPicture.asset(
+                                    child: SafeSvg(
                                         AppAssets.wordmarkWhite,
-                                        height: 22)),
+                                        height: 22,
+                                        fallback: Text(AppInfo.name,
+                                            style: const TextStyle(
+                                                color: Colors.white,
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 18)))),
                               ]),
                           Row(children: [
                             StreamBuilder<List<NotifModel>>(
@@ -417,7 +421,7 @@ class _ServicesHubState extends State<ServicesHubScreen> {
               blurRadius: 8,
               offset: const Offset(0, 3))
         ]),
-        child: SvgPicture.asset(path, fit: BoxFit.cover),
+        child: SafeSvg(path, fit: BoxFit.cover),
       ),
     );
   }

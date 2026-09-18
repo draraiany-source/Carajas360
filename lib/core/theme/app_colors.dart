@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Identidade visual premium do ServiçoConecta.
+/// Identidade visual premium do Carajás 360.
 /// Azul confiança + verde conclusão — sem roxo/creme genéricos de IA.
 abstract class AppColors {
   static const primary = Color(0xFF0B3D91);

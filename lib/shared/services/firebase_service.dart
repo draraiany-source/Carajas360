@@ -1628,7 +1628,7 @@ class FS {
           {
             'commissionRate': AppConst.commission,
             'maintenanceMode': false,
-            'supportEmail': 'suporte@servicoconecta.com.br',
+            'supportEmail': AppInfo.supportEmail,
             'supportPhone': '(11) 4000-0000'
           });
 

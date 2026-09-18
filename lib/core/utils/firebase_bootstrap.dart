@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../firebase_options.dart';
+import '../constants/runtime_config.dart';
 
 /// Inicializa Firebase. Emuladores so em debug/profile com keys placeholder
 /// ou dart-define — nunca em release de loja.
@@ -71,5 +72,30 @@ abstract final class FirebaseBootstrap {
 
     debugPrint(
         'Firebase emuladores: Auth/Firestore/Storage em $host (9099/8080/9199)');
+  }
+
+  /// App Check sem inventar keys. Default: desligado.
+  /// Quando a Raiany registrar Play Integrity / DeviceCheck / reCAPTCHA,
+  /// ligar `--dart-define=APP_CHECK_ENABLED=true` e o plugin
+  /// `firebase_app_check` (ver CHECKLIST_FIREBASE_STAGING.md).
+  static Future<void> maybeActivateAppCheck() async {
+    if (shouldUseEmulator) {
+      debugPrint('App Check: pulado (emulador).');
+      return;
+    }
+    if (!RuntimeConfig.appCheckEnabled) {
+      debugPrint(
+          'App Check: desligado (APP_CHECK_ENABLED=false). '
+          'Functions ENFORCE_APP_CHECK deve permanecer false.');
+      return;
+    }
+    debugPrint(
+      'APP_CHECK_ENABLED=true, mas não há site key/debug token no repositório. '
+      'Não chamamos FirebaseAppCheck.activate() para não inventar credenciais. '
+      'Siga CHECKLIST_FIREBASE_STAGING.md.',
+    );
+    if (kIsWeb && !RuntimeConfig.hasAppCheckWebSiteKey) {
+      debugPrint('App Check Web: APP_CHECK_WEB_RECAPTCHA_SITE_KEY ausente.');
+    }
   }
 }

@@ -1,11 +1,14 @@
 // ════════════════════════════════════════════════════════════════
-// FIREBASE OPTIONS — ServiçoConecta
+// FIREBASE OPTIONS — Carajás 360
 //
+// Placeholders de staging. NÃO invente keys.
 // Gere este arquivo automaticamente com:
 //   dart pub global activate flutterfire_cli
 //   flutterfire configure --project=SEU_PROJETO
 //
-// Depois substitua este arquivo pelo gerado.
+// IDs técnicos (applicationId/bundleId/projectId) permanecem
+// servicoconecta / br.com.servicoconecta até a Raiany decidir migrar.
+// Ver CHECKLIST_FIREBASE_STAGING.md e IDENTIDADE_TECNICA.md.
 // ════════════════════════════════════════════════════════════════
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
