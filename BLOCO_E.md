@@ -11,7 +11,7 @@ CI atual: auditoria estática (`functions/firestoreRules.audit.js`).
 Testes `@firebase/rules-unit-testing` pedem Emulator Suite + Java no runner. Configurar no GitHub quando a Raiany habilitar o workflow com `firebase emulators:exec`.
 
 ## Webhook Mercado Pago
-`mercadoPagoWebhook` responde **501** e **não** altera pedido/carteira.  
+`mercadoPagoWebhook` + `webhookSandbox.js` respondem **501** e **não** alteram pedido/carteira.  
 Falta: secret de webhook (Secret Manager), verificação de assinatura, ambiente sandbox `TEST-`. Não ligar `PAYMENTS_ENABLED`.
 
 ## App Check enforce

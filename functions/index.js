@@ -1260,15 +1260,8 @@ exports.aiAssistantHttp = functions.https.onRequest(gone);
  * Sem secret de webhook no repo — recusa payload não autenticado.
  * Implementação real (assinatura + sandbox) fica no BLOCO E.
  */
+const { mercadoPagoWebhookDecision } = require('./webhookSandbox');
 exports.mercadoPagoWebhook = functions.https.onRequest((req, res) => {
-  if (req.method !== 'POST') {
-    res.status(405).json({ ok: false, reason: 'method_not_allowed' });
-    return;
-  }
-  res.status(501).json({
-    ok: false,
-    reason: 'webhook_sandbox_not_configured',
-    charged: false,
-    applied: false,
-  });
+  const decision = mercadoPagoWebhookDecision(req.method);
+  res.status(decision.status).json(decision.body);
 });

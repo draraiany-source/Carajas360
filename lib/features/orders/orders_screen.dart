@@ -27,6 +27,12 @@ class FavoritesScreen extends StatelessWidget {
                   itemCount: 3,
                   itemBuilder: (_, __) => const ShimCard());
             }
+            if (snap.hasError) {
+              return const EmptyState(
+                  emoji: '⚠️',
+                  title: 'Falha ao carregar favoritos',
+                  subtitle: 'Verifique a conexão e tente novamente.');
+            }
             final favs = snap.data ?? [];
             if (favs.isEmpty)
               return const EmptyState(

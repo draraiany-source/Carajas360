@@ -166,10 +166,15 @@ class Carajas360App extends StatelessWidget {
                     title: 'Notificações', child: NotificationsScreen()));
               case Routes.reviews:
                 final a = settings.arguments as Map<String, dynamic>?;
-                return _route(ReviewScreen(
+                return _route(RequireAuth(
+                  title: 'Avaliar serviço',
+                  subtitle: 'Entre na conta para avaliar um pedido concluído.',
+                  child: ReviewScreen(
                     orderId: a?['orderId'] ?? 'demo',
                     providerId: a?['providerId'],
-                    providerName: a?['providerName']));
+                    providerName: a?['providerName'],
+                  ),
+                ));
               case Routes.support:
                 return _route(const RequireAuth(title: 'Suporte', child: SupportScreen()));
               case Routes.coupons:
@@ -209,15 +214,22 @@ class Carajas360App extends StatelessWidget {
                 final a = settings.arguments as Map<String, dynamic>?;
                 final rid = a?['id'] as String? ?? '';
                 if (rid.isEmpty) {
-                  return _route(const MyResolveScreen());
+                  return _route(const RequireAuth(
+                      title: 'Meus Resolve', child: MyResolveScreen()));
                 }
-                return _route(ResolveDetailScreen(requestId: rid));
+                return _route(RequireAuth(
+                    title: 'Pedido Resolve',
+                    child: ResolveDetailScreen(requestId: rid)));
               case Routes.resolveOpportunities:
-                return _route(const ResolveOpportunitiesScreen());
+                return _route(const RequireAuth(
+                    title: 'Oportunidades',
+                    child: ResolveOpportunitiesScreen()));
               case Routes.myResolve:
-                return _route(const MyResolveScreen());
+                return _route(const RequireAuth(
+                    title: 'Meus Resolve', child: MyResolveScreen()));
               case Routes.chatInbox:
-                return _route(const ChatInboxScreen());
+                return _route(const RequireAuth(
+                    title: 'Mensagens', child: ChatInboxScreen()));
               default:
                 // Rota desconhecida: volta ao app principal (evita splash “presa”).
                 return _route(const MainNav());

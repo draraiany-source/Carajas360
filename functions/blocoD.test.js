@@ -4,6 +4,7 @@ const { describe, it } = require('node:test');
 const assert = require('node:assert/strict');
 const security = require('./security');
 const policy = require('./orderPolicy');
+const { mercadoPagoWebhookDecision } = require('./webhookSandbox');
 
 describe('AUTH — login / logout / unauth', () => {
   it('callable sem auth é bloqueada', () => {
@@ -145,6 +146,40 @@ describe('REVIEWS — 1 por pedido', () => {
       }),
       'id_mismatch',
     );
+    assert.equal(
+      security.reviewCreateBlocked({
+        reviewId: 'o1_c1',
+        uid: 'c1',
+        review: { clientId: 'c1', providerId: 'p1', orderId: 'o1', stars: 5 },
+        order: { ...order, status: 'pending' },
+      }),
+      'order_not_completed',
+    );
+    assert.equal(
+      security.reviewCreateBlocked({
+        reviewId: 'o1_x',
+        uid: 'x',
+        review: { clientId: 'x', providerId: 'p1', orderId: 'o1', stars: 5 },
+        order,
+      }),
+      'not_order_client',
+    );
+  });
+});
+
+describe('WEBHOOK MP — stub sandbox sem cobrança', () => {
+  it('GET é recusado', () => {
+    const r = mercadoPagoWebhookDecision('GET');
+    assert.equal(r.status, 405);
+    assert.equal(r.body.ok, false);
+  });
+
+  it('POST não cobra nem aplica crédito', () => {
+    const r = mercadoPagoWebhookDecision('POST');
+    assert.equal(r.status, 501);
+    assert.equal(r.body.charged, false);
+    assert.equal(r.body.applied, false);
+    assert.equal(r.body.reason, 'webhook_sandbox_not_configured');
   });
 });
 
