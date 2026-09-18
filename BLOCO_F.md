@@ -1,21 +1,12 @@
-# BLOCO F — relatório final (próximo)
+# BLOCO F — Fase 31 (entregue)
 
-Restrições iguais: sem produção, sem pagamento real, sem inventar secrets, sem merge em `main`.
+Relatório: `RELATORIO_POS_CORRECAO_CARAJAS360.md`
 
-## Entregar no F
+## CLASSIFICAÇÃO FINAL
 
-1. Relatório consolidado A–E.
-2. Classificação única: **BLOCKED** / **STAGING READY** / **RELEASE CANDIDATE**.
-3. Lista do que a Raiany precisa fazer com as **mãos** (keystore, plists reais, secrets, URL de privacidade, Xcode project).
+**STAGING READY**
 
-## Pendências conscientes do E (não bloqueiam o F documental)
+Não é BLOCKED (fraude financeira clássica, Functions HTTP de pagamento e writes de carteira no client foram fechados).  
+Não é RELEASE CANDIDATE (placeholders Firebase, App Check off, sem keystore, sem Xcode project, Directions no client, rules sem emulador).
 
-| Item | Por que parou |
-|---|---|
-| HTTP Directions de verdade | Key de servidor ausente **e** chamada Google = cobrança Maps. Callable `getDirections` existe e recusa. |
-| Rules no emulador CI | Precisa `firebase emulators:exec` + Java no workflow. Mantido audit estático. |
-| Webhook aplicar pagamento | Mesmo com HMAC válido: `applied:false`. Ligar só com `TEST-` + `PAYMENTS_ENABLED` pela Raiany. |
-| Corpo de `FS` → services | Fachadas ok; mover 1600+ linhas agora é risco de regressão. |
-| App Check enforce | Sem keys reais. |
-| iOS archive | `Runner.xcodeproj` ausente. |
-| AAB Play | Sem keystore no Git (proposital). |
+Restrições mantidas: sem produção, sem pagamento real, sem inventar secrets, sem merge em `main`.
