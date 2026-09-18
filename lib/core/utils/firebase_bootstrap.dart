@@ -6,6 +6,7 @@ import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../firebase_options.dart';
+import '../auth/dev_bypass_auth.dart';
 import '../constants/runtime_config.dart';
 
 /// Inicializa Firebase. Emuladores so em debug/profile com keys placeholder
@@ -21,6 +22,7 @@ abstract final class FirebaseBootstrap {
 
   static bool get shouldUseEmulator {
     if (kReleaseMode) return false;
+    if (DevBypassAuth.enabled) return false;
     return useEmulatorDefine || hasPlaceholderKeys;
   }
 

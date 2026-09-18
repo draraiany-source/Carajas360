@@ -17,6 +17,12 @@ abstract final class DevBypassAuth {
     return defineOn;
   }
 
+  /// Rota de entrada. No bypass o preview web (`/`) não pode ficar no splash.
+  static String entryRouteFor({required bool enabled}) =>
+      enabled ? '/main' : '/';
+
+  static String get entryRoute => entryRouteFor(enabled: enabled);
+
   static bool get enabled {
     final on = enabledFor(
       releaseMode: kReleaseMode,

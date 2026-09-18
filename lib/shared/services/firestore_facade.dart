@@ -139,6 +139,10 @@ class FS {
 
   static Future<void> updateUser(Map<String, dynamic> data) async {
     if (_uid == null) return;
+    if (_bypassLocalOnly) {
+      debugPrint('DEV_BYPASS_LOGIN: updateUser ignorado (sem Auth real)');
+      return;
+    }
     final sanitized = Map<String, dynamic>.from(data);
     for (final k in OrderPolicy.protectedUserFields) {
       sanitized.remove(k);
@@ -264,6 +268,7 @@ class FS {
 
   static Stream<List<ProviderModel>> providersStream(
       {String? category, int limit = 20}) {
+    if (_bypassLocalOnly) return _emptyList<ProviderModel>();
     Query q = _db
         .collection(Col.providers)
         .where('active', isEqualTo: true)

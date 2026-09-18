@@ -40,4 +40,9 @@ void main() {
     expect(u.verified, isFalse);
     expect(u.plan, PlanTier.free);
   });
+
+  test('rota de entrada no bypass é /main, não splash', () {
+    expect(DevBypassAuth.entryRouteFor(enabled: true), '/main');
+    expect(DevBypassAuth.entryRouteFor(enabled: false), '/');
+  });
 }

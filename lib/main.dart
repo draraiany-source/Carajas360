@@ -56,49 +56,55 @@ Future<void> main() async {
   try {
     await SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   } catch (_) {}
-  await ThemeController.instance.load();
-
-  bool firebaseOk = false;
   try {
-    await FirebaseBootstrap.initialize();
-    try {
-      await FirebaseBootstrap.maybeActivateAppCheck();
-    } catch (e) {
-      debugPrint('App Check: $e');
-    }
-    // FCM/Analytics podem falhar nos emuladores — nao bloqueiam auth.
-    try {
-      await PushSvc.init();
-    } catch (e) {
-      debugPrint('PushSvc.init: $e');
-    }
-    // Crashlytics nao e suportado no Web — usa handlers locais nesse caso.
-    if (!kIsWeb) {
-      FlutterError.onError =
-          FirebaseCrashlytics.instance.recordFlutterFatalError;
-      PlatformDispatcher.instance.onError = (error, stack) {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-        return true;
-      };
-    } else {
-      FlutterError.onError = (details) {
-        FlutterError.presentError(details);
-        debugPrint('FlutterError: ${details.exceptionAsString()}');
-      };
-      PlatformDispatcher.instance.onError = (error, stack) {
-        debugPrint('Uncaught: $error\n$stack');
-        return true;
-      };
-    }
-    firebaseOk = true;
+    await ThemeController.instance
+        .load()
+        .timeout(Duration(seconds: DevBypassAuth.enabled ? 2 : 8));
   } catch (e) {
-    debugPrint('Firebase nao configurado — modo demonstracao: $e');
+    debugPrint('ThemeController.load: $e');
   }
 
+  bool firebaseOk = false;
   if (DevBypassAuth.enabled) {
     debugPrint(
         'DEV_BYPASS_LOGIN ativo — smoke sem Auth (uid=${DevBypassAuth.uid}). '
-        'NÃO usar em produção.');
+        'Pulando Firebase/emulador para não travar o preview. NÃO usar em produção.');
+  } else {
+    try {
+      await FirebaseBootstrap.initialize();
+      try {
+        await FirebaseBootstrap.maybeActivateAppCheck();
+      } catch (e) {
+        debugPrint('App Check: $e');
+      }
+      // FCM/Analytics podem falhar nos emuladores — nao bloqueiam auth.
+      try {
+        await PushSvc.init();
+      } catch (e) {
+        debugPrint('PushSvc.init: $e');
+      }
+      // Crashlytics nao e suportado no Web — usa handlers locais nesse caso.
+      if (!kIsWeb) {
+        FlutterError.onError =
+            FirebaseCrashlytics.instance.recordFlutterFatalError;
+        PlatformDispatcher.instance.onError = (error, stack) {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+          return true;
+        };
+      } else {
+        FlutterError.onError = (details) {
+          FlutterError.presentError(details);
+          debugPrint('FlutterError: ${details.exceptionAsString()}');
+        };
+        PlatformDispatcher.instance.onError = (error, stack) {
+          debugPrint('Uncaught: $error\n$stack');
+          return true;
+        };
+      }
+      firebaseOk = true;
+    } catch (e) {
+      debugPrint('Firebase nao configurado — modo demonstracao: $e');
+    }
   }
 
   runApp(Carajas360App(firebaseOk: firebaseOk));
@@ -133,7 +139,7 @@ class Carajas360App extends StatelessWidget {
                       analytics: FirebaseAnalytics.instance)
                 ]
               : const <NavigatorObserver>[],
-          initialRoute: Routes.splash,
+          initialRoute: DevBypassAuth.entryRoute,
           onGenerateRoute: (settings) {
             final name = settings.name ?? '';
             if (name == Routes.admin || name.startsWith('/admin/')) {
@@ -141,8 +147,14 @@ class Carajas360App extends StatelessWidget {
             }
             switch (settings.name) {
               case Routes.splash:
+                if (DevBypassAuth.enabled) {
+                  return _route(const MainNav());
+                }
                 return _route(SplashScreen(firebaseReady: firebaseOk));
               case Routes.onboarding:
+                if (DevBypassAuth.enabled) {
+                  return _route(const MainNav());
+                }
                 return _route(const OnboardingScreen());
               case Routes.login:
                 return _route(const LoginScreen());

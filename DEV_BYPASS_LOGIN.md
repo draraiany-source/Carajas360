@@ -15,9 +15,18 @@ Web:
 flutter run -d chrome --debug --dart-define=DEV_BYPASS_LOGIN=true
 ```
 
-O splash vai para a home. `RequireAuth` aceita o usuário mock `dev-bypass-user` (`type=client`).
+O splash **não espera 3s** e a rota inicial é `/main` (o preview web em `/` também abre a home). `RequireAuth` aceita o usuário mock `dev-bypass-user` (`type=client`).
 
 Faixa **DEV BYPASS** no canto da tela = flag ligada.
+
+Preview web (debug, com a flag):
+
+```bash
+flutter run -d web-server --web-hostname 0.0.0.0 --web-port 8080 \
+  --dart-define=DEV_BYPASS_LOGIN=true
+```
+
+Sem a flag o `main()` pode ficar preso no emulador Firebase (placeholders) e a tela HTML de loading nunca sai.
 
 ## Desligar (obrigatório antes de publicar)
 

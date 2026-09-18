@@ -35,7 +35,11 @@ class _SplashState extends State<SplashScreen>
     _scale = Tween<double>(begin: 0.8, end: 1.0)
         .animate(CurvedAnimation(parent: _ctrl, curve: Curves.elasticOut));
     _ctrl.forward();
-    Future.delayed(const Duration(seconds: 3), _navigate);
+    if (DevBypassAuth.enabled) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _navigate());
+    } else {
+      Future.delayed(const Duration(seconds: 3), _navigate);
+    }
   }
 
   void _navigate() {
@@ -126,11 +130,20 @@ class _SplashState extends State<SplashScreen>
                                                 fontWeight: FontWeight.w600))))
                                     .toList()),
                             const SizedBox(height: 56),
-                            const SizedBox(
-                                width: 28,
-                                height: 28,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white54, strokeWidth: 2)),
+                            if (DevBypassAuth.enabled)
+                              TextButton(
+                                onPressed: _navigate,
+                                child: const Text('Entrar no app (teste)',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700)),
+                              )
+                            else
+                              const SizedBox(
+                                  width: 28,
+                                  height: 28,
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white54, strokeWidth: 2)),
                             const SizedBox(height: 20),
                             if (!widget.firebaseReady)
                               Container(
