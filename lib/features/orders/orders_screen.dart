@@ -327,12 +327,17 @@ class _MyOrdersState extends State<MyOrdersScreen> {
         return const Color(0xFFE3F0FF);
       case OrderStatus.inProgress:
         return const Color(0xFFE1F5FE);
+      case OrderStatus.awaitingPayment:
+      case OrderStatus.paid:
+        return const Color(0xFFE8EAF6);
       case OrderStatus.completed:
         return const Color(0xFFE8F5E9);
       case OrderStatus.cancelled:
         return const Color(0xFFFFEBEE);
       case OrderStatus.disputed:
         return const Color(0xFFFFF3E0);
+      case OrderStatus.refunded:
+        return const Color(0xFFF3E5F5);
     }
   }
 
@@ -344,12 +349,17 @@ class _MyOrdersState extends State<MyOrdersScreen> {
         return AppColors.primary;
       case OrderStatus.inProgress:
         return AppColors.info;
+      case OrderStatus.awaitingPayment:
+      case OrderStatus.paid:
+        return AppColors.primary;
       case OrderStatus.completed:
         return AppColors.secondary;
       case OrderStatus.cancelled:
         return AppColors.error;
       case OrderStatus.disputed:
         return AppColors.orange;
+      case OrderStatus.refunded:
+        return AppColors.textLight;
     }
   }
 

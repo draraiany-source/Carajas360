@@ -7,19 +7,26 @@ abstract final class OrderPolicy {
   static const sensitiveFields = <String>{
     'price',
     'total',
+    'amount',
     'providerId',
     'clientId',
     'status',
     'paymentStatus',
     'payoutStatus',
     'payoutProcessed',
+    'payoutProcessedAt',
+    'payoutTransactionId',
     'commission',
     'platformFee',
     'providerAmount',
     'transactionId',
+    'gatewayTransactionId',
+    'walletId',
     'cashbackGranted',
     'paidAt',
     'payoutAt',
+    'refunded',
+    'refundAmount',
   };
 
   /// Campos administrativos do perfil bloqueados no client.
@@ -37,10 +44,12 @@ abstract final class OrderPolicy {
     'createdAt',
     'xp',
     'status',
+    'moderationStatus',
   };
 
   static const protectedProviderFields = <String>{
     'verified',
+    'approved',
     'plan',
     'status',
     'rating',
@@ -48,28 +57,59 @@ abstract final class OrderPolicy {
     'userId',
   };
 
-  /// Máquina de estados (nomes já usados no app Flutter).
-  /// pending ≈ created; inProgress ≈ in_progress.
+  static const protectedCompanyFields = <String>{
+    'verified',
+    'approved',
+    'plan',
+    'ownerId',
+    'active',
+  };
+
+  static const piiFields = <String>{'cpf', 'phone', 'address', 'fcmToken'};
+
+  static const statusAliases = <String, String>{
+    'created': 'pending',
+    'in_progress': 'inProgress',
+    'inprogress': 'inProgress',
+    'awaiting_payment': 'awaitingPayment',
+    'awaitingpayment': 'awaitingPayment',
+  };
+
+  /// Máquina de estados. pending ≈ created; inProgress ≈ in_progress.
   static const transitions = <String, Set<String>>{
     'pending': {'accepted', 'cancelled'},
     'accepted': {'inProgress', 'cancelled'},
-    'inProgress': {'completed', 'cancelled', 'disputed'},
-    'completed': {},
-    'cancelled': {},
-    'disputed': {'cancelled'},
+    'inProgress': {'awaitingPayment', 'completed', 'cancelled', 'disputed'},
+    'awaitingPayment': {'paid', 'completed', 'cancelled', 'disputed'},
+    'paid': {'completed', 'refunded', 'disputed'},
+    'completed': {'refunded'},
+    'cancelled': {'refunded'},
+    'disputed': {'cancelled', 'refunded'},
+    'refunded': {},
   };
 
   static const actions = <String, String>{
     'accept': 'accepted',
     'start': 'inProgress',
+    'requestPayment': 'awaitingPayment',
+    'markPaid': 'paid',
     'complete': 'completed',
     'cancel': 'cancelled',
     'decline': 'cancelled',
     'dispute': 'disputed',
+    'refund': 'refunded',
   };
 
+  static String normalizeStatus(String status) {
+    final raw = status.isEmpty ? 'pending' : status;
+    return statusAliases[raw] ??
+        statusAliases[raw.toLowerCase()] ??
+        raw;
+  }
+
   static bool isAllowedTransition(String from, String to) =>
-      (transitions[from] ?? const <String>{}).contains(to);
+      (transitions[normalizeStatus(from)] ?? const <String>{}).contains(
+          normalizeStatus(to));
 
   static String? targetStatus(String action) => actions[action];
 
@@ -78,7 +118,12 @@ abstract final class OrderPolicy {
     required String uid,
     required String clientId,
     required String? providerId,
+    bool isAdmin = false,
   }) {
+    if (isAdmin &&
+        (action == 'refund' || action == 'cancel' || action == 'dispute')) {
+      return true;
+    }
     final isClient = uid == clientId;
     final isProvider =
         providerId != null && providerId.isNotEmpty && uid == providerId;
@@ -89,10 +134,13 @@ abstract final class OrderPolicy {
             uid == providerId;
       case 'start':
       case 'decline':
+      case 'requestPayment':
         return isProvider;
+      case 'markPaid':
+      case 'refund':
+        return false;
       case 'complete':
       case 'dispute':
-        return isClient || isProvider;
       case 'cancel':
         return isClient || isProvider;
       default:
@@ -110,11 +158,12 @@ abstract final class OrderPolicy {
     String? paymentOrderId,
     String? gatewayStatus,
     num? paidAmount,
+    String? officialProviderId,
   }) {
     if (payoutProcessed) {
       return const PayoutDecision.deny('already_processed');
     }
-    if (status != 'completed') {
+    if (normalizeStatus(status) != 'completed') {
       return const PayoutDecision.deny('order_not_completed');
     }
     final paid = paymentStatus == 'paid' || gatewayStatus == 'approved';
@@ -123,6 +172,11 @@ abstract final class OrderPolicy {
     }
     if (providerId == null || providerId.isEmpty) {
       return const PayoutDecision.deny('missing_provider');
+    }
+    if (officialProviderId != null &&
+        officialProviderId.isNotEmpty &&
+        officialProviderId != providerId) {
+      return const PayoutDecision.deny('provider_mismatch');
     }
     if (price == null || price <= 0) {
       return const PayoutDecision.deny('invalid_price');
@@ -148,8 +202,23 @@ abstract final class OrderPolicy {
     required String currentStatus,
     required String paymentStatus,
   }) {
-    if (currentStatus != 'inProgress') return 'invalid_transition';
-    if (paymentStatus != 'paid') return 'payment_not_confirmed';
+    final from = normalizeStatus(currentStatus);
+    if (from != 'inProgress' &&
+        from != 'awaitingPayment' &&
+        from != 'paid') {
+      return 'invalid_transition';
+    }
+    if (from != 'paid' && paymentStatus != 'paid') {
+      return 'payment_not_confirmed';
+    }
+    if (!isAllowedTransition(from, 'completed')) {
+      return 'invalid_transition';
+    }
+    return null;
+  }
+
+  static String? rejectDoubleCharge({required String paymentStatus}) {
+    if (paymentStatus == 'paid') return 'already_paid';
     return null;
   }
 }

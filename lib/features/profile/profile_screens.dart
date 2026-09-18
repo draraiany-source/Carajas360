@@ -253,8 +253,7 @@ class ProfileScreen extends StatelessWidget {
                                     () => Navigator.pushNamed(
                                         context, Routes.companyProfile)),
                               ]),
-                            if (user?.type == UserType.admin ||
-                                user?.adminRole != null)
+                            if (user?.type == UserType.admin)
                               _section('Administração', [
                                 _item(
                                     context,

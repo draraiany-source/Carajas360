@@ -93,7 +93,7 @@ class _RegisterCompanyFormState extends State<_RegisterCompanyForm> {
       categories: _selectedCats.toList(),
       plan: PlanTier.free,
       verified: false,
-      active: true,
+      active: false,
       createdAt: DateTime.now(),
     );
     await FS.saveCompany(company);

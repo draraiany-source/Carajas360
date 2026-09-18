@@ -274,33 +274,89 @@ class FS {
     }
     // Campos privilegiados só na criação; updates não elevam privilégios.
     final data = u.toMap();
+    final pii = <String, dynamic>{};
+    for (final k in OrderPolicy.piiFields) {
+      if (data.containsKey(k)) {
+        pii[k] = data.remove(k);
+      }
+    }
     if (!isNew) {
-      data.remove('type');
-      data.remove('adminRole');
-      data.remove('verified');
-      data.remove('status');
-      data.remove('plan');
-      data.remove('xp');
+      for (final k in OrderPolicy.protectedUserFields) {
+        data.remove(k);
+      }
     } else {
       data.remove('adminRole');
+      data.remove('permissions');
+      data.remove('walletId');
+      data.remove('moderationStatus');
       if (data['type'] == 'admin') data['type'] = 'client';
+      data['verified'] = false;
+      data['plan'] = data['plan'] == 'free' ? 'free' : 'free';
     }
     await ref.set({
       ...data,
       if (isNew) 'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
+    if (pii.isNotEmpty) {
+      await ref.collection('private').doc('pii').set({
+        ...pii,
+        'updatedAt': FieldValue.serverTimestamp(),
+      }, SetOptions(merge: true));
+    }
   }
 
   static Future<UserModel?> getUser([String? id]) async {
-    final d = await _db.collection(Col.users).doc(id ?? _uid).get();
-    return d.exists ? UserModel.fromMap(d.id, d.data()!) : null;
+    final target = id ?? _uid;
+    if (target == null) return null;
+    final d = await _db.collection(Col.users).doc(target).get();
+    if (!d.exists) return null;
+    final data = Map<String, dynamic>.from(d.data()!);
+    if (target == _uid) {
+      try {
+        final pii = await _db
+            .collection(Col.users)
+            .doc(target)
+            .collection('private')
+            .doc('pii')
+            .get();
+        if (pii.exists) data.addAll(pii.data()!);
+      } catch (e) {
+        debugPrint('getUser pii: $e');
+      }
+    } else {
+      for (final k in OrderPolicy.piiFields) {
+        data.remove(k);
+      }
+    }
+    return UserModel.fromMap(d.id, data);
   }
 
-  static Stream<UserModel?> userStream([String? id]) => _db
-      .collection(Col.users)
-      .doc(id ?? _uid)
-      .snapshots()
-      .map((s) => s.exists ? UserModel.fromMap(s.id, s.data()!) : null);
+  static Stream<UserModel?> userStream([String? id]) {
+    final target = id ?? _uid;
+    if (target == null) return Stream.value(null);
+    return _db.collection(Col.users).doc(target).snapshots().asyncMap((s) async {
+      if (!s.exists) return null;
+      final data = Map<String, dynamic>.from(s.data()!);
+      if (target == _uid) {
+        try {
+          final pii = await _db
+              .collection(Col.users)
+              .doc(target)
+              .collection('private')
+              .doc('pii')
+              .get();
+          if (pii.exists) data.addAll(pii.data()!);
+        } catch (e) {
+          debugPrint('userStream pii: $e');
+        }
+      } else {
+        for (final k in OrderPolicy.piiFields) {
+          data.remove(k);
+        }
+      }
+      return UserModel.fromMap(s.id, data);
+    });
+  }
 
   static Future<void> updateUser(Map<String, dynamic> data) async {
     if (_uid == null) return;
@@ -425,7 +481,13 @@ class FS {
 
   static Future<void> updateFcmToken(String token) async {
     if (_uid == null) return;
-    await _db.collection(Col.users).doc(_uid).update({'fcmToken': token});
+    await _db
+        .collection(Col.users)
+        .doc(_uid)
+        .collection('private')
+        .doc('pii')
+        .set({'fcmToken': token, 'updatedAt': FieldValue.serverTimestamp()},
+            SetOptions(merge: true));
   }
 
   static Future<void> addXp(int xp) async {
@@ -481,6 +543,8 @@ class FS {
       'totalReviews': 0,
       'active': false,
       'verified': false,
+      'approved': false,
+      'plan': 'free',
       'createdAt': FieldValue.serverTimestamp(),
     }, SetOptions(merge: true));
   }
@@ -488,7 +552,7 @@ class FS {
   static Future<void> approveProvider(String id) => _db
       .collection(Col.providers)
       .doc(id)
-      .update({'verified': true, 'active': true});
+      .update({'verified': true, 'active': true, 'approved': true});
 
   // Atualiza os documentos de validação enviados no onboarding do
   // prestador (foto, RG/CNH, selfie, certificados, áreas atendidas).
@@ -518,7 +582,11 @@ class FS {
     sanitized.remove('platformFee');
     sanitized.remove('providerAmount');
     sanitized.remove('transactionId');
+    sanitized.remove('gatewayTransactionId');
     sanitized.remove('cashbackGranted');
+    sanitized.remove('walletId');
+    sanitized.remove('payoutProcessedAt');
+    sanitized.remove('payoutTransactionId');
     final doc = await _db.collection(Col.orders).add({
       ...sanitized,
       'clientId': _uid,
@@ -769,12 +837,9 @@ class FS {
   }
 
   static Future<bool> debit(double amount, String desc, String icon) async {
-    return _walletOp(
-      op: 'debit',
-      amount: amount,
-      description: desc,
-      icon: icon,
-    );
+    debugPrint(
+        'FS.debit bloqueado no client ($amount / $desc). Use payOrderWithWallet.');
+    return false;
   }
 
   static Future<bool> payOrderWithWallet(String orderId) async {
@@ -857,16 +922,9 @@ class FS {
 
   static Future<void> pushNotif(
       String uid, String title, String body, String type) async {
-    try {
-      await CloudFn.call('createNotification', {
-        'userId': uid,
-        'title': title,
-        'body': body,
-        'type': type,
-      });
-    } catch (e) {
-      debugPrint('createNotification error: $e');
-    }
+    // Notificações arbitrárias pelo client foram removidas (Fase 9).
+    // Fluxos oficiais disparam via Cloud Functions (triggers).
+    debugPrint('pushNotif ignorado no client ($type → $uid)');
   }
 
   static Stream<List<NotifModel>> notifStream() => _db
@@ -922,11 +980,18 @@ class FS {
       _db.collection(Col.appointments).doc(id).update({'status': 'cancelled'});
 
   static Future<String> createCartOrder(Map<String, dynamic> data) async {
+    final sanitized = Map<String, dynamic>.from(data);
+    for (final k in OrderPolicy.sensitiveFields) {
+      if (k != 'price' && k != 'total') sanitized.remove(k);
+    }
     final doc = await _db.collection(Col.orders).add({
-      ...data,
+      ...sanitized,
       'clientId': _uid,
       'type': 'marketplace',
       'status': 'pending',
+      'paymentStatus': 'unpaid',
+      'payoutProcessed': false,
+      'payoutStatus': 'none',
       'createdAt': FieldValue.serverTimestamp()
     });
     return doc.id;
@@ -944,10 +1009,14 @@ class FS {
       });
 
   // ── Companies (Vol.5: coleção companies) ──────────────────────
-  static Future<void> saveCompany(CompanyModel c) => _db
-      .collection(Col.companies)
-      .doc(c.id)
-      .set(c.toMap(), SetOptions(merge: true));
+  static Future<void> saveCompany(CompanyModel c) async {
+    final ref = _db.collection(Col.companies).doc(c.id);
+    final existing = await ref.get();
+    await ref.set(
+      c.toOwnerWriteMap(creating: !existing.exists),
+      SetOptions(merge: true),
+    );
+  }
 
   static Future<CompanyModel?> getCompanyByOwner(String ownerId) async {
     final q = await _db
@@ -1033,7 +1102,9 @@ class FS {
   static Future<String?> saveStore(StoreModel store) async {
     if (_uid == null) return null;
     final data = {...store.toMap(), 'ownerId': _uid};
+    data.remove('verified');
     if (store.id.isEmpty) {
+      data['verified'] = false;
       final doc = await _db
           .collection(Col.stores)
           .add({...data, 'createdAt': FieldValue.serverTimestamp()});
@@ -1135,14 +1206,6 @@ class FS {
     final doc = await _db.collection(Col.bookings).add({
       ...b.toMap(),
       'clientId': _uid,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    await _db.collection(Col.notifications).add({
-      'userId': b.ownerId,
-      'title': 'Nova solicitação de reserva',
-      'body': '${b.clientName} quer alugar ${b.rentalTitle}',
-      'icon': '🔑',
-      'read': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
     return doc.id;
@@ -1420,7 +1483,7 @@ class FS {
     await _db
         .collection(Col.companies)
         .doc(id)
-        .update({'verified': true, 'active': true});
+        .update({'verified': true, 'active': true, 'approved': true});
     await logAdminAction('Aprovou empresa', target: id, adminName: adminName);
   }
 
@@ -1536,8 +1599,10 @@ class FS {
   // ── Admin: financeiro (Vol.6: comissões, repasses, saques, estornos) ─
   static Future<void> processRefund(String orderId, double amount,
       {String? adminName}) async {
-    await _db.collection(Col.orders).doc(orderId).update(
-        {'status': 'cancelled', 'refunded': true, 'refundAmount': amount});
+    await CloudFn.call('processRefund', {
+      'orderId': orderId,
+      'amount': amount,
+    });
     await logAdminAction('Processou estorno',
         target: orderId, adminName: adminName, details: {'amount': amount});
   }
@@ -1711,24 +1776,6 @@ class FS {
       'leadFee': null,
       'createdAt': FieldValue.serverTimestamp(),
     });
-
-    // Notifica prestadores compatíveis (até 20) — base para lead pago.
-    final providers = await _db
-        .collection(Col.providers)
-        .where('active', isEqualTo: true)
-        .where('categories', arrayContains: category)
-        .limit(20)
-        .get();
-    for (final p in providers.docs) {
-      final pid = (p.data()['userId'] as String?) ?? p.id;
-      await pushNotif(
-          pid,
-          '⚡ Nova oportunidade Resolve',
-          description.length > 80
-              ? '${description.substring(0, 80)}…'
-              : description,
-          'resolve');
-    }
     return doc.id;
   }
 

@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:servico_conecta/core/security/order_policy.dart';
 
 enum UserType { client, provider, deliverer, company, admin }
 
@@ -176,12 +177,34 @@ class CompanyModel {
         'city': city,
         'state': state,
         'categories': categories,
-        'plan': plan.name,
-        'verified': verified,
-        'active': active,
         'teamSize': teamSize,
         'updatedAt': FieldValue.serverTimestamp(),
       };
+
+  /// Persistência pelo dono: nunca envia verified/plan/active/ownerId.
+  Map<String, dynamic> toOwnerWriteMap({bool creating = false}) {
+    final map = <String, dynamic>{
+      'name': name,
+      'cnpj': cnpj,
+      'logoUrl': logoUrl,
+      'phone': phone,
+      'email': email,
+      'address': address,
+      'city': city,
+      'state': state,
+      'categories': categories,
+      'teamSize': teamSize,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (creating) {
+      map['ownerId'] = ownerId;
+      map['plan'] = 'free';
+      map['verified'] = false;
+      map['approved'] = false;
+      map['active'] = false;
+    }
+    return map;
+  }
 }
 
 // ── Banner (Vol.6: marketing) ────────────────────────────────
@@ -364,9 +387,12 @@ enum OrderStatus {
   pending,
   accepted,
   inProgress,
+  awaitingPayment,
+  paid,
   completed,
   cancelled,
-  disputed
+  disputed,
+  refunded,
 }
 
 class OrderModel {
@@ -400,12 +426,18 @@ class OrderModel {
         return '✅ Aceito';
       case OrderStatus.inProgress:
         return '🔄 Em andamento';
+      case OrderStatus.awaitingPayment:
+        return '💳 Aguardando pagamento';
+      case OrderStatus.paid:
+        return '💰 Pago';
       case OrderStatus.completed:
         return '✔️ Concluído';
       case OrderStatus.cancelled:
         return '❌ Cancelado';
       case OrderStatus.disputed:
         return '⚠️ Disputa';
+      case OrderStatus.refunded:
+        return '↩️ Estornado';
     }
   }
 
@@ -418,13 +450,19 @@ class OrderModel {
         description: m['description'] ?? '',
         address: m['address'] ?? '',
         price: (m['price'] as num?)?.toDouble(),
-        status: OrderStatus.values.firstWhere(
-            (s) => s.name == (m['status'] ?? 'pending'),
-            orElse: () => OrderStatus.pending),
+        status: _parseOrderStatus(m['status']),
         urgent: m['urgent'] ?? false,
         reviewed: m['reviewed'] ?? false,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       );
+
+  static OrderStatus _parseOrderStatus(dynamic raw) {
+    final name = OrderPolicy.normalizeStatus('${raw ?? 'pending'}');
+    return OrderStatus.values.firstWhere(
+      (s) => s.name == name,
+      orElse: () => OrderStatus.pending,
+    );
+  }
 }
 
 class MessageModel {

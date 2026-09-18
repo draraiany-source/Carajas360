@@ -99,6 +99,10 @@ class ServicoConectaApp extends StatelessWidget {
               : const <NavigatorObserver>[],
           initialRoute: Routes.splash,
           onGenerateRoute: (settings) {
+            final name = settings.name ?? '';
+            if (name == Routes.admin || name.startsWith('/admin/')) {
+              return _route(const AdminGate(child: AdminScreen()));
+            }
             switch (settings.name) {
               case Routes.splash:
                 return _route(SplashScreen(firebaseReady: firebaseOk));
@@ -129,8 +133,6 @@ class ServicoConectaApp extends StatelessWidget {
                     orderId: a?['orderId']));
               case Routes.wallet:
                 return _route(const RequireAuth(title: 'Carteira', child: WalletScreen()));
-              case Routes.admin:
-                return _route(const AdminGate(child: AdminScreen()));
               case Routes.health:
                 return _route(const HealthScreen());
               case Routes.marketplace:

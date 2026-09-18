@@ -18,8 +18,10 @@ abstract final class AccessControl {
     } on FirebaseAuthException {
       return false;
     }
+    // Papel admin no documento (claim é a fonte preferencial).
+    // adminRole sozinho NÃO libera o painel.
     final profile = await FS.getUser();
-    return profile?.type == UserType.admin || profile?.adminRole != null;
+    return profile?.type == UserType.admin;
   }
 }
 
