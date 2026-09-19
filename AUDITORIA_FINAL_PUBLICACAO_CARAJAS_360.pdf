@@ -1,0 +1,466 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R 16 0 R 18 0 R 20 0 R] /Count 9 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 620 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360) Tj
+T*
+(AUDITORIA FINAL PARA PUBLICACAO) Tj
+T*
+() Tj
+T*
+(Seguranca | Funcionamento | Estabilidade | Lojas) Tj
+T*
+() Tj
+T*
+(Data: 19/09/2026) Tj
+T*
+(Versao auditada: 1.0.0+1) Tj
+T*
+(Commit: f367955e04f39f12d30a7879508fb49100317f80) Tj
+T*
+(Branch: cursor/bloco-a-security-staging-c199) Tj
+T*
+(Flutter 3.44.4 | Dart 3.12.2) Tj
+T*
+() Tj
+T*
+(CLASSIFICACAO:) Tj
+T*
+(NAO PRONTO PARA PUBLICACAO) Tj
+T*
+() Tj
+T*
+(Ambiente: desenvolvimento/staging \(sem producao\)) Tj
+T*
+(Pagamentos reais: NAO \(PAYMENTS_ENABLED=false\)) Tj
+T*
+(Asaas: NAO IMPLEMENTADO \(codigo usa Mercado Pago\)) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 807 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(1. MAPA TECNICO ATUAL DO CARAJAS 360) Tj
+T*
+() Tj
+T*
+(- Nome: Carajas 360 \(legado: Servico Conecta\)) Tj
+T*
+(- Repo: github.com/draraiany-source/Carajas360.git) Tj
+T*
+(- Package Dart: carajas_360) Tj
+T*
+(- Android/iOS ID: br.com.carajas360) Tj
+T*
+(- Firebase: carajas360-a17c5) Tj
+T*
+(- Backend: Cloud Functions Node 20) Tj
+T*
+(- DB: Firestore | Storage | Auth | FCM | Crashlytics) Tj
+T*
+(- Admin: lib/features/admin/admin_screen.dart) Tj
+T*
+(- Hosting: build/web \(firebase.json\)) Tj
+T*
+() Tj
+T*
+(Ambientes:) Tj
+T*
+(- DEV: emuladores + placeholders COLE_SUA_*) Tj
+T*
+(- STAGING: projeto carajas360-a17c5 \(client ainda placeholder\)) Tj
+T*
+(- PRODUCAO: NAO ativada) Tj
+T*
+() Tj
+T*
+(APIs: Mercado Pago, Google Maps, Google/Apple Sign-In) Tj
+T*
+(Asaas: NAO IMPLEMENTADO) Tj
+ET
+endstream
+endobj
+8 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 9 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+9 0 obj<< /Length 911 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(2. COMPILACAO) Tj
+T*
+() Tj
+T*
+(- Release Android: BLOQUEIA \(sem key.properties/keystore\)) Tj
+T*
+(- Release iOS: BLOQUEIA \(sem Runner.xcodeproj\)) Tj
+T*
+(- Release Firebase placeholder: BLOQUEIA \(StateError\)) Tj
+T*
+(- CI branch: documentado verde em PROXIMO_PASSO_STAGING.md) Tj
+T*
+(- Analyze/test locais: runtime longo nesta sessao;) Tj
+T*
+(  nao marcar como OK sem saida completa no terminal) Tj
+T*
+() Tj
+T*
+(3. FIREBASE SECURITY) Tj
+T*
+() Tj
+T*
+(Auth: PARCIAL \(login/logout/cadastro/exclusao OK no codigo\)) Tj
+T*
+(Firestore: OK deny-by-default; wallets/payments write false) Tj
+T*
+(  users: campos type/plan/xp/verified protegidos) Tj
+T*
+(  reviews: so completed + ID unico) Tj
+T*
+(  catalogo publico: providers/categories read true \(esperado\)) Tj
+T*
+(Storage: OK ownership + MIME + size limits) Tj
+T*
+(App Check: BLOQUEIA \(desligado; activate nao implementado\)) Tj
+ET
+endstream
+endobj
+10 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 11 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+11 0 obj<< /Length 771 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(4. RBAC) Tj
+T*
+() Tj
+T*
+(- Cliente nao acessa admin \(AdminGate\) ? OK) Tj
+T*
+(- Prestador nao altera verified/rating ? OK) Tj
+T*
+(- Admin: claim admin/role ou type==admin ? OK) Tj
+T*
+(- adminRole sozinho NAO libera ? OK) Tj
+T*
+(- Botao Sair conta admin dedicado: PARCIAL) Tj
+T*
+(  \(Sair da conta no Perfil; painel so fecha\)) Tj
+T*
+() Tj
+T*
+(5. SEM LOGIN: PARCIAL \(rotas publicas existem;) Tj
+T*
+(   E2E dispositivo nao executado\)) Tj
+T*
+() Tj
+T*
+(6-8. FLUXOS CLIENTE/PRESTADOR/ADMIN) Tj
+T*
+(- Codigo presente; E2E staging NAO EXECUTADO) Tj
+T*
+(  \(BLOQUEIA confianca de publicacao\)) Tj
+T*
+(- Admin tabs: Usuarios, Validacao, Categorias,) Tj
+T*
+(  Financeiro, Marketing, Atendimento, Denuncias,) Tj
+T*
+(  Auditoria, Configuracoes) Tj
+ET
+endstream
+endobj
+12 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 13 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+13 0 obj<< /Length 819 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(9. CANCELAMENTO) Tj
+T*
+(- cancelOrder via transitionOrder: OK) Tj
+T*
+(- REABIR admin: NAO IMPLEMENTADO) Tj
+T*
+(- CANCELAR DEFINITIVAMENTE admin: NAO IMPLEMENTADO) Tj
+T*
+() Tj
+T*
+(10. PAGAMENTOS) Tj
+T*
+(- Asaas: NAO IMPLEMENTADO) Tj
+T*
+(- Mercado Pago: PARCIAL \(PAYMENTS_ENABLED=false\)) Tj
+T*
+(- Comissao codigo: 15% plataforma / 85% prestador) Tj
+T*
+(- Regra pedida 8%/92%: DIVERGENTE) Tj
+T*
+(- Split gateway: NAO IMPLEMENTADO) Tj
+T*
+(- BLOQUEIA PUBLICACAO) Tj
+T*
+() Tj
+T*
+(11. ESCROW 3 dias: NAO IMPLEMENTADO) Tj
+T*
+(12. Webhook MP sandbox: OK desenho \(applied=false\)) Tj
+T*
+(    Webhook Asaas: NAO IMPLEMENTADO) Tj
+T*
+(13. Maps: PARCIAL \(placeholder\)) Tj
+T*
+(14. Chat rules: OK participantes) Tj
+T*
+(15. Notificacoes FCM: PARCIAL \(E2E nao\)) Tj
+T*
+(16. Avaliacoes rules: OK) Tj
+ET
+endstream
+endobj
+14 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 15 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+15 0 obj<< /Length 901 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(17. IDENTIDADE / NOMES ANTIGOS) Tj
+T*
+() Tj
+T*
+(Residuais servicoconecta / Servico Conecta:) Tj
+T*
+(- lib/core/constants/app_constants.dart \(emails\)) Tj
+T*
+(- lib/core/auth/dev_bypass_auth.dart) Tj
+T*
+(- lib/features/wallet/wallet_screen.dart) Tj
+T*
+(- comentarios home_screen / carajas_home_screen) Tj
+T*
+(AgroConecta em lib/: nao encontrado) Tj
+T*
+() Tj
+T*
+(18. UX: PARCIAL \(comingSoon Fase 2\)) Tj
+T*
+(19. LGPD: Termos/Politica in-app OK;) Tj
+T*
+(    URL publica: NAO IMPLEMENTADO ? BLOQUEIA) Tj
+T*
+(20. Exclusao conta: OK \(anonimiza + 5 anos\)) Tj
+T*
+() Tj
+T*
+(21. GOOGLE PLAY) Tj
+T*
+(- Exigencia \(doc oficial\): desde 31/08/2026) Tj
+T*
+(  novos apps/updates target API 36) Tj
+T*
+(- AAB: bloqueado sem keystore) Tj
+T*
+(- Data Safety/listing: NAO PRONTO) Tj
+T*
+() Tj
+T*
+(22. APP STORE: BLOQUEIA \(sem Xcode project\)) Tj
+T*
+(23. Assets lojas: NAO CONCLUIDO) Tj
+ET
+endstream
+endobj
+16 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 17 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+17 0 obj<< /Length 840 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(24-26. Performance/Rede/Logs: PARCIAL) Tj
+T*
+(27. Backup: Git OK; Firestore ops PARCIAL) Tj
+T*
+(28. Security tests unitarios: OK blocos;) Tj
+T*
+(    E2E IDOR staging: NAO EXECUTADO) Tj
+T*
+(29. Secrets: OK \(so placeholders no Git\)) Tj
+T*
+(30. GitHub .gitignore: OK keystore/.env) Tj
+T*
+(31. Ambientes DEV/STG/PROD: PARCIAL) Tj
+T*
+() Tj
+T*
+(32. COLECOES Firestore \(Col.*\):) Tj
+T*
+(users providers companies orders wallets) Tj
+T*
+(transactions reviews chatRooms notifications) Tj
+T*
+(coupons deliveries appointments contracts) Tj
+T*
+(support auditLogs banners categories favorites) Tj
+T*
+(reports employees branches stores products) Tj
+T*
+(rentals bookings resolveRequests resolveProposals) Tj
+T*
+(financialAudits rateLimits planChangeRequests) Tj
+T*
+(+ config/platform payments legalRetention xpEvents) Tj
+ET
+endstream
+endobj
+18 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 19 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+19 0 obj<< /Length 703 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(34. ACHADOS) Tj
+T*
+() Tj
+T*
+(CRITICOS \(BLOQUEIA PUBLICACAO\):) Tj
+T*
+(C1 Firebase COLE_SUA_* placeholders) Tj
+T*
+(C2 Sem keystore Android) Tj
+T*
+(C3 Sem Runner.xcodeproj iOS) Tj
+T*
+(C4 Sem URL publica privacidade) Tj
+T*
+(C5 Pagamentos Asaas N/A; MP off; 8/92 vs 15/85) Tj
+T*
+(C6 Escrow NAO IMPLEMENTADO) Tj
+T*
+(C7 App Check off) Tj
+T*
+() Tj
+T*
+(ALTOS: A1 smoke staging; A2 cancel admin;) Tj
+T*
+(A3 Maps key; A4 listings loja) Tj
+T*
+() Tj
+T*
+(MEDIOS: emails legado; PDF auditoria WIP;) Tj
+T*
+(separacao prod) Tj
+T*
+() Tj
+T*
+(BAIXOS: withOpacity; chat voz stub) Tj
+T*
+() Tj
+T*
+(35. CORRECOES NESTA AUDITORIA:) Tj
+T*
+(Nenhuma alteracao funcional \(somente documento\).) Tj
+ET
+endstream
+endobj
+20 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 21 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+21 0 obj<< /Length 1141 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(37. CHECKLIST PUBLICACAO \(resumo\)) Tj
+T*
+([ ] Android release  [ ] iOS  [ ] App Check) Tj
+T*
+([x] Rules deny-default  [x] Storage seguro) Tj
+T*
+([x] Secrets no Git protegidos  [x] RBAC basico) Tj
+T*
+([ ] E2E cliente/prestador/admin) Tj
+T*
+([ ] Asaas/MP sandbox completo  [ ] Split alinhado) Tj
+T*
+([ ] Privacy URL  [x] Exclusao conta) Tj
+T*
+([ ] Data Safety  [ ] AAB  [ ] TestFlight) Tj
+T*
+([~] Nome Carajas 360 \(emails residuais\)) Tj
+T*
+() Tj
+T*
+(38. NAO PUBLICAR AUTOMATICAMENTE ? confirmado) Tj
+T*
+() Tj
+T*
+(40. CONCLUSAO OBRIGATORIA) Tj
+T*
+() Tj
+T*
+(>>> NAO PRONTO PARA PUBLICACAO <<<) Tj
+T*
+() Tj
+T*
+(BLOQUEIOS:) Tj
+T*
+(1. Firebase placeholder \(release crash\)) Tj
+T*
+(2. Sem keystore / sem Xcode) Tj
+T*
+(3. Sem privacy URL publica) Tj
+T*
+(4. Pagamentos/escrow/comissao nao prontos) Tj
+T*
+(5. App Check + E2E staging ausentes) Tj
+T*
+() Tj
+T*
+(JA PRONTO: rules, RBAC, LGPD exclusao,) Tj
+T*
+(IDs tecnicos, pagamentos desligados com seguranca) Tj
+T*
+() Tj
+T*
+(PROXIMOS: flutterfire configure; alinhar) Tj
+T*
+(Asaas vs MP e %; keystore; iOS; privacy URL;) Tj
+T*
+(teste interno Play \(sem producao\)) Tj
+ET
+endstream
+endobj
+xref
+0 22
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000165 00000 n 
+0000000233 00000 n 
+0000000357 00000 n 
+0000001026 00000 n 
+0000001150 00000 n 
+0000002006 00000 n 
+0000002130 00000 n 
+0000003090 00000 n 
+0000003216 00000 n 
+0000004037 00000 n 
+0000004163 00000 n 
+0000005032 00000 n 
+0000005158 00000 n 
+0000006109 00000 n 
+0000006235 00000 n 
+0000007125 00000 n 
+0000007251 00000 n 
+0000008004 00000 n 
+0000008130 00000 n 
+trailer<< /Size 22 /Root 1 0 R >>
+startxref
+9322
+%%EOF

@@ -1,0 +1,360 @@
+import 'dart:io';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+
+Future<void> main() async {
+  final doc = pw.Document();
+  final now = DateTime.now();
+  final dateStr =
+      '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
+
+  pw.Widget h1(String t) => pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 14, bottom: 6),
+        child: pw.Text(t,
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+      );
+  pw.Widget h2(String t) => pw.Padding(
+        padding: const pw.EdgeInsets.only(top: 10, bottom: 4),
+        child: pw.Text(t,
+            style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+      );
+  pw.Widget p(String t) => pw.Padding(
+        padding: const pw.EdgeInsets.only(bottom: 3),
+        child: pw.Text(t, style: const pw.TextStyle(fontSize: 9)),
+      );
+  pw.Widget bullet(String t) => pw.Padding(
+        padding: const pw.EdgeInsets.only(left: 8, bottom: 2),
+        child: pw.Text('- $t', style: const pw.TextStyle(fontSize: 9)),
+      );
+
+  // CAPA
+  doc.addPage(pw.Page(
+    pageFormat: PdfPageFormat.a4,
+    build: (_) => pw.Center(
+      child: pw.Column(
+        mainAxisAlignment: pw.MainAxisAlignment.center,
+        children: [
+          pw.Text('CARAJAS 360',
+              style: pw.TextStyle(fontSize: 28, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 12),
+          pw.Text('AUDITORIA FINAL PARA PUBLICACAO',
+              style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold)),
+          pw.SizedBox(height: 24),
+          pw.Text('Seguranca · Funcionamento · Estabilidade · Lojas',
+              style: const pw.TextStyle(fontSize: 11)),
+          pw.SizedBox(height: 40),
+          pw.Text('Data: $dateStr', style: const pw.TextStyle(fontSize: 11)),
+          pw.Text('Versao auditada: 1.0.0+1',
+              style: const pw.TextStyle(fontSize: 11)),
+          pw.Text('Commit: f367955e04f39f12d30a7879508fb49100317f80',
+              style: const pw.TextStyle(fontSize: 9)),
+          pw.Text('Branch: cursor/bloco-a-security-staging-c199',
+              style: const pw.TextStyle(fontSize: 10)),
+          pw.SizedBox(height: 40),
+          pw.Container(
+            padding: const pw.EdgeInsets.all(12),
+            decoration: pw.BoxDecoration(
+              border: pw.Border.all(color: PdfColors.red800, width: 2),
+            ),
+            child: pw.Text('CLASSIFICACAO: NAO PRONTO PARA PUBLICACAO',
+                style: pw.TextStyle(
+                    fontSize: 13,
+                    fontWeight: pw.FontWeight.bold,
+                    color: PdfColors.red800)),
+          ),
+          pw.SizedBox(height: 20),
+          pw.Text('Ambiente: desenvolvimento / staging (sem producao)',
+              style: const pw.TextStyle(fontSize: 9)),
+          pw.Text('Pagamentos reais: NAO ativados (PAYMENTS_ENABLED=false)',
+              style: const pw.TextStyle(fontSize: 9)),
+        ],
+      ),
+    ),
+  ));
+
+  // CONTEUDO
+  doc.addPage(pw.MultiPage(
+    pageFormat: PdfPageFormat.a4,
+    margin: const pw.EdgeInsets.all(36),
+    footer: (c) => pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text('Carajas 360 — Auditoria $dateStr — p.${c.pageNumber}',
+              style: const pw.TextStyle(fontSize: 8, color: PdfColors.grey600)),
+        ),
+    build: (_) => [
+      h1('1. MAPA TECNICO ATUAL DO CARAJAS 360'),
+      bullet('Nome: Carajas 360 (legado: Servico Conecta)'),
+      bullet('Repositorio: https://github.com/draraiany-source/Carajas360.git'),
+      bullet('Branch: cursor/bloco-a-security-staging-c199'),
+      bullet('Commit: f367955'),
+      bullet('Flutter: 3.44.4 stable | Dart: 3.12.2'),
+      bullet('Package Dart: carajas_360'),
+      bullet('Android applicationId: br.com.carajas360'),
+      bullet('iOS Bundle ID: br.com.carajas360'),
+      bullet('Firebase Project ID: carajas360-a17c5 (.firebaserc)'),
+      bullet('Backend: Cloud Functions Node 20 (functions/)'),
+      bullet('Banco: Cloud Firestore | Storage: Firebase Storage'),
+      bullet('Auth: Firebase Auth | Push: FCM | Crash: Crashlytics | Analytics'),
+      bullet('Pagamentos no codigo: Mercado Pago (NAO Asaas)'),
+      bullet('Mapas: Google Maps + Geolocator'),
+      bullet('Admin: lib/features/admin/admin_screen.dart'),
+      bullet('Hosting web: firebase.json → build/web'),
+      h2('Ambientes'),
+      bullet('DEV: emuladores Auth/Firestore/Storage/Functions (placeholders)'),
+      bullet('STAGING: projeto carajas360-a17c5 (arquivos cliente ainda placeholder)'),
+      bullet('PRODUCAO: NAO configurada / NAO ativada nesta auditoria'),
+      h2('APIs / Integracoes'),
+      bullet('Mercado Pago API + webhook sandbox (charged/applied=false)'),
+      bullet('Google Maps / Directions (key via dart-define / local.properties)'),
+      bullet('Google Sign-In / Apple Sign-In (Apple parcial/stub web)'),
+      bullet('Asaas: NAO IMPLEMENTADO'),
+
+      h1('2. COMPILACAO GERAL'),
+      bullet('flutter analyze / flutter test: executados nesta sessao com runtime longo; CI da branch documentado como verde (6/6) em PROXIMO_PASSO_STAGING.md'),
+      bullet('Release Android: BLOQUEIA — exige android/key.properties + keystore'),
+      bullet('Release iOS: BLOQUEIA — ios/Runner.xcodeproj AUSENTE'),
+      bullet('Release com Firebase placeholder: BLOQUEIA — StateError em FirebaseBootstrap'),
+      bullet('Web: hosting configurado; build depende de keys reais para Auth'),
+      bullet('Avisos residuais: deprecacoes withOpacity (NAO bloqueia)'),
+
+      h1('3. SEGURANCA FIREBASE'),
+      h2('Authentication — PARCIAL'),
+      bullet('OK: login e-mail, Google, logout, cadastro com termos, exclusao via deleteMyAccount'),
+      bullet('OK: DEV_BYPASS_LOGIN bloqueado em release'),
+      bullet('PARCIAL: troca e-mail / senha / telefone — verificar fluxos UI completos'),
+      bullet('PARCIAL: bloqueio usuario — depende de status admin/Firestore'),
+      h2('Firestore Rules — OK (com ressalvas)'),
+      bullet('OK: catch-all deny; wallets/payments/transactions write false'),
+      bullet('OK: users protegidos (type/plan/xp/verified/walletId nao gravaveis pelo dono)'),
+      bullet('OK: reviews so pedido completed; ID review orderId_uid'),
+      bullet('OK: orders update client so marca reviewed; transicoes via Functions'),
+      bullet('PARCIAL: providers/companies/stores/categories read: if true (catalogo publico)'),
+      bullet('PARCIAL: isAdmin via claim OU type==admin no documento (risco se type admin gravado indevidamente — create bloqueia type admin)'),
+      h2('Storage Rules — OK'),
+      bullet('OK: ownership; MIME image/pdf/audio; tamanho 8–15MB'),
+      bullet('OK: chat_media so participantes; docs provider privados'),
+      bullet('PARCIAL: foto perfil read: if true (publico intencional)'),
+
+      h1('4. RBAC'),
+      bullet('Cliente: AdminGate + rules — NAO deve acessar admin (OK no codigo)'),
+      bullet('Prestador: campos verified/approved/rating protegidos (OK)'),
+      bullet('Admin: claim admin/role==admin OU type==admin; adminRole sozinho NAO libera'),
+      bullet('Sair da conta ADMIN dedicado: PARCIAL — existe Sair da conta no Perfil; painel so tem fechar (Navigator.pop), sem botao dedicado "Sair da conta administrador"'),
+      bullet('Escalacao para admin pelo cliente: create users bloqueia type admin (OK)'),
+
+      h1('5. TESTES SEM LOGIN'),
+      bullet('PARCIAL: rotas splash/onboarding/login/legal existem; smoke E2E deslogado NAO executado em dispositivo nesta sessao'),
+      bullet('Admin sem login: AdminGate exige auth (OK)'),
+
+      h1('6–8. FLUXOS CLIENTE / PRESTADOR / ADMIN'),
+      bullet('Codigo cobre cadastro, pedidos, chat, carteira, provider home, admin tabs'),
+      bullet('Fluxos E2E reais em dispositivo: NAO EXECUTADOS nesta auditoria (staging sem keys reais)'),
+      bullet('Admin tabs: Usuarios, Validacao, Categorias, Financeiro, Marketing, Atendimento, Denuncias, Auditoria, Configuracoes'),
+      bullet('Export PDF financeiro: OK | Export PDF auditoria: PARCIAL (WIP local nao finalizado)'),
+
+      h1('9. CANCELAMENTO'),
+      bullet('OK: cancelOrder via Cloud Function transitionOrder'),
+      bullet('NAO IMPLEMENTADO: acoes admin REABRIR e CANCELAR DEFINITIVAMENTE com confirmacao e log completo'),
+      bullet('Status: BLOQUEIA PUBLICACAO se regra de negocio exigir esses botoes antes da loja'),
+
+      h1('10. PAGAMENTOS / ASAAS'),
+      bullet('Asaas: NAO IMPLEMENTADO'),
+      bullet('Implementado: Mercado Pago (PIX/cartao callables; HTTP 410; PAYMENTS_ENABLED=false)'),
+      bullet('Comissao no codigo: 15% plataforma / 85% prestador (AppConst.commission=0.15)'),
+      bullet('Regra comercial pedida no prompt (8%/92%): DIVERGENTE — NAO CONFIRMADA no codigo'),
+      bullet('Split gateway MP marketplace: NAO IMPLEMENTADO (split interno no payout)'),
+      bullet('Sandbox testado de ponta a ponta nesta sessao: NAO'),
+      bullet('Status: BLOQUEIA PUBLICACAO (pagamentos reais e Asaas inexistente; regra comercial divergente)'),
+
+      h1('11. ESCROW / RETENCAO'),
+      bullet('Escrow Conta Escrow / hold 3 dias: NAO IMPLEMENTADO'),
+      bullet('Carteira write so backend; payout via processPayout autenticado (PARCIAL protecao)'),
+
+      h1('12. WEBHOOK'),
+      bullet('Webhook Mercado Pago sandbox: HMAC opcional; mesmo valido charged=false applied=false'),
+      bullet('Asaas webhook: NAO IMPLEMENTADO'),
+      bullet('Fonte confiavel: Functions (OK desenho); aplicacao cliente nao credita wallet (OK)'),
+
+      h1('13. MAPAS / GPS'),
+      bullet('PARCIAL: keys placeholder; Directions pulado se placeholder'),
+      bullet('BLOQUEIA se publicar sem key restrita no Cloud Console'),
+
+      h1('14. CHAT'),
+      bullet('OK rules: so participantes leem/escrevem; mark read'),
+      bullet('PARCIAL: voz/video stub; anexos PDF permitidos'),
+
+      h1('15. NOTIFICACOES'),
+      bullet('PARCIAL: PushSvc/FCM init; cobertura de todos os eventos de negocio nao validada E2E'),
+
+      h1('16. AVALIACOES'),
+      bullet('OK rules: completed only, ID unico, sem update/delete client'),
+      bullet('Media rating protegida no provider update (OK)'),
+
+      h1('17. IDENTIDADE VISUAL / NOMES ANTIGOS'),
+      bullet('OK: AppInfo.name = Carajas 360; applicationId migrado'),
+      bullet('Residuais Servico Conecta / @servicoconecta.com.br:'),
+      bullet('  lib/core/constants/app_constants.dart (emails + legacy label)'),
+      bullet('  lib/core/auth/dev_bypass_auth.dart'),
+      bullet('  lib/features/wallet/wallet_screen.dart (PIX demo email)'),
+      bullet('  comentarios home_screen / carajas_home_screen'),
+      bullet('AgroConecta: nao encontrado em lib/ nesta varredura'),
+      bullet('Status residual: MEDIO (nao bloqueia se loja usar nome Carajas 360; emails precisam dominio real)'),
+
+      h1('18. UX'),
+      bullet('PARCIAL: ErrorWidget global; EmptyStates; telas comingSoon (Vagas, Fretes, Imoveis, Obras, Auto, Kids)'),
+      bullet('Auditoria UX completa dispositivo: NAO EXECUTADA'),
+
+      h1('19–20. LGPD / EXCLUSAO'),
+      bullet('OK: Termos e Politica em LegalScreen (texto in-app)'),
+      bullet('OK: exportMyData JSON; deleteMyAccount anonimiza + retencao 5 anos (LGPD_DATA_RETENTION.md)'),
+      bullet('OK: confirmacao exclusao no Perfil'),
+      bullet('NAO IMPLEMENTADO: URL publica https de Politica (exigencia Play/App Store) — BLOQUEIA PUBLICACAO'),
+
+      h1('21. GOOGLE PLAY'),
+      bullet('Exigencia consultada (Play Console Help): a partir de 31/08/2026 novos apps/updates devem target API 36 (Android 16)'),
+      bullet('targetSdk: via flutter.targetSdkVersion — validar no build release'),
+      bullet('AAB: bloqueado sem keystore'),
+      bullet('Data Safety / conta desenvolvedor / screenshots: NAO PREPARADOS nesta auditoria'),
+
+      h1('22. APP STORE'),
+      bullet('BLOQUEIA: sem Runner.xcodeproj — impossivel archive/TestFlight'),
+      bullet('Privacy Manifest / App Privacy: NAO VALIDADO'),
+
+      h1('23. ASSETS LOJAS'),
+      bullet('Checklist Play/Apple: NAO CONCLUIDO (screenshots, feature graphic, URLs)'),
+      bullet('Assets app: logos/lottie/categorias presentes em assets/; PWA icons web a verificar'),
+
+      h1('24–26. PERFORMANCE / REDE / LOGS'),
+      bullet('PARCIAL: listeners limitados em auditLogStream(limit:100); facade grande'),
+      bullet('Crashlytics + Analytics: inicializados (web sem Crashlytics)'),
+      bullet('Offline/timeout amigavel: parcial (ErrorWidget); teste de rede completo NAO EXECUTADO'),
+
+      h1('27. BACKUP'),
+      bullet('GitHub remote OK; estrategia Firestore export / secrets: DOCUMENTAR OPERACIONALMENTE (PARCIAL)'),
+
+      h1('28. TESTES SEGURANCA'),
+      bullet('OK no codigo/testes unitarios: order policy, financial fraud, access, LGPD blocos'),
+      bullet('IDOR/privilege E2E staging: NAO EXECUTADO (sem deploy keys)'),
+
+      h1('29–30. SECRETS / GITHUB'),
+      bullet('OK: placeholders COLE_SUA_*; sem APP_USR-/service account no working tree'),
+      bullet('OK: .gitignore cobre keystore, .env, local.properties'),
+      bullet('Nao rotacionar: nenhum segredo real encontrado versionado'),
+
+      h1('31. AMBIENTES'),
+      bullet('Separacao DEV/STAGING/PROD: PARCIAL (um projectId; prod nao separada)'),
+
+      h1('32. BANCO — COLECOES REAIS (Col.*)'),
+      bullet('users, providers, companies, orders, wallets, transactions, reviews,'),
+      bullet('chatRooms(+messages), notifications, coupons, deliveries, appointments,'),
+      bullet('contracts, support, auditLogs, banners, categories, favorites, reports,'),
+      bullet('employees, branches, stores, products, rentals, bookings,'),
+      bullet('resolveRequests, resolveProposals, financialAudits, rateLimits, planChangeRequests'),
+      bullet('Tambem: config/platform, legalRetention, xpEvents, payments'),
+
+      h1('33. CHECKLIST FUNCIONAL (resumo)'),
+      bullet('Auth cliente | OK codigo | E2E pendente'),
+      bullet('Painel admin | OK codigo + AdminGate | E2E pendente'),
+      bullet('Chat | OK rules | E2E pendente'),
+      bullet('Pagamentos | PARCIAL sandbox MP off | Asaas N/A'),
+      bullet('GPS | PARCIAL placeholder'),
+      bullet('PDF financeiro | OK | PDF auditoria PARCIAL'),
+      bullet('Exclusao conta | OK'),
+      bullet('Modulos Fase 2 | comingSoon'),
+
+      h1('34. CLASSIFICACAO DOS ACHADOS'),
+      h2('CRITICOS — BLOQUEIA PUBLICACAO'),
+      bullet('C1 Firebase options / google-services / plist ainda COLE_SUA_*'),
+      bullet('C2 Sem keystore Android (key.properties)'),
+      bullet('C3 Sem projeto Xcode iOS'),
+      bullet('C4 Sem URL publica de privacidade'),
+      bullet('C5 Pagamentos: Asaas inexistente; MP desligado; regra 8/92 divergente de 15/85'),
+      bullet('C6 Escrow 3 dias NAO IMPLEMENTADO (se obrigatorio comercialmente)'),
+      bullet('C7 App Check nao enforce / nao activate'),
+      h2('ALTOS'),
+      bullet('A1 Staging smoke real nao validado'),
+      bullet('A2 Admin REABRIR / CANCELAR DEFINITIVO ausentes'),
+      bullet('A3 Maps key restrita nao configurada'),
+      bullet('A4 Assets/listing lojas incompletos'),
+      h2('MEDIOS'),
+      bullet('M1 Emails @servicoconecta.com.br residuais'),
+      bullet('M2 Label legado Servico Conecta'),
+      bullet('M3 Separacao ambiente prod dedicada'),
+      bullet('M4 PDF auditoria export incompleto'),
+      h2('BAIXOS / MELHORIAS'),
+      bullet('B1 Deprecacoes withOpacity'),
+      bullet('B2 Voz/video chat stub'),
+      bullet('B3 Agregar financeiro em Function'),
+
+      h1('35–36. CORRECOES'),
+      bullet('Nenhuma correcao funcional aplicada nesta auditoria inicial (conforme prompt).'),
+      bullet('Entrega: este PDF + commit de auditoria (backup documental).'),
+
+      h1('37. CHECKLIST FINAL DE PUBLICACAO'),
+      bullet('[ ] Compila Android release'),
+      bullet('[ ] Compila iOS'),
+      bullet('[x] Sem allow read,write: if true no catch-all (deny default OK)'),
+      bullet('[~] Firebase seguro (rules OK; keys placeholder)'),
+      bullet('[x] RBAC basico OK'),
+      bullet('[x] Storage seguro'),
+      bullet('[ ] App Check'),
+      bullet('[x] Secrets protegidos no Git'),
+      bullet('[ ] Cliente/Prestador/Admin E2E dispositivo'),
+      bullet('[ ] Chat/GPS/Notificacoes E2E'),
+      bullet('[ ] Asaas Sandbox (N/A — usar MP ou integrar Asaas)'),
+      bullet('[ ] Split 8/92 ou alinhar regra a 15/85'),
+      bullet('[ ] Webhook com credito controlado'),
+      bullet('[~] Cancelamento (cliente OK; admin definitivo N/A)'),
+      bullet('[x] Avaliacao rules OK'),
+      bullet('[~] Politica/Termos in-app; [ ] URL publica'),
+      bullet('[x] Exclusao conta + retencao'),
+      bullet('[ ] Data Safety / App Privacy'),
+      bullet('[ ] Icone/splash/screenshots loja'),
+      bullet('[~] Nome Carajas 360 (residuais email)'),
+      bullet('[ ] AAB / teste interno Play'),
+      bullet('[ ] TestFlight'),
+      bullet('[~] Backup Git; [ ] backup Firestore ops'),
+      bullet('[x] Crashlytics no codigo mobile'),
+
+      h1('38. NAO PUBLICAR'),
+      bullet('Confirmado: nenhuma publicacao automatica; sem PAYMENTS_ENABLED=true; sem producao.'),
+
+      h1('40. CONCLUSAO OBRIGATORIA'),
+      pw.SizedBox(height: 8),
+      pw.Container(
+        padding: const pw.EdgeInsets.all(10),
+        decoration: pw.BoxDecoration(border: pw.Border.all(width: 1.5)),
+        child: pw.Text('NAO PRONTO PARA PUBLICACAO',
+            style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+      ),
+      pw.SizedBox(height: 10),
+      h2('BLOQUEIOS ENCONTRADOS'),
+      bullet('Firebase client configs placeholder (release crash)'),
+      bullet('Sem keystore Android / sem Xcode iOS'),
+      bullet('Sem URL publica de privacidade'),
+      bullet('Pagamentos: Asaas N/A; MP off; comissao divergente; escrow N/A'),
+      bullet('App Check off; smoke staging e E2E lojas nao feitos'),
+      h2('O QUE FALTA FAZER'),
+      bullet('flutterfire configure + deploy staging + smoke'),
+      bullet('Alinhar regra comercial (8/92 vs 15/85) e gateway (Asaas vs MP)'),
+      bullet('Keystore + AAB internal; restaurar iOS; privacy URL'),
+      bullet('Implementar escrow/admin cancel se obrigatorios'),
+      bullet('Listings Play/App Store + App Check'),
+      h2('O QUE JA ESTA PRONTO'),
+      bullet('Rules Firestore/Storage endurecidas; deny-by-default'),
+      bullet('RBAC AdminGate; carteira/pagamentos write false no client'),
+      bullet('LGPD exclusao/anonimizacao/retencao 5 anos'),
+      bullet('Identidade tecnica br.com.carajas360 / carajas360-a17c5'),
+      bullet('Pagamentos desligados com seguranca (sandbox stub)'),
+      h2('PROXIMOS PASSOS'),
+      bullet('1) Commit deste PDF (backup auditoria)'),
+      bullet('2) Configurar Firebase staging real'),
+      bullet('3) Decidir Asaas vs Mercado Pago e % comissao'),
+      bullet('4) So entao correcoes P0 e teste interno Play'),
+    ],
+  ));
+
+  final out = File('AUDITORIA_FINAL_PUBLICACAO_CARAJAS_360.pdf');
+  await out.writeAsBytes(await doc.save());
+  stdout.writeln('PDF gerado: ${out.absolute.path}');
+}
