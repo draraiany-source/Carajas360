@@ -38,6 +38,7 @@ class _AdminState extends State<AdminScreen>
     'Marketing',
     'Atendimento',
     'Denúncias',
+    'Pedidos',
     'Auditoria',
     'Configurações'
   ];
@@ -101,17 +102,51 @@ class _AdminState extends State<AdminScreen>
                                     color: Colors.white,
                                     fontWeight: FontWeight.w900,
                                     fontSize: 22)),
-                            GestureDetector(
-                                onTap: () => Navigator.pop(context),
-                                child: Container(
-                                    width: 38,
-                                    height: 38,
-                                    decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
-                                        borderRadius:
-                                            BorderRadius.circular(11)),
-                                    child: const Icon(Icons.close_rounded,
-                                        color: Colors.white, size: 20))),
+                            Row(children: [
+                              TextButton(
+                                onPressed: () async {
+                                  final ok = await showDialog<bool>(
+                                    context: context,
+                                    builder: (ctx) => AlertDialog(
+                                      title: const Text('Sair da conta'),
+                                      content: const Text(
+                                          'Encerrar a sessão do administrador e voltar ao login?'),
+                                      actions: [
+                                        TextButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, false),
+                                            child: const Text('Cancelar')),
+                                        ElevatedButton(
+                                            onPressed: () =>
+                                                Navigator.pop(ctx, true),
+                                            child: const Text('Sair')),
+                                      ],
+                                    ),
+                                  );
+                                  if (ok != true || !context.mounted) return;
+                                  await AuthService.signOut();
+                                  if (!context.mounted) return;
+                                  Navigator.of(context).pushNamedAndRemoveUntil(
+                                      Routes.login, (_) => false);
+                                },
+                                child: const Text('Sair da conta',
+                                    style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 12)),
+                              ),
+                              GestureDetector(
+                                  onTap: () => Navigator.pop(context),
+                                  child: Container(
+                                      width: 38,
+                                      height: 38,
+                                      decoration: BoxDecoration(
+                                          color: Colors.white.withOpacity(0.2),
+                                          borderRadius:
+                                              BorderRadius.circular(11)),
+                                      child: const Icon(Icons.close_rounded,
+                                          color: Colors.white, size: 20))),
+                            ]),
                           ]),
                       const SizedBox(height: 12),
                       FutureBuilder<Map<String, dynamic>>(
@@ -158,6 +193,7 @@ class _AdminState extends State<AdminScreen>
             _MarketingTab(),
             _SupportTab(),
             _ReportsTab(),
+            _OrdersAdminTab(),
             _AuditTab(),
             _SettingsTab(),
           ]),
@@ -1343,6 +1379,147 @@ class _ReportsTab extends StatelessWidget {
       );
 }
 
+class _OrdersAdminTab extends StatelessWidget {
+  Future<void> _reopen(BuildContext context, String orderId) async {
+    try {
+      await FS.adminReopenOrder(orderId);
+      if (context.mounted) {
+        snack(context, 'Pedido reaberto.', bg: AppColors.secondary);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        snack(context, AppError.userMessage(e, message: 'Não foi possível reabrir.'),
+            bg: AppColors.error);
+      }
+    }
+  }
+
+  Future<void> _cancelDefinitive(BuildContext context, String orderId) async {
+    final reasonCtrl = TextEditingController();
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Cancelar definitivamente'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+                'Esta ação exige motivo e será registrada na auditoria. Não pode ser desfeita sem nova reabertura.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: reasonCtrl,
+              decoration: const InputDecoration(
+                labelText: 'Motivo (obrigatório)',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Voltar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.error),
+              child: const Text('Cancelar definitivamente')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final reason = reasonCtrl.text.trim();
+    if (reason.isEmpty) {
+      if (context.mounted) {
+        snack(context, 'Informe o motivo.', bg: AppColors.error);
+      }
+      return;
+    }
+    try {
+      await FS.adminCancelOrderDefinitive(orderId, reason: reason);
+      if (context.mounted) {
+        snack(context, 'Pedido cancelado definitivamente.',
+            bg: AppColors.secondary);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        snack(context,
+            AppError.userMessage(e, message: 'Não foi possível cancelar.'),
+            bg: AppColors.error);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<QuerySnapshot>(
+        stream: FS.adminOrdersStream(),
+        builder: (_, s) {
+          final docs = s.data?.docs ?? [];
+          if (docs.isEmpty) {
+            return const EmptyState(
+                emoji: '📦',
+                title: 'Sem pedidos',
+                subtitle: 'Pedidos da plataforma aparecerão aqui');
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: docs.length,
+            itemBuilder: (_, i) {
+              final d = docs[i];
+              final m = d.data() as Map<String, dynamic>? ?? {};
+              final status = '${m['status'] ?? ''}';
+              final price = (m['price'] as num?)?.toDouble() ?? 0;
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: AppDecorations.card(r: 14),
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Pedido ${d.id}',
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w800, fontSize: 13)),
+                    const SizedBox(height: 4),
+                    Text(
+                        'Status: $status · ${PaySvc.fmt(price)}\n'
+                        'Cliente: ${m['clientId'] ?? '-'} · Prestador: ${m['providerId'] ?? '-'}',
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textLight)),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: status == 'cancelled'
+                              ? () => _reopen(context, d.id)
+                              : null,
+                          child: const Text('Reabrir',
+                              style: TextStyle(fontSize: 12)),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: (status == 'cancelled' ||
+                                  status == 'refunded' ||
+                                  m['cancelledDefinitively'] == true)
+                              ? null
+                              : () => _cancelDefinitive(context, d.id),
+                          style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.error),
+                          child: const Text('Cancelar definitivamente',
+                              style: TextStyle(fontSize: 11)),
+                        ),
+                      ),
+                    ]),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+}
+
 class _AuditTab extends StatefulWidget {
   @override
   State<_AuditTab> createState() => _AuditTabState();
@@ -1512,7 +1689,7 @@ class _SettingsTabState extends State<_SettingsTab> {
   Future<void> _save() async {
     setState(() => _saving = true);
     final rate =
-        (double.tryParse(_commissionCtrl.text.replaceAll(',', '.')) ?? 15) /
+        (double.tryParse(_commissionCtrl.text.replaceAll(',', '.')) ?? 8) /
             100;
     await FS.updatePlatformConfig({
       'commissionRate': rate,

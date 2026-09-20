@@ -10,7 +10,7 @@ import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../shared/widgets/micro_interactions.dart';
 
-/// Hub do módulo Serviços (núcleo original do Serviço Conecta).
+/// Hub do módulo Serviços (profissionais da região).
 /// A Home da plataforma Carajás 360 fica em [HomeScreen] (carajas_home_screen.dart).
 class ServicesHubScreen extends StatefulWidget {
   const ServicesHubScreen({super.key});

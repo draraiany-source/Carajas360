@@ -17,10 +17,21 @@ void main() {
       expect(OrderPolicy.isAllowedTransition('completed', 'inProgress'), isFalse);
     });
 
+    test('admin reabre cancelled → pending ou accepted', () {
+      expect(OrderPolicy.adminReopenAllowed('cancelled'), isTrue);
+      expect(OrderPolicy.adminReopenAllowed('completed'), isFalse);
+      expect(OrderPolicy.adminReopenTarget(), 'pending');
+      expect(OrderPolicy.adminReopenTarget(providerId: 'p1'), 'accepted');
+      expect(OrderPolicy.isAllowedTransition('cancelled', 'pending'), isTrue);
+      expect(OrderPolicy.isAllowedTransition('cancelled', 'accepted'), isTrue);
+    });
+
     test('cliente não troca providerId (campo sensível)', () {
       expect(OrderPolicy.sensitiveFields.contains('providerId'), isTrue);
       expect(OrderPolicy.sensitiveFields.contains('price'), isTrue);
       expect(OrderPolicy.sensitiveFields.contains('clientId'), isTrue);
+      expect(OrderPolicy.sensitiveFields.contains('escrowStatus'), isTrue);
+      expect(OrderPolicy.sensitiveFields.contains('releaseAt'), isTrue);
     });
   });
 
@@ -74,11 +85,23 @@ void main() {
           paidAmount: paid,
         );
 
-    test('repasse único calcula 15% de comissão', () {
+    test('repasse único calcula 8% de comissão (100 → 8/92)', () {
       final r = payout();
       expect(r.ok, isTrue);
-      expect(r.commission, 15);
-      expect(r.providerAmount, 85);
+      expect(r.commission, 8);
+      expect(r.providerAmount, 92);
+    });
+
+    test('250 → 20/230', () {
+      final r = payout(price: 250, paid: 250);
+      expect(r.commission, 20);
+      expect(r.providerAmount, 230);
+    });
+
+    test('1000 → 80/920', () {
+      final r = payout(price: 1000, paid: 1000);
+      expect(r.commission, 80);
+      expect(r.providerAmount, 920);
     });
 
     test('executar payout duas vezes falha com already_processed', () {
@@ -112,6 +135,96 @@ void main() {
     });
   });
 
+  group('escrow staging', () {
+    test('escrowHoldOnPaid retém e calcula releaseAt +3 dias', () {
+      final paidAt = DateTime(2026, 1, 1, 12);
+      final hold = OrderPolicy.escrowHoldOnPaid(amount: 100, paidAt: paidAt);
+      expect(hold.escrowStatus, 'held');
+      expect(hold.heldAmount, 100);
+      expect(hold.releaseAt, paidAt.add(const Duration(days: 3)));
+    });
+
+    test('canReleaseEscrow bloqueia client e estados inválidos', () {
+      expect(
+        OrderPolicy.canReleaseEscrow(
+          status: 'completed',
+          paymentStatus: 'unpaid',
+          payoutProcessed: false,
+        ).ok,
+        isFalse,
+      );
+      expect(
+        OrderPolicy.canReleaseEscrow(
+          status: 'disputed',
+          paymentStatus: 'paid',
+          payoutProcessed: false,
+          escrowStatus: 'disputed',
+        ).reason,
+        'disputed',
+      );
+      expect(
+        OrderPolicy.canReleaseEscrow(
+          status: 'completed',
+          paymentStatus: 'paid',
+          payoutProcessed: false,
+          escrowStatus: 'released',
+        ).reason,
+        'already_released',
+      );
+    });
+
+    test('canReleaseEscrow libera com confirmação do cliente ou após prazo', () {
+      final paidAt = DateTime(2026, 1, 1);
+      expect(
+        OrderPolicy.canReleaseEscrow(
+          status: 'completed',
+          paymentStatus: 'paid',
+          payoutProcessed: false,
+          clientConfirmed: true,
+        ).ok,
+        isTrue,
+      );
+      expect(
+        OrderPolicy.canReleaseEscrow(
+          status: 'completed',
+          paymentStatus: 'paid',
+          payoutProcessed: false,
+          paidAt: paidAt,
+          now: paidAt.add(const Duration(days: 3)),
+        ).ok,
+        isTrue,
+      );
+      expect(
+        OrderPolicy.canReleaseEscrow(
+          status: 'completed',
+          paymentStatus: 'paid',
+          payoutProcessed: false,
+          paidAt: paidAt,
+          now: paidAt.add(const Duration(days: 2)),
+        ).reason,
+        'release_not_due',
+      );
+    });
+
+    test('adminCancelDefinitiveAllowed', () {
+      expect(
+        OrderPolicy.adminCancelDefinitiveAllowed(fromStatus: 'paid'),
+        isTrue,
+      );
+      expect(
+        OrderPolicy.adminCancelDefinitiveAllowed(fromStatus: 'cancelled'),
+        isFalse,
+      );
+      expect(
+        OrderPolicy.adminCancelDefinitiveAllowed(
+          fromStatus: 'completed',
+          escrowStatus: 'released',
+        ),
+        isFalse,
+      );
+    });
+  });
+
   group('quem pode agir', () {
     test('terceiro não aceita pedido de outro prestador', () {
       expect(
@@ -126,6 +239,37 @@ void main() {
         OrderPolicy.actorMayPerform(
             action: 'start', uid: 'c1', clientId: 'c1', providerId: 'p1'),
         isFalse,
+      );
+    });
+
+    test('reopen/cancelDefinitive/releaseEscrow só admin', () {
+      expect(
+        OrderPolicy.actorMayPerform(
+            action: 'reopen', uid: 'c1', clientId: 'c1', providerId: 'p1'),
+        isFalse,
+      );
+      expect(
+        OrderPolicy.actorMayPerform(
+            action: 'reopen',
+            uid: 'admin',
+            clientId: 'c1',
+            providerId: 'p1',
+            isAdmin: true),
+        isTrue,
+      );
+      expect(
+        OrderPolicy.actorMayPerform(
+            action: 'releaseEscrow', uid: 'c1', clientId: 'c1', providerId: 'p1'),
+        isFalse,
+      );
+      expect(
+        OrderPolicy.actorMayPerform(
+            action: 'releaseEscrow',
+            uid: 'admin',
+            clientId: 'c1',
+            providerId: 'p1',
+            isAdmin: true),
+        isTrue,
       );
     });
   });

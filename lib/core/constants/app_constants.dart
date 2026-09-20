@@ -4,21 +4,24 @@ abstract class AppInfo {
   static const name = 'Carajás 360';
   static const slogan = 'Tudo que você precisa na região, em um só lugar.';
   static const version = '1.0.0';
-  /// Nome legado do núcleo de serviços (módulo Serviços).
+  /// Nome do módulo Serviços (hub de profissionais).
   static const servicesModuleName = 'Serviços';
-  static const servicesModuleLegacy = 'Serviço Conecta';
-  /// IDs técnicos migrados (autorização da Raiany). Ver IDENTIDADE_TECNICA.md.
+  /// IDs técnicos. Ver IDENTIDADE_TECNICA.md.
   static const dartPackage = 'carajas_360';
   static const applicationId = 'br.com.carajas360';
   static const iosBundleId = 'br.com.carajas360';
   static const firebaseProjectId = 'carajas360-a17c5';
-  /// Domínio de e-mail ainda não migrado — residual A; não inventar @carajas360.com.br.
+  /// Contato operacional (domínio de e-mail ainda residual — documentado).
+  /// Não inventar @carajas360.com.br até DNS autorizado.
   static const supportEmail = 'suporte@servicoconecta.com.br';
   static const privacyEmail = 'privacidade@servicoconecta.com.br';
+  /// URLs públicas legais (staging/hosting). Substituir domínio após deploy.
+  static const privacyUrl = 'https://carajas360-a17c5.web.app/privacy';
+  static const termsUrl = 'https://carajas360-a17c5.web.app/terms';
 }
 
 abstract class AppConst {
-  static const double commission = 0.15;
+  static const double commission = 0.08;
   static const int otpTimeoutSeconds = 60;
   static const int xpPerReview = 30;
 }

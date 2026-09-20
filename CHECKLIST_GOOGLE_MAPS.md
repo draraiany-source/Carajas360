@@ -89,3 +89,14 @@ Billing: ativar faturamento no GCP (obrigatório para Maps). Definir **quota ale
 - Não deixar key **sem restrição**.
 - Não ativar billing irrestrito sem alerta.
 - Não mudar `applicationId`/`bundleId` sem atualizar as restrições da key (ver `IDENTIDADE_TECNICA.md`).
+
+---
+
+## Restrições de staging
+
+- **Package Android / bundle iOS:** `br.com.carajas360` — qualquer key Maps deve restringir a este identificador (+ SHA-1 do keystore debug e upload).
+- **Sem key no repo:** placeholder `COLE_SUA_GOOGLE_MAPS_API_KEY_AQUI` permanece; **não inventar** API key neste ambiente.
+- **Maps SDK:** mapa pode ficar cinza; GPS usa linha reta e log de placeholder — app **não quebra**.
+- **Directions:** callable `getDirections` recusa sem `GOOGLE_MAPS_SERVER_KEY`; client HTTP só com dart-define real.
+- **Billing GCP:** ativar faturamento com **cotas baixas** e alertas antes de testes com key real.
+- **Staging ≠ produção:** não reutilizar key de produção; registrar SHA do keystore de staging interno se usar `upload-keystore-staging.jks` (ver `ANDROID_KEYSTORE_SETUP.md`).

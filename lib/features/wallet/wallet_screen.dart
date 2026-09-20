@@ -625,7 +625,7 @@ class _PixState extends State<PixScreen> {
     setState(() => _loading = true);
 
     // Tenta gerar um PIX real pela Cloud Function (Mercado Pago).
-    final email = '${_uid.isNotEmpty ? _uid : 'demo'}@servicoconecta.com.br';
+    final email = '${_uid.isNotEmpty ? _uid : 'demo'}@carajas360.local';
     final pix = await PaySvc.generatePix(
         amount: widget.amount,
         description: widget.desc,
@@ -651,7 +651,7 @@ class _PixState extends State<PixScreen> {
       setState(() {
         _loading = false;
         _code =
-            '00020126580014BR.GOV.BCB.PIX0136${_uid.isNotEmpty ? _uid : 'demo'}@servicoconecta.com.br5204000053039865802BR5925Carajas 3606009SAO PAULO62070503***6304ABCD';
+            '00020126580014BR.GOV.BCB.PIX0136${_uid.isNotEmpty ? _uid : 'demo'}@carajas360.local5204000053039865802BR5925Carajas 3606009SAO PAULO62070503***6304ABCD';
       });
       _countdownStart();
       if (mounted) {

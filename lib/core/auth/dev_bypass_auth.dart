@@ -36,7 +36,7 @@ abstract final class DevBypassAuth {
   static UserModel get mockUser => UserModel(
         id: uid,
         name: 'Cliente Teste',
-        email: 'dev-bypass-user@servicoconecta.com.br',
+        email: 'dev-bypass-user@carajas360.local',
         phone: '',
         type: UserType.client,
         city: 'Canaã dos Carajás',

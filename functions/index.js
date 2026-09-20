@@ -258,7 +258,7 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
   const auth = requireAuth(context);
   const orderId = String(data && data.orderId || '');
   const action = String(data && data.action || '');
-  if (!orderId || !policy.targetStatus(action)) {
+  if (!orderId || !action || !policy.isKnownAction(action)) {
     throw httpsError('invalid-argument', 'orderId e action obrigatórios');
   }
   const adminUser = await isAdmin(auth);
@@ -269,7 +269,6 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
     if (!snap.exists) throw httpsError('not-found', 'Pedido não encontrado');
     const order = snap.data();
     const from = policy.normalizeStatus(order.status || 'pending');
-    const to = policy.targetStatus(action);
     const paymentStatus = order.paymentStatus || 'unpaid';
 
     if (!policy.actorMayPerform(
@@ -277,63 +276,139 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
     )) {
       throw httpsError('permission-denied', 'Sem permissão para esta ação');
     }
-    if (!policy.isAllowedTransition(from, to)) {
-      throw httpsError('failed-precondition', 'Transição de status inválida');
-    }
 
     const updates = {
-      status: to,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
-
-    if (action === 'accept') {
-      updates.providerId = order.providerId || auth.uid;
-      updates.acceptedAt = admin.firestore.FieldValue.serverTimestamp();
-      const quoted = Number(data && data.price);
-      if (quoted > 0) {
-        updates.price = policy.round2(quoted);
-      }
-    }
-    if (action === 'start') {
-      updates.startedAt = admin.firestore.FieldValue.serverTimestamp();
-    }
-    if (action === 'cancel' || action === 'decline') {
-      updates.cancelReason = action === 'decline'
-        ? 'Recusado pelo profissional'
-        : ((data && data.reason) || 'Cancelado');
-    }
-    if (action === 'complete') {
-      const block = policy.completeBlockReason(from, paymentStatus);
-      if (block) {
-        throw httpsError(
-          'failed-precondition',
-          block === 'payment_not_confirmed'
-            ? 'Não é possível concluir sem pagamento confirmado'
-            : 'Transição de status inválida',
-        );
-      }
-      updates.completedAt = admin.firestore.FieldValue.serverTimestamp();
-    }
-
+    let to = policy.targetStatus(action);
     let payoutProcessed = order.payoutProcessed || false;
-    if (action === 'complete' && !order.payoutProcessed) {
-      const { paymentId, payment } = await loadConfirmedPayment(tx, order, orderId);
-      const payout = await applyOfficialPayout(tx, {
-        order: { ...order, ...updates, payoutProcessed: false },
-        orderId,
-        payment,
-        paymentId,
-        actorUid: auth.uid,
+
+    if (action === 'reopen') {
+      if (!policy.adminReopenAllowed(from)) {
+        throw httpsError('failed-precondition', 'Reabertura não permitida neste status');
+      }
+      to = policy.adminReopenTarget(order);
+      if (!policy.isAllowedTransition(from, to)) {
+        throw httpsError('failed-precondition', 'Transição de status inválida');
+      }
+      updates.status = to;
+      updates.reopenedAt = admin.firestore.FieldValue.serverTimestamp();
+      updates.reopenedBy = auth.uid;
+      updates.cancelReason = admin.firestore.FieldValue.delete();
+      updates.cancelledDefinitively = admin.firestore.FieldValue.delete();
+    } else if (action === 'cancelDefinitive') {
+      if (!policy.adminCancelDefinitiveAllowed(from, order.escrowStatus)) {
+        throw httpsError('failed-precondition', 'Cancelamento definitivo não permitido');
+      }
+      to = 'cancelled';
+      updates.status = to;
+      updates.cancelledDefinitively = true;
+      updates.previousStatus = from;
+      updates.cancelReason = (data && data.reason) || 'Cancelamento definitivo pelo admin';
+    } else if (action === 'hold') {
+      const paidAt = order.paidAt && order.paidAt.toDate
+        ? order.paidAt.toDate()
+        : new Date();
+      const hold = policy.escrowHoldOnPaid({
+        amount: order.price || 0,
+        paidAt,
       });
-      payoutProcessed = payout.payoutProcessed || false;
-      Object.assign(updates, payout.orderUpdates || {});
+      updates.escrowStatus = hold.escrowStatus;
+      updates.heldAmount = hold.heldAmount;
+      updates.releaseAt = admin.firestore.Timestamp.fromDate(hold.releaseAt);
+      to = from;
+    } else if (action === 'releaseEscrow') {
+      const paidAt = order.paidAt && order.paidAt.toDate
+        ? order.paidAt.toDate()
+        : null;
+      const completedAt = order.completedAt && order.completedAt.toDate
+        ? order.completedAt.toDate()
+        : null;
+      const releaseAt = order.releaseAt && order.releaseAt.toDate
+        ? order.releaseAt.toDate()
+        : null;
+      const release = policy.canReleaseEscrow({
+        status: from,
+        paymentStatus,
+        payoutProcessed: order.payoutProcessed || false,
+        completedAt,
+        clientConfirmed: Boolean(order.clientConfirmedAt),
+        paidAt,
+        releaseAt,
+        escrowStatus: order.escrowStatus,
+      });
+      if (!release.ok) {
+        throw httpsError('failed-precondition', release.reason || 'Liberação não permitida');
+      }
+      updates.escrowStatus = 'released';
+      updates.releasedAt = admin.firestore.FieldValue.serverTimestamp();
+      to = from;
+    } else {
+      if (!to) {
+        throw httpsError('invalid-argument', 'action inválida');
+      }
+      if (!policy.isAllowedTransition(from, to)) {
+        throw httpsError('failed-precondition', 'Transição de status inválida');
+      }
+      updates.status = to;
+
+      if (action === 'accept') {
+        updates.providerId = order.providerId || auth.uid;
+        updates.acceptedAt = admin.firestore.FieldValue.serverTimestamp();
+        const quoted = Number(data && data.price);
+        if (quoted > 0) {
+          updates.price = policy.round2(quoted);
+        }
+      }
+      if (action === 'start') {
+        updates.startedAt = admin.firestore.FieldValue.serverTimestamp();
+        if (order.escrowStatus === 'held') {
+          updates.escrowStatus = 'serviceInProgress';
+        }
+      }
+      if (action === 'cancel' || action === 'decline') {
+        updates.cancelReason = action === 'decline'
+          ? 'Recusado pelo profissional'
+          : ((data && data.reason) || 'Cancelado');
+      }
+      if (action === 'complete') {
+        const block = policy.completeBlockReason(from, paymentStatus);
+        if (block) {
+          throw httpsError(
+            'failed-precondition',
+            block === 'payment_not_confirmed'
+              ? 'Não é possível concluir sem pagamento confirmado'
+              : 'Transição de status inválida',
+          );
+        }
+        updates.completedAt = admin.firestore.FieldValue.serverTimestamp();
+        if (order.escrowStatus && order.escrowStatus !== 'released') {
+          updates.escrowStatus = 'releasePending';
+        }
+      }
+
+      if (action === 'complete' && !order.payoutProcessed) {
+        const { paymentId, payment } = await loadConfirmedPayment(tx, order, orderId);
+        const payout = await applyOfficialPayout(tx, {
+          order: { ...order, ...updates, payoutProcessed: false },
+          orderId,
+          payment,
+          paymentId,
+          actorUid: auth.uid,
+        });
+        payoutProcessed = payout.payoutProcessed || false;
+        Object.assign(updates, payout.orderUpdates || {});
+      }
     }
+
     tx.update(orderRef, updates);
 
     return {
       ok: true,
       status: to,
+      previousStatus: from,
       payoutProcessed,
+      escrowStatus: updates.escrowStatus || order.escrowStatus || null,
     };
   });
 
@@ -346,7 +421,8 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
     if (action === 'start' && o.clientId) {
       await notify(o.clientId, '🔧 Profissional a caminho!', 'Seu serviço está em andamento.', 'order');
     }
-    if ((action === 'cancel' || action === 'decline') && o.clientId && o.clientId !== auth.uid) {
+    if ((action === 'cancel' || action === 'decline' || action === 'cancelDefinitive')
+        && o.clientId && o.clientId !== auth.uid) {
       await notify(o.clientId, '❌ Pedido cancelado', o.cancelReason || 'Pedido cancelado', 'order');
     }
     if (action === 'cancel' && o.providerId && o.providerId !== auth.uid) {
@@ -362,6 +438,34 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
       action: action === 'cancel' ? audit.ACTIONS.ORDER_CANCELLED : audit.ACTIONS.ORDER_DECLINED,
       target: orderId,
       details: { action },
+    });
+  }
+  if (action === 'reopen') {
+    await audit.writeAudit(db, {
+      actorId: auth.uid,
+      actorType: 'admin',
+      action: 'order_reopened',
+      target: orderId,
+      details: {
+        reason: (data && data.reason) || null,
+        previousStatus: result.previousStatus,
+        newStatus: result.status,
+        adminId: auth.uid,
+      },
+    });
+  }
+  if (action === 'cancelDefinitive') {
+    await audit.writeAudit(db, {
+      actorId: auth.uid,
+      actorType: 'admin',
+      action: 'order_cancel_definitive',
+      target: orderId,
+      details: {
+        reason: (data && data.reason) || 'Cancelamento definitivo pelo admin',
+        previousStatus: result.previousStatus,
+        newStatus: result.status,
+        adminId: auth.uid,
+      },
     });
   }
   if (action === 'complete' && result.payoutProcessed) {

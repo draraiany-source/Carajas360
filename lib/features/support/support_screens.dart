@@ -838,7 +838,7 @@ O Carajás 360 é uma plataforma de intermediação entre clientes e prestadores
 O usuário deve fornecer informações verdadeiras e atualizadas. Contas falsas ou fraudulentas serão suspensas.
 
 4. PAGAMENTOS
-Os valores são retidos em custódia até a conclusão do serviço. A comissão da plataforma é de 15% sobre cada transação.
+Os valores podem ficar retidos (escrow) até a conclusão do serviço ou liberação automática após 3 dias sem contestação. A comissão da plataforma é de 8% sobre o valor líquido (prestador 92%), sujeita a taxas do gateway. Em staging, cobranças reais permanecem desligadas.
 
 5. CANCELAMENTOS
 Cancelamentos podem estar sujeitos a taxas, conforme o status do pedido no momento do cancelamento.

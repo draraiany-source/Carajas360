@@ -451,7 +451,22 @@ class FS {
   }
 
   static Future<void> cancelOrder(String orderId) async {
-    await _transition(orderId, 'cancel', extra: {'reason': 'Cancelado pelo cliente'});
+    await _transition(orderId, 'cancel',
+        extra: {'reason': 'Cancelado pelo cliente'});
+  }
+
+  /// Admin: reabre pedido cancelado (backend valida transição).
+  static Future<void> adminReopenOrder(String orderId) =>
+      _transition(orderId, 'reopen');
+
+  /// Admin: cancelamento definitivo com motivo obrigatório + audit no backend.
+  static Future<void> adminCancelOrderDefinitive(String orderId,
+      {required String reason}) {
+    final r = reason.trim();
+    if (r.isEmpty) {
+      throw StateError('Motivo obrigatório para cancelamento definitivo');
+    }
+    return _transition(orderId, 'cancelDefinitive', extra: {'reason': r});
   }
 
   static Future<void> startOrder(String orderId) async {

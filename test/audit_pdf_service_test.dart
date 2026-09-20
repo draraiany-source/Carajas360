@@ -11,7 +11,7 @@ void main() {
       action: 'Atualizou configuracoes da plataforma',
       target: 'platform',
       timestamp: DateTime(2026, 9, 19, 14, 30),
-      details: {'commissionRate': 0.15},
+      details: {'commissionRate': 0.08},
     ),
     AuditLogModel(
       id: 'a2',

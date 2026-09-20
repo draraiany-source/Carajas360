@@ -11,7 +11,8 @@ describe('máquina de estados', () => {
     assert.equal(policy.isAllowedTransition('accepted', 'inProgress'), true);
     assert.equal(policy.isAllowedTransition('inProgress', 'completed'), true);
     assert.equal(policy.isAllowedTransition('completed', 'pending'), false);
-    assert.equal(policy.isAllowedTransition('cancelled', 'accepted'), false);
+    assert.equal(policy.isAllowedTransition('cancelled', 'accepted'), true);
+    assert.equal(policy.isAllowedTransition('cancelled', 'pending'), true);
   });
 
   it('aliases created/in_progress/awaiting_payment', () => {
@@ -51,6 +52,15 @@ describe('ações por ator', () => {
     assert.equal(policy.actorMayPerform('markPaid', 'c1', 'c1', 'p1'), false);
     assert.equal(policy.actorMayPerform('markPaid', 'p1', 'c1', 'p1'), false);
   });
+
+  it('reopen/cancelDefinitive/releaseEscrow só admin', () => {
+    assert.equal(policy.actorMayPerform('reopen', 'c1', 'c1', 'p1', false), false);
+    assert.equal(policy.actorMayPerform('reopen', 'admin', 'c1', 'p1', true), true);
+    assert.equal(policy.actorMayPerform('cancelDefinitive', 'c1', 'c1', 'p1', false), false);
+    assert.equal(policy.actorMayPerform('cancelDefinitive', 'admin', 'c1', 'p1', true), true);
+    assert.equal(policy.actorMayPerform('releaseEscrow', 'c1', 'c1', 'p1', false), false);
+    assert.equal(policy.actorMayPerform('releaseEscrow', 'admin', 'c1', 'p1', true), true);
+  });
 });
 
 describe('concluir sem pagamento deve falhar', () => {
@@ -81,11 +91,23 @@ describe('payout', () => {
     paidAmount: 100,
   };
 
-  it('payout válido calcula comissão 15%', () => {
+  it('payout válido calcula comissão 8% (100 → 8/92)', () => {
     const r = policy.canPayout(base);
     assert.equal(r.ok, true);
-    assert.equal(r.commission, 15);
-    assert.equal(r.providerAmount, 85);
+    assert.equal(r.commission, 8);
+    assert.equal(r.providerAmount, 92);
+  });
+
+  it('250 → 20/230', () => {
+    const r = policy.canPayout({ ...base, price: 250, paidAmount: 250 });
+    assert.equal(r.commission, 20);
+    assert.equal(r.providerAmount, 230);
+  });
+
+  it('1000 → 80/920', () => {
+    const r = policy.canPayout({ ...base, price: 1000, paidAmount: 1000 });
+    assert.equal(r.commission, 80);
+    assert.equal(r.providerAmount, 920);
   });
 
   it('segunda execução é idempotente (already_processed)', () => {
@@ -129,11 +151,103 @@ describe('payout', () => {
   });
 });
 
+describe('escrow staging', () => {
+  it('escrowHoldOnPaid retém e calcula releaseAt +3 dias', () => {
+    const paidAt = new Date('2026-01-01T12:00:00Z');
+    const hold = policy.escrowHoldOnPaid({ amount: 100, paidAt });
+    assert.equal(hold.escrowStatus, 'held');
+    assert.equal(hold.heldAmount, 100);
+    assert.equal(hold.releaseAt.getTime(), paidAt.getTime() + 3 * 86400000);
+  });
+
+  it('canReleaseEscrow bloqueia estados inválidos', () => {
+    assert.equal(
+      policy.canReleaseEscrow({
+        status: 'completed',
+        paymentStatus: 'unpaid',
+        payoutProcessed: false,
+      }).ok,
+      false,
+    );
+    assert.equal(
+      policy.canReleaseEscrow({
+        status: 'disputed',
+        paymentStatus: 'paid',
+        payoutProcessed: false,
+        escrowStatus: 'disputed',
+      }).reason,
+      'disputed',
+    );
+    assert.equal(
+      policy.canReleaseEscrow({
+        status: 'completed',
+        paymentStatus: 'paid',
+        payoutProcessed: false,
+        escrowStatus: 'released',
+      }).reason,
+      'already_released',
+    );
+  });
+
+  it('canReleaseEscrow libera com confirmação ou após prazo', () => {
+    const paidAt = new Date('2026-01-01T00:00:00Z');
+    assert.equal(
+      policy.canReleaseEscrow({
+        status: 'completed',
+        paymentStatus: 'paid',
+        payoutProcessed: false,
+        clientConfirmed: true,
+      }).ok,
+      true,
+    );
+    assert.equal(
+      policy.canReleaseEscrow({
+        status: 'completed',
+        paymentStatus: 'paid',
+        payoutProcessed: false,
+        paidAt,
+        now: new Date(paidAt.getTime() + 3 * 86400000),
+      }).ok,
+      true,
+    );
+    assert.equal(
+      policy.canReleaseEscrow({
+        status: 'completed',
+        paymentStatus: 'paid',
+        payoutProcessed: false,
+        paidAt,
+        now: new Date(paidAt.getTime() + 2 * 86400000),
+      }).reason,
+      'release_not_due',
+    );
+  });
+
+  it('adminReopen e adminCancelDefinitive', () => {
+    assert.equal(policy.adminReopenAllowed('cancelled'), true);
+    assert.equal(policy.adminReopenAllowed('completed'), false);
+    assert.equal(policy.adminReopenTarget({ providerId: 'p1' }), 'accepted');
+    assert.equal(policy.adminReopenTarget({}), 'pending');
+    assert.equal(policy.adminCancelDefinitiveAllowed('paid'), true);
+    assert.equal(policy.adminCancelDefinitiveAllowed('cancelled'), false);
+    assert.equal(
+      policy.adminCancelDefinitiveAllowed('completed', 'released'),
+      false,
+    );
+  });
+
+  it('transições escrow', () => {
+    assert.equal(policy.isAllowedEscrowTransition('held', 'serviceInProgress'), true);
+    assert.equal(policy.isAllowedEscrowTransition('releasePending', 'released'), true);
+    assert.equal(policy.isAllowedEscrowTransition('released', 'held'), false);
+  });
+});
+
 describe('campos sensíveis', () => {
   it('inclui price, providerId, status, amount e payoutProcessed', () => {
     for (const f of [
       'price', 'providerId', 'status', 'payoutProcessed', 'clientId',
       'amount', 'gatewayTransactionId', 'walletId',
+      'escrowStatus', 'heldAmount', 'releaseAt', 'releasedAt', 'clientConfirmedAt',
     ]) {
       assert.ok(policy.SENSITIVE_FIELDS.includes(f), f);
     }
@@ -164,10 +278,20 @@ describe('auditoria financeira', () => {
       status: 'payout_done',
     });
     assert.equal(audit.gross, 200);
-    assert.equal(audit.commission, 30);
-    assert.equal(audit.providerAmount, 170);
+    assert.equal(audit.commission, 16);
+    assert.equal(audit.providerAmount, 184);
     assert.equal(audit.payoutProcessed, true);
     assert.equal(audit.gatewayTransactionId, 'mp_1');
     assert.equal(audit.payoutTransactionId, 'payout_o9');
+  });
+});
+
+describe('ações conhecidas', () => {
+  it('isKnownAction inclui escrow e admin', () => {
+    assert.equal(policy.isKnownAction('accept'), true);
+    assert.equal(policy.isKnownAction('reopen'), true);
+    assert.equal(policy.isKnownAction('hold'), true);
+    assert.equal(policy.isKnownAction('releaseEscrow'), true);
+    assert.equal(policy.isKnownAction('bogus'), false);
   });
 });

@@ -45,10 +45,10 @@ void main() {
       expect(PaySvc.fmt(1234.5), 'R\$ 1234,50');
     });
 
-    test('fee calcula 15% de comissão sobre o valor', () {
-      expect(PaySvc.fee(100), 15.0);
+    test('fee calcula 8% de comissão sobre o valor', () {
+      expect(PaySvc.fee(100), 8.0);
       expect(PaySvc.fee(0), 0.0);
-      expect(PaySvc.fee(200), 30.0);
+      expect(PaySvc.fee(200), 16.0);
     });
   });
 

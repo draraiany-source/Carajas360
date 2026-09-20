@@ -1,6 +1,7 @@
 'use strict';
 
-const COMMISSION_RATE = 0.15;
+const COMMISSION_RATE = 0.08;
+const ESCROW_HOLD_DAYS = 3;
 
 const SENSITIVE_FIELDS = [
   'price', 'total', 'amount', 'providerId', 'clientId', 'status',
@@ -8,6 +9,7 @@ const SENSITIVE_FIELDS = [
   'payoutTransactionId', 'commission', 'platformFee', 'providerAmount',
   'transactionId', 'gatewayTransactionId', 'walletId', 'cashbackGranted',
   'paidAt', 'payoutAt', 'refunded', 'refundAmount',
+  'escrowStatus', 'heldAmount', 'releaseAt', 'releasedAt', 'clientConfirmedAt',
 ];
 
 const STATUS_ALIASES = {
@@ -18,16 +20,34 @@ const STATUS_ALIASES = {
   awaitingpayment: 'awaitingPayment',
 };
 
+const ESCROW_STATUS_ALIASES = {
+  service_in_progress: 'serviceInProgress',
+  serviceinprogress: 'serviceInProgress',
+  release_pending: 'releasePending',
+  releasepending: 'releasePending',
+};
+
 const TRANSITIONS = {
   pending: ['accepted', 'cancelled'],
   accepted: ['inProgress', 'cancelled'],
   inProgress: ['awaitingPayment', 'completed', 'cancelled', 'disputed'],
   awaitingPayment: ['paid', 'completed', 'cancelled', 'disputed'],
-  paid: ['completed', 'refunded', 'disputed'],
-  completed: ['refunded'],
-  cancelled: ['refunded'],
+  paid: ['completed', 'refunded', 'disputed', 'cancelled'],
+  completed: ['refunded', 'cancelled'],
+  cancelled: ['refunded', 'pending', 'accepted'],
   disputed: ['cancelled', 'refunded'],
   refunded: [],
+};
+
+/** Escrow staging — Flutter client MUST NOT release funds. */
+const ESCROW_TRANSITIONS = {
+  held: ['serviceInProgress', 'disputed', 'refunded', 'cancelled'],
+  serviceInProgress: ['releasePending', 'disputed', 'refunded'],
+  releasePending: ['released', 'disputed', 'refunded'],
+  released: [],
+  disputed: ['refunded', 'cancelled'],
+  refunded: [],
+  cancelled: [],
 };
 
 const ACTIONS = {
@@ -40,7 +60,14 @@ const ACTIONS = {
   decline: 'cancelled',
   dispute: 'disputed',
   refund: 'refunded',
+  reopen: null,
+  cancelDefinitive: 'cancelled',
+  hold: null,
+  releaseEscrow: null,
 };
+
+const ESCROW_ACTIONS = new Set(['hold', 'releaseEscrow']);
+const ADMIN_ONLY_ACTIONS = new Set(['reopen', 'cancelDefinitive']);
 
 function round2(n) {
   return Math.round(Number(n) * 100) / 100;
@@ -52,19 +79,119 @@ function normalizeStatus(status) {
   return STATUS_ALIASES[raw] || STATUS_ALIASES[lower] || raw;
 }
 
+function normalizeEscrowStatus(status) {
+  const raw = String(status || 'held');
+  const lower = raw.toLowerCase();
+  return ESCROW_STATUS_ALIASES[raw] || ESCROW_STATUS_ALIASES[lower] || raw;
+}
+
 function isAllowedTransition(from, to) {
   const a = normalizeStatus(from);
   const b = normalizeStatus(to);
   return (TRANSITIONS[a] || []).includes(b);
 }
 
+function isAllowedEscrowTransition(from, to) {
+  const a = normalizeEscrowStatus(from);
+  const b = normalizeEscrowStatus(to);
+  return (ESCROW_TRANSITIONS[a] || []).includes(b);
+}
+
 function targetStatus(action) {
   return ACTIONS[action] || null;
 }
 
+function isKnownAction(action) {
+  return Object.prototype.hasOwnProperty.call(ACTIONS, action);
+}
+
+function adminReopenAllowed(fromStatus) {
+  return normalizeStatus(fromStatus) === 'cancelled';
+}
+
+function adminReopenTarget(order) {
+  const providerId = order && order.providerId;
+  if (providerId) return 'accepted';
+  return 'pending';
+}
+
+function adminCancelDefinitiveAllowed(fromStatus, escrowStatus) {
+  const st = normalizeStatus(fromStatus);
+  if (st === 'cancelled' || st === 'refunded') return false;
+  if (escrowStatus && normalizeEscrowStatus(escrowStatus) === 'released') {
+    return false;
+  }
+  return true;
+}
+
+/** paid → held; releaseAt = paidAt + 3 dias (staging). */
+function escrowHoldOnPaid({ amount, paidAt }) {
+  const paid = paidAt instanceof Date ? paidAt : new Date(paidAt);
+  const releaseAt = new Date(paid.getTime() + ESCROW_HOLD_DAYS * 86400000);
+  return {
+    escrowStatus: 'held',
+    heldAmount: Number(amount) || 0,
+    releaseAt,
+  };
+}
+
+/** Backend/admin only — client SDK MUST NOT release funds. */
+function canReleaseEscrow({
+  status,
+  paymentStatus,
+  payoutProcessed,
+  completedAt,
+  clientConfirmed,
+  now,
+  paidAt,
+  releaseAt,
+  escrowStatus,
+}) {
+  const es = escrowStatus ? normalizeEscrowStatus(escrowStatus) : null;
+  if (es === 'released' || payoutProcessed) {
+    return { ok: false, reason: 'already_released' };
+  }
+  if (es === 'disputed' || normalizeStatus(status) === 'disputed') {
+    return { ok: false, reason: 'disputed' };
+  }
+  if (paymentStatus !== 'paid') {
+    return { ok: false, reason: 'not_paid' };
+  }
+  const st = normalizeStatus(status);
+  if (st === 'refunded' || st === 'cancelled') {
+    return { ok: false, reason: 'order_closed' };
+  }
+
+  if (clientConfirmed) return { ok: true };
+
+  const clock = now instanceof Date ? now : (now ? new Date(now) : new Date());
+  if (releaseAt) {
+    const due = releaseAt instanceof Date ? releaseAt : new Date(releaseAt);
+    if (clock >= due) return { ok: true };
+  }
+
+  const autoBase = completedAt || paidAt;
+  if (autoBase) {
+    const base = autoBase instanceof Date ? autoBase : new Date(autoBase);
+    const due = new Date(base.getTime() + ESCROW_HOLD_DAYS * 86400000);
+    if (clock >= due) return { ok: true };
+  }
+
+  return { ok: false, reason: 'release_not_due' };
+}
+
 function actorMayPerform(action, uid, clientId, providerId, isAdmin) {
-  if (isAdmin && (action === 'refund' || action === 'cancel' || action === 'dispute')) {
+  if (isAdmin && (
+    action === 'refund' || action === 'cancel' || action === 'dispute'
+    || action === 'reopen' || action === 'cancelDefinitive'
+  )) {
     return true;
+  }
+  if (action === 'hold' || action === 'releaseEscrow') {
+    return isAdmin;
+  }
+  if (action === 'reopen' || action === 'cancelDefinitive') {
+    return isAdmin;
   }
   const isClient = uid === clientId;
   const isProvider = Boolean(providerId) && uid === providerId;
@@ -183,14 +310,27 @@ function buildFinancialAudit({
 
 module.exports = {
   COMMISSION_RATE,
+  ESCROW_HOLD_DAYS,
   SENSITIVE_FIELDS,
   STATUS_ALIASES,
+  ESCROW_STATUS_ALIASES,
   TRANSITIONS,
+  ESCROW_TRANSITIONS,
   ACTIONS,
+  ESCROW_ACTIONS,
+  ADMIN_ONLY_ACTIONS,
   round2,
   normalizeStatus,
+  normalizeEscrowStatus,
   isAllowedTransition,
+  isAllowedEscrowTransition,
   targetStatus,
+  isKnownAction,
+  adminReopenAllowed,
+  adminReopenTarget,
+  adminCancelDefinitiveAllowed,
+  escrowHoldOnPaid,
+  canReleaseEscrow,
   actorMayPerform,
   completeBlockReason,
   canPayout,

@@ -1,0 +1,330 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R] /Count 6 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 544 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360) Tj
+T*
+(AUDITORIA POS-CORRECOES) Tj
+T*
+(Comparativo ANTES x DEPOIS) Tj
+T*
+() Tj
+T*
+(Data: 20/09/2026) Tj
+T*
+(Backup commit: 111caff) Tj
+T*
+(Branch: cursor/bloco-a-security-staging-c199) Tj
+T*
+() Tj
+T*
+(CLASSIFICACAO FINAL:) Tj
+T*
+(NAO PRONTO PARA PUBLICACAO) Tj
+T*
+() Tj
+T*
+(\(Criticos C1 Firebase placeholders e) Tj
+T*
+( C7 App Check enforce ainda abertos.) Tj
+T*
+( AAB/local keystore: ver secao C2.\)) Tj
+T*
+() Tj
+T*
+(Sem producao. Sem PAYMENTS_ENABLED=true.) Tj
+T*
+(Sem upload Play/App Store.) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 859 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(TABELA COMPARATIVA) Tj
+T*
+() Tj
+T*
+(C1 Firebase placeholder) Tj
+T*
+(ANTES: BLOQUEIA \(COLE_SUA_*\)) Tj
+T*
+(DEPOIS: PARCIAL / AINDA BLOQUEIA) Tj
+T*
+(Evidencia: test/firebase_placeholders_test.dart) Tj
+T*
+(  \(detecta placeholder\); FLUTTERFIRE_STAGING.md) Tj
+T*
+(  Raiany precisa flutterfire configure) Tj
+T*
+() Tj
+T*
+(C2 Android keystore) Tj
+T*
+(ANTES: BLOQUEIA \(sem key.properties\)) Tj
+T*
+(DEPOIS: PARCIAL OK LOCAL) Tj
+T*
+(Evidencia: upload-keystore-staging.jks gerado) Tj
+T*
+(  local \(gitignored\); ANDROID_KEYSTORE_SETUP.md) Tj
+T*
+(  AAB: ver resultado do build nesta sessao) Tj
+T*
+() Tj
+T*
+(C3 iOS) Tj
+T*
+(ANTES: BLOQUEIA \(sem xcodeproj\)) Tj
+T*
+(DEPOIS: PARCIAL OK ESTRUTURA) Tj
+T*
+(Evidencia: ios/Runner.xcodeproj recriado) Tj
+T*
+(  \(flutter create --platforms=ios\)) Tj
+T*
+(  Codesign/TestFlight ainda pendente) Tj
+ET
+endstream
+endobj
+8 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 9 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+9 0 obj<< /Length 894 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(C4 Privacy URL) Tj
+T*
+(ANTES: BLOQUEIA \(so in-app\)) Tj
+T*
+(DEPOIS: OK CODIGO STAGING) Tj
+T*
+(Evidencia: web/privacy.html + web/terms.html) Tj
+T*
+(  firebase.json rewrites /privacy /terms) Tj
+T*
+(  AppInfo.privacyUrl / termsUrl) Tj
+T*
+(  Deploy hosting staging ainda pendente) Tj
+T*
+() Tj
+T*
+(C5 Pagamentos) Tj
+T*
+(ANTES: 15/85; Asaas N/A; MP off) Tj
+T*
+(DEPOIS: PARCIAL) Tj
+T*
+(Evidencia: comissao 0.08 \(8/92\) em Dart+JS) Tj
+T*
+(  testes 100->8/92, 250->20/230, 1000->80/920) Tj
+T*
+(  PAGAMENTOS_ATUAIS_CARAJAS360.md) Tj
+T*
+(  Asaas: ainda NAO IMPLEMENTADO \(decisao dona\)) Tj
+T*
+(  PAYMENTS_ENABLED=false mantido) Tj
+T*
+() Tj
+T*
+(C6 Escrow 3 dias) Tj
+T*
+(ANTES: NAO IMPLEMENTADO) Tj
+T*
+(DEPOIS: OK ARQUITETURA STAGING) Tj
+T*
+(Evidencia: orderPolicy escrowHoldOnPaid,) Tj
+T*
+(  canReleaseEscrow, transitionOrder hold/release) Tj
+T*
+(  Sem dinheiro real) Tj
+ET
+endstream
+endobj
+10 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 11 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+11 0 obj<< /Length 873 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(C7 App Check) Tj
+T*
+(ANTES: desligado) Tj
+T*
+(DEPOIS: PARCIAL \(docs + bootstrap\)) Tj
+T*
+(Evidencia: APP_CHECK_SETUP.md) Tj
+T*
+(  ENFORCE ainda false \(correto ate keys\)) Tj
+T*
+(  AINDA BLOQUEIA publicacao loja) Tj
+T*
+() Tj
+T*
+(A1 E2E staging) Tj
+T*
+(ANTES: nao executado) Tj
+T*
+(DEPOIS: PARCIAL checklist) Tj
+T*
+(Evidencia: E2E_STAGING_SMOKE.md) Tj
+T*
+(  Live E2E bloqueado sem Firebase real) Tj
+T*
+() Tj
+T*
+(A2 Cancel admin) Tj
+T*
+(ANTES: NAO IMPLEMENTADO) Tj
+T*
+(DEPOIS: OK CODIGO) Tj
+T*
+(Evidencia: admin Reabrir / Cancelar definitiva) Tj
+T*
+(  FS.adminReopenOrder / adminCancelOrderDefinitive) Tj
+T*
+(  transitionOrder + audit; testes policy) Tj
+T*
+() Tj
+T*
+(A3 Maps) Tj
+T*
+(ANTES: placeholder) Tj
+T*
+(DEPOIS: PARCIAL docs restricao) Tj
+T*
+(Evidencia: CHECKLIST_GOOGLE_MAPS.md staging) Tj
+T*
+(  Key real: Raiany \(nao inventada\)) Tj
+ET
+endstream
+endobj
+12 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 13 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+13 0 obj<< /Length 802 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(A4 Listing lojas) Tj
+T*
+(ANTES: incompleto) Tj
+T*
+(DEPOIS: PARCIAL checklist) Tj
+T*
+(Evidencia: STORE_LISTING_CHECKLIST.md) Tj
+T*
+() Tj
+T*
+(Extras corrigidos:) Tj
+T*
+(- Botao Sair da conta no Admin \(signOut+login\)) Tj
+T*
+(- Nomes legados Servico Conecta em UI/comentarios) Tj
+T*
+(- Emails demo -> @carajas360.local \(suporte) Tj
+T*
+(  @servicoconecta documentado residual\)) Tj
+T*
+() Tj
+T*
+(TESTES EXECUTADOS:) Tj
+T*
+(- flutter test order_policy + placeholders) Tj
+T*
+(  + admin_order_actions: PASS) Tj
+T*
+(- node --test orderPolicy.test.js: 26 PASS) Tj
+T*
+() Tj
+T*
+(NAO FEITO \(proposital\):) Tj
+T*
+(- flutterfire configure \(precisa Console\)) Tj
+T*
+(- PAYMENTS_ENABLED=true) Tj
+T*
+(- Upload Play/App Store) Tj
+T*
+(- Deploy hosting \(precisa auth Firebase CLI\)) Tj
+ET
+endstream
+endobj
+14 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 15 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+15 0 obj<< /Length 707 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CONCLUSAO OBRIGATORIA) Tj
+T*
+() Tj
+T*
+(>>> NAO PRONTO PARA PUBLICACAO <<<) Tj
+T*
+() Tj
+T*
+(Motivo: C1 placeholders Firebase e C7 App Check) Tj
+T*
+(ainda bloqueiam loja; Maps key e E2E live pendentes.) Tj
+T*
+() Tj
+T*
+(Pode ir para teste interno?) Tj
+T*
+(PARCIAL ? apos flutterfire + AAB validado) Tj
+T*
+(  e smoke E2E_STAGING_SMOKE.md) Tj
+T*
+() Tj
+T*
+(Pode publicar usuarios reais?) Tj
+T*
+(NAO) Tj
+T*
+() Tj
+T*
+(Proximos passos Raiany:) Tj
+T*
+(1\) flutterfire configure \(FLUTTERFIRE_STAGING.md\)) Tj
+T*
+(2\) Deploy hosting privacy/terms) Tj
+T*
+(3\) Validar AAB interno \(keystore local\)) Tj
+T*
+(4\) Decidir Asaas vs Mercado Pago) Tj
+T*
+(5\) App Check staging + smoke E2E) Tj
+ET
+endstream
+endobj
+xref
+0 16
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000144 00000 n 
+0000000212 00000 n 
+0000000336 00000 n 
+0000000929 00000 n 
+0000001053 00000 n 
+0000001961 00000 n 
+0000002085 00000 n 
+0000003028 00000 n 
+0000003154 00000 n 
+0000004077 00000 n 
+0000004203 00000 n 
+0000005055 00000 n 
+0000005181 00000 n 
+trailer<< /Size 16 /Root 1 0 R >>
+startxref
+5938
+%%EOF

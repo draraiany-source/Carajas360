@@ -9,7 +9,7 @@ import '../../shared/widgets/widgets.dart';
 import '../../shared/widgets/micro_interactions.dart';
 
 /// Home da plataforma Carajás 360.
-/// O hub legado (Serviço Conecta) permanece em [ServicesHubScreen].
+/// O hub de Serviços permanece em [ServicesHubScreen].
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
   @override
