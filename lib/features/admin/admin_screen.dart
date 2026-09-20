@@ -11,6 +11,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/auth/access_control.dart';
 import '../../core/utils/app_error.dart';
 import '../../shared/models/models.dart';
+import '../../shared/services/audit_pdf_service.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 
@@ -1342,46 +1343,134 @@ class _ReportsTab extends StatelessWidget {
       );
 }
 
-class _AuditTab extends StatelessWidget {
+class _AuditTab extends StatefulWidget {
+  @override
+  State<_AuditTab> createState() => _AuditTabState();
+}
+
+class _AuditTabState extends State<_AuditTab> {
+  bool _exporting = false;
+
+  Future<void> _export(List<AuditLogModel> logs, {required bool csv}) async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      await AuditPdfService.share(logs: logs, csv: csv);
+      await FS.logAdminAction(
+        csv ? 'Exportou auditoria CSV' : 'Exportou auditoria PDF',
+        target: 'auditLogs',
+        details: {'count': logs.length, 'format': csv ? 'csv' : 'pdf'},
+      );
+      if (mounted) {
+        snack(context,
+            csv ? 'CSV de auditoria gerado.' : 'PDF de auditoria gerado.',
+            bg: AppColors.secondary);
+      }
+    } catch (e) {
+      if (mounted) {
+        snack(context,
+            AppError.userMessage(e, message: 'Não foi possível gerar a auditoria.'),
+            bg: AppColors.error);
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => StreamBuilder<List<AuditLogModel>>(
         stream: FS.auditLogStream(),
         builder: (_, s) {
           final logs = s.data ?? [];
-          if (logs.isEmpty)
+          if (logs.isEmpty) {
             return const EmptyState(
                 emoji: '📜',
                 title: 'Sem registros',
                 subtitle: 'As ações administrativas aparecerão aqui');
-          return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: logs.length,
-              itemBuilder: (_, i) {
-                final l = logs[i];
-                return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: AppDecorations.card(r: 14),
-                    child: ListTile(
-                      leading: Container(
+          }
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${logs.length} registro(s)',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textDark,
+                        ),
+                      ),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: _exporting
+                          ? null
+                          : () => _export(logs, csv: true),
+                      icon: const Icon(Icons.receipt_long_outlined, size: 16),
+                      label: const Text('CSV', style: TextStyle(fontSize: 12)),
+                    ),
+                    const SizedBox(width: 8),
+                    ElevatedButton.icon(
+                      onPressed: _exporting
+                          ? null
+                          : () => _export(logs, csv: false),
+                      icon: _exporting
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.picture_as_pdf_outlined, size: 16),
+                      label: Text(_exporting ? 'Gerando…' : 'PDF',
+                          style: const TextStyle(fontSize: 12)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.textDark,
+                        foregroundColor: Colors.white,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: logs.length,
+                  itemBuilder: (_, i) {
+                    final l = logs[i];
+                    return Container(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      decoration: AppDecorations.card(r: 14),
+                      child: ListTile(
+                        leading: Container(
                           width: 40,
                           height: 40,
                           decoration: BoxDecoration(
-                              color: AppColors.textDark.withOpacity(0.06),
-                              borderRadius: BorderRadius.circular(10)),
+                            color: AppColors.textDark.withOpacity(0.06),
+                            borderRadius: BorderRadius.circular(10),
+                          ),
                           alignment: Alignment.center,
                           child: const Icon(Icons.history_rounded,
-                              color: AppColors.textDark, size: 18)),
-                      title: Text(l.action,
-                          style: const TextStyle(
-                              fontWeight: FontWeight.w700, fontSize: 13)),
-                      subtitle: Text('${l.adminName} · alvo: ${l.target}',
-                          style: const TextStyle(
-                              fontSize: 11, color: AppColors.textLight)),
-                      trailing: Text(fmtDate(l.timestamp),
-                          style: const TextStyle(
-                              fontSize: 10, color: AppColors.textLight)),
-                    ));
-              });
+                              color: AppColors.textDark, size: 18),
+                        ),
+                        title: Text(l.action,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 13)),
+                        subtitle: Text('${l.adminName} · alvo: ${l.target}',
+                            style: const TextStyle(
+                                fontSize: 11, color: AppColors.textLight)),
+                        trailing: Text(fmtDate(l.timestamp),
+                            style: const TextStyle(
+                                fontSize: 10, color: AppColors.textLight)),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
         },
       );
 }
