@@ -503,10 +503,29 @@ class MessageModel {
 class WalletModel {
   final String userId;
   final double balance;
-  const WalletModel({required this.userId, required this.balance});
+  /// Creditos de lead (inteiro). Separado do saldo financeiro.
+  final int credits;
+  final int creditsUsed;
+  final int creditsPurchased;
+  final int creditsPromotional;
+
+  const WalletModel({
+    required this.userId,
+    required this.balance,
+    this.credits = 0,
+    this.creditsUsed = 0,
+    this.creditsPurchased = 0,
+    this.creditsPromotional = 0,
+  });
+
   factory WalletModel.fromMap(Map<String, dynamic> m) => WalletModel(
-      userId: m['userId'] ?? '',
-      balance: (m['balance'] as num?)?.toDouble() ?? 0.0);
+        userId: m['userId'] ?? '',
+        balance: (m['balance'] as num?)?.toDouble() ?? 0.0,
+        credits: (m['credits'] as num?)?.toInt() ?? 0,
+        creditsUsed: (m['creditsUsed'] as num?)?.toInt() ?? 0,
+        creditsPurchased: (m['creditsPurchased'] as num?)?.toInt() ?? 0,
+        creditsPromotional: (m['creditsPromotional'] as num?)?.toInt() ?? 0,
+      );
 }
 
 class TransactionModel {
@@ -1234,6 +1253,11 @@ class ResolveRequest {
   final String? modality;
   final Map<String, dynamic> answers;
   final double? suggestedPrice;
+  final String? neighborhood;
+  final double? budgetMin;
+  final double? budgetMax;
+  final int slotsRemaining;
+  final List<String> photoUrls;
   final ResolveStatus status;
   final int proposalCount;
   final DateTime createdAt;
@@ -1256,12 +1280,27 @@ class ResolveRequest {
     this.modality,
     this.answers = const {},
     this.suggestedPrice,
+    this.neighborhood,
+    this.budgetMin,
+    this.budgetMax,
+    this.slotsRemaining = 5,
+    this.photoUrls = const [],
     this.status = ResolveStatus.open,
     this.proposalCount = 0,
     required this.createdAt,
     this.leadMonetizationReady = true,
     this.leadFee,
   });
+
+  /// Regiao aproximada — NUNCA endereco completo prematuro.
+  String get approxLocation {
+    final n = neighborhood?.trim();
+    if (n != null && n.isNotEmpty) return '$n · $city';
+    return city;
+  }
+
+  String get summary =>
+      description.length > 120 ? '${description.substring(0, 117)}...' : description;
 
   factory ResolveRequest.fromMap(String id, Map<String, dynamic> m) =>
       ResolveRequest(
@@ -1279,6 +1318,11 @@ class ResolveRequest {
         modality: m['modality']?.toString(),
         answers: Map<String, dynamic>.from(m['answers'] as Map? ?? const {}),
         suggestedPrice: (m['suggestedPrice'] as num?)?.toDouble(),
+        neighborhood: m['neighborhood']?.toString(),
+        budgetMin: (m['budgetMin'] as num?)?.toDouble(),
+        budgetMax: (m['budgetMax'] as num?)?.toDouble(),
+        slotsRemaining: (m['slotsRemaining'] as num?)?.toInt() ?? 5,
+        photoUrls: List<String>.from(m['photoUrls'] ?? const []),
         status: ResolveStatus.values.firstWhere(
             (s) => s.name == (m['status'] ?? 'open'),
             orElse: () => ResolveStatus.open),

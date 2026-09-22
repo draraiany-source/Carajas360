@@ -1478,3 +1478,129 @@ exports.getDirections = functions.region(REGION).https.onCall(async (data, conte
     message: 'Key de servidor presente, mas o HTTP Directions está desligado para não gerar cobrança.',
   };
 });
+
+/** FASE 2 — unlock lead por creditos (idempotente). Custo vem do config, nao do client. */
+exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  const requestId = String((data && data.requestId) || '');
+  if (!requestId) throw httpsError('invalid-argument', 'requestId obrigatorio');
+
+  const unlockId = `${auth.uid}_${requestId}`;
+  const unlockRef = db.collection('leadUnlocks').doc(unlockId);
+  const existing = await unlockRef.get();
+  if (existing.exists) {
+    const d = existing.data() || {};
+    return {
+      ok: true,
+      already: true,
+      creditsUsed: 0,
+      transactionId: d.transactionId || unlockId,
+      contactName: d.contactName || 'Cliente',
+      contactPhone: d.contactPhone || null,
+      status: 'already_unlocked',
+    };
+  }
+
+  const cfgSnap = await db.collection('config').doc('platform').get();
+  const cfg = cfgSnap.exists ? cfgSnap.data() || {} : {};
+  if (cfg.creditsEnabled === false) {
+    throw httpsError('failed-precondition', 'Creditos desativados');
+  }
+  const cost = Math.max(1, Number(cfg.defaultLeadCreditCost || 5));
+
+  return db.runTransaction(async (tx) => {
+    const again = await tx.get(unlockRef);
+    if (again.exists) {
+      return { ok: true, already: true, creditsUsed: 0, status: 'already_unlocked' };
+    }
+    const walletRef = db.collection('wallets').doc(auth.uid);
+    const wSnap = await tx.get(walletRef);
+    const w = wSnap.exists ? wSnap.data() || {} : {};
+    const credits = Number(w.credits || 0);
+    if (credits < cost) {
+      throw httpsError('failed-precondition', 'Saldo de creditos insuficiente');
+    }
+    const reqRef = db.collection('resolveRequests').doc(requestId);
+    const reqSnap = await tx.get(reqRef);
+    if (!reqSnap.exists) throw httpsError('not-found', 'Solicitacao nao encontrada');
+    const req = reqSnap.data() || {};
+    // Nunca expor endereco completo aqui — so contato basico autorizado.
+    const contactName = String(req.clientName || 'Cliente');
+    const contactPhone = req.contactPhoneAuthorized === true ? (req.clientPhone || null) : null;
+    const txId = `lead_${unlockId}`;
+    tx.set(walletRef, {
+      userId: auth.uid,
+      credits: credits - cost,
+      creditsUsed: Number(w.creditsUsed || 0) + cost,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    }, { merge: true });
+    tx.set(unlockRef, {
+      professionalId: auth.uid,
+      requestId,
+      creditsUsed: cost,
+      timestamp: admin.firestore.FieldValue.serverTimestamp(),
+      transactionId: txId,
+      status: 'unlocked',
+      contactName,
+      contactPhone,
+    });
+    tx.set(db.collection('transactions').doc(txId), {
+      userId: auth.uid,
+      type: 'debit_credits',
+      amount: cost,
+      description: `Desbloqueio lead ${requestId}`,
+      icon: '🔓',
+      status: 'done',
+      requestId,
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    return {
+      ok: true,
+      already: false,
+      creditsUsed: cost,
+      transactionId: txId,
+      contactName,
+      contactPhone,
+      status: 'unlocked',
+    };
+  });
+});
+
+exports.purchaseCreditPackage = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  if (!PAYMENTS_ENABLED) {
+    throw httpsError('failed-precondition', 'Pagamentos desativados (Sandbox off / sem token)');
+  }
+  const packageId = String((data && data.packageId) || '');
+  if (!packageId) throw httpsError('invalid-argument', 'packageId obrigatorio');
+  // Cobranca real/Sandbox via gateway — creditos so apos webhook.
+  const docRef = db.collection('creditPurchases').doc();
+  await docRef.set({
+    userId: auth.uid,
+    packageId,
+    status: 'pending_sandbox',
+    charged: false,
+    applied: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true, purchaseId: docRef.id, status: 'pending_sandbox' };
+});
+
+exports.purchaseHighlight = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  if (!PAYMENTS_ENABLED) {
+    throw httpsError('failed-precondition', 'Pagamentos desativados');
+  }
+  const planId = String((data && data.planId) || '');
+  if (!planId) throw httpsError('invalid-argument', 'planId obrigatorio');
+  const docRef = db.collection('highlightPurchases').doc();
+  await docRef.set({
+    userId: auth.uid,
+    planId,
+    status: 'pending_sandbox',
+    charged: false,
+    applied: false,
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+  });
+  return { ok: true, purchaseId: docRef.id };
+});

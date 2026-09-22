@@ -57,6 +57,8 @@ abstract class Col {
   /// Resolve Carajás — solicitações abertas e propostas.
   static const resolveRequests = 'resolveRequests';
   static const resolveProposals = 'resolveProposals';
+  static const leadUnlocks = 'leadUnlocks';
+  static const disputes = 'disputes';
   static const financialAudits = 'financialAudits';
   static const rateLimits = 'rateLimits';
   static const planChangeRequests = 'planChangeRequests';
@@ -101,6 +103,11 @@ abstract class Routes {
   static const serviceMarketplace = '/service-marketplace';
   static const serviceRequestFlow = '/service-request-flow';
   static const universalSearch = '/universal-search';
+  static const opportunityDetail = '/opportunity-detail';
+  static const creditPackages = '/credit-packages';
+  static const carajasPro = '/carajas-pro';
+  static const highlightsBuy = '/highlights-buy';
+  static const disputeHelp = '/dispute-help';
 }
 
 class ServiceCategory {

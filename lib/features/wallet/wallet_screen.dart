@@ -5,6 +5,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_assets.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
@@ -74,7 +75,7 @@ class _WalletState extends State<WalletScreen>
         StreamBuilder<WalletModel?>(
             stream: _uid.isNotEmpty ? FS.walletStream() : const Stream.empty(),
             builder: (_, s) {
-              final bal = s.data?.balance ?? 0.0;
+          const bal = s.data?.balance ?? 0.0;
               return Container(
                   decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.15),
@@ -104,9 +105,11 @@ class _WalletState extends State<WalletScreen>
                       const SizedBox(width: 8),
                       _btn('📤', 'Sacar', () => _showWithdraw(context)),
                       const SizedBox(width: 8),
-                      _btn('⚡', 'PIX', () => _tab.animateTo(1)),
+                      _btn('🪙', 'Créditos', () => Navigator.pushNamed(
+                          context, Routes.creditPackages)),
                       const SizedBox(width: 8),
-                      _btn('📊', 'Extrato', () => _tab.animateTo(0)),
+                      _btn('⭐', 'PRO', () =>
+                          Navigator.pushNamed(context, Routes.carajasPro)),
                     ]),
                   ]));
             }),

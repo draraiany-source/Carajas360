@@ -21,6 +21,8 @@ import 'package:carajas_360/features/home/carajas_home_screen.dart';
 import 'package:carajas_360/features/resolve/resolve_screen.dart';
 import 'package:carajas_360/features/services/service_marketplace_screen.dart';
 import 'package:carajas_360/features/search/universal_search_screen.dart';
+import 'package:carajas_360/features/monetization/opportunities_screen.dart';
+import 'package:carajas_360/features/monetization/monetization_screens.dart';
 import 'package:carajas_360/core/catalog/taxonomy_repository.dart';
 import 'package:carajas_360/features/chat/chat_screen.dart';
 import 'package:carajas_360/features/chat/chat_inbox_screen.dart';
@@ -279,7 +281,24 @@ class Carajas360App extends StatelessWidget {
               case Routes.resolveOpportunities:
                 return _route(const RequireAuth(
                     title: 'Oportunidades',
-                    child: ResolveOpportunitiesScreen()));
+                    child: OpportunitiesHubScreen()));
+              case Routes.creditPackages:
+                return _route(const RequireAuth(
+                    title: 'Creditos', child: CreditPackagesScreen()));
+              case Routes.carajasPro:
+                return _route(const RequireAuth(
+                    title: 'Carajas PRO', child: CarajasProScreen()));
+              case Routes.highlightsBuy:
+                return _route(const RequireAuth(
+                    title: 'Destaques', child: HighlightsBuyScreen()));
+              case Routes.disputeHelp:
+                final a = settings.arguments as Map<String, dynamic>?;
+                return _route(RequireAuth(
+                    title: 'Ajuda',
+                    child: DisputeHelpScreen(
+                      orderId: a?['orderId'] as String?,
+                      paymentId: a?['paymentId'] as String?,
+                    )));
               case Routes.myResolve:
                 return _route(const RequireAuth(
                     title: 'Meus Resolve', child: MyResolveScreen()));

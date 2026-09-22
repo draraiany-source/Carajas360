@@ -1509,11 +1509,41 @@ class FS {
 
   static Future<void> updatePlatformConfig(Map<String, dynamic> data,
       {String? adminName}) async {
+    // Validacao de comissao (0–30%).
+    if (data.containsKey('commissionRate')) {
+      final rate = (data['commissionRate'] as num?)?.toDouble() ?? -1;
+      if (rate < 0 || rate > 0.30) {
+        throw ArgumentError('commissionRate invalida (0–30%)');
+      }
+    }
     await _db.collection('config').doc('platform').set(
         {...data, 'updatedAt': FieldValue.serverTimestamp()},
         SetOptions(merge: true));
     await logAdminAction('Atualizou configurações da plataforma',
         target: 'platform', adminName: adminName, details: data);
+  }
+
+  static Future<String> createDisputeTicket({
+    required String reason,
+    String notes = '',
+    String? orderId,
+    String? paymentId,
+    String? providerId,
+  }) async {
+    if (HomologCatalog.enabled) {
+      return 'hdisp_${DateTime.now().millisecondsSinceEpoch}';
+    }
+    final doc = await _db.collection(Col.disputes).add({
+      'clientId': _uid,
+      'providerId': providerId,
+      'orderId': orderId,
+      'paymentId': paymentId,
+      'reason': reason,
+      'notes': notes,
+      'status': 'open',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return doc.id;
   }
 
   static Stream<List<AuditLogModel>> auditLogStream({int limit = 100}) => _db
@@ -1756,6 +1786,93 @@ class FS {
     String? category,
     String? city,
   }) {
+    // SEED/MOCK/HOMOLOGAÇÃO — oportunidades de teste.
+    if (HomologCatalog.enabled) {
+      final now = DateTime.now();
+      var list = <ResolveRequest>[
+        ResolveRequest(
+          id: 'hrq_opp_1',
+          clientId: 'homolog_client',
+          clientName: 'Cliente',
+          description:
+              'Freios cantando e pedal baixo. Preciso de troca de pastilhas e análise de disco.',
+          category: 'freios',
+          groupId: 'mecanica',
+          city: 'Canaã dos Carajás',
+          neighborhood: 'Centro',
+          urgency: 'Esta semana',
+          modality: 'Na oficina/empresa',
+          budgetMin: 200,
+          budgetMax: 450,
+          slotsRemaining: 3,
+          proposalCount: 2,
+          createdAt: now.subtract(const Duration(hours: 2)),
+          leadMonetizationReady: true,
+        ),
+        ResolveRequest(
+          id: 'hrq_opp_2',
+          clientId: 'homolog_client',
+          clientName: 'Cliente',
+          description:
+              'Instalação de 4 tomadas e troca de disjuntor na área de serviço.',
+          category: 'eletricista',
+          groupId: 'casa_geral',
+          city: 'Parauapebas',
+          neighborhood: 'Nova Carajás',
+          urgency: 'Hoje',
+          modality: 'No local',
+          budgetMin: 150,
+          budgetMax: 350,
+          slotsRemaining: 4,
+          proposalCount: 1,
+          createdAt: now.subtract(const Duration(hours: 5)),
+          leadMonetizationReady: true,
+        ),
+        ResolveRequest(
+          id: 'hrq_opp_3',
+          clientId: 'homolog_client',
+          clientName: 'Cliente',
+          description:
+              'Guincho para carro que não liga na estrada PA-275. Socorro.',
+          category: 'guincho',
+          groupId: 'emergencia_auto',
+          city: 'Canaã dos Carajás',
+          neighborhood: 'Vila Planalto',
+          urgency: 'Emergência',
+          modality: 'No local',
+          slotsRemaining: 2,
+          proposalCount: 0,
+          createdAt: now.subtract(const Duration(minutes: 40)),
+          leadMonetizationReady: true,
+        ),
+        ResolveRequest(
+          id: 'hrq_opp_4',
+          clientId: 'homolog_client',
+          clientName: 'Cliente',
+          description: 'Faxina completa em apartamento 2 quartos, pós-obra leve.',
+          category: 'diarista',
+          groupId: 'limpeza_dom',
+          city: 'Marabá',
+          neighborhood: 'Nova Marabá',
+          urgency: 'Flexível',
+          modality: 'No local',
+          budgetMin: 120,
+          budgetMax: 220,
+          slotsRemaining: 5,
+          proposalCount: 3,
+          createdAt: now.subtract(const Duration(days: 1)),
+          leadMonetizationReady: true,
+        ),
+      ];
+      if (category != null && category.isNotEmpty) {
+        list = list.where((r) => r.category == category).toList();
+      }
+      if (city != null && city.isNotEmpty) {
+        final c = city.toLowerCase();
+        list = list.where((r) => r.city.toLowerCase().contains(c)).toList();
+      }
+      return Stream.value(list);
+    }
     Query<Map<String, dynamic>> q = _db
         .collection(Col.resolveRequests)
         .where('status', isEqualTo: 'open')

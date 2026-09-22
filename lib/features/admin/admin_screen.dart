@@ -778,7 +778,7 @@ class _FinancialTab extends StatelessWidget {
             ],
             [
               '📊',
-              'Comissão plataforma (15%)',
+              'Comissão plataforma (config Admin)',
               PaySvc.fmt((r['commission'] as double?) ?? 0),
               AppColors.primary
             ],
