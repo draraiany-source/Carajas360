@@ -240,6 +240,7 @@ function canPayout({
   gatewayStatus,
   paidAmount,
   officialProviderId,
+  commissionRate,
 }) {
   if (payoutProcessed) return { ok: false, reason: 'already_processed' };
   const st = normalizeStatus(status);
@@ -258,7 +259,13 @@ function canPayout({
   if (paidAmount != null && Math.abs(Number(paidAmount) - gross) > 0.009) {
     return { ok: false, reason: 'amount_mismatch' };
   }
-  const commission = round2(gross * COMMISSION_RATE);
+  // FASE 3: taxa do Admin (config) quando valida; senao fallback COMMISSION_RATE.
+  let rate = COMMISSION_RATE;
+  if (commissionRate != null && Number.isFinite(Number(commissionRate))) {
+    const r = Number(commissionRate);
+    if (r >= 0 && r <= 0.30) rate = r;
+  }
+  const commission = round2(gross * rate);
   const providerAmount = round2(gross - commission);
   return {
     ok: true,
@@ -268,6 +275,7 @@ function canPayout({
     platformFee: commission,
     netAmount: providerAmount,
     providerAmount,
+    commissionRate: rate,
   };
 }
 

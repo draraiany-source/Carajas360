@@ -46,7 +46,9 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow get: if isOwner(userId) || isAdmin() || sharesChat(userId);
+      // FASE 3: removido sharesChat — criar chatRoom unilateral nao libera
+      // perfil privado (IDOR). Nome/foto do chat vem dos argumentos / providers.
+      allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(userId) &&
         request.resource.data.type in ['client', 'provider', 'deliverer', 'company'] &&
@@ -424,6 +426,20 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accepted']) &&
         request.resource.data.accepted == true
       );
+      allow delete: if isAdmin();
+    }
+
+    // FASE 3: disputas — cliente cria; partes leem; so admin resolve.
+    match /disputes/{id} {
+      allow create: if isAuth() &&
+        request.resource.data.clientId == uid() &&
+        request.resource.data.status == 'open';
+      allow read: if isAuth() && (
+        resource.data.clientId == uid() ||
+        resource.data.providerId == uid() ||
+        isAdmin()
+      );
+      allow update: if isAdmin();
       allow delete: if isAdmin();
     }
 

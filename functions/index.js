@@ -182,6 +182,15 @@ async function applyOfficialPayout(tx, {
   if (order.payoutProcessed) {
     return { ok: true, already: true, payoutProcessed: true, orderUpdates: {} };
   }
+  // FASE 3: taxa Admin (config/platform) ou snapshot no pedido; fallback 8%.
+  let commissionRate = order.commissionRate != null ? Number(order.commissionRate) : null;
+  if (commissionRate == null) {
+    const cfgSnap = await tx.get(db.collection('config').doc('platform'));
+    if (cfgSnap.exists) {
+      const cfg = cfgSnap.data() || {};
+      if (cfg.commissionRate != null) commissionRate = Number(cfg.commissionRate);
+    }
+  }
   const decision = policy.canPayout({
     status: 'completed',
     paymentStatus: order.paymentStatus || 'unpaid',
@@ -193,6 +202,7 @@ async function applyOfficialPayout(tx, {
     paymentOrderId: payment && payment.orderId,
     gatewayStatus: payment && payment.status,
     paidAmount: payment && payment.amount,
+    commissionRate,
   });
   if (!decision.ok) {
     throw httpsError('failed-precondition', 'Repasse recusado: ' + decision.reason);
@@ -208,6 +218,7 @@ async function applyOfficialPayout(tx, {
     commission: decision.commission,
     platformFee: decision.commission,
     providerAmount: decision.providerAmount,
+    commissionRate: decision.commissionRate,
   };
   if (payoutDoc.exists) {
     return { ok: true, already: true, payoutProcessed: true, orderUpdates };
@@ -1485,6 +1496,16 @@ exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, c
   const requestId = String((data && data.requestId) || '');
   if (!requestId) throw httpsError('invalid-argument', 'requestId obrigatorio');
 
+  // FASE 3: somente profissional ativo.
+  const providerSnap = await db.collection('providers').doc(auth.uid).get();
+  if (!providerSnap.exists) {
+    throw httpsError('permission-denied', 'Somente profissionais podem desbloquear leads');
+  }
+  const provider = providerSnap.data() || {};
+  if (provider.active === false) {
+    throw httpsError('failed-precondition', 'Perfil profissional inativo');
+  }
+
   const unlockId = `${auth.uid}_${requestId}`;
   const unlockRef = db.collection('leadUnlocks').doc(unlockId);
   const existing = await unlockRef.get();
@@ -1507,6 +1528,7 @@ exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, c
     throw httpsError('failed-precondition', 'Creditos desativados');
   }
   const cost = Math.max(1, Number(cfg.defaultLeadCreditCost || 5));
+  const maxSlots = Math.max(1, Number(cfg.maxProfessionalsPerLead || 5));
 
   return db.runTransaction(async (tx) => {
     const again = await tx.get(unlockRef);
@@ -1524,7 +1546,14 @@ exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, c
     const reqSnap = await tx.get(reqRef);
     if (!reqSnap.exists) throw httpsError('not-found', 'Solicitacao nao encontrada');
     const req = reqSnap.data() || {};
-    // Nunca expor endereco completo aqui — so contato basico autorizado.
+    if (String(req.status || 'open') !== 'open') {
+      throw httpsError('failed-precondition', 'Solicitacao nao esta aberta');
+    }
+    const slots = req.slotsRemaining != null ? Number(req.slotsRemaining) : maxSlots;
+    if (slots <= 0) {
+      throw httpsError('failed-precondition', 'Sem vagas restantes neste lead');
+    }
+    // Nunca expor endereco completo — so contato basico autorizado.
     const contactName = String(req.clientName || 'Cliente');
     const contactPhone = req.contactPhoneAuthorized === true ? (req.clientPhone || null) : null;
     const txId = `lead_${unlockId}`;
@@ -1534,6 +1563,10 @@ exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, c
       creditsUsed: Number(w.creditsUsed || 0) + cost,
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     }, { merge: true });
+    tx.update(reqRef, {
+      slotsRemaining: slots - 1,
+      proposalCount: Number(req.proposalCount || 0),
+    });
     tx.set(unlockRef, {
       professionalId: auth.uid,
       requestId,

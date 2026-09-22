@@ -110,6 +110,32 @@ describe('payout', () => {
     assert.equal(r.providerAmount, 920);
   });
 
+  // FASE 3: taxa do Admin/snapshot deve prevalecer sobre o default 8%.
+  it('commissionRate Admin 10% em 500 → 50/450', () => {
+    const r = policy.canPayout({
+      ...base,
+      price: 500,
+      paidAmount: 500,
+      commissionRate: 0.10,
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.commissionRate, 0.10);
+    assert.equal(r.commission, 50);
+    assert.equal(r.providerAmount, 450);
+  });
+
+  it('commissionRate invalida (>30%) cai no default 8%', () => {
+    const r = policy.canPayout({
+      ...base,
+      price: 100,
+      paidAmount: 100,
+      commissionRate: 0.5,
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.commissionRate, 0.08);
+    assert.equal(r.commission, 8);
+  });
+
   it('segunda execução é idempotente (already_processed)', () => {
     const r = policy.canPayout({ ...base, payoutProcessed: true });
     assert.equal(r.ok, false);

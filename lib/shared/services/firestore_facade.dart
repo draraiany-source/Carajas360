@@ -1250,13 +1250,26 @@ class FS {
   // bruta, comissão) e transactions (PIX, estornos).
   static Future<Map<String, dynamic>> fetchFinancialReport() async {
     try {
+      final cfgSnap =
+          await _db.collection('config').doc('platform').get();
+      final cfgRate = (cfgSnap.data()?['commissionRate'] as num?)?.toDouble();
+      final rate = (cfgRate != null && cfgRate >= 0 && cfgRate <= 0.30)
+          ? cfgRate
+          : AppConst.commission;
+
       final completed = await _db
           .collection(Col.orders)
           .where('status', isEqualTo: 'completed')
           .get();
       final grossRevenue = completed.docs.fold<double>(
           0, (sum, d) => sum + ((d.data()['price'] as num?)?.toDouble() ?? 0));
-      final commission = grossRevenue * AppConst.commission;
+      // Preferir soma de comissões snapshot nos pedidos; fallback taxa atual.
+      final commission = completed.docs.fold<double>(0, (sum, d) {
+        final snap = (d.data()['commission'] as num?)?.toDouble();
+        if (snap != null) return sum + snap;
+        return sum +
+            ((d.data()['price'] as num?)?.toDouble() ?? 0) * rate;
+      });
       final netToProviders = grossRevenue - commission;
 
       final cancelled = await _db
