@@ -443,6 +443,18 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // FASE 4: solicitacoes de saque — so Cloud Functions escrevem; user le as proprias.
+    match /withdrawalRequests/{id} {
+      allow read: if isAuth() && (resource.data.userId == uid() || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    // FASE 4: eventos de webhook — somente backend.
+    match /webhookEvents/{id} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

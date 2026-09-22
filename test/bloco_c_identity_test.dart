@@ -9,8 +9,8 @@ import 'package:carajas_360/shared/services/payment_gateway.dart';
 void main() {
   test('identidade visível é Carajás 360', () {
     expect(AppInfo.name, 'Carajás 360');
-    expect(AppInfo.supportEmail.contains('servicoconecta.com.br'), isTrue);
-    expect(AppInfo.privacyEmail.contains('servicoconecta.com.br'), isTrue);
+    expect(AppInfo.supportEmail.contains('carajas360.com.br'), isTrue);
+    expect(AppInfo.privacyEmail.contains('carajas360.com.br'), isTrue);
   });
 
   test('IDs técnicos migrados (autorização da Raiany)', () {

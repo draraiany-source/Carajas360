@@ -9,6 +9,7 @@ import '../../core/constants/app_assets.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/platform_info.dart';
 import '../../core/auth/dev_bypass_auth.dart';
+import '../../core/utils/perf_log.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -40,16 +41,9 @@ class _SplashState extends State<SplashScreen>
 
   void _navigate() {
     if (!mounted) return;
-    if (DevBypassAuth.enabled) {
-      Navigator.pushReplacementNamed(context, Routes.main);
-      return;
-    }
-    if (!widget.firebaseReady) {
-      Navigator.pushReplacementNamed(context, Routes.onboarding);
-      return;
-    }
-    Navigator.pushReplacementNamed(
-        context, AuthService.isAuth ? Routes.main : Routes.onboarding);
+    // Homologação: sempre entra na home. Login fica opcional (Perfil).
+    // Com Firebase real + sessão, mantém a home logada.
+    Navigator.pushReplacementNamed(context, Routes.main);
   }
 
   @override
@@ -270,7 +264,7 @@ class _OnboardState extends State<OnboardingScreen> {
                               duration: const Duration(milliseconds: 300),
                               curve: Curves.easeInOut)
                           : Navigator.pushReplacementNamed(
-                              context, Routes.login),
+                              context, Routes.main),
                       style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.white,
                           foregroundColor: AppColors.primary,
@@ -280,20 +274,50 @@ class _OnboardState extends State<OnboardingScreen> {
                       child: Text(
                           _cur < _slides.length - 1
                               ? 'Próximo →'
-                              : 'Começar agora!',
+                              : 'Explorar sem login',
                           style: const TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 16)),
                     )),
                 if (_cur < _slides.length - 1)
                   TextButton(
                       onPressed: () =>
-                          Navigator.pushReplacementNamed(context, Routes.login),
+                          Navigator.pushReplacementNamed(context, Routes.main),
                       child: Text('Pular',
                           style:
                               TextStyle(color: Colors.white.withOpacity(0.7)))),
+                TextButton(
+                    onPressed: () =>
+                        Navigator.pushReplacementNamed(context, Routes.login),
+                    child: Text('Já tenho conta — Entrar',
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.85),
+                            fontWeight: FontWeight.w600))),
               ])),
         ]),
       );
+}
+
+void _finishAuth(BuildContext context) {
+  PerfLog.auth('login_ok');
+  final args = ModalRoute.of(context)?.settings.arguments;
+  String? returnRoute;
+  Object? returnArgs;
+  if (args is Map) {
+    returnRoute = args['returnRoute'] as String?;
+    returnArgs = args['returnArgs'];
+  }
+  if (returnRoute != null &&
+      returnRoute.isNotEmpty &&
+      returnRoute != Routes.login) {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      returnRoute,
+      (r) => r.settings.name == Routes.main || r.isFirst,
+      arguments: returnArgs,
+    );
+  } else {
+    Navigator.pushReplacementNamed(context, Routes.main);
+  }
 }
 
 class LoginScreen extends StatefulWidget {
@@ -395,7 +419,33 @@ class _LoginState extends State<LoginScreen>
 
   bool _isValidEmail(String email) => AuthValidators.isValidEmail(email);
 
+  Future<bool> _confirmLegalConsent() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Termos e Privacidade'),
+        content: const Text(
+          'Ao continuar, voce confirma que leu e aceita os Termos de Uso e a Politica de Privacidade do Carajas 360.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Aceito e continuar'),
+          ),
+        ],
+      ),
+    );
+    return ok == true;
+  }
+
   Future<void> _signInGoogle() async {
+    // FASE 4: consentimento explicito em OAuth (login).
+    if (!await _confirmLegalConsent()) return;
+    if (!mounted) return;
     setState(() => _loading = true);
     try {
       final cred = await AuthService.signInGoogle();
@@ -414,6 +464,8 @@ class _LoginState extends State<LoginScreen>
   }
 
   Future<void> _signInApple() async {
+    if (!await _confirmLegalConsent()) return;
+    if (!mounted) return;
     setState(() => _loading = true);
     final cred = await AuthService.signInApple();
     if (cred != null) {
@@ -438,7 +490,7 @@ class _LoginState extends State<LoginScreen>
       if (mounted) Navigator.pushReplacementNamed(context, Routes.register);
     } else {
       await PushSvc.saveToken(uid);
-      if (mounted) Navigator.pushReplacementNamed(context, Routes.main);
+      if (mounted) _finishAuth(context);
     }
   }
 
@@ -873,7 +925,7 @@ class _RegState extends State<RegisterScreen>
       if (_type == UserType.provider) {
         Navigator.pushReplacementNamed(context, Routes.providerOnboarding);
       } else {
-        Navigator.pushReplacementNamed(context, Routes.main);
+        _finishAuth(context);
       }
     } on AuthFailure catch (e) {
       if (mounted) {

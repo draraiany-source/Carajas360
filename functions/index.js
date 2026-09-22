@@ -203,6 +203,8 @@ async function applyOfficialPayout(tx, {
     gatewayStatus: payment && payment.status,
     paidAmount: payment && payment.amount,
     commissionRate,
+    billingMode: order.billingMode,
+    commissionExempt: order.commissionExempt === true,
   });
   if (!decision.ok) {
     throw httpsError('failed-precondition', 'Repasse recusado: ' + decision.reason);
@@ -219,6 +221,9 @@ async function applyOfficialPayout(tx, {
     platformFee: decision.commission,
     providerAmount: decision.providerAmount,
     commissionRate: decision.commissionRate,
+    commissionBase: decision.commissionBase,
+    commissionAmount: decision.commissionAmount,
+    billingMode: decision.billingMode,
   };
   if (payoutDoc.exists) {
     return { ok: true, already: true, payoutProcessed: true, orderUpdates };
@@ -924,15 +929,60 @@ exports.walletOp = functions.region(REGION).https.onCall(async (data, context) =
   if (op === 'withdraw' && value < 10) {
     throw httpsError('invalid-argument', 'Saque mínimo R$ 10');
   }
+  if (op === 'withdraw') {
+    await enforceRateLimit(auth.uid, 'withdraw', 5, 60 * 60 * 1000);
+    const pixKey = String((data && data.pixKey) || '').trim();
+    if (!pixKey) {
+      throw httpsError('invalid-argument', 'Chave PIX obrigatória');
+    }
+    // FASE 4: saque NAO dispara PIX automatico — cria pedido pendente para Admin.
+    const withdrawId = `withdraw_${auth.uid}_${Date.now()}`;
+    await db.runTransaction(async (tx) => {
+      await adjustWalletTx(
+        tx,
+        auth.uid,
+        'withdraw',
+        value,
+        `Solicitacao de saque PIX (pendente analise) — ${pixKey}`,
+        '📤',
+        {
+          pixKey,
+          payoutChannel: 'manual_admin',
+          statusDetail: 'pending_manual_payout',
+        },
+        withdrawId,
+      );
+      tx.set(db.collection('withdrawalRequests').doc(withdrawId), {
+        userId: auth.uid,
+        amount: value,
+        pixKey,
+        status: 'pending_manual_payout',
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+    });
+    await audit.writeAudit(db, {
+      actorId: auth.uid,
+      actorType: 'user',
+      action: audit.ACTIONS.WALLET,
+      target: auth.uid,
+      details: { op: 'withdraw', amount: value, status: 'pending_manual_payout' },
+    });
+    return {
+      ok: true,
+      status: 'pending_manual_payout',
+      message: 'Solicitacao registrada. PIX sera processado manualmente pelo Admin (sem transferencia automatica).',
+      withdrawId,
+    };
+  }
   await db.runTransaction(async (tx) => {
     await adjustWalletTx(
       tx,
       auth.uid,
       op,
       value,
-      (data && data.description) || (op === 'withdraw' ? `Saque para ${(data && data.pixKey) || ''}` : ''),
-      (data && data.icon) || (op === 'withdraw' ? '📤' : '👜'),
-      op === 'withdraw' ? { pixKey: (data && data.pixKey) || null } : {},
+      (data && data.description) || '',
+      (data && data.icon) || '👜',
+      {},
     );
   });
   await audit.writeAudit(db, {
@@ -1449,25 +1499,136 @@ exports.aiAssistantHttp = functions.https.onRequest(gone);
 
 /**
  * Webhook sandbox Mercado Pago.
- * Sem secret: 501. Com secret inválido: 401. Válido: 202.
- * NUNCA cobra nem altera pedido/carteira (charged/applied sempre false).
+ * Sem secret: 501. Com secret invalido: 401. Valido: 202.
+ * Com PAYMENTS_ENABLED=false: nao aplica ledger (charged/applied false).
+ * Com PAYMENTS_ENABLED=true: aplica credito/PRO uma vez por eventId (idempotente).
  */
 const { mercadoPagoWebhookDecision } = require('./webhookSandbox');
-exports.mercadoPagoWebhook = functions.https.onRequest((req, res) => {
+const webhookApply = require('./webhookApply');
+exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
   const data = req.body && req.body.data ? req.body.data : {};
+  const eventId = String((data && data.id) || (req.body && req.body.id) || '');
   const decision = mercadoPagoWebhookDecision(req.method, {
     secret: process.env.MERCADOPAGO_WEBHOOK_SECRET || '',
     signature: req.get('x-signature'),
     requestId: req.get('x-request-id'),
-    dataId: data.id,
+    dataId: data.id || eventId,
   });
-  audit.structuredLog('info', 'mp_webhook', {
-    status: decision.status,
-    reason: decision.body && decision.body.reason,
-    charged: false,
-    applied: false,
+  if (decision.status !== 202) {
+    audit.structuredLog('info', 'mp_webhook', {
+      status: decision.status,
+      reason: decision.body && decision.body.reason,
+      charged: false,
+      applied: false,
+    });
+    res.status(decision.status).json(decision.body);
+    return;
+  }
+
+  const plan = webhookApply.decideWebhookApply({
+    paymentsEnabled: PAYMENTS_ENABLED,
+    eventId,
+    alreadyApplied: false,
+    kind: (req.body && req.body.kind) || 'credit_purchase',
+    credits: (req.body && req.body.credits) || 0,
+    amount: (req.body && req.body.amount) || 0,
   });
-  res.status(decision.status).json(decision.body);
+
+  if (!plan.apply) {
+    audit.structuredLog('info', 'mp_webhook', {
+      status: 202,
+      reason: plan.reason,
+      eventId: eventId || null,
+      charged: false,
+      applied: false,
+    });
+    res.status(202).json({
+      ok: true,
+      reason: plan.reason || 'sandbox_accepted_not_applied',
+      charged: false,
+      applied: false,
+      paymentsEnabled: PAYMENTS_ENABLED,
+    });
+    return;
+  }
+
+  try {
+    const result = await db.runTransaction(async (tx) => {
+      const evRef = db.collection('webhookEvents').doc(eventId);
+      const evSnap = await tx.get(evRef);
+      if (evSnap.exists) {
+        return { already: true, applied: true, ledgerWrites: 0 };
+      }
+      const uid = String((req.body && req.body.userId) || '');
+      const credits = Number(plan.credits || 0);
+      const purchaseId = String((req.body && req.body.purchaseId) || '');
+      tx.set(evRef, {
+        eventId,
+        kind: plan.kind,
+        userId: uid || null,
+        purchaseId: purchaseId || null,
+        applied: true,
+        charged: false,
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+      if (uid && credits > 0) {
+        const walletRef = db.collection('wallets').doc(uid);
+        const wSnap = await tx.get(walletRef);
+        const w = wSnap.exists ? wSnap.data() || {} : {};
+        tx.set(walletRef, {
+          userId: uid,
+          credits: Number(w.credits || 0) + credits,
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        }, { merge: true });
+        const txId = `CREDIT_PURCHASE_${eventId}`;
+        tx.set(db.collection('transactions').doc(txId), {
+          userId: uid,
+          type: 'CREDIT_PURCHASE',
+          amount: credits,
+          description: 'Compra de creditos (webhook)',
+          icon: '🪙',
+          status: 'done',
+          eventId,
+          createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+      if (purchaseId) {
+        const pRef = db.collection('creditPurchases').doc(purchaseId);
+        const pSnap = await tx.get(pRef);
+        if (pSnap.exists) {
+          tx.update(pRef, {
+            status: 'confirmed',
+            applied: true,
+            charged: false,
+            eventId,
+            appliedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+      return { already: false, applied: true, ledgerWrites: 1 };
+    });
+    audit.structuredLog('info', 'mp_webhook', {
+      status: 202,
+      reason: result.already ? 'idempotent_skip' : 'apply_ledger',
+      eventId,
+      charged: false,
+      applied: true,
+      already: Boolean(result.already),
+    });
+    res.status(202).json({
+      ok: true,
+      charged: false,
+      applied: true,
+      already: Boolean(result.already),
+      eventId,
+    });
+  } catch (err) {
+    audit.structuredLog('error', 'mp_webhook_apply_failed', {
+      eventId: eventId || null,
+      message: err && err.message,
+    });
+    res.status(500).json({ ok: false, charged: false, applied: false, reason: 'apply_failed' });
+  }
 });
 
 /**
@@ -1493,6 +1654,7 @@ exports.getDirections = functions.region(REGION).https.onCall(async (data, conte
 /** FASE 2 — unlock lead por creditos (idempotente). Custo vem do config, nao do client. */
 exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
+  await enforceRateLimit(auth.uid, 'unlock_lead', 20, 60 * 60 * 1000);
   const requestId = String((data && data.requestId) || '');
   if (!requestId) throw httpsError('invalid-argument', 'requestId obrigatorio');
 

@@ -208,7 +208,7 @@ class _WalletState extends State<WalletScreen>
                                   snack(
                                       context,
                                       ok
-                                          ? '✅ Saque solicitado! O valor cairá na sua conta em até 1 dia útil.'
+                                          ? 'Solicitacao registrada. O PIX sera processado pelo Admin (sem transferencia automatica nesta versao).'
                                           : 'Saldo insuficiente para este saque.',
                                       bg: ok
                                           ? AppColors.secondary

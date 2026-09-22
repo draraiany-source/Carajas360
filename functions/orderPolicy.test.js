@@ -136,6 +136,32 @@ describe('payout', () => {
     assert.equal(r.commission, 8);
   });
 
+  it('FASE4 direct_contact isenta comissao (sem cobranca dupla)', () => {
+    const r = policy.canPayout({
+      ...base,
+      price: 500,
+      paidAmount: 500,
+      billingMode: 'direct_contact',
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.commission, 0);
+    assert.equal(r.providerAmount, 500);
+    assert.equal(r.commissionRate, 0);
+    assert.equal(r.commissionAmount, 0);
+  });
+
+  it('FASE4 commissionExempt true isenta comissao', () => {
+    const r = policy.canPayout({
+      ...base,
+      price: 200,
+      paidAmount: 200,
+      commissionExempt: true,
+    });
+    assert.equal(r.ok, true);
+    assert.equal(r.commission, 0);
+    assert.equal(r.providerAmount, 200);
+  });
+
   it('segunda execução é idempotente (already_processed)', () => {
     const r = policy.canPayout({ ...base, payoutProcessed: true });
     assert.equal(r.ok, false);

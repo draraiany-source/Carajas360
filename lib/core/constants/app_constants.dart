@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 abstract class AppInfo {
   static const name = 'Carajás 360';
   static const slogan = 'Tudo que você precisa na região, em um só lugar.';
-  static const version = '1.0.0';
+  static const version = '1.0.0-rc1';
   /// Nome do módulo Serviços (hub de profissionais).
   static const servicesModuleName = 'Serviços';
   /// IDs técnicos. Ver IDENTIDADE_TECNICA.md.
@@ -11,10 +11,10 @@ abstract class AppInfo {
   static const applicationId = 'br.com.carajas360';
   static const iosBundleId = 'br.com.carajas360';
   static const firebaseProjectId = 'carajas360-a17c5';
-  /// Contato operacional (domínio de e-mail ainda residual — documentado).
-  /// Não inventar @carajas360.com.br até DNS autorizado.
-  static const supportEmail = 'suporte@servicoconecta.com.br';
-  static const privacyEmail = 'privacidade@servicoconecta.com.br';
+  /// Contato operacional Carajas 360.
+  /// ⚠️ CONFIGURACAO EXTERNA: DNS/MX de @carajas360.com.br deve existir antes de producao.
+  static const supportEmail = 'suporte@carajas360.com.br';
+  static const privacyEmail = 'privacidade@carajas360.com.br';
   /// URLs públicas legais (staging/hosting). Substituir domínio após deploy.
   static const privacyUrl = 'https://carajas360-a17c5.web.app/privacy';
   static const termsUrl = 'https://carajas360-a17c5.web.app/terms';

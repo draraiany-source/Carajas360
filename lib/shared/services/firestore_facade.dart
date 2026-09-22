@@ -386,6 +386,10 @@ class FS {
       'paymentStatus': 'unpaid',
       'payoutProcessed': false,
       'payoutStatus': 'none',
+      // FASE 4: snapshot de cobranca — backend/payout usa estes campos.
+      'billingMode': sanitized['billingMode'] ?? 'protected_payment',
+      'commissionExempt': sanitized['commissionExempt'] == true,
+      'commissionRate': sanitized['commissionRate'] ?? AppConst.commission,
       'createdAt': FieldValue.serverTimestamp()
     });
     return doc.id;

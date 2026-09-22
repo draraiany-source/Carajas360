@@ -241,6 +241,8 @@ function canPayout({
   paidAmount,
   officialProviderId,
   commissionRate,
+  billingMode,
+  commissionExempt,
 }) {
   if (payoutProcessed) return { ok: false, reason: 'already_processed' };
   const st = normalizeStatus(status);
@@ -259,13 +261,30 @@ function canPayout({
   if (paidAmount != null && Math.abs(Number(paidAmount) - gross) > 0.009) {
     return { ok: false, reason: 'amount_mismatch' };
   }
+  // FASE 4: contato direto / lead ja pago com creditos — sem comissao duplicada.
+  if (billingMode === 'direct_contact' || commissionExempt) {
+    return {
+      ok: true,
+      gross,
+      gatewayFee: 0,
+      commission: 0,
+      platformFee: 0,
+      netAmount: gross,
+      providerAmount: gross,
+      commissionRate: 0,
+      commissionBase: gross,
+      commissionAmount: 0,
+      billingMode: billingMode || 'direct_contact',
+    };
+  }
   // FASE 3: taxa do Admin (config) quando valida; senao fallback COMMISSION_RATE.
   let rate = COMMISSION_RATE;
   if (commissionRate != null && Number.isFinite(Number(commissionRate))) {
     const r = Number(commissionRate);
     if (r >= 0 && r <= 0.30) rate = r;
   }
-  const commission = round2(gross * rate);
+  const commissionBase = gross;
+  const commission = round2(commissionBase * rate);
   const providerAmount = round2(gross - commission);
   return {
     ok: true,
@@ -276,6 +295,9 @@ function canPayout({
     netAmount: providerAmount,
     providerAmount,
     commissionRate: rate,
+    commissionBase,
+    commissionAmount: commission,
+    billingMode: billingMode || 'protected_payment',
   };
 }
 
@@ -304,11 +326,17 @@ function buildFinancialAudit({
     gross: decision.gross,
     gatewayFee: decision.gatewayFee || 0,
     commission: decision.commission,
+    commissionRate: decision.commissionRate != null ? decision.commissionRate : null,
+    commissionBase: decision.commissionBase != null ? decision.commissionBase : decision.gross,
+    commissionAmount: decision.commissionAmount != null
+      ? decision.commissionAmount
+      : decision.commission,
     platformFee: decision.platformFee || decision.commission,
     netAmount: decision.netAmount != null
       ? decision.netAmount
       : decision.providerAmount,
     providerAmount: decision.providerAmount,
+    billingMode: decision.billingMode || null,
     gatewayTransactionId: gatewayTransactionId ? String(gatewayTransactionId) : null,
     payoutTransactionId: payoutTransactionId ? String(payoutTransactionId) : null,
     status: status || 'payout_done',
