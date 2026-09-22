@@ -110,14 +110,20 @@ class RequireAuth extends StatelessWidget {
   Widget build(BuildContext context) {
     if (AuthService.isAuth) return child;
     return Scaffold(
-      appBar: AppBar(title: Text(title)),
+      appBar: CarajasAppBar(title: title, implyLeading: true),
       body: EmptyState(
         emoji: '🔐',
         title: 'Faça login para continuar',
         subtitle: subtitle ??
             'Esta área precisa de uma conta. Seus dados não são exibidos sem autenticação.',
         actionLabel: 'Entrar',
-        onAction: () => Navigator.pushNamed(context, Routes.login),
+        onAction: () {
+          final route = ModalRoute.of(context);
+          Navigator.pushNamed(context, Routes.login, arguments: {
+            'returnRoute': route?.settings.name,
+            'returnArgs': route?.settings.arguments,
+          });
+        },
       ),
     );
   }

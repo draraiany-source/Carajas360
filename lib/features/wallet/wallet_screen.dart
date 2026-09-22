@@ -538,7 +538,7 @@ class _WalletState extends State<WalletScreen>
         userId: 'u',
         type: 'debit',
         amount: 87.40,
-        description: 'MercadoConecta',
+        description: 'Mercado 360',
         icon: '🛒',
         status: 'done',
         createdAt: DateTime.now().subtract(const Duration(days: 3))),

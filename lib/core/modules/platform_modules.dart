@@ -7,7 +7,7 @@ enum ModuleStatus { available, comingSoon }
 /// Descritor de módulo Carajás 360 (Home / busca global).
 class PlatformModule {
   final String id;
-  final String emoji;
+  final IconData icon;
   final String label;
   final String subtitle;
   final ModuleStatus status;
@@ -16,7 +16,7 @@ class PlatformModule {
 
   const PlatformModule({
     required this.id,
-    required this.emoji,
+    required this.icon,
     required this.label,
     required this.subtitle,
     required this.status,
@@ -27,14 +27,12 @@ class PlatformModule {
   bool get isAvailable => status == ModuleStatus.available;
 }
 
-/// Catálogo de módulos da plataforma. Novos módulos entram aqui
-/// antes de ganhar telas próprias — cards "Em desenvolvimento"
-/// nunca navegam para rotas vazias.
+/// Catálogo de módulos da plataforma.
 abstract class PlatformModules {
   static const all = <PlatformModule>[
     PlatformModule(
       id: 'services',
-      emoji: '🔧',
+      icon: Icons.handyman_rounded,
       label: 'Serviços',
       subtitle: 'Profissionais da região',
       status: ModuleStatus.available,
@@ -43,7 +41,7 @@ abstract class PlatformModules {
     ),
     PlatformModule(
       id: 'jobs',
-      emoji: '💼',
+      icon: Icons.work_outline_rounded,
       label: 'Vagas',
       subtitle: 'Emprego e oportunidades',
       status: ModuleStatus.comingSoon,
@@ -51,7 +49,7 @@ abstract class PlatformModules {
     ),
     PlatformModule(
       id: 'freight',
-      emoji: '🚚',
+      icon: Icons.local_shipping_rounded,
       label: 'Fretes',
       subtitle: 'Cargas e mudanças',
       status: ModuleStatus.comingSoon,
@@ -59,7 +57,7 @@ abstract class PlatformModules {
     ),
     PlatformModule(
       id: 'realty',
-      emoji: '🏠',
+      icon: Icons.home_work_rounded,
       label: 'Imóveis',
       subtitle: 'Aluguel e venda',
       status: ModuleStatus.comingSoon,
@@ -67,7 +65,7 @@ abstract class PlatformModules {
     ),
     PlatformModule(
       id: 'health',
-      emoji: '🩺',
+      icon: Icons.health_and_safety_rounded,
       label: 'Saúde',
       subtitle: 'Clínicas e profissionais',
       status: ModuleStatus.available,
@@ -76,7 +74,7 @@ abstract class PlatformModules {
     ),
     PlatformModule(
       id: 'construction',
-      emoji: '🏗️',
+      icon: Icons.apartment_rounded,
       label: 'Obras',
       subtitle: 'Materiais e equipamentos',
       status: ModuleStatus.comingSoon,
@@ -84,7 +82,7 @@ abstract class PlatformModules {
     ),
     PlatformModule(
       id: 'auto',
-      emoji: '🚗',
+      icon: Icons.car_repair_rounded,
       label: 'Auto',
       subtitle: 'Oficinas e socorro',
       status: ModuleStatus.comingSoon,
@@ -92,7 +90,7 @@ abstract class PlatformModules {
     ),
     PlatformModule(
       id: 'kids',
-      emoji: '👶',
+      icon: Icons.child_care_rounded,
       label: 'Kids',
       subtitle: 'Família e infância',
       status: ModuleStatus.comingSoon,
@@ -109,7 +107,7 @@ abstract class PlatformModules {
   }
 }
 
-/// Cidades prioritárias da região (expansível — sem hard-limit técnico).
+/// Cidades prioritárias da região.
 abstract class RegionCities {
   static const priority = <String>[
     'Canaã dos Carajás',

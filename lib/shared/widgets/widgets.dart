@@ -5,9 +5,11 @@ import 'package:shimmer/shimmer.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/constants/app_assets.dart';
+import '../../core/constants/category_icons.dart';
+import '../../core/utils/tap_guard.dart';
 import '../services/firebase_service.dart';
 import 'micro_interactions.dart';
+export 'carajas_app_bar.dart';
 
 class GradHeader extends StatelessWidget {
   final Gradient gradient;
@@ -264,6 +266,9 @@ class ProvCard extends StatelessWidget {
   final Color avatarBg;
   final String? photo;
   final String? providerId;
+  final String? city;
+  final String? subtitleExtra;
+  final String? ctaLabel;
   final VoidCallback? onTap, onChat;
   const ProvCard(
       {super.key,
@@ -277,15 +282,18 @@ class ProvCard extends StatelessWidget {
       this.avatarBg = AppColors.primary,
       this.photo,
       this.providerId,
+      this.city,
+      this.subtitleExtra,
+      this.ctaLabel,
       this.onTap,
       this.onChat});
   @override
   Widget build(BuildContext context) => TapScale(
-        onTap: onTap,
+        onTap: TapGuard.wrap(onTap),
         child: Container(
           margin: const EdgeInsets.only(bottom: 12),
           decoration: AppDecorations.card(),
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(12),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _avatar(),
             const SizedBox(width: 12),
@@ -297,7 +305,7 @@ class ProvCard extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Expanded(
-                            child: Text('$name ✅',
+                            child: Text(name,
                                 style: Theme.of(context).textTheme.titleMedium,
                                 overflow: TextOverflow.ellipsis)),
                         if (providerId != null)
@@ -310,6 +318,22 @@ class ProvCard extends StatelessWidget {
                       ]),
                   const SizedBox(height: 2),
                   Text(role, style: Theme.of(context).textTheme.bodySmall),
+                  if (city != null && city!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(city!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.textLight,
+                              fontSize: 11,
+                            )),
+                  ],
+                  if (subtitleExtra != null && subtitleExtra!.isNotEmpty) ...[
+                    const SizedBox(height: 2),
+                    Text(subtitleExtra!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.textLight,
+                              fontSize: 11,
+                            )),
+                  ],
                   const SizedBox(height: 6),
                   Wrap(spacing: 5, runSpacing: 4, children: [
                     AppTag('★ ${rating.toStringAsFixed(1)}',
@@ -317,27 +341,31 @@ class ProvCard extends StatelessWidget {
                     AppTag(badge,
                         bg: const Color(0xFFE8F5E9), fg: AppColors.secondary),
                     if (isOnline == true)
-                      AppTag('📹 Online',
+                      AppTag('Online',
                           bg: const Color(0xFFE3F0FF), fg: AppColors.primary),
                     if (isOnline == false)
-                      AppTag('🏠 Presencial',
+                      AppTag('Presencial',
                           bg: const Color(0xFFFFF3E0), fg: AppColors.delivery),
                   ]),
-                  const SizedBox(height: 10),
+                  const SizedBox(height: 8),
                   Row(children: [
                     Expanded(
                         child: ElevatedButton(
-                            onPressed: onTap,
+                            onPressed: TapGuard.wrap(onTap),
                             style: ElevatedButton.styleFrom(
                                 backgroundColor: isOnline == true
                                     ? AppColors.success
                                     : AppColors.primary,
+                                minimumSize: const Size(0, 36),
                                 padding:
-                                    const EdgeInsets.symmetric(vertical: 9),
+                                    const EdgeInsets.symmetric(vertical: 8),
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10))),
                             child: Text(
-                                isOnline == true ? '📹 Online' : '📍 Contratar',
+                                ctaLabel ??
+                                    (isOnline == true
+                                        ? 'Online'
+                                        : 'Contratar'),
                                 style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
@@ -350,8 +378,8 @@ class ProvCard extends StatelessWidget {
                             decoration: BoxDecoration(
                                 color: AppColors.background,
                                 borderRadius: BorderRadius.circular(10)),
-                            child: const Text('💬',
-                                style: TextStyle(fontSize: 16)))),
+                            child: const Icon(Icons.chat_bubble_outline,
+                                size: 20, color: AppColors.primary))),
                   ]),
                 ])),
           ]),
@@ -441,6 +469,7 @@ class ShimCard extends StatelessWidget {
 
 class EmptyState extends StatelessWidget {
   final String emoji, title, subtitle;
+  final IconData? icon;
   final String? asset;
   final String? actionLabel;
   final VoidCallback? onAction;
@@ -449,6 +478,7 @@ class EmptyState extends StatelessWidget {
       required this.emoji,
       required this.title,
       required this.subtitle,
+      this.icon,
       this.asset,
       this.actionLabel,
       this.onAction});
@@ -459,7 +489,9 @@ class EmptyState extends StatelessWidget {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             asset != null
                 ? SafeSvg(asset!, width: 140, height: 140, fallback: Text(emoji, style: const TextStyle(fontSize: 56)))
-                : Text(emoji, style: const TextStyle(fontSize: 56)),
+                : icon != null
+                    ? Icon(icon, size: 56, color: AppColors.textHint)
+                    : Text(emoji, style: const TextStyle(fontSize: 56)),
             const SizedBox(height: 16),
             Text(title,
                 style: Theme.of(context).textTheme.headlineSmall,
@@ -503,25 +535,30 @@ class CatChip extends StatelessWidget {
       required this.onTap});
   @override
   Widget build(BuildContext context) {
-    final iconPath =
-        categoryId != null ? AppAssets.categoryIcon(categoryId!) : null;
-    final Widget icon = iconPath != null
-        ? SafeSvg(iconPath,
-            width: 18,
-            height: 18,
-            fallback: Text(emoji, style: const TextStyle(fontSize: 15)))
-        : Text(emoji, style: const TextStyle(fontSize: 15));
+    final iconData = categoryId != null
+        ? CategoryIcons.forId(categoryId!)
+        : Icons.handyman_rounded;
     return GestureDetector(
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
               color: selected ? color : AppColors.surface,
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: selected ? color : AppColors.border)),
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: selected ? color : AppColors.border),
+              boxShadow: selected
+                  ? [
+                      BoxShadow(
+                          color: color.withValues(alpha: 0.22),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2))
+                    ]
+                  : null),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            icon,
+            Icon(iconData,
+                size: 16,
+                color: selected ? Colors.white : color),
             const SizedBox(width: 6),
             Text(name,
                 style: TextStyle(
