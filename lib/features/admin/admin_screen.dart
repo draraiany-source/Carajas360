@@ -8,6 +8,8 @@ import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/catalog/service_taxonomy.dart';
+import '../../core/catalog/taxonomy_repository.dart';
 import '../../core/auth/access_control.dart';
 import '../../core/utils/app_error.dart';
 import '../../shared/models/models.dart';
@@ -629,106 +631,130 @@ class _ValidationTab extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════
 // 3. CATEGORIAS E SERVIÇOS (criar/editar/excluir/ordenação)
 // ═══════════════════════════════════════════════════════════════
-class _CategoriesTab extends StatelessWidget {
+class _CategoriesTab extends StatefulWidget {
   @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: Colors.transparent,
-        floatingActionButton: FloatingActionButton(
-            onPressed: () => _editCategory(context),
+  State<_CategoriesTab> createState() => _CategoriesTabState();
+}
+
+class _CategoriesTabState extends State<_CategoriesTab> {
+  @override
+  Widget build(BuildContext context) {
+    final verticals = ServiceTaxonomy.verticals;
+    return Scaffold(
+      backgroundColor: Colors.transparent,
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          FloatingActionButton.extended(
+            heroTag: 'pub_tax',
+            onPressed: () async {
+              try {
+                await FS.publishFullTaxonomy(TaxonomyRepository.exportSeedMaps());
+                if (!mounted) return;
+                snack(context,
+                    'Taxonomia publicada (sem nova versao do app)',
+                    bg: AppColors.secondary);
+              } catch (_) {
+                if (!mounted) return;
+                snack(context,
+                    'Homologacao: publicacao remota desativada; overlay local OK',
+                    bg: AppColors.primary);
+              }
+            },
+            backgroundColor: AppColors.secondary,
+            icon: const Icon(Icons.cloud_upload_outlined, color: Colors.white),
+            label: const Text('Publicar',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+          const SizedBox(height: 10),
+          FloatingActionButton(
+            heroTag: 'add_tax',
+            onPressed: () => snack(context,
+                'Crie/edite no Firestore serviceTaxonomy. Overlay carrega sem release.',
+                bg: AppColors.primary),
             backgroundColor: AppColors.primary,
-            child: const Icon(Icons.add, color: Colors.white)),
-        body: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: Categories.all.length,
-            itemBuilder: (_, i) {
-              final c = Categories.all[i];
-              return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: AppDecorations.card(r: 14),
-                  child: ListTile(
-                    leading: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                            color: c.color.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12)),
-                        alignment: Alignment.center,
-                        child: Text(c.emoji,
-                            style: const TextStyle(fontSize: 20))),
-                    title: Text(c.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14)),
-                    subtitle: Text(c.group,
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.textLight)),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(
-                          icon: const Icon(Icons.edit_outlined,
-                              size: 18, color: AppColors.primary),
-                          onPressed: () =>
-                              _editCategory(context, name: c.name)),
-                      IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              size: 18, color: AppColors.error),
-                          onPressed: () => _confirmDelete(context, c.name)),
-                    ]),
-                  ));
-            }),
-      );
-
-  void _editCategory(BuildContext context, {String? name}) {
-    final ctrl = TextEditingController(text: name);
-    showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => Padding(
-              padding: EdgeInsets.fromLTRB(
-                  20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 32),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(height: 8),
-                const SheetHandle(),
-                const SizedBox(height: 16),
-                Text(name == null ? 'Nova categoria' : 'Editar categoria',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 16),
-                TextFormField(
-                    controller: ctrl,
-                    decoration:
-                        const InputDecoration(hintText: 'Nome da categoria')),
-                const SizedBox(height: 14),
-                SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          snack(context, '✅ Categoria salva!',
-                              bg: AppColors.secondary);
-                        },
-                        child: const Text('Salvar'))),
-              ]),
-            ));
+            child: const Icon(Icons.add, color: Colors.white),
+          ),
+        ],
+      ),
+      body: ListView.builder(
+          padding: const EdgeInsets.all(16),
+          itemCount: verticals.length,
+          itemBuilder: (_, i) {
+            final v = verticals[i];
+            final svcCount = v.groups
+                .expand((g) => g.services)
+                .where((s) => s.active)
+                .length;
+            return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: AppDecorations.card(r: 14),
+                child: ExpansionTile(
+                  leading: Container(
+                      width: 40,
+                      height: 40,
+                      decoration: BoxDecoration(
+                          color: v.color.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(12)),
+                      alignment: Alignment.center,
+                      child: Text(v.emoji,
+                          style: const TextStyle(fontSize: 20))),
+                  title: Text(v.name,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14)),
+                  subtitle: Text(
+                      '${v.groups.length} grupos · $svcCount servicos · ${v.active ? "ativa" : "inativa"}',
+                      style: const TextStyle(
+                          fontSize: 11, color: AppColors.textLight)),
+                  trailing: Switch(
+                    value: v.active,
+                    onChanged: (val) {
+                      TaxonomyRepository.patchVerticalActive(v.id, val);
+                      FS.saveTaxonomyVertical(
+                        {...v.toMap(), 'active': val},
+                        id: v.id,
+                      );
+                      setState(() {});
+                    },
+                  ),
+                  children: [
+                    for (final g in v.groups)
+                      ExpansionTile(
+                        dense: true,
+                        title: Text('${g.emoji} ${g.name}',
+                            style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: Text(
+                            '${g.services.length} servicos · ordem ${g.order}'),
+                        trailing: Switch(
+                          value: g.active,
+                          onChanged: (val) {
+                            TaxonomyRepository.patchGroupActive(g.id, val);
+                            setState(() {});
+                          },
+                        ),
+                        children: [
+                          for (final s in g.services)
+                            ListTile(
+                              dense: true,
+                              title: Text(s.name),
+                              subtitle: Text(
+                                  'cat: ${s.categoryId} · ${s.pricingMode.name}'),
+                              trailing: Switch(
+                                value: s.active,
+                                onChanged: (val) {
+                                  TaxonomyRepository.patchServiceActive(
+                                      s.id, val);
+                                  setState(() {});
+                                },
+                              ),
+                            ),
+                        ],
+                      ),
+                  ],
+                ));
+          }),
+    );
   }
-
-  void _confirmDelete(BuildContext context, String name) => showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-            title: const Text('Excluir categoria'),
-            content: Text(
-                'Deseja realmente excluir "$name"? Serviços vinculados poderão ficar sem categoria.'),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar')),
-              TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    snack(context, 'Categoria excluída', bg: AppColors.error);
-                  },
-                  child: const Text('Excluir',
-                      style: TextStyle(color: AppColors.error))),
-            ],
-          ));
 }
 
 // ═══════════════════════════════════════════════════════════════

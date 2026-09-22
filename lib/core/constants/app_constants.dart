@@ -45,6 +45,7 @@ abstract class Col {
   static const auditLogs = 'auditLogs';
   static const banners = 'banners';
   static const categories = 'categories';
+  static const serviceTaxonomy = 'serviceTaxonomy';
   static const favorites = 'favorites';
   static const reports = 'reports';
   static const employees = 'employees';
@@ -97,6 +98,9 @@ abstract class Routes {
   static const resolveOpportunities = '/resolve-opportunities';
   static const chatInbox = '/chat-inbox';
   static const myResolve = '/my-resolve';
+  static const serviceMarketplace = '/service-marketplace';
+  static const serviceRequestFlow = '/service-request-flow';
+  static const universalSearch = '/universal-search';
 }
 
 class ServiceCategory {
@@ -916,6 +920,193 @@ abstract class Categories {
         emoji: '🚿',
         group: 'Lojas',
         color: Color(0xFF0277BD)),
+    // ── Automóveis (marketplace de serviços — não confundir com Locação) ──
+    ServiceCategory(
+        id: 'auto_eletrico',
+        name: 'Autoelétrico',
+        emoji: '⚡',
+        group: 'Automóveis',
+        color: Color(0xFFF9A825)),
+    ServiceCategory(
+        id: 'bateria_auto',
+        name: 'Bateria Automotiva',
+        emoji: '🔋',
+        group: 'Automóveis',
+        color: Color(0xFF546E7A)),
+    ServiceCategory(
+        id: 'alternador',
+        name: 'Alternador',
+        emoji: '⚙️',
+        group: 'Automóveis',
+        color: Color(0xFF455A64)),
+    ServiceCategory(
+        id: 'partida',
+        name: 'Partida',
+        emoji: '🔑',
+        group: 'Automóveis',
+        color: Color(0xFF37474F)),
+    ServiceCategory(
+        id: 'iluminacao_auto',
+        name: 'Iluminação Automotiva',
+        emoji: '💡',
+        group: 'Automóveis',
+        color: Color(0xFFFBC02D)),
+    ServiceCategory(
+        id: 'alarme_auto',
+        name: 'Alarme Automotivo',
+        emoji: '🔔',
+        group: 'Automóveis',
+        color: Color(0xFFC62828)),
+    ServiceCategory(
+        id: 'som_automotivo',
+        name: 'Som Automotivo',
+        emoji: '🔊',
+        group: 'Automóveis',
+        color: Color(0xFF6A1B9A)),
+    ServiceCategory(
+        id: 'ar_condicionado_auto',
+        name: 'Ar Automotivo',
+        emoji: '❄️',
+        group: 'Automóveis',
+        color: Color(0xFF0277BD)),
+    ServiceCategory(
+        id: 'funilaria',
+        name: 'Funilaria',
+        emoji: '🛠️',
+        group: 'Automóveis',
+        color: Color(0xFFE65100)),
+    ServiceCategory(
+        id: 'pintura_auto',
+        name: 'Pintura Automotiva',
+        emoji: '🎨',
+        group: 'Automóveis',
+        color: Color(0xFFEF6C00)),
+    ServiceCategory(
+        id: 'martelinho',
+        name: 'Martelinho de Ouro',
+        emoji: '🔨',
+        group: 'Automóveis',
+        color: Color(0xFF8D6E63)),
+    ServiceCategory(
+        id: 'polimento_auto',
+        name: 'Polimento',
+        emoji: '✨',
+        group: 'Automóveis',
+        color: Color(0xFF00838F)),
+    ServiceCategory(
+        id: 'higienizacao_auto',
+        name: 'Higienização Automotiva',
+        emoji: '🧼',
+        group: 'Automóveis',
+        color: Color(0xFF00897B)),
+    ServiceCategory(
+        id: 'pequenos_reparos_auto',
+        name: 'Pequenos Reparos Auto',
+        emoji: '🧰',
+        group: 'Automóveis',
+        color: Color(0xFF5D4037)),
+    ServiceCategory(
+        id: 'mecanica_geral',
+        name: 'Mecânica Geral',
+        emoji: '🔧',
+        group: 'Automóveis',
+        color: Color(0xFF37474F)),
+    ServiceCategory(
+        id: 'freios',
+        name: 'Freios',
+        emoji: '🛑',
+        group: 'Automóveis',
+        color: Color(0xFFC62828)),
+    ServiceCategory(
+        id: 'suspensao',
+        name: 'Suspensão',
+        emoji: '↕️',
+        group: 'Automóveis',
+        color: Color(0xFF455A64)),
+    ServiceCategory(
+        id: 'motor',
+        name: 'Motor',
+        emoji: '🏎️',
+        group: 'Automóveis',
+        color: Color(0xFFD84315)),
+    ServiceCategory(
+        id: 'cambio',
+        name: 'Câmbio',
+        emoji: '⚙️',
+        group: 'Automóveis',
+        color: Color(0xFF546E7A)),
+    ServiceCategory(
+        id: 'injecao',
+        name: 'Injeção Eletrônica',
+        emoji: '💻',
+        group: 'Automóveis',
+        color: Color(0xFF1565C0)),
+    ServiceCategory(
+        id: 'escapamento',
+        name: 'Escapamento',
+        emoji: '💨',
+        group: 'Automóveis',
+        color: Color(0xFF607D8B)),
+    ServiceCategory(
+        id: 'pneus_borracharia',
+        name: 'Pneus / Borracharia',
+        emoji: '🛞',
+        group: 'Automóveis',
+        color: Color(0xFF212121)),
+    ServiceCategory(
+        id: 'diagnostico_auto',
+        name: 'Diagnóstico Automotivo',
+        emoji: '🔍',
+        group: 'Automóveis',
+        color: Color(0xFF283593)),
+    ServiceCategory(
+        id: 'guincho',
+        name: 'Guincho',
+        emoji: '🚛',
+        group: 'Automóveis',
+        color: Color(0xFFB71C1C)),
+    ServiceCategory(
+        id: 'pane',
+        name: 'Pane',
+        emoji: '⚠️',
+        group: 'Automóveis',
+        color: Color(0xFFE65100)),
+    ServiceCategory(
+        id: 'troca_pneu',
+        name: 'Troca de Pneu',
+        emoji: '🔧',
+        group: 'Automóveis',
+        color: Color(0xFF424242)),
+    ServiceCategory(
+        id: 'bateria_emergencia',
+        name: 'Bateria (Socorro)',
+        emoji: '🔋',
+        group: 'Automóveis',
+        color: Color(0xFFF9A825)),
+    ServiceCategory(
+        id: 'socorro_automotivo',
+        name: 'Socorro Automotivo',
+        emoji: '🚨',
+        group: 'Automóveis',
+        color: Color(0xFFC62828)),
+    ServiceCategory(
+        id: 'vidros_auto',
+        name: 'Vidros Automotivos',
+        emoji: '🪟',
+        group: 'Automóveis',
+        color: Color(0xFF0277BD)),
+    ServiceCategory(
+        id: 'estetizacao_auto',
+        name: 'Estetização / Detailing',
+        emoji: '✨',
+        group: 'Automóveis',
+        color: Color(0xFF6A1B9A)),
+    ServiceCategory(
+        id: 'insulfilm',
+        name: 'Insulfilm',
+        emoji: '🌑',
+        group: 'Automóveis',
+        color: Color(0xFF263238)),
   ];
 
   static List<String> get groups => all.map((c) => c.group).toSet().toList();

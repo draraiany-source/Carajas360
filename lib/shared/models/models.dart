@@ -989,6 +989,20 @@ class RentalModel {
   final double rating;
   final int totalReviews;
   final DateTime createdAt;
+  /// Caução (depósito reembolsável).
+  final double? deposit;
+  final String? rules;
+  /// Máquinas: operador incluso no valor.
+  final bool? operatorIncluded;
+  final bool? fuelIncluded;
+  /// Veículos: Manual / Automático.
+  final String? transmission;
+  final int? seats;
+  final int? minHours;
+  final String? serviceRegion;
+  /// Datas indisponíveis no formato 'yyyy-MM-dd'.
+  final List<String> blockedDates;
+  final bool isHomologSeed;
 
   const RentalModel({
     required this.id,
@@ -1016,6 +1030,16 @@ class RentalModel {
     this.rating = 0,
     this.totalReviews = 0,
     required this.createdAt,
+    this.deposit,
+    this.rules,
+    this.operatorIncluded,
+    this.fuelIncluded,
+    this.transmission,
+    this.seats,
+    this.minHours,
+    this.serviceRegion,
+    this.blockedDates = const [],
+    this.isHomologSeed = false,
   });
 
   bool get isVehicle => kind == RentalKind.vehicle;
@@ -1068,6 +1092,16 @@ class RentalModel {
         rating: (m['rating'] as num?)?.toDouble() ?? 0,
         totalReviews: m['totalReviews'] ?? 0,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        deposit: (m['deposit'] as num?)?.toDouble(),
+        rules: m['rules'],
+        operatorIncluded: m['operatorIncluded'] as bool?,
+        fuelIncluded: m['fuelIncluded'] as bool?,
+        transmission: m['transmission'],
+        seats: m['seats'] as int?,
+        minHours: m['minHours'] as int?,
+        serviceRegion: m['serviceRegion'],
+        blockedDates: List<String>.from(m['blockedDates'] ?? const []),
+        isHomologSeed: m['isHomologSeed'] ?? false,
       );
 
   Map<String, dynamic> toMap() => {
@@ -1094,6 +1128,16 @@ class RentalModel {
         'active': active,
         'rating': rating,
         'totalReviews': totalReviews,
+        'deposit': deposit,
+        'rules': rules,
+        'operatorIncluded': operatorIncluded,
+        'fuelIncluded': fuelIncluded,
+        'transmission': transmission,
+        'seats': seats,
+        'minHours': minHours,
+        'serviceRegion': serviceRegion,
+        'blockedDates': blockedDates,
+        'isHomologSeed': isHomologSeed,
       };
 }
 
@@ -1183,6 +1227,13 @@ enum ResolveStatus { open, matched, closed, cancelled }
 class ResolveRequest {
   final String id, clientId, clientName, description, category, city;
   final String? address;
+  final String? serviceId;
+  final String? groupId;
+  final String? pricingMode;
+  final String? urgency;
+  final String? modality;
+  final Map<String, dynamic> answers;
+  final double? suggestedPrice;
   final ResolveStatus status;
   final int proposalCount;
   final DateTime createdAt;
@@ -1198,6 +1249,13 @@ class ResolveRequest {
     required this.category,
     required this.city,
     this.address,
+    this.serviceId,
+    this.groupId,
+    this.pricingMode,
+    this.urgency,
+    this.modality,
+    this.answers = const {},
+    this.suggestedPrice,
     this.status = ResolveStatus.open,
     this.proposalCount = 0,
     required this.createdAt,
@@ -1214,6 +1272,13 @@ class ResolveRequest {
         category: m['category'] ?? '',
         city: m['city'] ?? '',
         address: m['address'],
+        serviceId: m['serviceId']?.toString(),
+        groupId: m['groupId']?.toString(),
+        pricingMode: m['pricingMode']?.toString(),
+        urgency: m['urgency']?.toString(),
+        modality: m['modality']?.toString(),
+        answers: Map<String, dynamic>.from(m['answers'] as Map? ?? const {}),
+        suggestedPrice: (m['suggestedPrice'] as num?)?.toDouble(),
         status: ResolveStatus.values.firstWhere(
             (s) => s.name == (m['status'] ?? 'open'),
             orElse: () => ResolveStatus.open),
@@ -1231,6 +1296,13 @@ class ResolveRequest {
         'category': category,
         'city': city,
         'address': address,
+        'serviceId': serviceId,
+        'groupId': groupId,
+        'pricingMode': pricingMode,
+        'urgency': urgency,
+        'modality': modality,
+        'answers': answers,
+        'suggestedPrice': suggestedPrice,
         'status': status.name,
         'proposalCount': proposalCount,
         'leadMonetizationReady': leadMonetizationReady,

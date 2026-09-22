@@ -5,8 +5,11 @@ import 'package:flutter/material.dart';
 import '../models/models.dart';
 import '../../core/auth/dev_bypass_auth.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/catalog/homolog_catalog.dart';
+import '../../core/modules/platform_modules.dart';
 import '../../core/security/order_policy.dart';
 import '../../core/utils/auth_validators.dart';
+import '../../core/utils/perf_log.dart';
 import 'auth_service.dart';
 import 'cloud_fn.dart';
 
@@ -262,19 +265,38 @@ class FS {
     debugPrint('addXp ignorado no client (xp=$xp)');
   }
 
+  static final Map<String, Stream<List<ProviderModel>>> _providersStreamCache =
+      {};
+
   static Stream<List<ProviderModel>> providersStream(
       {String? category, int limit = 20}) {
-    Query q = _db
-        .collection(Col.providers)
-        .where('active', isEqualTo: true)
-        .where('verified', isEqualTo: true)
-        .orderBy('rating', descending: true)
-        .limit(limit);
-    if (category != null) q = q.where('categories', arrayContains: category);
-    return q.snapshots().map((s) => s.docs
-        .map((d) =>
-            ProviderModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-        .toList());
+    if (HomologCatalog.enabled) {
+      PerfLog.query('providers_homolog', category: category, limit: limit);
+      // Broadcast: StreamBuilder pode re-inscrever sem perder o evento.
+      return Stream<List<ProviderModel>>.value(
+              HomologCatalog.providers(category: category))
+          .asBroadcastStream();
+    }
+    final key = '${category ?? ''}|$limit';
+    return _providersStreamCache.putIfAbsent(key, () {
+      PerfLog.query('providers_firestore', category: category, limit: limit);
+      Query q = _db
+          .collection(Col.providers)
+          .where('active', isEqualTo: true)
+          .where('verified', isEqualTo: true)
+          .orderBy('rating', descending: true)
+          .limit(limit);
+      if (category != null) {
+        q = q.where('categories', arrayContains: category);
+      }
+      return q
+          .snapshots()
+          .map((s) => s.docs
+              .map((d) => ProviderModel.fromMap(
+                  d.id, d.data() as Map<String, dynamic>))
+              .toList())
+          .asBroadcastStream();
+    });
   }
 
   // Cria o perfil de prestador (coleção providers) vinculado ao usuário
@@ -978,11 +1000,15 @@ class FS {
   /// Anúncios ativos, opcionalmente filtrados por tipo e categoria.
   static Stream<List<RentalModel>> rentalsStream(
       {RentalKind? kind, String? category}) {
+    if (HomologCatalog.enabled) {
+      return Stream.value(HomologCatalog.rentals(kind: kind, category: category));
+    }
     Query<Map<String, dynamic>> q =
         _db.collection(Col.rentals).where('active', isEqualTo: true);
-    if (kind != null)
+    if (kind != null) {
       q = q.where('kind',
           isEqualTo: kind == RentalKind.machine ? 'machine' : 'vehicle');
+    }
     if (category != null) q = q.where('category', isEqualTo: category);
     return q.snapshots().map(
         (s) => s.docs.map((d) => RentalModel.fromMap(d.id, d.data())).toList());
@@ -1002,6 +1028,9 @@ class FS {
   // ── Reservas de locação ────────────────────────────────────────
   /// Cria uma reserva para um anúncio. Notifica o anunciante.
   static Future<String?> createBooking(BookingModel b) async {
+    if (HomologCatalog.enabled && b.rentalId.startsWith('hr')) {
+      return 'hb_${DateTime.now().millisecondsSinceEpoch}';
+    }
     if (_uid == null) return null;
     final doc = await _db.collection(Col.bookings).add({
       ...b.toMap(),
@@ -1305,6 +1334,49 @@ class FS {
   static Stream<QuerySnapshot> categoriesStream() =>
       _db.collection(Col.categories).orderBy('order').snapshots();
 
+  // ── Admin: taxonomia completa (sem nova versão do app) ───────
+  static Future<void> saveTaxonomyVertical(Map<String, dynamic> data,
+      {required String id}) async {
+    if (HomologCatalog.enabled) return;
+    await _db
+        .collection(Col.serviceTaxonomy)
+        .doc(id)
+        .set(data, SetOptions(merge: true));
+  }
+
+  static Future<void> deleteTaxonomyVertical(String id) async {
+    if (HomologCatalog.enabled) return;
+    await _db.collection(Col.serviceTaxonomy).doc(id).delete();
+  }
+
+  static Stream<List<Map<String, dynamic>>> serviceTaxonomyStream() {
+    if (HomologCatalog.enabled) {
+      return Stream.value(const []);
+    }
+    return _db
+        .collection(Col.serviceTaxonomy)
+        .orderBy('order')
+        .snapshots()
+        .map((s) => s.docs.map((d) {
+              final m = Map<String, dynamic>.from(d.data());
+              m['id'] = d.id;
+              return m;
+            }).toList());
+  }
+
+  static Future<void> publishFullTaxonomy(
+      List<Map<String, dynamic>> verticals) async {
+    if (HomologCatalog.enabled) return;
+    final batch = _db.batch();
+    for (final v in verticals) {
+      final id = v['id']?.toString();
+      if (id == null || id.isEmpty) continue;
+      batch.set(_db.collection(Col.serviceTaxonomy).doc(id), v,
+          SetOptions(merge: true));
+    }
+    await batch.commit();
+  }
+
   // ── Admin: marketing / banners (Vol.6) ─────────────────────────
   static Future<void> saveBanner(Map<String, dynamic> data,
       {String? id}) async {
@@ -1470,11 +1542,14 @@ class FS {
     }
   }
 
-  static Stream<bool> isFavoriteStream(String providerId) => _db
-      .collection(Col.favorites)
-      .doc('${_uid}_$providerId')
-      .snapshots()
-      .map((s) => s.exists);
+  static Stream<bool> isFavoriteStream(String providerId) {
+    if (_uid == null) return Stream.value(false);
+    return _db
+        .collection(Col.favorites)
+        .doc('${_uid}_$providerId')
+        .snapshots()
+        .map((s) => s.exists);
+  }
 
   static Stream<List<ProviderModel>> favoritesStream() {
     if (_uid == null) return const Stream.empty();
@@ -1521,11 +1596,14 @@ class FS {
     }
   }
 
-  static Stream<bool> isProductFavoriteStream(String productId) => _db
-      .collection(Col.favorites)
-      .doc('${_uid}_product_$productId')
-      .snapshots()
-      .map((s) => s.exists);
+  static Stream<bool> isProductFavoriteStream(String productId) {
+    if (_uid == null) return Stream.value(false);
+    return _db
+        .collection(Col.favorites)
+        .doc('${_uid}_product_$productId')
+        .snapshots()
+        .map((s) => s.exists);
+  }
 
   static Stream<Set<String>> favoriteProductIdsStream() {
     if (_uid == null) return const Stream.empty();
@@ -1564,7 +1642,18 @@ class FS {
     required String city,
     String? address,
     String? clientName,
+    String? serviceId,
+    String? groupId,
+    String? pricingMode,
+    String? urgency,
+    String? modality,
+    Map<String, dynamic>? answers,
+    double? suggestedPrice,
   }) async {
+    // SEED/MOCK/HOMOLOGAÇÃO — não grava pedido fictício em produção.
+    if (HomologCatalog.enabled) {
+      return 'hrq_${DateTime.now().millisecondsSinceEpoch}';
+    }
     final doc = await _db.collection(Col.resolveRequests).add({
       'clientId': _uid,
       'clientName': clientName ?? '',
@@ -1572,6 +1661,13 @@ class FS {
       'category': category,
       'city': city,
       'address': address,
+      'serviceId': serviceId,
+      'groupId': groupId,
+      'pricingMode': pricingMode,
+      'urgency': urgency,
+      'modality': modality,
+      'answers': answers ?? {},
+      'suggestedPrice': suggestedPrice,
       'status': 'open',
       'proposalCount': 0,
       'leadMonetizationReady': true,
@@ -1594,12 +1690,67 @@ class FS {
             .toList());
   }
 
-  static Stream<ResolveRequest?> resolveRequestStream(String id) => _db
-      .collection(Col.resolveRequests)
-      .doc(id)
-      .snapshots()
-      .map((s) =>
-          s.exists ? ResolveRequest.fromMap(s.id, s.data()!) : null);
+  static Stream<ResolveRequest?> resolveRequestStream(String id) {
+    // SEED/MOCK/HOMOLOGAÇÃO — pedido local sem Firestore.
+    if (HomologCatalog.enabled && id.startsWith('hrq_')) {
+      return Stream.value(ResolveRequest(
+        id: id,
+        clientId: _uid ?? 'homolog_client',
+        clientName: 'Cliente Homolog',
+        description:
+            'Solicitação de homologação — aguardando propostas simuladas.',
+        category: 'mecanica_geral',
+        city: RegionCities.defaultCity,
+        status: ResolveStatus.open,
+        proposalCount: 2,
+        createdAt: DateTime.now(),
+        pricingMode: 'requestQuote',
+      ));
+    }
+    return _db.collection(Col.resolveRequests).doc(id).snapshots().map(
+        (s) => s.exists ? ResolveRequest.fromMap(s.id, s.data()!) : null);
+  }
+
+  static Stream<List<ResolveProposal>> resolveProposalsStream(String requestId) {
+    if (HomologCatalog.enabled && requestId.startsWith('hrq_')) {
+      return Stream.value([
+        ResolveProposal(
+          id: 'hp1',
+          requestId: requestId,
+          providerId: 'ha3',
+          providerName: 'Mecânica Diesel & Flex',
+          price: 320,
+          deadlineDays: 2,
+          rating: 4.9,
+          totalServices: 140,
+          message: 'Inclui diagnóstico e mão de obra. Peças à parte.',
+          available: true,
+          createdAt: DateTime.now(),
+        ),
+        ResolveProposal(
+          id: 'hp2',
+          requestId: requestId,
+          providerId: 'h12',
+          providerName: 'Mecânica Serra Norte',
+          price: 280,
+          deadlineDays: 3,
+          rating: 4.7,
+          totalServices: 91,
+          message: 'Posso atender na oficina em Parauapebas.',
+          available: true,
+          createdAt: DateTime.now(),
+        ),
+      ]);
+    }
+    return _db
+        .collection(Col.resolveProposals)
+        .where('requestId', isEqualTo: requestId)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => ResolveProposal.fromMap(d.id, d.data()))
+            .toList());
+  }
 
   static Stream<List<ResolveRequest>> resolveOpportunitiesStream({
     String? category,
@@ -1665,23 +1816,15 @@ class FS {
     return id;
   }
 
-  static Stream<List<ResolveProposal>> resolveProposalsStream(
-          String requestId) =>
-      _db
-          .collection(Col.resolveProposals)
-          .where('requestId', isEqualTo: requestId)
-          .orderBy('createdAt', descending: true)
-          .snapshots()
-          .map((s) => s.docs
-              .map((d) => ResolveProposal.fromMap(d.id, d.data()))
-              .toList());
-
   static Future<void> acceptResolveProposal({
     required String requestId,
     required String proposalId,
     required String providerId,
     required String providerName,
   }) async {
+    if (HomologCatalog.enabled && requestId.startsWith('hrq_')) {
+      return;
+    }
     await _db.collection(Col.resolveProposals).doc(proposalId).update({
       'accepted': true,
     });

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/modules/platform_modules.dart';
+import '../../core/catalog/homolog_catalog.dart';
 import '../../core/utils/chat_nav.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
@@ -205,8 +206,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       AppSearchBar(
                         hint: 'O que você precisa hoje?',
                         readOnly: true,
-                        onTap: () =>
-                            Navigator.pushNamed(context, Routes.search),
+                        onTap: () => Navigator.pushNamed(
+                            context, Routes.universalSearch),
                       ),
                       const SizedBox(height: 12),
                       GestureDetector(
@@ -216,7 +217,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: Colors.white, size: 18),
                           const SizedBox(width: 4),
                           Flexible(
-                            child: Text('📍 $_city',
+                            child: Text(_city,
                                 style: TextStyle(
                                     color: Colors.white
                                         .withValues(alpha: 0.92),
@@ -251,27 +252,33 @@ class _HomeScreenState extends State<HomeScreen> {
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-              child: GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: PlatformModules.all.length,
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 12,
-                  crossAxisSpacing: 12,
-                  childAspectRatio: 1.55,
-                ),
-                itemBuilder: (_, i) {
-                  final m = PlatformModules.all[i];
-                  return FadeSlideIn(
-                    index: i,
-                    child: _ModuleCard(
-                      module: m,
-                      onTap: () => _openModule(m),
-                    ),
-                  );
-                },
-              ),
+              child: LayoutBuilder(builder: (context, constraints) {
+                final w = constraints.maxWidth;
+                final cols = w >= 1200
+                    ? 6
+                    : (w >= 900 ? 4 : (w >= 520 ? 3 : 2));
+                return GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: PlatformModules.all.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: cols,
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    mainAxisExtent: 92,
+                  ),
+                  itemBuilder: (_, i) {
+                    final m = PlatformModules.all[i];
+                    return FadeSlideIn(
+                      index: i,
+                      child: _ModuleCard(
+                        module: m,
+                        onTap: () => _openModule(m),
+                      ),
+                    );
+                  },
+                );
+              }),
             ),
           ),
           SliverToBoxAdapter(
@@ -285,69 +292,7 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
           ),
-          SliverToBoxAdapter(
-            child: StreamBuilder<List<ProviderModel>>(
-              stream: FS.providersStream(limit: 5),
-              builder: (_, snap) {
-                final list = snap.data ?? [];
-                if (snap.connectionState == ConnectionState.waiting &&
-                    list.isEmpty) {
-                  return const Padding(
-                      padding: EdgeInsets.all(16), child: ShimCard());
-                }
-                if (list.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
-                    child: InfoBanner(
-                      icon: '📍',
-                      text:
-                          'Profissionais da região aparecerão aqui. Abra Serviços para explorar.',
-                      bg: AppColors.surfaceMuted,
-                      fg: AppColors.textMedium,
-                    ),
-                  );
-                }
-                return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: Column(
-                    children: list.map((p) {
-                      final cat = p.categories.isNotEmpty
-                          ? (Categories.byId(p.categories.first)?.name ??
-                              p.categories.first)
-                          : 'Profissional';
-                      return ProvCard(
-                        name: p.name,
-                        role: cat,
-                        badge: p.badge,
-                        price: p.minPrice != null
-                            ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
-                            : 'Consultar',
-                        rating: p.rating,
-                        reviews: p.totalReviews,
-                        isOnline: p.modalities.contains('online'),
-                        photo: p.photoUrl,
-                        providerId: p.id,
-                        onTap: () => Navigator.pushNamed(
-                            context, Routes.requestService,
-                            arguments: {
-                              'providerId': p.id,
-                              'providerName': p.name,
-                              'category': p.categories.isNotEmpty
-                                  ? p.categories.first
-                                  : '',
-                            }),
-                        onChat: () => ChatNav.open(context,
-                            otherUserId:
-                                p.userId.isNotEmpty ? p.userId : p.id,
-                            otherName: p.name,
-                            otherPhoto: p.photoUrl),
-                      );
-                    }).toList(),
-                  ),
-                );
-              },
-            ),
-          ),
+          const SliverToBoxAdapter(child: _NearbyProvidersList()),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.only(top: 20),
@@ -387,21 +332,21 @@ class _HomeScreenState extends State<HomeScreen> {
               padding: const EdgeInsets.fromLTRB(16, 22, 16, 0),
               child: Column(children: [
                 const _SoftBlock(
-                  emoji: '💼',
+                  icon: Icons.work_outline_rounded,
                   title: 'Novas vagas',
                   text:
-                      'Em desenvolvimento — oportunidades locais em breve.',
+                      'Em breve — oportunidades locais para a região.',
                 ),
                 const SizedBox(height: 10),
                 const _SoftBlock(
-                  emoji: '🏷️',
+                  icon: Icons.local_offer_outlined,
                   title: 'Ofertas da região',
                   text:
-                      'Em desenvolvimento — campanhas e destaques locais.',
+                      'Em breve — campanhas e destaques locais.',
                 ),
                 const SizedBox(height: 10),
                 _SoftBlock(
-                  emoji: '⚡',
+                  icon: Icons.flash_on_rounded,
                   title: 'Precisa resolver agora?',
                   text:
                       'Descreva o problema e receba propostas de profissionais.',
@@ -411,10 +356,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const SizedBox(height: 10),
                 const _SoftBlock(
-                  emoji: '🌙',
+                  icon: Icons.nightlight_round,
                   title: 'Serviços 24 horas',
                   text:
-                      'Em desenvolvimento — plantão e urgências da região.',
+                      'Em breve — plantão e urgências da região.',
                 ),
               ]),
             ),
@@ -450,7 +395,7 @@ class _ResolveCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('⚡ Resolva agora',
+            const Text('Resolva agora',
                 style: TextStyle(
                     color: Colors.white,
                     fontWeight: FontWeight.w800,
@@ -492,50 +437,49 @@ class _ModuleCard extends StatelessWidget {
     return TapScale(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(14),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 10),
         decoration: BoxDecoration(
           color: AppColors.white,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: AppColors.border),
           boxShadow: [
             BoxShadow(
-                color: AppColors.navy.withValues(alpha: 0.04),
-                blurRadius: 12,
-                offset: const Offset(0, 4)),
+                color: AppColors.navy.withValues(alpha: 0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 3)),
           ],
         ),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Row(children: [
-              Text(module.emoji, style: const TextStyle(fontSize: 26)),
-              const Spacer(),
-              if (soon)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                      color: AppColors.warning.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(8)),
-                  child: const Text('Em breve',
-                      style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w800,
-                          color: AppColors.warning)),
-                ),
-            ]),
-            const Spacer(),
-            Text(module.label,
-                style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 15,
-                    color: AppColors.textDark)),
-            const SizedBox(height: 2),
-            Text(module.subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                    fontSize: 11, color: AppColors.textLight)),
+            Container(
+              width: 36,
+              height: 36,
+              decoration: BoxDecoration(
+                color: module.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(module.icon, size: 20, color: module.accent),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              module.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: AppColors.textDark),
+            ),
+            if (soon) ...[
+              const SizedBox(height: 2),
+              Text('Em breve',
+                  style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.warning.withValues(alpha: 0.95))),
+            ],
           ],
         ),
       ),
@@ -544,11 +488,12 @@ class _ModuleCard extends StatelessWidget {
 }
 
 class _SoftBlock extends StatelessWidget {
-  final String emoji, title, text;
+  final IconData icon;
+  final String title, text;
   final String? action;
   final VoidCallback? onAction;
   const _SoftBlock({
-    required this.emoji,
+    required this.icon,
     required this.title,
     required this.text,
     this.action,
@@ -559,31 +504,143 @@ class _SoftBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: AppColors.surfaceMuted,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.border),
       ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('$emoji  $title',
-            style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 14,
-                color: AppColors.textDark)),
-        const SizedBox(height: 6),
-        Text(text,
-            style: const TextStyle(
-                fontSize: 12, color: AppColors.textMedium, height: 1.35)),
-        if (action != null && onAction != null) ...[
-          const SizedBox(height: 8),
-          TextButton(
-            onPressed: onAction,
-            child: Text(action!,
-                style: const TextStyle(fontWeight: FontWeight.w800)),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Icon(icon, size: 18, color: AppColors.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800,
+                      fontSize: 14,
+                      color: AppColors.textDark)),
+              const SizedBox(height: 4),
+              Text(text,
+                  style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textMedium,
+                      height: 1.35)),
+              if (action != null && onAction != null) ...[
+                const SizedBox(height: 6),
+                TextButton(
+                  onPressed: onAction,
+                  style: TextButton.styleFrom(
+                      padding: EdgeInsets.zero,
+                      minimumSize: const Size(0, 28),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  child: Text(action!,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                ),
+              ],
+            ]),
           ),
         ],
-      ]),
+      ),
+    );
+  }
+}
+
+class _NearbyProvidersList extends StatefulWidget {
+  const _NearbyProvidersList();
+
+  @override
+  State<_NearbyProvidersList> createState() => _NearbyProvidersListState();
+}
+
+class _NearbyProvidersListState extends State<_NearbyProvidersList> {
+  late final Stream<List<ProviderModel>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = FS.providersStream(limit: 5);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<ProviderModel>>(
+      stream: _stream,
+      builder: (_, snap) {
+        var list = snap.data ?? [];
+        if (list.isEmpty && HomologCatalog.enabled) {
+          list = HomologCatalog.providers().take(5).toList();
+        }
+        if (snap.connectionState == ConnectionState.waiting &&
+            list.isEmpty &&
+            !HomologCatalog.enabled) {
+          return const Padding(padding: EdgeInsets.all(16), child: ShimCard());
+        }
+        if (list.isEmpty) {
+          return const Padding(
+            padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: InfoBanner(
+              icon: '📍',
+              text:
+                  'Profissionais da região aparecerão aqui. Abra Serviços para explorar.',
+              bg: AppColors.surfaceMuted,
+              fg: AppColors.textMedium,
+            ),
+          );
+        }
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: Column(
+            children: list.map((p) {
+              final cat = p.categories.isNotEmpty
+                  ? (Categories.byId(p.categories.first)?.name ??
+                      p.categories.first)
+                  : 'Profissional';
+              return ProvCard(
+                name: p.name,
+                role: cat,
+                badge: p.badge,
+                price: p.minPrice != null
+                    ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
+                    : 'Consultar',
+                rating: p.rating,
+                reviews: p.totalReviews,
+                isOnline: p.modalities.contains('online'),
+                photo: p.photoUrl,
+                providerId: p.id,
+                onTap: () => Navigator.pushNamed(
+                  context,
+                  Routes.requestService,
+                  arguments: {
+                    'providerId': p.id,
+                    'providerName': p.name,
+                    'category':
+                        p.categories.isNotEmpty ? p.categories.first : '',
+                  },
+                ),
+                onChat: () => ChatNav.open(
+                  context,
+                  otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
+                  otherName: p.name,
+                  otherPhoto: p.photoUrl,
+                ),
+              );
+            }).toList(),
+          ),
+        );
+      },
     );
   }
 }

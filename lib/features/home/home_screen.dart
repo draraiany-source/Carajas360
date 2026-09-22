@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -5,10 +7,16 @@ import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/chat_nav.dart';
 import '../../core/utils/demo_data.dart';
+import '../../core/catalog/homolog_catalog.dart';
+import '../../core/catalog/service_taxonomy.dart';
+import '../../core/utils/perf_log.dart';
+import '../../core/utils/tap_guard.dart';
+import '../../core/constants/category_icons.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../shared/widgets/micro_interactions.dart';
+import '../services/service_marketplace_screen.dart';
 
 /// Hub do módulo Serviços (profissionais da região).
 /// A Home da plataforma Carajás 360 fica em [HomeScreen] (carajas_home_screen.dart).
@@ -25,20 +33,20 @@ class _ServicesHubState extends State<ServicesHubScreen> {
   final _groups = ['Todos', ...Categories.groups];
 
   static const _modules = [
-    {'id': 'services', 'icon': '🔧', 'label': 'Serviços'},
-    {'id': 'health', 'icon': '🏥', 'label': 'Saúde'},
-    {'id': 'delivery', 'icon': '📦', 'label': 'Entregas'},
-    {'id': 'marketplace', 'icon': '🛒', 'label': 'Mercado'},
-    {'id': 'rental', 'icon': '🔑', 'label': 'Aluguel'},
-    {'id': 'machines', 'icon': '🚜', 'label': 'Máquinas'},
-    {'id': 'vehicles', 'icon': '🚗', 'label': 'Veículos'},
-    {'id': 'labor', 'icon': '👷', 'label': 'Mão de Obra'},
-    {'id': 'drones', 'icon': '🚁', 'label': 'Drones'},
-    {'id': 'pets', 'icon': '🐾', 'label': 'Pets'},
-    {'id': 'beauty', 'icon': '💅', 'label': 'Beleza'},
-    {'id': 'education', 'icon': '📚', 'label': 'Educação'},
-    {'id': 'agro', 'icon': '🌾', 'label': 'Agro'},
-    {'id': 'ai', 'icon': '🤖', 'label': 'IA'},
+    {'id': 'services', 'label': 'Serviços'},
+    {'id': 'health', 'label': 'Saúde'},
+    {'id': 'delivery', 'label': 'Entregas'},
+    {'id': 'marketplace', 'label': 'Mercado'},
+    {'id': 'rental', 'label': 'Aluguel'},
+    {'id': 'machines', 'label': 'Máquinas'},
+    {'id': 'vehicles', 'label': 'Veículos'},
+    {'id': 'labor', 'label': 'Mão de Obra'},
+    {'id': 'drones', 'label': 'Drones'},
+    {'id': 'pets', 'label': 'Pets'},
+    {'id': 'beauty', 'label': 'Beleza'},
+    {'id': 'education', 'label': 'Educação'},
+    {'id': 'agro', 'label': 'Agro'},
+    {'id': 'ai', 'label': 'IA'},
   ];
 
   static final _demoProviders = [
@@ -85,6 +93,7 @@ class _ServicesHubState extends State<ServicesHubScreen> {
     final uid = AuthService.uid;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: const CarajasAppBar(title: 'Serviços'),
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
@@ -184,10 +193,10 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                         ]),
                     const SizedBox(height: 14),
                     AppSearchBar(
-                        hint: 'Buscar serviços, profissionais...',
+                        hint: 'O que você precisa?',
                         readOnly: true,
-                        onTap: () =>
-                            Navigator.pushNamed(context, Routes.search)),
+                        onTap: () => Navigator.pushNamed(
+                            context, Routes.universalSearch)),
                   ]));
             },
           )),
@@ -201,29 +210,45 @@ class _ServicesHubState extends State<ServicesHubScreen> {
               GridView.count(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 5,
+                crossAxisCount: MediaQuery.sizeOf(context).width >= 900
+                    ? 7
+                    : (MediaQuery.sizeOf(context).width >= 600 ? 5 : 4),
                 mainAxisSpacing: 8,
                 crossAxisSpacing: 8,
-                childAspectRatio: 0.9,
+                childAspectRatio: 0.95,
                 children: _modules
                     .map((m) => GestureDetector(
                         onTap: () => _navigate(m['id']!),
                         child: Container(
-                            decoration: AppDecorations.card(r: 14),
+                            decoration: AppDecorations.card(r: 12),
                             padding: const EdgeInsets.symmetric(
-                                vertical: 10, horizontal: 2),
+                                vertical: 8, horizontal: 2),
                             child: Column(
-                                mainAxisSize: MainAxisSize.min,
+                                mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Text(m['icon']!,
-                                      style: const TextStyle(fontSize: 24)),
-                                  const SizedBox(height: 5),
+                                  Container(
+                                    width: 34,
+                                    height: 34,
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary
+                                          .withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(10),
+                                    ),
+                                    child: Icon(
+                                      CategoryIcons.forModule(m['id']!),
+                                      size: 18,
+                                      color: AppColors.primary,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 6),
                                   Text(m['label']!,
                                       style: const TextStyle(
-                                          fontSize: 9,
+                                          fontSize: 10,
                                           fontWeight: FontWeight.w700,
                                           color: AppColors.textDark),
-                                      textAlign: TextAlign.center),
+                                      textAlign: TextAlign.center,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis),
                                 ]))))
                     .toList(),
               ),
@@ -236,13 +261,13 @@ class _ServicesHubState extends State<ServicesHubScreen> {
               Expanded(
                   child: _banner(
                       '🏥',
-                      'SaúdeConecta',
+                      'Saúde 360',
                       'Médico · Psicólogo · Fisio',
                       AppGradients.health,
                       Routes.health)),
               const SizedBox(width: 10),
               Expanded(
-                  child: _banner('📦', 'EntregaConecta', 'GPS em tempo real',
+                  child: _banner('📦', 'Entregas', 'GPS em tempo real',
                       AppGradients.delivery, Routes.delivery)),
             ]),
           )),
@@ -329,9 +354,22 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                               categoryId: c.id,
                               color: c.color,
                               selected: false,
-                              onTap: () => Navigator.pushNamed(
-                                  context, Routes.search,
-                                  arguments: {'category': c.id}));
+                              onTap: () {
+                                final svc =
+                                    ServiceTaxonomy.serviceByCategoryId(c.id);
+                                if (svc != null) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) =>
+                                          ServiceRequestFlowScreen(service: svc),
+                                    ),
+                                  );
+                                  return;
+                                }
+                                Navigator.pushNamed(context, Routes.search,
+                                    arguments: {'category': c.id});
+                              });
                         },
                       )),
                 ),
@@ -339,54 +377,35 @@ class _ServicesHubState extends State<ServicesHubScreen> {
           )),
           SliverToBoxAdapter(
               child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () => Navigator.pushNamed(
+                          context, Routes.serviceMarketplace),
+                      icon: const Icon(Icons.grid_view_rounded, size: 18),
+                      label: const Text('Abrir marketplace completo',
+                          style: TextStyle(fontWeight: FontWeight.w700)),
+                    ),
+                  ))),
+          SliverToBoxAdapter(
+              child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                   child: SecHeader(
                       title: 'Em destaque',
                       action: 'Ver todos →',
-                      onAction: () =>
-                          Navigator.pushNamed(context, Routes.search)))),
+                      onAction: () => Navigator.pushNamed(
+                            context,
+                            Routes.search,
+                            arguments: {
+                              if (_selGroup != 'Todos') 'group': _selGroup,
+                            },
+                          )))),
           SliverToBoxAdapter(
-              child: StreamBuilder<List<ProviderModel>>(
-            stream: FS.providersStream(limit: 5),
-            builder: (_, snap) {
-              final provs = DemoData.orEmpty(snap.data, _demoProviders);
-              return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Column(
-                      children: provs.map((p) {
-                    final catName = p.categories.isNotEmpty
-                        ? (Categories.byId(p.categories.first)?.name ??
-                            p.categories.first)
-                        : 'Profissional';
-                    return ProvCard(
-                      name: p.name,
-                      role: catName,
-                      badge: p.badge,
-                      price: p.minPrice != null
-                          ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
-                          : 'Consultar',
-                      rating: p.rating,
-                      reviews: p.totalReviews,
-                      isOnline: p.modalities.contains('online'),
-                      photo: p.photoUrl,
-                      providerId: p.id,
-                      onTap: () => Navigator.pushNamed(
-                          context, Routes.requestService,
-                          arguments: {
-                            'providerId': p.id,
-                            'providerName': p.name,
-                            'category': p.categories.isNotEmpty
-                                ? p.categories.first
-                                : ''
-                          }),
-                      onChat: () => ChatNav.open(context,
-                          otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
-                          otherName: p.name,
-                          otherPhoto: p.photoUrl),
-                    );
-                  }).toList()));
-            },
-          )),
+              child: _NearbyProvidersList(
+                group: _selGroup == 'Todos' ? null : _selGroup,
+                demoFallback: _demoProviders,
+              )),
           SliverToBoxAdapter(
               child: uid != null
                   ? StreamBuilder<UserModel?>(
@@ -501,7 +520,9 @@ class _ServicesHubState extends State<ServicesHubScreen> {
 class SearchScreen extends StatefulWidget {
   /// Categoria pré-selecionada (usada ao vir de um chip de segmento).
   final String? initialCategory;
-  const SearchScreen({super.key, this.initialCategory});
+  /// Grupo pré-selecionado (ex.: Veículos, Jurídico) vindo do hub.
+  final String? initialGroup;
+  const SearchScreen({super.key, this.initialCategory, this.initialGroup});
   @override
   State<SearchScreen> createState() => _SearchState();
 }
@@ -510,17 +531,90 @@ class _SearchState extends State<SearchScreen> {
   final _ctrl = TextEditingController();
   String _q = '';
   String? _cat;
+  String? _groupFocus;
   bool _onlineOnly = false;
   String _sort = 'rating';
+  late Stream<List<ProviderModel>> _providersStream;
+  int _streamGen = 0;
+  Timer? _debounce;
+
+  static const _priorityGroups = [
+    'Casa',
+    'Limpeza',
+    'Veículos',
+    'Jurídico',
+    'Beleza',
+    'Tech',
+    'Pets',
+    'Agro',
+    'Educação',
+    'Eventos',
+    'Transporte',
+    'Equipamentos',
+    'Jardim',
+  ];
+
+  List<ServiceCategory> get _chipCategories {
+    List<ServiceCategory> chips;
+    final focus = _groupFocus;
+    if (focus != null && focus.isNotEmpty && focus != 'Saúde') {
+      chips = Categories.all.where((c) => c.group == focus).toList();
+    } else if (_cat != null) {
+      final g = Categories.byId(_cat!)?.group;
+      if (g != null && g != 'Saúde') {
+        chips = Categories.all.where((c) => c.group == g).toList();
+      } else {
+        chips = _defaultChips();
+      }
+    } else {
+      chips = _defaultChips();
+    }
+    if (_cat != null && !chips.any((c) => c.id == _cat)) {
+      final sel = Categories.byId(_cat!);
+      if (sel != null && sel.group != 'Saúde') chips = [sel, ...chips];
+    }
+    return chips;
+  }
+
+  List<ServiceCategory> _defaultChips() {
+    final out = <ServiceCategory>[];
+    for (final g in _priorityGroups) {
+      out.addAll(Categories.all.where((c) => c.group == g));
+      if (out.length >= 20) break;
+    }
+    return out.take(20).toList();
+  }
 
   @override
   void initState() {
     super.initState();
     _cat = widget.initialCategory;
+    _groupFocus = widget.initialGroup ??
+        (_cat != null ? Categories.byId(_cat!)?.group : null);
+    if (_groupFocus == 'Saúde') _groupFocus = null;
+    _providersStream = FS.providersStream(category: _cat, limit: 30);
+    PerfLog.screen('search');
+  }
+
+  void _bindStream() {
+    _providersStream = FS.providersStream(category: _cat, limit: 30);
+  }
+
+  void _setCategory(String id) {
+    setState(() {
+      _cat = _cat == id ? null : id;
+      if (_cat != null) {
+        final g = Categories.byId(_cat!)?.group;
+        _groupFocus = (g != null && g != 'Saúde') ? g : _groupFocus;
+      }
+      _streamGen++;
+      _bindStream();
+    });
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _ctrl.dispose();
     super.dispose();
   }
@@ -537,14 +631,25 @@ class _SearchState extends State<SearchScreen> {
         context: context,
         barrierDismissible: false,
         builder: (_) => const Center(child: CircularProgressIndicator()));
-    final catNames = Categories.all.map((c) => c.name).toList();
+    final catNames = Categories.all
+        .where((c) => c.group != 'Saúde')
+        .map((c) => c.name)
+        .toList();
     final result = await AiSvc.smartSearchCategory(_q, catNames);
     if (!mounted) return;
     Navigator.of(context, rootNavigator: true).pop();
     if (result != null && result.isNotEmpty) {
       final matched = Categories.all.firstWhere((c) => c.name == result,
           orElse: () => Categories.all.first);
-      setState(() => _cat = matched.id);
+      setState(() {
+        if (_cat != matched.id) {
+          _cat = matched.id;
+          _groupFocus =
+              matched.group != 'Saúde' ? matched.group : _groupFocus;
+          _streamGen++;
+          _bindStream();
+        }
+      });
       snack(context, '🔍 Categoria sugerida: ${matched.name}',
           bg: AppColors.secondary);
     } else {
@@ -556,12 +661,17 @@ class _SearchState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          titleSpacing: 0,
-          title: TextField(
+        appBar: CarajasAppBar(
+          title: 'Buscar profissionais',
+          titleWidget: TextField(
               controller: _ctrl,
               autofocus: true,
-              onChanged: (v) => setState(() => _q = v),
+              onChanged: (v) {
+                _debounce?.cancel();
+                _debounce = Timer(const Duration(milliseconds: 200), () {
+                  if (mounted) setState(() => _q = v);
+                });
+              },
               style: const TextStyle(color: Colors.white, fontSize: 15),
               decoration: const InputDecoration(
                   hintText: 'Buscar profissionais...',
@@ -581,25 +691,28 @@ class _SearchState extends State<SearchScreen> {
                 onPressed: _filters),
           ],
         ),
-        body: Column(children: [
+        body: Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 880),
+            child: Column(children: [
           SizedBox(
               height: 58,
               child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  itemCount: Categories.all.length,
+                  itemCount: _chipCategories.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (_, i) {
-                    final c = Categories.all[i];
+                    final c = _chipCategories[i];
                     return CatChip(
                         emoji: c.emoji,
                         name: c.name,
                         categoryId: c.id,
                         color: c.color,
                         selected: _cat == c.id,
-                        onTap: () =>
-                            setState(() => _cat = _cat == c.id ? null : c.id));
+                        onTap: () => _setCategory(c.id));
                   })),
           if (_onlineOnly)
             const InfoBanner(
@@ -609,20 +722,64 @@ class _SearchState extends State<SearchScreen> {
                 fg: AppColors.primary),
           Expanded(
               child: StreamBuilder<List<ProviderModel>>(
-            stream: FS.providersStream(category: _cat, limit: 30),
+            key: ValueKey(
+                'prov-$_streamGen-${_cat ?? _groupFocus ?? 'all'}'),
+            stream: _providersStream,
             builder: (_, snap) {
-              var list = snap.data ?? [];
-              if (_q.isNotEmpty) {
-                final q = _q.toLowerCase();
-                list = list
-                    .where((p) =>
-                        p.name.toLowerCase().contains(q) ||
-                        p.categories.any((c) => c.contains(q)))
-                    .toList();
+              if (snap.hasError) {
+                PerfLog.error('search_providers', snap.error!);
+                return EmptyState(
+                  emoji: '⚠️',
+                  title: 'Não foi possível carregar',
+                  subtitle: 'Verifique a conexão e tente novamente.',
+                  actionLabel: 'Tentar novamente',
+                  onAction: () {
+                    _streamGen++;
+                    _bindStream();
+                    setState(() {});
+                  },
+                );
               }
-              if (_onlineOnly)
-                list =
-                    list.where((p) => p.modalities.contains('online')).toList();
+              var list = List<ProviderModel>.from(snap.data ?? const []);
+              // Sempre reaplica filtros locais (categoria/query) para não
+              // exibir snapshot antigo se o stream atrasar no web.
+              if (HomologCatalog.enabled) {
+                list = HomologCatalog.filter(
+                  category: _cat,
+                  group: _cat == null ? _groupFocus : null,
+                  query: _q,
+                  onlineOnly: _onlineOnly,
+                );
+              } else {
+                if (_cat != null && _cat!.isNotEmpty) {
+                  list = list
+                      .where((p) => p.categories.contains(_cat))
+                      .toList();
+                } else if (_groupFocus != null &&
+                    _groupFocus!.isNotEmpty &&
+                    _groupFocus != 'Todos') {
+                  final ids = Categories.all
+                      .where((c) => c.group == _groupFocus)
+                      .map((c) => c.id)
+                      .toSet();
+                  list = list
+                      .where((p) => p.categories.any(ids.contains))
+                      .toList();
+                }
+                if (_q.isNotEmpty) {
+                  final q = _q.toLowerCase();
+                  list = list
+                      .where((p) =>
+                          p.name.toLowerCase().contains(q) ||
+                          p.categories.any((c) => c.contains(q)))
+                      .toList();
+                }
+                if (_onlineOnly) {
+                  list = list
+                      .where((p) => p.modalities.contains('online'))
+                      .toList();
+                }
+              }
               list = [...list];
               if (_sort == 'reviews') {
                 list.sort((a, b) => b.totalReviews.compareTo(a.totalReviews));
@@ -632,17 +789,33 @@ class _SearchState extends State<SearchScreen> {
               } else {
                 list.sort((a, b) => b.rating.compareTo(a.rating));
               }
-              if (snap.data == null)
+              if (snap.connectionState == ConnectionState.waiting &&
+                  snap.data == null &&
+                  !HomologCatalog.enabled) {
                 return ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: 5,
                     itemBuilder: (_, __) => const SkeletonCard());
-              if (list.isEmpty)
-                return const EmptyState(
+              }
+              if (list.isEmpty) {
+                return EmptyState(
                     emoji: '🔍',
                     title: 'Nenhum resultado',
-                    subtitle: 'Tente outros filtros ou palavras-chave',
-                    asset: AppAssets.estadoNenhumResultado);
+                    subtitle: HomologCatalog.enabled
+                        ? 'Tente outra palavra ou categoria'
+                        : 'Tente outros filtros ou palavras-chave',
+                    asset: AppAssets.estadoNenhumResultado,
+                    actionLabel: snap.data == null && !HomologCatalog.enabled
+                        ? 'Tentar novamente'
+                        : null,
+                    onAction: snap.data == null && !HomologCatalog.enabled
+                        ? () {
+                            _streamGen++;
+                            _bindStream();
+                            setState(() {});
+                          }
+                        : null);
+              }
               return ListView.builder(
                   padding: const EdgeInsets.all(16),
                   itemCount: list.length,
@@ -654,38 +827,39 @@ class _SearchState extends State<SearchScreen> {
                             ? (Categories.byId(p.categories.first)?.name ??
                                 p.categories.first)
                             : 'Profissional');
-                    return FadeSlideIn(
-                        index: i,
-                        child: ProvCard(
-                            key: ValueKey(p.id),
-                            name: p.name,
-                            role: catName,
-                            badge: p.badge,
-                            price: p.minPrice != null
-                                ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
-                                : 'Consultar',
-                            rating: p.rating,
-                            reviews: p.totalReviews,
-                            isOnline: p.modalities.contains('online'),
-                            photo: p.photoUrl,
-                            providerId: p.id,
-                            onTap: () => Navigator.pushNamed(
-                                    context, Routes.requestService, arguments: {
-                                  'providerId': p.id,
-                                  'providerName': p.name,
-                                  'category': p.categories.isNotEmpty
-                                      ? p.categories.first
-                                      : (_cat ?? '')
-                                }),
-                            onChat: () => ChatNav.open(context,
-                                otherUserId:
-                                    p.userId.isNotEmpty ? p.userId : p.id,
-                                otherName: p.name,
-                                otherPhoto: p.photoUrl)));
+                    return ProvCard(
+                        key: ValueKey(p.id),
+                        name: p.name,
+                        role: catName,
+                        city: p.city,
+                        badge: p.badge,
+                        price: p.minPrice != null
+                            ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
+                            : 'Consultar',
+                        rating: p.rating,
+                        reviews: p.totalReviews,
+                        isOnline: p.modalities.contains('online'),
+                        photo: p.photoUrl,
+                        providerId: p.id,
+                        onTap: TapGuard.wrap(() => Navigator.pushNamed(
+                                context, Routes.requestService, arguments: {
+                              'providerId': p.id,
+                              'providerName': p.name,
+                              'category': p.categories.isNotEmpty
+                                  ? p.categories.first
+                                  : (_cat ?? '')
+                            })),
+                        onChat: TapGuard.wrap(() => ChatNav.open(context,
+                            otherUserId:
+                                p.userId.isNotEmpty ? p.userId : p.id,
+                            otherName: p.name,
+                            otherPhoto: p.photoUrl)));
                   });
             },
           )),
         ]),
+          ),
+        ),
       );
 
   void _filters() => showModalBottomSheet(
@@ -736,4 +910,124 @@ class _SearchState extends State<SearchScreen> {
                             onPressed: () => Navigator.pop(ctx),
                             child: const Text('Aplicar'))),
                   ]))));
+}
+
+/// Preview de prestadores — stream criado uma vez (evita re-subscribe a cada build).
+class _NearbyProvidersList extends StatefulWidget {
+  final List<ProviderModel> demoFallback;
+  final String? group;
+  const _NearbyProvidersList({
+    this.demoFallback = const [],
+    this.group,
+  });
+
+  @override
+  State<_NearbyProvidersList> createState() => _NearbyProvidersListState();
+}
+
+class _NearbyProvidersListState extends State<_NearbyProvidersList> {
+  late Stream<List<ProviderModel>> _stream;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = FS.providersStream(limit: 8);
+  }
+
+  @override
+  void didUpdateWidget(covariant _NearbyProvidersList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.group != widget.group) {
+      setState(() {
+        _stream = FS.providersStream(limit: 8);
+      });
+    }
+  }
+
+  List<ProviderModel> _filterByGroup(List<ProviderModel> list) {
+    final g = widget.group;
+    if (g == null || g.isEmpty || g == 'Todos') return list;
+    final ids =
+        Categories.all.where((c) => c.group == g).map((c) => c.id).toSet();
+    return list.where((p) => p.categories.any(ids.contains)).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<List<ProviderModel>>(
+      stream: _stream,
+      builder: (_, snap) {
+        var provs = snap.data ?? [];
+        if (HomologCatalog.enabled) {
+          provs = HomologCatalog.providers(group: widget.group).take(8).toList();
+        } else if (provs.isEmpty) {
+          provs = DemoData.orEmpty(snap.data, widget.demoFallback);
+          provs = _filterByGroup(provs);
+        } else {
+          provs = _filterByGroup(provs);
+        }
+        if (provs.isEmpty) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: EmptyState(
+              emoji: '🔧',
+              title: widget.group != null
+                  ? 'Nenhum profissional nesta categoria'
+                  : 'Nenhum profissional ainda',
+              subtitle: widget.group != null
+                  ? 'Tente outro grupo ou veja todos os profissionais.'
+                  : 'Em breve profissionais da região aparecerão aqui.',
+            ),
+          );
+        }
+        return Align(
+          alignment: Alignment.topCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 880),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(
+                children: provs.map((p) {
+                  final catName = p.categories.isNotEmpty
+                      ? (Categories.byId(p.categories.first)?.name ??
+                          p.categories.first)
+                      : 'Profissional';
+                  return ProvCard(
+                    name: p.name,
+                    role: catName,
+                    city: p.city,
+                    badge: p.badge,
+                    price: p.minPrice != null
+                        ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
+                        : 'Consultar',
+                    rating: p.rating,
+                    reviews: p.totalReviews,
+                    isOnline: p.modalities.contains('online'),
+                    photo: p.photoUrl,
+                    providerId: p.id,
+                    onTap: () => Navigator.pushNamed(
+                      context,
+                      Routes.requestService,
+                      arguments: {
+                        'providerId': p.id,
+                        'providerName': p.name,
+                        'category':
+                            p.categories.isNotEmpty ? p.categories.first : '',
+                      },
+                    ),
+                    onChat: () => ChatNav.open(
+                      context,
+                      otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
+                      otherName: p.name,
+                      otherPhoto: p.photoUrl,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }

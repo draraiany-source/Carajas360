@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -18,6 +19,9 @@ import 'package:carajas_360/features/home/home_screen.dart'
     show SearchScreen, ServicesHubScreen;
 import 'package:carajas_360/features/home/carajas_home_screen.dart';
 import 'package:carajas_360/features/resolve/resolve_screen.dart';
+import 'package:carajas_360/features/services/service_marketplace_screen.dart';
+import 'package:carajas_360/features/search/universal_search_screen.dart';
+import 'package:carajas_360/core/catalog/taxonomy_repository.dart';
 import 'package:carajas_360/features/chat/chat_screen.dart';
 import 'package:carajas_360/features/chat/chat_inbox_screen.dart';
 import 'package:carajas_360/features/gps/gps_screen.dart';
@@ -61,38 +65,44 @@ Future<void> main() async {
   bool firebaseOk = false;
   try {
     await FirebaseBootstrap.initialize();
-    try {
-      await FirebaseBootstrap.maybeActivateAppCheck();
-    } catch (e) {
-      debugPrint('App Check: $e');
-    }
-    // FCM/Analytics podem falhar nos emuladores — nao bloqueiam auth.
-    try {
-      await PushSvc.init();
-    } catch (e) {
-      debugPrint('PushSvc.init: $e');
-    }
-    // Crashlytics nao e suportado no Web — usa handlers locais nesse caso.
-    if (!kIsWeb) {
-      FlutterError.onError =
-          FirebaseCrashlytics.instance.recordFlutterFatalError;
-      PlatformDispatcher.instance.onError = (error, stack) {
-        FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-        return true;
-      };
+    // Placeholders = homologação/demo: UI sem Auth real.
+    if (FirebaseBootstrap.hasPlaceholderKeys) {
+      debugPrint(
+          'Firebase com placeholders — modo demonstração (sem login obrigatório).');
+      firebaseOk = false;
     } else {
-      FlutterError.onError = (details) {
-        FlutterError.presentError(details);
-        debugPrint('FlutterError: ${details.exceptionAsString()}');
-      };
-      PlatformDispatcher.instance.onError = (error, stack) {
-        debugPrint('Uncaught: $error\n$stack');
-        return true;
-      };
+      try {
+        await FirebaseBootstrap.maybeActivateAppCheck();
+      } catch (e) {
+        debugPrint('App Check: $e');
+      }
+      try {
+        await PushSvc.init();
+      } catch (e) {
+        debugPrint('PushSvc.init: $e');
+      }
+      if (!kIsWeb) {
+        FlutterError.onError =
+            FirebaseCrashlytics.instance.recordFlutterFatalError;
+        PlatformDispatcher.instance.onError = (error, stack) {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+          return true;
+        };
+      } else {
+        FlutterError.onError = (details) {
+          FlutterError.presentError(details);
+          debugPrint('FlutterError: ${details.exceptionAsString()}');
+        };
+        PlatformDispatcher.instance.onError = (error, stack) {
+          debugPrint('Uncaught: $error\n$stack');
+          return true;
+        };
+      }
+      firebaseOk = true;
     }
-    firebaseOk = true;
   } catch (e) {
     debugPrint('Firebase nao configurado — modo demonstracao: $e');
+    firebaseOk = false;
   }
 
   if (DevBypassAuth.enabled) {
@@ -133,7 +143,7 @@ class Carajas360App extends StatelessWidget {
                       analytics: FirebaseAnalytics.instance)
                 ]
               : const <NavigatorObserver>[],
-          initialRoute: Routes.splash,
+          initialRoute: '/',
           onGenerateRoute: (settings) {
             final name = settings.name ?? '';
             if (name == Routes.admin || name.startsWith('/admin/')) {
@@ -141,7 +151,8 @@ class Carajas360App extends StatelessWidget {
             }
             switch (settings.name) {
               case Routes.splash:
-                return _route(SplashScreen(firebaseReady: firebaseOk));
+                // Web/homolog: `/` abre a home sem login (visita).
+                return _route(const MainNav());
               case Routes.onboarding:
                 return _route(const OnboardingScreen());
               case Routes.login:
@@ -153,7 +164,10 @@ class Carajas360App extends StatelessWidget {
               case Routes.search:
                 final sa = settings.arguments as Map<String, dynamic>?;
                 return _route(
-                    SearchScreen(initialCategory: sa?['category'] as String?));
+                    SearchScreen(
+                      initialCategory: sa?['category'] as String?,
+                      initialGroup: sa?['group'] as String?,
+                    ));
               case Routes.chat:
                 final a = settings.arguments as Map<String, dynamic>?;
                 return _route(RequireAuth(
@@ -239,6 +253,17 @@ class Carajas360App extends StatelessWidget {
                 return _route(const ProviderOnboardingScreen());
               case Routes.servicesHub:
                 return _route(const ServicesHubScreen());
+              case Routes.serviceMarketplace:
+                final a = settings.arguments as Map<String, dynamic>?;
+                return _route(ServiceMarketplaceScreen(
+                  verticalId: a?['verticalId'] as String?,
+                  categoryId: a?['category'] as String?,
+                ));
+              case Routes.universalSearch:
+                final a = settings.arguments as Map<String, dynamic>?;
+                return _route(UniversalSearchScreen(
+                  initialQuery: a?['q'] as String?,
+                ));
               case Routes.resolve:
                 return _route(const ResolveScreen());
               case Routes.resolveDetail:
@@ -283,21 +308,114 @@ class MainNav extends StatefulWidget {
 
 class _MainNavState extends State<MainNav> {
   int _idx = 0;
+  StreamSubscription? _taxonomySub;
 
-  final _screens = const [
-    HomeScreen(),
-    SearchScreen(),
-    MyOrdersScreen(),
-    ChatInboxScreen(),
-    ProfileScreen(),
+  static const _destinations = [
+    (Icons.home_rounded, 'Início'),
+    (Icons.explore_rounded, 'Explorar'),
+    (Icons.receipt_long_rounded, 'Pedidos'),
+    (Icons.chat_bubble_outline_rounded, 'Mensagens'),
+    (Icons.person_outline_rounded, 'Perfil'),
   ];
+
+  final List<Widget?> _tabs = List<Widget?>.filled(5, null);
+
+  @override
+  void initState() {
+    super.initState();
+    // Taxonomia remota: novas categorias sem release do app.
+    _taxonomySub = FS.serviceTaxonomyStream().listen((docs) {
+      if (TaxonomyRepository.shouldPreferSeed) return;
+      TaxonomyRepository.applyDocs(docs);
+      if (mounted) setState(() {});
+    }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _taxonomySub?.cancel();
+    super.dispose();
+  }
+
+  Widget _tab(int i) {
+    return _tabs[i] ??= switch (i) {
+      0 => const HomeScreen(),
+      1 => const UniversalSearchScreen(),
+      2 => const MyOrdersScreen(),
+      3 => const ChatInboxScreen(),
+      4 => const ProfileScreen(),
+      _ => const SizedBox.shrink(),
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+
+    final body = IndexedStack(
+        index: _idx, children: [for (var i = 0; i < 5; i++) _tab(i)]);
+
+    if (wide) {
+      return Scaffold(
+        body: Row(
+          children: [
+            NavigationRail(
+              selectedIndex: _idx,
+              onDestinationSelected: (i) => setState(() => _idx = i),
+              extended: MediaQuery.sizeOf(context).width >= 1100,
+              backgroundColor:
+                  isDark ? AppColors.darkSurface : AppColors.white,
+              selectedIconTheme: IconThemeData(
+                  color: isDark ? AppColors.primaryLight : AppColors.primary),
+              unselectedIconTheme: IconThemeData(
+                  color:
+                      isDark ? AppColors.darkTextLow : AppColors.textLight),
+              selectedLabelTextStyle: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 13,
+                  color: isDark ? AppColors.primaryLight : AppColors.primary),
+              unselectedLabelTextStyle: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  fontSize: 13,
+                  color:
+                      isDark ? AppColors.darkTextLow : AppColors.textLight),
+              labelType: MediaQuery.sizeOf(context).width >= 1100
+                  ? NavigationRailLabelType.none
+                  : NavigationRailLabelType.all,
+              leading: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
+                child: Text(
+                  AppInfo.name,
+                  style: TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 16,
+                    color: isDark ? AppColors.primaryLight : AppColors.primary,
+                  ),
+                ),
+              ),
+              destinations: [
+                for (final d in _destinations)
+                  NavigationRailDestination(
+                    icon: Icon(d.$1),
+                    selectedIcon: Icon(d.$1),
+                    label: Text(d.$2),
+                  ),
+              ],
+            ),
+            VerticalDivider(
+              width: 1,
+              color: isDark ? AppColors.darkDivider : AppColors.divider,
+            ),
+            Expanded(child: body),
+          ],
+        ),
+      );
+    }
+
     return Scaffold(
-      body: IndexedStack(index: _idx, children: _screens),
+      body: body,
       bottomNavigationBar: Semantics(
         container: true,
         label: 'Navegação principal',
@@ -306,10 +424,13 @@ class _MainNavState extends State<MainNav> {
               color: isDark ? AppColors.darkSurface : AppColors.white,
               border: Border(
                   top: BorderSide(
-                      color: isDark ? AppColors.darkDivider : AppColors.divider)),
+                      color: isDark
+                          ? AppColors.darkDivider
+                          : AppColors.divider)),
               boxShadow: [
                 BoxShadow(
-                    color: AppColors.navy.withValues(alpha: isDark ? 0.35 : 0.06),
+                    color: AppColors.navy
+                        .withValues(alpha: isDark ? 0.35 : 0.06),
                     blurRadius: 24,
                     offset: const Offset(0, -8))
               ]),
@@ -319,12 +440,9 @@ class _MainNavState extends State<MainNav> {
             child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _navItem(0, Icons.home_rounded, 'Início', scheme),
-                  _navItem(1, Icons.explore_rounded, 'Explorar', scheme),
-                  _navItem(2, Icons.receipt_long_rounded, 'Pedidos', scheme),
-                  _navItem(3, Icons.chat_bubble_outline_rounded, 'Mensagens',
-                      scheme),
-                  _navItem(4, Icons.person_outline_rounded, 'Perfil', scheme),
+                  for (var i = 0; i < _destinations.length; i++)
+                    _navItem(i, _destinations[i].$1, _destinations[i].$2,
+                        scheme),
                 ]),
           )),
         ),

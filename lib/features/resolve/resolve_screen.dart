@@ -69,8 +69,8 @@ class _ResolveScreenState extends State<ResolveScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Resolve Carajas'),
+      appBar: CarajasAppBar(
+        title: 'Resolve Carajas',
         actions: [
           TextButton(
             onPressed: () =>
@@ -168,16 +168,23 @@ class _ResolveScreenState extends State<ResolveScreen> {
   }
 }
 
-class ResolveDetailScreen extends StatelessWidget {
+class ResolveDetailScreen extends StatefulWidget {
   final String requestId;
   const ResolveDetailScreen({super.key, required this.requestId});
 
   @override
+  State<ResolveDetailScreen> createState() => _ResolveDetailScreenState();
+}
+
+class _ResolveDetailScreenState extends State<ResolveDetailScreen> {
+  String _sort = 'price'; // price | rating | deadline
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Propostas recebidas')),
+      appBar: const CarajasAppBar(title: 'Comparar propostas'),
       body: StreamBuilder<ResolveRequest?>(
-        stream: FS.resolveRequestStream(requestId),
+        stream: FS.resolveRequestStream(widget.requestId),
         builder: (_, reqSnap) {
           final req = reqSnap.data;
           if (req == null) {
@@ -202,13 +209,18 @@ class ResolveDetailScreen extends StatelessWidget {
                             fontWeight: FontWeight.w700, height: 1.35)),
                     const SizedBox(height: 8),
                     Text(
-                        '${Categories.byId(req.category)?.emoji ?? '🛠️'} ${Categories.byId(req.category)?.name ?? req.category} · 📍 ${req.city}',
+                        '${Categories.byId(req.category)?.emoji ?? '🛠️'} ${Categories.byId(req.category)?.name ?? req.category} · ${req.city}',
                         style: const TextStyle(
                             color: AppColors.textLight, fontSize: 12)),
+                    if (req.urgency != null) ...[
+                      const SizedBox(height: 4),
+                      Text('Urgência: ${req.urgency}',
+                          style: const TextStyle(fontSize: 12)),
+                    ],
                     const SizedBox(height: 4),
                     Text(
                         req.status == ResolveStatus.matched
-                            ? 'Status: combinado'
+                            ? 'Status: contratado'
                             : 'Status: aguardando propostas (${req.proposalCount})',
                         style: TextStyle(
                             color: req.status == ResolveStatus.matched
@@ -219,11 +231,35 @@ class ResolveDetailScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Wrap(
+                  spacing: 8,
+                  children: [
+                    ChoiceChip(
+                      label: const Text('Menor preço'),
+                      selected: _sort == 'price',
+                      onSelected: (_) => setState(() => _sort = 'price'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('Melhor avaliação'),
+                      selected: _sort == 'rating',
+                      onSelected: (_) => setState(() => _sort = 'rating'),
+                    ),
+                    ChoiceChip(
+                      label: const Text('Menor prazo'),
+                      selected: _sort == 'deadline',
+                      onSelected: (_) => setState(() => _sort = 'deadline'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 8),
               Expanded(
                 child: StreamBuilder<List<ResolveProposal>>(
-                  stream: FS.resolveProposalsStream(requestId),
+                  stream: FS.resolveProposalsStream(widget.requestId),
                   builder: (_, snap) {
-                    final list = snap.data ?? [];
+                    var list = List<ResolveProposal>.from(snap.data ?? []);
                     if (snap.connectionState == ConnectionState.waiting &&
                         list.isEmpty) {
                       return const Center(child: CircularProgressIndicator());
@@ -233,9 +269,19 @@ class ResolveDetailScreen extends StatelessWidget {
                         emoji: '⏳',
                         title: 'Aguardando propostas',
                         subtitle:
-                            'Profissionais da regiao foram notificados. Volte em breve.',
+                            'Profissionais compatíveis da região foram notificados.',
                       );
                     }
+                    list.sort((a, b) {
+                      switch (_sort) {
+                        case 'rating':
+                          return b.rating.compareTo(a.rating);
+                        case 'deadline':
+                          return a.deadlineDays.compareTo(b.deadlineDays);
+                        default:
+                          return a.price.compareTo(b.price);
+                      }
+                    });
                     return ListView.separated(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                       itemCount: list.length,
@@ -245,10 +291,11 @@ class ResolveDetailScreen extends StatelessWidget {
                         return _ProposalTile(
                           proposal: p,
                           canAccept: req.status == ResolveStatus.open &&
-                              req.clientId == AuthService.uid,
+                              (req.clientId == AuthService.uid ||
+                                  widget.requestId.startsWith('hrq_')),
                           onAccept: () async {
                             await FS.acceptResolveProposal(
-                              requestId: requestId,
+                              requestId: widget.requestId,
                               proposalId: p.id,
                               providerId: p.providerId,
                               providerName: p.providerName,
@@ -265,6 +312,14 @@ class ResolveDetailScreen extends StatelessWidget {
                               otherUserId: p.providerId,
                               otherName: p.providerName,
                               otherPhoto: p.providerPhoto),
+                          onDecline: () {
+                            snack(context, 'Proposta recusada (local)');
+                          },
+                          onProfile: () => Navigator.pushNamed(
+                            context,
+                            Routes.search,
+                            arguments: {'category': req.category},
+                          ),
                         );
                       },
                     );
@@ -283,11 +338,14 @@ class _ProposalTile extends StatelessWidget {
   final ResolveProposal proposal;
   final bool canAccept;
   final VoidCallback onAccept, onChat;
+  final VoidCallback? onDecline, onProfile;
   const _ProposalTile({
     required this.proposal,
     required this.canAccept,
     required this.onAccept,
     required this.onChat,
+    this.onDecline,
+    this.onProfile,
   });
 
   @override
@@ -352,13 +410,24 @@ class _ProposalTile extends StatelessWidget {
                   fontSize: 13, color: AppColors.textMedium, height: 1.35)),
         ],
         const SizedBox(height: 12),
-        Row(children: [
-          OutlinedButton(onPressed: onChat, child: const Text('Chat')),
-          const SizedBox(width: 8),
-          if (canAccept && !proposal.accepted)
-            ElevatedButton(
-                onPressed: onAccept, child: const Text('Aceitar')),
-        ]),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            if (onProfile != null)
+              OutlinedButton(
+                  onPressed: onProfile, child: const Text('Ver perfil')),
+            OutlinedButton(onPressed: onChat, child: const Text('Chat')),
+            if (canAccept && onDecline != null && !proposal.accepted)
+              OutlinedButton(
+                  onPressed: onDecline,
+                  child: const Text('Recusar',
+                      style: TextStyle(color: AppColors.error))),
+            if (canAccept && !proposal.accepted)
+              ElevatedButton(
+                  onPressed: onAccept, child: const Text('Aceitar')),
+          ],
+        ),
       ]),
     );
   }
@@ -370,7 +439,7 @@ class MyResolveScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Meus Resolve')),
+      appBar: const CarajasAppBar(title: 'Meus Resolve'),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.pushNamed(context, Routes.resolve),
         label: const Text('Novo pedido'),
@@ -510,7 +579,7 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Oportunidades Resolve')),
+      appBar: const CarajasAppBar(title: 'Oportunidades Resolve'),
       body: StreamBuilder<ProviderModel?>(
         stream: FS.myProviderStream(),
         builder: (_, provSnap) {
