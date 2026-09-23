@@ -23,11 +23,65 @@ const db = admin.firestore();
 
 const REGION = 'us-central1';
 const PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED === 'true';
+/** FASE 6: cobranca real de producao. Default false — exige autorizacao explicita. */
+const PRODUCTION_PAYMENTS_ENABLED = process.env.PRODUCTION_PAYMENTS_ENABLED === 'true';
 const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === 'true';
 const ALLOWED_PROFILE_TYPES = security.ALLOWED_PROFILE_TYPES;
 
 function getMpToken() {
   return process.env.MERCADOPAGO_ACCESS_TOKEN || '';
+}
+
+function assertGatewaySafe() {
+  const token = getMpToken();
+  if (!token) return { ok: false, reason: 'missing_token' };
+  const looksProd = token.startsWith('APP_USR-') && !token.includes('TEST');
+  const looksTest = token.startsWith('TEST-') || token.includes('TEST');
+  if (looksProd && !PRODUCTION_PAYMENTS_ENABLED) {
+    return {
+      ok: false,
+      reason: 'production_token_blocked',
+      message: 'Token de producao bloqueado: PRODUCTION_PAYMENTS_ENABLED!=true',
+    };
+  }
+  if (PRODUCTION_PAYMENTS_ENABLED && looksTest) {
+    return {
+      ok: false,
+      reason: 'test_token_in_production_mode',
+      message: 'Modo producao nao aceita token Sandbox/TEST',
+    };
+  }
+  return { ok: true, looksProd, looksTest };
+}
+
+function requirePaymentsGateway() {
+  if (!PAYMENTS_ENABLED) {
+    throw httpsError(
+      'failed-precondition',
+      'Pagamentos desligados neste ambiente (staging).',
+    );
+  }
+  const gate = assertGatewaySafe();
+  if (!gate.ok) {
+    throw httpsError('failed-precondition', gate.message || 'Gateway inseguro');
+  }
+  const token = getMpToken();
+  if (!token) {
+    throw httpsError('failed-precondition', 'Gateway de pagamento não configurado');
+  }
+  return token;
+}
+
+async function assertFinancialKillSwitchOff() {
+  const cfgSnap = await db.collection('config').doc('platform').get();
+  const cfg = cfgSnap.exists ? cfgSnap.data() || {} : {};
+  if (cfg.financialKillSwitch === true) {
+    throw httpsError(
+      'failed-precondition',
+      'Operacoes financeiras temporariamente desativadas pelo Admin (kill switch).',
+    );
+  }
+  return cfg;
 }
 
 function getAnthropicKey() {
@@ -148,20 +202,6 @@ async function adjustWalletTx(tx, uid, type, amount, description, icon, extra, d
     ...(extra || {}),
   });
   return txRef.id;
-}
-
-function requirePaymentsGateway() {
-  if (!PAYMENTS_ENABLED) {
-    throw httpsError(
-      'failed-precondition',
-      'Pagamentos reais desligados neste ambiente (staging).',
-    );
-  }
-  const token = getMpToken();
-  if (!token) {
-    throw httpsError('failed-precondition', 'Gateway de pagamento não configurado');
-  }
-  return token;
 }
 
 function wrapGateway(err) {
@@ -1654,6 +1694,7 @@ exports.getDirections = functions.region(REGION).https.onCall(async (data, conte
 /** FASE 2 — unlock lead por creditos (idempotente). Custo vem do config, nao do client. */
 exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
+  await assertFinancialKillSwitchOff();
   await enforceRateLimit(auth.uid, 'unlock_lead', 20, 60 * 60 * 1000);
   const requestId = String((data && data.requestId) || '');
   if (!requestId) throw httpsError('invalid-argument', 'requestId obrigatorio');
@@ -1763,8 +1804,13 @@ exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, c
 
 exports.purchaseCreditPackage = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
+  await assertFinancialKillSwitchOff();
   if (!PAYMENTS_ENABLED) {
     throw httpsError('failed-precondition', 'Pagamentos desativados (Sandbox off / sem token)');
+  }
+  const gate = assertGatewaySafe();
+  if (!gate.ok) {
+    throw httpsError('failed-precondition', gate.message || 'Gateway inseguro');
   }
   const packageId = String((data && data.packageId) || '');
   if (!packageId) throw httpsError('invalid-argument', 'packageId obrigatorio');
@@ -1783,6 +1829,7 @@ exports.purchaseCreditPackage = functions.region(REGION).https.onCall(async (dat
 
 exports.purchaseHighlight = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
+  await assertFinancialKillSwitchOff();
   if (!PAYMENTS_ENABLED) {
     throw httpsError('failed-precondition', 'Pagamentos desativados');
   }

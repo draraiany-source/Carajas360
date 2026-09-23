@@ -12,6 +12,10 @@ class MonetizationConfig {
   final bool sponsoredEnabled;
   final bool welcomeCreditsEnabled;
   final bool launchModeEnabled;
+  /// FASE 6: cobranca real em producao. Default SEMPRE false ate autorizacao.
+  final bool productionPaymentsEnabled;
+  /// Kill switch Admin: desliga compra de creditos/PRO/destaques/contratos pagos.
+  final bool financialKillSwitch;
   final double commissionRate;
   final MoneyCents proPriceMonthly;
   final int defaultLeadCreditCost;
@@ -27,6 +31,8 @@ class MonetizationConfig {
     this.sponsoredEnabled = true,
     this.welcomeCreditsEnabled = true,
     this.launchModeEnabled = true,
+    this.productionPaymentsEnabled = false,
+    this.financialKillSwitch = false,
     this.commissionRate = AppConst.commission,
     this.proPriceMonthly = const MoneyCents(3990),
     this.defaultLeadCreditCost = 5,
@@ -57,6 +63,9 @@ class MonetizationConfig {
           m['welcomeCreditsEnabled'] as bool? ?? d.welcomeCreditsEnabled,
       launchModeEnabled:
           m['launchModeEnabled'] as bool? ?? d.launchModeEnabled,
+      productionPaymentsEnabled:
+          m['productionPaymentsEnabled'] as bool? ?? false,
+      financialKillSwitch: m['financialKillSwitch'] as bool? ?? false,
       commissionRate: clamped.toDouble(),
       proPriceMonthly: MoneyCents(
           (m['proPriceCents'] as num?)?.toInt() ?? d.proPriceMonthly.cents),
@@ -84,6 +93,8 @@ class MonetizationConfig {
         'sponsoredEnabled': sponsoredEnabled,
         'welcomeCreditsEnabled': welcomeCreditsEnabled,
         'launchModeEnabled': launchModeEnabled,
+        'productionPaymentsEnabled': productionPaymentsEnabled,
+        'financialKillSwitch': financialKillSwitch,
         'commissionRate': commissionRate,
         'proPriceCents': proPriceMonthly.cents,
         'defaultLeadCreditCost': defaultLeadCreditCost,
@@ -94,7 +105,11 @@ class MonetizationConfig {
 
   /// Homolog nunca mistura com producao: flags de cobranca real off.
   bool get sandboxOnly =>
-      HomologCatalog.enabled || launchModeEnabled;
+      HomologCatalog.enabled || launchModeEnabled || !productionPaymentsEnabled;
+
+  /// Operacoes financeiras comerciais permitidas (sem kill switch).
+  bool get financialOpsAllowed =>
+      !financialKillSwitch && (creditsEnabled || protectedPaymentsEnabled);
 
   static bool validateCommissionRate(double rate) =>
       rate >= 0 && rate <= 0.30;

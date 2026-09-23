@@ -75,7 +75,7 @@ class _WalletState extends State<WalletScreen>
         StreamBuilder<WalletModel?>(
             stream: _uid.isNotEmpty ? FS.walletStream() : const Stream.empty(),
             builder: (_, s) {
-          const bal = s.data?.balance ?? 0.0;
+          final bal = s.data?.balance ?? 0.0;
               return Container(
                   decoration: BoxDecoration(
                       color: Colors.white.withOpacity(0.15),
