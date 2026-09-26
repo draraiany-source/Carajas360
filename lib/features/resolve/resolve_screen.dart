@@ -156,6 +156,17 @@ class _ResolveScreenState extends State<ResolveScreen> {
                       style: TextStyle(fontWeight: FontWeight.w800)),
             ),
           ),
+          const SizedBox(height: 8),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () =>
+                  Navigator.pushNamed(context, Routes.assistedRequest),
+              icon: const Icon(Icons.auto_awesome),
+              label: const Text('Pedido assistido por IA',
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ),
           const SizedBox(height: 12),
           TextButton(
             onPressed: () =>
@@ -514,28 +525,59 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Enviar proposta'),
-        content: Column(mainAxisSize: MainAxisSize.min, children: [
-          TextField(
-              controller: priceCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Valor (R\$)')),
-          TextField(
-              controller: daysCtrl,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Prazo (dias)')),
-          TextField(
-              controller: msgCtrl,
-              maxLines: 3,
-              decoration: const InputDecoration(labelText: 'Mensagem')),
-        ]),
+        title: const Text('Proposta (rascunho)'),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+                controller: priceCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Valor (R\$)')),
+            TextField(
+                controller: daysCtrl,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(labelText: 'Prazo (dias)')),
+            TextField(
+                controller: msgCtrl,
+                maxLines: 3,
+                decoration: const InputDecoration(labelText: 'Mensagem')),
+            const SizedBox(height: 8),
+            TextButton.icon(
+              onPressed: () async {
+                final price = double.tryParse(
+                        priceCtrl.text.replaceAll(',', '.')) ??
+                    0;
+                final days = int.tryParse(daysCtrl.text) ?? 0;
+                if (price <= 0 || days < 1) {
+                  snack(ctx, 'Informe valor e prazo primeiro',
+                      bg: AppColors.error);
+                  return;
+                }
+                final res = await AiSvc.assistProposalDraft(
+                  requestId: req.id,
+                  price: price,
+                  deadlineDays: days,
+                  requestSummary: req.description,
+                  conditions: msgCtrl.text.trim(),
+                  providerServices: prov.categories,
+                );
+                if (res != null) {
+                  final draft = Map<String, dynamic>.from(
+                      res['draft'] as Map? ?? {});
+                  msgCtrl.text = '${draft['message'] ?? ''}'.trim();
+                }
+              },
+              icon: const Icon(Icons.auto_awesome, size: 18),
+              label: const Text('Gerar rascunho IA'),
+            ),
+          ]),
+        ),
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(ctx, false),
               child: const Text('Cancelar')),
           ElevatedButton(
               onPressed: () => Navigator.pop(ctx, true),
-              child: const Text('Enviar')),
+              child: const Text('Revisar')),
         ],
       ),
     );
@@ -556,6 +598,26 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
       snack(context, 'Informe um valor valido');
       return;
     }
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (dctx) => AlertDialog(
+        title: const Text('Aprovar envio?'),
+        content: Text(
+          'Valor R\$ ${price.toStringAsFixed(2)} · $days dia(s)\n\n'
+          '${message ?? '(sem mensagem)'}\n\n'
+          'A IA nao inventa precos — estes valores sao os seus.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dctx, false),
+              child: const Text('Editar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(dctx, true),
+              child: const Text('Aprovar e enviar')),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
     try {
       await FS.submitResolveProposal(
         requestId: req.id,

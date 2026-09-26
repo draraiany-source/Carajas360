@@ -30,3 +30,11 @@
 
 ## Contatos operacionais
 Definir fora do Git apos dominio real (suporte@ / privacidade@).
+
+## Rollback (release / piloto / financeiro)
+
+1. **Kill switch:** definir financialKillSwitch=true em config/platform (Functions respeitam assert).
+2. **Pagamentos:** manter/desligar PAYMENTS_ENABLED e PRODUCTION_PAYMENTS_ENABLED (unset ou false); app Flutter productionPaymentsEnabled=false.
+3. **Play Store:** reverter para track anterior (internal/closed) ou suspender rollout; nao promover build com incidente P0.
+4. **Firestore:** antes de mudancas de schema em prod, snapshot/backup conforme politica Firebase do projeto; rollback de dados e manual e requer runbook (nao apagar historico financeiro).
+5. **Piloto:** parar convites; status operacional PILOTO BLOQUEADO ate novo GO.

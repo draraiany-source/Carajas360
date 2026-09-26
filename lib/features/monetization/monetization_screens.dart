@@ -164,10 +164,12 @@ class _CarajasProScreenState extends State<CarajasProScreen> {
           'tier': 'professional',
           'sandbox': true,
         });
+        if (!mounted) return;
         setState(() => _status = 'PENDING');
         snack(context, 'Assinatura Sandbox solicitada');
       }
     } catch (e) {
+      if (!mounted) return;
       snack(context, 'Falha: $e', bg: AppColors.error);
     }
   }
@@ -252,8 +254,10 @@ class _HighlightsBuyScreenState extends State<HighlightsBuyScreen> {
     } else {
       try {
         await CloudFn.call('purchaseHighlight', {'planId': plan.id});
+        if (!mounted) return;
         snack(context, 'Pedido Sandbox criado');
       } catch (e) {
+        if (!mounted) return;
         snack(context, 'Falha: $e', bg: AppColors.error);
       }
     }

@@ -108,6 +108,7 @@ abstract class Routes {
   static const carajasPro = '/carajas-pro';
   static const highlightsBuy = '/highlights-buy';
   static const disputeHelp = '/dispute-help';
+  static const assistedRequest = '/assisted-request';
 }
 
 class ServiceCategory {

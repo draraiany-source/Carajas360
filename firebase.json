@@ -30,7 +30,7 @@
     "singleProjectMode": true
   },
   "hosting": {
-    "public": "build/web",
+    "public": "hosting",
     "ignore": [
       "firebase.json",
       "**/.*",

@@ -455,6 +455,12 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Pedido assistido: idempotencia de publicacao — somente backend.
+    match /assistedRequestPublishes/{id} {
+      allow read: if isAuth() && (resource.data.uid == uid() || isAdmin());
+      allow create, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

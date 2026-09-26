@@ -49,6 +49,76 @@ class AiSvc {
     return reply?.trim();
   }
 
+  /// Pedido assistido (server). Retorna mapa com draft/source ou null se CF indisponivel.
+  static Future<Map<String, dynamic>?> assistServiceRequest({
+    required String freeText,
+    String? city,
+    String? urgency,
+    String? neighborhood,
+    List<Map<String, dynamic>> catalog = const [],
+  }) async {
+    try {
+      final data = await CloudFn.call('assistServiceRequest', {
+        'freeText': freeText,
+        if (city != null) 'city': city,
+        if (urgency != null) 'urgency': urgency,
+        if (neighborhood != null) 'neighborhood': neighborhood,
+        if (catalog.isNotEmpty) 'catalog': catalog,
+      });
+      return Map<String, dynamic>.from(data);
+    } catch (e) {
+      debugPrint('assistServiceRequest: $e');
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> publishAssistedRequest({
+    required String idempotencyKey,
+    required bool confirmed,
+    required Map<String, dynamic> draft,
+    List<Map<String, dynamic>> catalog = const [],
+  }) async {
+    try {
+      final data = await CloudFn.call('publishAssistedRequest', {
+        'idempotencyKey': idempotencyKey,
+        'confirmed': confirmed,
+        'draft': draft,
+        if (catalog.isNotEmpty) 'catalog': catalog,
+      });
+      return Map<String, dynamic>.from(data);
+    } catch (e) {
+      debugPrint('publishAssistedRequest: $e');
+      rethrow;
+    }
+  }
+
+  /// Rascunho de proposta — preco/prazo obrigatorios do prestador.
+  static Future<Map<String, dynamic>?> assistProposalDraft({
+    required String requestId,
+    required double price,
+    required int deadlineDays,
+    String? requestSummary,
+    bool materialsIncluded = false,
+    String? conditions,
+    List<String> providerServices = const [],
+  }) async {
+    try {
+      final data = await CloudFn.call('assistProposalDraft', {
+        'requestId': requestId,
+        'price': price,
+        'deadlineDays': deadlineDays,
+        if (requestSummary != null) 'requestSummary': requestSummary,
+        'materialsIncluded': materialsIncluded,
+        if (conditions != null) 'conditions': conditions,
+        if (providerServices.isNotEmpty) 'providerServices': providerServices,
+      });
+      return Map<String, dynamic>.from(data);
+    } catch (e) {
+      debugPrint('assistProposalDraft: $e');
+      return null;
+    }
+  }
+
   // ── Busca inteligente (Vol.11: IA) ──────────────────────────────
   // Interpreta uma busca em linguagem natural (ex.: "preciso de
   // alguém pra consertar vazamento no banheiro amanhã") e devolve a

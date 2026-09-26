@@ -112,8 +112,9 @@ class _AiState extends State<AiAssistantScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: Row(children: [
+        appBar: CarajasAppBar(
+          title: 'IA Assistente',
+          titleWidget: Row(mainAxisSize: MainAxisSize.min, children: [
             Container(
                 width: 36,
                 height: 36,

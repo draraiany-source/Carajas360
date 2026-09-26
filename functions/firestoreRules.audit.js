@@ -39,6 +39,11 @@ describe('firestore.rules — políticas críticas (auditoria estática)', () =>
     assert.match(rules, /match \/rateLimits\/\{id\}/);
   });
 
+  it('assistedRequestPublishes é backend-only na escrita', () => {
+    assert.match(rules, /match \/assistedRequestPublishes\/\{id\}/);
+    assert.match(rules, /allow create, update, delete: if false;/);
+  });
+
   it('catch-all recusa tudo', () => {
     assert.match(rules, /match \/\{document=\*\*\}/);
     assert.match(rules, /allow read, write: if false;/);

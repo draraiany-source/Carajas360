@@ -14,7 +14,7 @@ class ChatInboxScreen extends StatelessWidget {
     final uid = AuthService.uid;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(title: const Text('Mensagens')),
+      appBar: const CarajasAppBar(title: 'Mensagens'),
       body: uid == null
           ? EmptyState(
               emoji: '💬',

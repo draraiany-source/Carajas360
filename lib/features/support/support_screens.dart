@@ -48,7 +48,7 @@ class SupportScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Central de Ajuda')),
+        appBar: const CarajasAppBar(title: 'Central de Ajuda'),
         body: ListView(padding: const EdgeInsets.all(16), children: [
           Container(
               decoration: AppDecorations.gradient(AppGradients.primary, r: 20),
@@ -291,7 +291,7 @@ class _CouponsState extends State<CouponsScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Meus Cupons')),
+        appBar: const CarajasAppBar(title: 'Meus Cupons'),
         body: ListView(padding: const EdgeInsets.all(16), children: [
           Container(
               decoration: AppDecorations.card(r: 18),
@@ -447,6 +447,8 @@ class _DelivState extends State<DeliveryScreen> {
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
+        appBar: const CarajasAppBar(
+            title: 'Entregas', backgroundColor: AppColors.delivery),
         body: CustomScrollView(slivers: [
           SliverToBoxAdapter(
               child: GradHeader(
@@ -458,7 +460,7 @@ class _DelivState extends State<DeliveryScreen> {
                           const Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('📦 EntregaConecta',
+                                Text('📦 Entregas 360',
                                     style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w900,
@@ -467,18 +469,6 @@ class _DelivState extends State<DeliveryScreen> {
                                     style: TextStyle(
                                         color: Colors.white70, fontSize: 12))
                               ]),
-                          GestureDetector(
-                              onTap: () => Navigator.pop(context),
-                              child: Container(
-                                  width: 38,
-                                  height: 38,
-                                  decoration: BoxDecoration(
-                                      color: Colors.white.withOpacity(0.2),
-                                      borderRadius: BorderRadius.circular(11)),
-                                  child: const Icon(
-                                      Icons.arrow_back_ios_new_rounded,
-                                      color: Colors.white,
-                                      size: 18))),
                         ]),
                     const SizedBox(height: 14),
                     TogglePills(
@@ -887,9 +877,8 @@ Dúvidas sobre privacidade podem ser enviadas para ${AppInfo.privacyEmail}.
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-            title:
-                Text(isPrivacy ? 'Política de Privacidade' : 'Termos de Uso')),
+        appBar: CarajasAppBar(
+            title: isPrivacy ? 'Política de Privacidade' : 'Termos de Uso'),
         body: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
           child:
@@ -956,7 +945,7 @@ class ReferralScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Indique e ganhe')),
+        appBar: const CarajasAppBar(title: 'Indique e ganhe'),
         body: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
             child: Column(children: [

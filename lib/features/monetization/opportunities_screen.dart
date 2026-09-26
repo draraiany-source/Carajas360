@@ -389,6 +389,7 @@ class _OpportunityDetailScreenState extends State<OpportunityDetailScreen> {
     final msgCtrl = TextEditingController();
     final materials = ValueNotifier<bool>(false);
     final validDays = TextEditingController(text: '7');
+    final drafting = ValueNotifier<bool>(false);
     final ok = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
@@ -397,12 +398,12 @@ class _OpportunityDetailScreenState extends State<OpportunityDetailScreen> {
             16, 16, 16, MediaQuery.of(ctx).viewInsets.bottom + 16),
         child: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            const Text('Enviar proposta pelo Carajas 360',
+            const Text('Proposta assistida (rascunho)',
                 style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
             const SizedBox(height: 8),
             const Text(
-              'Fluxo protegido: o cliente compara propostas no app. '
-              'Pagamento Sandbox e comissao conforme regras do Admin.',
+              'Voce informa valor, prazo e condicoes. A IA so organiza o texto. '
+              'Nenhum envio ocorre sem a sua aprovacao. Sem cobranca neste passo.',
               style: TextStyle(fontSize: 12, color: AppColors.textLight),
             ),
             const SizedBox(height: 12),
@@ -410,7 +411,8 @@ class _OpportunityDetailScreenState extends State<OpportunityDetailScreen> {
                 controller: priceCtrl,
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(
-                    labelText: 'Valor (R\$)', border: OutlineInputBorder())),
+                    labelText: 'Valor (R\$) — obrigatorio',
+                    border: OutlineInputBorder())),
             const SizedBox(height: 8),
             TextField(
                 controller: daysCtrl,
@@ -420,9 +422,9 @@ class _OpportunityDetailScreenState extends State<OpportunityDetailScreen> {
             const SizedBox(height: 8),
             TextField(
                 controller: msgCtrl,
-                maxLines: 3,
+                maxLines: 4,
                 decoration: const InputDecoration(
-                    labelText: 'Descricao / condicoes',
+                    labelText: 'Mensagem / condicoes (editavel)',
                     border: OutlineInputBorder())),
             const SizedBox(height: 8),
             ValueListenableBuilder<bool>(
@@ -440,32 +442,123 @@ class _OpportunityDetailScreenState extends State<OpportunityDetailScreen> {
                 decoration: const InputDecoration(
                     labelText: 'Validade da proposta (dias)',
                     border: OutlineInputBorder())),
+            const SizedBox(height: 8),
+            ValueListenableBuilder<bool>(
+              valueListenable: drafting,
+              builder: (_, busy, __) => OutlinedButton.icon(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final price = double.tryParse(
+                                priceCtrl.text.replaceAll(',', '.')) ??
+                            0;
+                        final days = int.tryParse(daysCtrl.text) ?? 0;
+                        if (price <= 0 || days < 1) {
+                          snack(ctx,
+                              'Informe valor e prazo antes de gerar o rascunho',
+                              bg: AppColors.error);
+                          return;
+                        }
+                        drafting.value = true;
+                        try {
+                          final res = await AiSvc.assistProposalDraft(
+                            requestId: widget.request.id,
+                            price: price,
+                            deadlineDays: days,
+                            requestSummary: widget.request.description,
+                            materialsIncluded: materials.value,
+                            conditions: msgCtrl.text.trim(),
+                          );
+                          if (res == null) {
+                            if (!ctx.mounted) return;
+                            snack(ctx,
+                                'Assistente indisponivel. Escreva a mensagem manualmente.',
+                                bg: AppColors.warning);
+                            return;
+                          }
+                          final draft = Map<String, dynamic>.from(
+                              res['draft'] as Map? ?? {});
+                          msgCtrl.text = '${draft['message'] ?? ''}'.trim();
+                        } finally {
+                          drafting.value = false;
+                        }
+                      },
+                icon: busy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.auto_awesome),
+                label: Text(busy ? 'Gerando rascunho...' : 'Gerar rascunho com IA'),
+              ),
+            ),
             const SizedBox(height: 12),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 onPressed: () => Navigator.pop(ctx, true),
-                child: const Text('ENVIAR PROPOSTA',
+                child: const Text('Revisar e aprovar envio',
                     style: TextStyle(fontWeight: FontWeight.w800)),
               ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
             ),
           ]),
         ),
       ),
     );
-    if (ok != true || !mounted) return;
+    if (ok != true || !mounted) {
+      priceCtrl.dispose();
+      daysCtrl.dispose();
+      msgCtrl.dispose();
+      validDays.dispose();
+      materials.dispose();
+      drafting.dispose();
+      return;
+    }
     final price = double.tryParse(priceCtrl.text.replaceAll(',', '.')) ?? 0;
     final days = int.tryParse(daysCtrl.text) ?? 1;
+    final messageBody =
+        '${msgCtrl.text.trim()}${materials.value ? '\nMateriais inclusos.' : ''}\nValidade: ${validDays.text} dias.';
+    priceCtrl.dispose();
+    daysCtrl.dispose();
+    msgCtrl.dispose();
+    validDays.dispose();
+    materials.dispose();
+    drafting.dispose();
     if (price <= 0) {
       snack(context, 'Informe um valor valido');
       return;
     }
+    final approved = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Aprovar envio da proposta?'),
+        content: Text(
+          'Valor: R\$ ${price.toStringAsFixed(2)}\n'
+          'Prazo: $days dia(s)\n\n'
+          '${messageBody.trim()}\n\n'
+          'Confirme para enviar. Em homologacao nao ha cobranca real.',
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Editar')),
+          ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Aprovar e enviar')),
+        ],
+      ),
+    );
+    if (approved != true || !mounted) return;
     setState(() => _busy = true);
     try {
       if (HomologCatalog.enabled) {
         await Future.delayed(const Duration(milliseconds: 400));
         if (!mounted) return;
-        snack(context, 'Proposta enviada (homologacao)',
+        snack(context, 'Proposta aprovada (homologacao — sem envio real de cobranca)',
             bg: AppColors.secondary);
         Navigator.pushNamed(context, Routes.resolveDetail,
             arguments: {'id': widget.request.id});
@@ -477,8 +570,7 @@ class _OpportunityDetailScreenState extends State<OpportunityDetailScreen> {
           providerPhoto: prov?.photoUrl,
           price: price,
           deadlineDays: days,
-          message:
-              '${msgCtrl.text.trim()}${materials.value ? '\nMateriais inclusos.' : ''}\nValidade: ${validDays.text} dias.',
+          message: messageBody.trim(),
           rating: prov?.rating ?? 0,
           totalServices: prov?.totalReviews ?? 0,
         );

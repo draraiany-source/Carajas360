@@ -19,6 +19,7 @@ import 'package:carajas_360/features/home/home_screen.dart'
     show SearchScreen, ServicesHubScreen;
 import 'package:carajas_360/features/home/carajas_home_screen.dart';
 import 'package:carajas_360/features/resolve/resolve_screen.dart';
+import 'package:carajas_360/features/resolve/assisted_request_screen.dart';
 import 'package:carajas_360/features/services/service_marketplace_screen.dart';
 import 'package:carajas_360/features/search/universal_search_screen.dart';
 import 'package:carajas_360/features/monetization/opportunities_screen.dart';
@@ -268,6 +269,10 @@ class Carajas360App extends StatelessWidget {
                 ));
               case Routes.resolve:
                 return _route(const ResolveScreen());
+              case Routes.assistedRequest:
+                return _route(const RequireAuth(
+                    title: 'Pedido assistido',
+                    child: AssistedRequestScreen()));
               case Routes.resolveDetail:
                 final a = settings.arguments as Map<String, dynamic>?;
                 final rid = a?['id'] as String? ?? '';

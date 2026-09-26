@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/catalog/homolog_catalog.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_assets.dart';
@@ -17,19 +18,33 @@ class HealthScreen extends StatefulWidget {
 class _HealthState extends State<HealthScreen> {
   int _mode = 0;
   String? _sel;
+  String _q = '';
 
   static const _specialties = [
-    {'id': 'medico', 'name': 'Médico', 'emoji': '🩺'},
-    {'id': 'psicologo', 'name': 'Psicólogo', 'emoji': '🧠'},
-    {'id': 'fisioterapeuta', 'name': 'Fisioterapeuta', 'emoji': '🦴'},
-    {'id': 'enfermeiro', 'name': 'Enfermeiro', 'emoji': '💉'},
-    {'id': 'nutricionista', 'name': 'Nutricionista', 'emoji': '🥗'},
-    {'id': 'home_care', 'name': 'Home Care', 'emoji': '🏠'},
+    {'id': 'medico', 'name': 'Médico', 'icon': Icons.medical_services_outlined},
+    {'id': 'psicologo', 'name': 'Psicólogo', 'icon': Icons.psychology_outlined},
+    {
+      'id': 'fisioterapeuta',
+      'name': 'Fisioterapeuta',
+      'icon': Icons.accessibility_new_outlined
+    },
+    {'id': 'enfermeiro', 'name': 'Enfermeiro', 'icon': Icons.health_and_safety_outlined},
+    {'id': 'nutricionista', 'name': 'Nutricionista', 'icon': Icons.restaurant_outlined},
+    {'id': 'home_care', 'name': 'Home Care', 'icon': Icons.home_outlined},
   ];
+
+  static const _healthIds = {
+    'medico',
+    'psicologo',
+    'fisioterapeuta',
+    'enfermeiro',
+    'nutricionista',
+    'home_care',
+  };
 
   static final _demos = [
     ProviderModel(
-        id: 'h1',
+        id: 'demo_h1',
         userId: 'u1',
         name: 'Dra. Ana Lima',
         categories: ['medico'],
@@ -37,9 +52,10 @@ class _HealthState extends State<HealthScreen> {
         totalReviews: 480,
         modalities: ['online', 'presential'],
         minPrice: 120,
+        city: 'Canaã dos Carajás',
         createdAt: DateTime.now()),
     ProviderModel(
-        id: 'h2',
+        id: 'demo_h2',
         userId: 'u2',
         name: 'Dr. Carlos Matos',
         categories: ['psicologo'],
@@ -47,9 +63,10 @@ class _HealthState extends State<HealthScreen> {
         totalReviews: 310,
         modalities: ['online'],
         minPrice: 150,
+        city: 'Marabá',
         createdAt: DateTime.now()),
     ProviderModel(
-        id: 'h3',
+        id: 'demo_h3',
         userId: 'u3',
         name: 'Fis. Juliana',
         categories: ['fisioterapeuta'],
@@ -57,22 +74,61 @@ class _HealthState extends State<HealthScreen> {
         totalReviews: 220,
         modalities: ['presential'],
         minPrice: 100,
+        city: 'Parauapebas',
         createdAt: DateTime.now()),
     ProviderModel(
-        id: 'h4',
+        id: 'demo_h4',
         userId: 'u4',
         name: 'Enf. Roberto',
         categories: ['enfermeiro'],
         rating: 4.7,
         totalReviews: 180,
-        modalities: ['presential'],
+        modalities: ['presential', 'home_care'],
         minPrice: 80,
+        city: 'Canaã dos Carajás',
         createdAt: DateTime.now()),
   ];
+
+  List<ProviderModel> _applyLocalFilters(List<ProviderModel> source) {
+    var list = List<ProviderModel>.from(source);
+    if (_sel != null) {
+      list = list.where((p) => p.categories.contains(_sel)).toList();
+    } else {
+      list = list
+          .where((p) => p.categories.any(_healthIds.contains))
+          .toList();
+    }
+    switch (_mode) {
+      case 1:
+        list = list.where((p) => p.modalities.contains('online')).toList();
+        break;
+      case 2:
+        list = list.where((p) => p.modalities.contains('presential')).toList();
+        break;
+      case 3:
+        list = list
+            .where((p) =>
+                p.categories.contains('home_care') ||
+                p.modalities.contains('home_care'))
+            .toList();
+        break;
+    }
+    if (_q.trim().isNotEmpty) {
+      final q = _q.toLowerCase();
+      list = list
+          .where((p) =>
+              p.name.toLowerCase().contains(q) ||
+              p.categories.any((c) => c.toLowerCase().contains(q)))
+          .toList();
+    }
+    return list;
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
+        appBar: const CarajasAppBar(
+            title: 'Saúde', backgroundColor: AppColors.health),
         body: CustomScrollView(slivers: [
           SliverToBoxAdapter(
               child: GradHeader(
@@ -84,11 +140,16 @@ class _HealthState extends State<HealthScreen> {
                           const Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('🏥 SaúdeConecta',
-                                    style: TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w900,
-                                        fontSize: 22)),
+                                Row(children: [
+                                  Icon(Icons.favorite_rounded,
+                                      color: Colors.white, size: 22),
+                                  SizedBox(width: 8),
+                                  Text('Saúde 360',
+                                      style: TextStyle(
+                                          color: Colors.white,
+                                          fontWeight: FontWeight.w900,
+                                          fontSize: 22)),
+                                ]),
                                 Text('Médicos · Terapeutas · Home Care',
                                     style: TextStyle(
                                         color: Colors.white70, fontSize: 12))
@@ -104,42 +165,41 @@ class _HealthState extends State<HealthScreen> {
                                     width: 38,
                                     height: 38,
                                     decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
+                                        color: Colors.white.withValues(alpha: 0.2),
                                         borderRadius:
                                             BorderRadius.circular(11)),
                                     child: const Icon(Icons.event_note_rounded,
                                         color: Colors.white, size: 18))),
-                            const SizedBox(width: 8),
-                            GestureDetector(
-                                onTap: () => Navigator.pop(context),
-                                child: Container(
-                                    width: 38,
-                                    height: 38,
-                                    decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
-                                        borderRadius:
-                                            BorderRadius.circular(11)),
-                                    child: const Icon(
-                                        Icons.arrow_back_ios_new_rounded,
-                                        color: Colors.white,
-                                        size: 18))),
                           ]),
                         ]),
                     const SizedBox(height: 16),
-                    const AppSearchBar(
-                        hint: 'Buscar especialidade ou profissional...'),
+                    AppSearchBar(
+                        hint: 'Buscar especialidade ou profissional...',
+                        onChanged: (v) => setState(() => _q = v)),
                     const SizedBox(height: 12),
                     TogglePills(
                         options: const [
                           'Todos',
-                          '📹 Online',
-                          '🏠 Presencial',
-                          '🏡 HomeCare'
+                          'Online',
+                          'Presencial',
+                          'Home Care'
                         ],
                         selected: _mode,
                         onSelect: (i) => setState(() => _mode = i),
                         activeColor: AppColors.health),
                   ]))),
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: InfoBanner(
+                icon: '🔒',
+                text:
+                    'Atendimento de saúde envolve dados sensíveis; uso sujeito a consentimento e LGPD.',
+                bg: Color(0xFFE8F5E9),
+                fg: AppColors.health,
+              ),
+            ),
+          ),
           SliverToBoxAdapter(
               child: Padding(
                   padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
@@ -154,9 +214,12 @@ class _HealthState extends State<HealthScreen> {
                           itemBuilder: (_, i) {
                             final s = _specialties[i];
                             final sel = _sel == s['id'];
+                            final icon = s['icon'] as IconData;
+                            final name = s['name'] as String;
+                            final id = s['id'] as String;
                             return GestureDetector(
                                 onTap: () =>
-                                    setState(() => _sel = sel ? null : s['id']),
+                                    setState(() => _sel = sel ? null : id),
                                 child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     padding: const EdgeInsets.symmetric(
@@ -173,11 +236,13 @@ class _HealthState extends State<HealthScreen> {
                                     child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Text(s['emoji']!,
-                                              style: const TextStyle(
-                                                  fontSize: 16)),
+                                          Icon(icon,
+                                              size: 16,
+                                              color: sel
+                                                  ? Colors.white
+                                                  : AppColors.health),
                                           const SizedBox(width: 6),
-                                          Text(s['name']!,
+                                          Text(name,
                                               style: TextStyle(
                                                   fontSize: 12,
                                                   fontWeight: FontWeight.w700,
@@ -202,53 +267,93 @@ class _HealthState extends State<HealthScreen> {
           const SliverToBoxAdapter(
               child: Padding(
                   padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
-                  child: SecHeader(title: '👨‍⚕️ Profissionais disponíveis'))),
+                  child: SecHeader(title: 'Profissionais disponíveis'))),
           SliverToBoxAdapter(
               child: StreamBuilder<List<ProviderModel>>(
-            stream: _sel != null
-                ? FS.providersStream(category: _sel, limit: 10)
-                : const Stream.empty(),
+            stream: HomologCatalog.enabled
+                ? Stream.value(HomologCatalog.healthProviders(
+                    specialty: _sel,
+                    mode: _mode,
+                    query: _q,
+                  ))
+                : (_sel != null
+                    ? FS.providersStream(category: _sel, limit: 10)
+                    : Stream.value(const <ProviderModel>[])),
             builder: (_, snap) {
-              final provs = DemoData.orEmpty(
-                  snap.data,
-                  _demos
-                      .where((p) => _sel == null || p.categories.contains(_sel))
-                      .toList());
-              if (provs.isEmpty)
+              List<ProviderModel> provs;
+              if (HomologCatalog.enabled) {
+                provs = HomologCatalog.healthProviders(
+                  specialty: _sel,
+                  mode: _mode,
+                  query: _q,
+                );
+              } else if (DemoData.allow) {
+                final raw = snap.data;
+                if (raw != null && raw.isNotEmpty) {
+                  provs = _applyLocalFilters(raw);
+                } else {
+                  provs = _applyLocalFilters(_demos);
+                }
+              } else {
+                final raw = snap.data ?? const <ProviderModel>[];
+                provs = _applyLocalFilters(raw);
+                if (provs.isEmpty && !DemoData.allow) {
+                  return const Padding(
+                      padding: EdgeInsets.all(20),
+                      child: EmptyState(
+                          emoji: '🔒',
+                          title: 'Catálogo indisponível',
+                          subtitle:
+                              'Profissionais de saúde aparecerão com backend homologado ou dados reais.'));
+                }
+              }
+              if (provs.isEmpty) {
                 return const Padding(
                     padding: EdgeInsets.all(20),
                     child: EmptyState(
                         emoji: '🔍',
                         title: 'Nenhum profissional',
                         subtitle: 'Tente outra especialidade'));
-              return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Column(
-                      children: provs.map((p) {
-                    final sp = _specialties.firstWhere(
-                        (s) => p.categories.contains(s['id']),
-                        orElse: () => {'name': 'Saúde', 'emoji': '🩺'});
-                    return ProvCard(
-                        name: p.name,
-                        role: '${sp['emoji']} ${sp['name']}',
-                        badge: p.badge,
-                        price: p.minPrice != null
-                            ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
-                            : 'Consultar',
-                        rating: p.rating,
-                        reviews: p.totalReviews,
-                        isOnline: p.modalities.contains('online'),
-                        photo: p.photoUrl,
-                        avatarBg: AppColors.health,
-                        providerId: p.id,
-                        onTap: () => _schedule(
-                            sp['name'] as String, p.minPrice?.toInt() ?? 150),
-                        onChat: () => ChatNav.open(context,
-                            otherUserId:
-                                p.userId.isNotEmpty ? p.userId : p.id,
-                            otherName: p.name,
-                            otherPhoto: p.photoUrl));
-                  }).toList()));
+              }
+              return Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 880),
+                  child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                      child: Column(
+                          children: provs.map((p) {
+                        final sp = _specialties.firstWhere(
+                            (s) => p.categories.contains(s['id']),
+                            orElse: () => {
+                                  'name': 'Saúde',
+                                  'icon': Icons.medical_services_outlined
+                                });
+                        return ProvCard(
+                            name: p.name,
+                            role: sp['name'] as String,
+                            city: p.city,
+                            badge: p.badge,
+                            price: p.minPrice != null
+                                ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
+                                : 'Consultar',
+                            rating: p.rating,
+                            reviews: p.totalReviews,
+                            isOnline: p.modalities.contains('online'),
+                            photo: p.photoUrl,
+                            avatarBg: AppColors.health,
+                            providerId: p.id,
+                            ctaLabel: 'Agendar',
+                            onTap: () => _schedule(
+                                sp['name'] as String, p.minPrice?.toInt() ?? 150),
+                            onChat: () => ChatNav.open(context,
+                                otherUserId:
+                                    p.userId.isNotEmpty ? p.userId : p.id,
+                                otherName: p.name,
+                                otherPhoto: p.photoUrl));
+                      }).toList())),
+                ),
+              );
             },
           )),
           SliverToBoxAdapter(
@@ -334,7 +439,7 @@ class _HealthState extends State<HealthScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: AppDecorations.gradient(
                     LinearGradient(
-                        colors: [color, color.withOpacity(0.7)],
+                        colors: [color, color.withValues(alpha: 0.7)],
                         begin: Alignment.topLeft,
                         end: Alignment.bottomRight),
                     r: 16),
@@ -398,7 +503,7 @@ class _ScheduleSheetState extends State<_ScheduleSheet> {
                 style: TextStyle(fontWeight: FontWeight.w600)),
             const SizedBox(height: 10),
             Row(children: [
-              for (final m in ['📹 Online', '🏠 Presencial', '🏡 Domiciliar'])
+              for (final m in ['Online', 'Presencial', 'Domiciliar'])
                 Expanded(
                     child: GestureDetector(
                         onTap: () => setState(() {
@@ -407,7 +512,7 @@ class _ScheduleSheetState extends State<_ScheduleSheet> {
                             }),
                         child: Container(
                             margin: EdgeInsets.only(
-                                right: m == '🏡 Domiciliar' ? 0 : 8),
+                                right: m == 'Domiciliar' ? 0 : 8),
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             decoration: AppDecorations.gradient(
                                 AppGradients.health,
@@ -536,10 +641,8 @@ class AppointmentsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-            title: const Text('Meus agendamentos'),
-            backgroundColor: AppColors.health,
-            foregroundColor: Colors.white),
+        appBar: const CarajasAppBar(
+            title: 'Meus agendamentos', backgroundColor: AppColors.health),
         body: StreamBuilder<List<Map<String, dynamic>>>(
           stream: FS.appointmentsStream(),
           builder: (_, snap) {
@@ -571,11 +674,11 @@ class AppointmentsScreen extends StatelessWidget {
                                 width: 42,
                                 height: 42,
                                 decoration: BoxDecoration(
-                                    color: AppColors.health.withOpacity(0.12),
+                                    color: AppColors.health.withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(12)),
                                 alignment: Alignment.center,
-                                child: const Text('🏥',
-                                    style: TextStyle(fontSize: 20))),
+                                child: const Icon(Icons.favorite_rounded,
+                                    color: AppColors.health, size: 22)),
                             const SizedBox(width: 12),
                             Expanded(
                                 child: Column(

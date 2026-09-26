@@ -17,7 +17,7 @@ class FavoritesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('⭐ Favoritos')),
+        appBar: const CarajasAppBar(title: '⭐ Favoritos'),
         body: StreamBuilder<List<ProviderModel>>(
           stream: FS.favoritesStream(),
           builder: (_, snap) {
@@ -149,7 +149,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
   Widget build(BuildContext context) {
     if (!AuthService.isAuth) {
       return Scaffold(
-        appBar: AppBar(title: const Text('📋 Meus Pedidos')),
+        appBar: const CarajasAppBar(title: '📋 Meus Pedidos'),
         body: EmptyState(
           emoji: '📋',
           title: 'Faça login',
@@ -160,8 +160,8 @@ class _MyOrdersState extends State<MyOrdersScreen> {
       );
     }
     return Scaffold(
-        appBar: AppBar(
-          title: const Text('📋 Meus Pedidos'),
+        appBar: CarajasAppBar(
+          title: '📋 Meus Pedidos',
           actions: [
             TextButton(
               onPressed: () =>
@@ -554,7 +554,7 @@ class _RequestServiceState extends State<RequestServiceScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Solicitar orçamento')),
+        appBar: const CarajasAppBar(title: 'Solicitar orçamento'),
         body: LoadingOverlay(
             loading: _loading,
             child: Form(

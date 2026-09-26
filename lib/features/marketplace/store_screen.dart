@@ -6,6 +6,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../core/utils/app_nav.dart';
 import '../../shared/widgets/widgets.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -19,10 +20,8 @@ class StoreScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-            title: const Text('Minha loja'),
-            backgroundColor: AppColors.delivery,
-            foregroundColor: Colors.white),
+        appBar: const CarajasAppBar(
+            title: 'Minha loja', backgroundColor: AppColors.delivery),
         body: StreamBuilder<StoreModel?>(
           stream: FS.myStoreStream(),
           builder: (_, snap) {
@@ -402,10 +401,8 @@ class _CatalogScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-            title: const Text('Catálogo'),
-            backgroundColor: AppColors.delivery,
-            foregroundColor: Colors.white),
+        appBar: const CarajasAppBar(
+            title: 'Catálogo', backgroundColor: AppColors.delivery),
         floatingActionButton: FloatingActionButton(
           onPressed: () => _productSheet(context),
           backgroundColor: AppColors.secondary,
@@ -623,10 +620,8 @@ class StoresListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-            title: const Text('Lojas'),
-            backgroundColor: AppColors.delivery,
-            foregroundColor: Colors.white),
+        appBar: const CarajasAppBar(
+            title: 'Lojas', backgroundColor: AppColors.delivery),
         body: StreamBuilder<List<StoreModel>>(
           stream: FS.storesStream(),
           builder: (_, snap) {
@@ -744,8 +739,13 @@ class StoreProfileScreen extends StatelessWidget {
           SliverAppBar(
             expandedHeight: 170,
             pinned: true,
+            automaticallyImplyLeading: false,
             backgroundColor: AppColors.delivery,
             foregroundColor: Colors.white,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back_rounded),
+              onPressed: () => AppNav.safeBack(context),
+            ),
             flexibleSpace: FlexibleSpaceBar(
               background: store.bannerUrl == null
                   ? Container(

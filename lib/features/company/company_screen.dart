@@ -424,10 +424,7 @@ class _EmployeesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-            title: const Text('Equipe'),
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white),
+        appBar: const CarajasAppBar(title: 'Equipe'),
         floatingActionButton: FloatingActionButton(
             onPressed: () => _addEmployee(context),
             backgroundColor: AppColors.secondary,
@@ -533,10 +530,7 @@ class _BranchesScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-            title: const Text('Filiais'),
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white),
+        appBar: const CarajasAppBar(title: 'Filiais'),
         floatingActionButton: FloatingActionButton(
             onPressed: () => _addBranch(context),
             backgroundColor: AppColors.secondary,
@@ -655,10 +649,7 @@ class _ContractsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-            title: const Text('Contratos'),
-            backgroundColor: AppColors.primary,
-            foregroundColor: Colors.white),
+        appBar: const CarajasAppBar(title: 'Contratos'),
         floatingActionButton: FloatingActionButton(
             onPressed: () => _addContract(context),
             backgroundColor: AppColors.secondary,

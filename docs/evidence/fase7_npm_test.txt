@@ -1,0 +1,208 @@
+﻿node.exe : npm warn Unknown env config "devdir". This will stop working in the next major version of npm. See `npm 
+help npmrc` for supported config options.
+No linha:1 caractere:1
++ & "C:\Program Files\nodejs/node.exe" "C:\Program Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (npm warn Unknow...config options.:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+
+> test
+> node --test orderPolicy.test.js security.test.js blocoB.test.js blocoC.test.js blocoD.test.js blocoE.test.js webhookApply.test.js gatewaySafe.test.js serviceAssist.test.js firestoreRules.audit.js
+
+ÔûÂ CPF ÔÇö valida├º├úo matem├ítica
+  Ô£ö aceita CPF v├ílido com e sem m├íscara (28.9318ms)
+  Ô£ö rejeita sequ├¬ncias repetidas (2.7606ms)
+  Ô£ö rejeita tamanho errado e d├¡gito verificador inv├ílido (1.1013ms)
+  Ô£ö sanitizePiiWrite remove CPF inv├ílido (0.6496ms)
+Ô£ö CPF ÔÇö valida├º├úo matem├ítica (50.6683ms)
+ÔûÂ XP ÔÇö s├│ backend
+  Ô£ö client n├úo pode escrever XP (6.2567ms)
+  Ô£ö recompensas oficiais e eventId idempotente (0.9799ms)
+Ô£ö XP ÔÇö s├│ backend (8.3728ms)
+ÔûÂ LGPD ÔÇö exclus├úo / reten├º├úo
+  Ô£ö n├úo apaga cole├º├Áes financeiras/fiscais (2.016ms)
+  Ô£ö pode apagar favoritos e notifica├º├Áes (0.8227ms)
+  Ô£ö perfil anonimizado remove PII e marca deleted (14.1355ms)
+  Ô£ö n├úo permite hard-delete do doc de usu├írio pelo client (0.9792ms)
+  Ô£ö reten├º├úo legal ├® de 5 anos (1.7552ms)
+Ô£ö LGPD ÔÇö exclus├úo / reten├º├úo (21.8662ms)
+ÔûÂ planChange ÔÇö sandbox sem cobran├ºa
+  Ô£ö rejeita plano inv├ílido (2.7191ms)
+  Ô£ö rejeita pedido do mesmo plano (0.5535ms)
+  Ô£ö sandbox: pending_sandbox, charged=false, applied=false (1.2297ms)
+  Ô£ö flag de pagamento on ainda N├âO cobra nem aplica (0.4974ms)
+  Ô£ö lista oficial de planos (0.5323ms)
+Ô£ö planChange ÔÇö sandbox sem cobran├ºa (11.5935ms)
+ÔûÂ AUTH ÔÇö login / logout / unauth
+  Ô£ö callable sem auth ├® bloqueada (12.6392ms)
+  Ô£ö callable com uid passa (0.4332ms)
+Ô£ö AUTH ÔÇö login / logout / unauth (17.1784ms)
+ÔûÂ USERS ÔÇö pr├│prio perfil vs outro + campos protegidos
+  Ô£ö dono l├¬ o pr├│prio doc; terceiro sem chat n├úo l├¬ (6.1436ms)
+  Ô£ö lista global de users s├│ admin (2.2229ms)
+  Ô£ö client n├úo altera plan/xp/type/verified (1.9444ms)
+Ô£ö USERS ÔÇö pr├│prio perfil vs outro + campos protegidos (13.7576ms)
+ÔûÂ PROVIDERS ÔÇö self-verification bloqueada
+  Ô£ö prestador n├úo se autoaprova nem seta verified (13.0419ms)
+Ô£ö PROVIDERS ÔÇö self-verification bloqueada (15.8247ms)
+ÔûÂ ORDERS ÔÇö transi├º├Áes / ownership / pre├ºo
+  Ô£ö cliente n├úo muda price nem providerId (1.8382ms)
+  Ô£ö create exige clientId do auth e status pending (6.426ms)
+  Ô£ö terceiro n├úo aceita pedido alheio (3.2565ms)
+Ô£ö ORDERS ÔÇö transi├º├Áes / ownership / pre├ºo (12.4124ms)
+ÔûÂ PAYMENTS ÔÇö auth / ownership / idempot├¬ncia
+  Ô£ö pagamento s├│ ├® lido pelo dono (0.7491ms)
+  Ô£ö segunda cobran├ºa ├® bloqueada (0.5519ms)
+Ô£ö PAYMENTS ÔÇö auth / ownership / idempot├¬ncia (1.6701ms)
+ÔûÂ WALLET ÔÇö payout ├║nico / saldo
+  Ô£ö payout j├í processado ├® idempotente (0.6747ms)
+  Ô£ö walletOp s├│ withdraw/cashback (0.3157ms)
+Ô£ö WALLET ÔÇö payout ├║nico / saldo (1.2811ms)
+ÔûÂ ADMIN ÔÇö autoriza├º├úo
+  Ô£ö claim ou type=admin (0.6221ms)
+Ô£ö ADMIN ÔÇö autoriza├º├úo (0.8458ms)
+ÔûÂ REVIEWS ÔÇö 1 por pedido
+  Ô£ö review id deve ser orderId_uid e pedido completed (0.5359ms)
+Ô£ö REVIEWS ÔÇö 1 por pedido (0.7409ms)
+ÔûÂ WEBHOOK MP ÔÇö stub sandbox sem cobran├ºa
+  Ô£ö GET ├® recusado (0.4448ms)
+  Ô£ö POST n├úo cobra nem aplica cr├®dito (0.2356ms)
+Ô£ö WEBHOOK MP ÔÇö stub sandbox sem cobran├ºa (0.951ms)
+ÔûÂ NOTIFICATIONS ÔÇö s├│ dono / s├│ backend
+  Ô£ö client n├úo cria notifica├º├úo arbitr├íria (0.2852ms)
+Ô£ö NOTIFICATIONS ÔÇö s├│ dono / s├│ backend (0.5051ms)
+ÔûÂ AUDIT ÔÇö sanitiza├º├úo e a├º├Áes
+  Ô£ö n├úo persiste secrets em details (4.0526ms)
+  Ô£ö lista de a├º├Áes cr├¡ticas est├í completa (0.6076ms)
+Ô£ö AUDIT ÔÇö sanitiza├º├úo e a├º├Áes (212.5928ms)
+ÔûÂ WEBHOOK MP ÔÇö assinatura sandbox sem cobran├ºa
+  Ô£ö sem secret continua 501 e n├úo cobra (0.699ms)
+  Ô£ö assinatura inv├ílida ├® 401 e n├úo aplica (15.395ms)
+  Ô£ö assinatura v├ílida aceita mas n├úo cobra (0.8437ms)
+Ô£ö WEBHOOK MP ÔÇö assinatura sandbox sem cobran├ºa (17.6444ms)
+ÔûÂ DIRECTIONS ÔÇö sem key de servidor
+  Ô£ö placeholder ou vazio recusa (0.8091ms)
+  Ô£ö key presente ainda n├úo dispara HTTP (ready apenas) (0.5543ms)
+Ô£ö DIRECTIONS ÔÇö sem key de servidor (1.9742ms)
+ÔûÂ firestore.rules ÔÇö pol├¡ticas cr├¡ticas (auditoria est├ítica)
+  Ô£ö wallets n├úo s├úo grav├íveis pelo client (52.3831ms)
+  Ô£ö transactions e payments n├úo s├úo criados pelo client (0.7053ms)
+  Ô£ö users n├úo podem ser apagados pelo client (3.8127ms)
+  Ô£ö plan, xp e type s├úo protegidos no perfil (0.5364ms)
+  Ô£ö planChangeRequests s├│ o backend escreve (0.5339ms)
+  Ô£ö xpEvents e rateLimits s├úo backend-only (0.5291ms)
+  Ô£ö assistedRequestPublishes ├® backend-only na escrita (0.4686ms)
+  Ô£ö catch-all recusa tudo (0.4688ms)
+Ô£ö firestore.rules ÔÇö pol├¡ticas cr├¡ticas (auditoria est├ítica) (64.4687ms)
+ÔûÂ FASE6 gateway fail-safe
+  Ô£ö bloqueia APP_USR sem PRODUCTION_PAYMENTS_ENABLED (2.0921ms)
+  Ô£ö aceita TEST- com producao off (0.3726ms)
+  Ô£ö bloqueia TEST- com PRODUCTION_PAYMENTS_ENABLED (0.3107ms)
+  Ô£ö aceita APP_USR com PRODUCTION_PAYMENTS_ENABLED (0.3547ms)
+Ô£ö FASE6 gateway fail-safe (6.4459ms)
+ÔûÂ m├íquina de estados
+  Ô£ö aceita apenas transi├º├Áes expl├¡citas (2.2466ms)
+  Ô£ö aliases created/in_progress/awaiting_payment (0.3908ms)
+  Ô£ö n├úo deixa cliente/prestador pular para completed a partir de pending (0.3621ms)
+  Ô£ö refunded s├│ a partir de estados finais v├ílidos (0.4954ms)
+Ô£ö m├íquina de estados (7.8255ms)
+ÔûÂ a├º├Áes por ator
+  Ô£ö accept s├│ pelo prestador designado (ou se ainda vazio) (0.5334ms)
+  Ô£ö start s├│ pelo prestador (0.4892ms)
+  Ô£ö markPaid nunca pelo client SDK (0.3933ms)
+  Ô£ö reopen/cancelDefinitive/releaseEscrow s├│ admin (0.52ms)
+Ô£ö a├º├Áes por ator (2.8923ms)
+ÔûÂ concluir sem pagamento deve falhar
+  Ô£ö bloqueia complete se paymentStatus != paid (1.3496ms)
+Ô£ö concluir sem pagamento deve falhar (1.8762ms)
+ÔûÂ payout
+  Ô£ö payout v├ílido calcula comiss├úo 8% (100 ÔåÆ 8/92) (35.7828ms)
+  Ô£ö 250 ÔåÆ 20/230 (1.1315ms)
+  Ô£ö 1000 ÔåÆ 80/920 (0.6884ms)
+  Ô£ö commissionRate Admin 10% em 500 ÔåÆ 50/450 (0.4065ms)
+  Ô£ö commissionRate invalida (>30%) cai no default 8% (56.3524ms)
+  Ô£ö FASE4 direct_contact isenta comissao (sem cobranca dupla) (0.722ms)
+  Ô£ö FASE4 commissionExempt true isenta comissao (0.3424ms)
+  Ô£ö segunda execu├º├úo ├® idempotente (already_processed) (0.2471ms)
+  Ô£ö sem pagamento confirmado falha (0.3172ms)
+  Ô£ö price diferente do valor pago falha (0.2409ms)
+  Ô£ö payment de outro pedido falha (0.2276ms)
+  Ô£ö providerId vazio falha (0.2201ms)
+  Ô£ö trocar providerId no payload vs oficial falha (0.5508ms)
+Ô£ö payout (103.8692ms)
+ÔûÂ escrow staging
+  Ô£ö escrowHoldOnPaid ret├®m e calcula releaseAt +3 dias (14.4353ms)
+  Ô£ö canReleaseEscrow bloqueia estados inv├ílidos (0.6091ms)
+  Ô£ö canReleaseEscrow libera com confirma├º├úo ou ap├│s prazo (0.5032ms)
+  Ô£ö adminReopen e adminCancelDefinitive (1.4565ms)
+  Ô£ö transi├º├Áes escrow (0.4848ms)
+Ô£ö escrow staging (18.0871ms)
+ÔûÂ campos sens├¡veis
+  Ô£ö inclui price, providerId, status, amount e payoutProcessed (0.5672ms)
+Ô£ö campos sens├¡veis (0.8313ms)
+ÔûÂ auditoria financeira
+  Ô£ö registra bruto, taxa, comiss├úo, l├¡quido e ids (0.6622ms)
+Ô£ö auditoria financeira (0.8968ms)
+ÔûÂ a├º├Áes conhecidas
+  Ô£ö isKnownAction inclui escrow e admin (0.39ms)
+Ô£ö a├º├Áes conhecidas (0.5999ms)
+ÔûÂ fraude financeira ÔÇö deve ser bloqueada
+  Ô£ö 1) alterar price ap├│s cria├º├úo ├® campo sens├¡vel (4.1252ms)
+  Ô£ö 2) trocar providerId ├® bloqueado (1.0011ms)
+  Ô£ö 3) concluir sem pagamento ├® bloqueado (0.6316ms)
+  Ô£ö 4) pagar duas vezes ├® bloqueado (0.8091ms)
+  Ô£ö 5) payout duas vezes ├® bloqueado (idempotente) (0.4687ms)
+  Ô£ö 6) Function sem auth ├® bloqueada (0.6096ms)
+  Ô£ö 7) Function com usu├írio errado n├úo l├¬ pagamento alheio (0.5592ms)
+  Ô£ö 8) manipular status manualmente ├® bloqueado (0.7797ms)
+Ô£ö fraude financeira ÔÇö deve ser bloqueada (18.883ms)
+ÔûÂ auth / app check / perfil
+  Ô£ö App Check obrigat├│rio quando enforce=true (1.6774ms)
+  Ô£ö auth v├ílido retorna uid (1.1697ms)
+  Ô£ö usu├írio comum n├úo cria notifica├º├úo arbitr├íria (0.3988ms)
+  Ô£ö usu├írio comum n├úo se autoaprova (0.9226ms)
+  Ô£ö leitura global de users bloqueada; PII n├úo na lista p├║blica (0.3855ms)
+  Ô£ö review s├│ do cliente do pedido completed, 1x, provider oficial (1.5087ms)
+  Ô£ö walletOp debit arbitr├írio n├úo ├® permitido (0.2756ms)
+  Ô£ö resposta p├║blica de pagamento n├úo vaza secrets (12.8478ms)
+  Ô£ö CORS * n├úo ├® considerado seguro (58.5685ms)
+Ô£ö auth / app check / perfil (79.0669ms)
+ÔûÂ serviceAssist pedido
+  Ô£ö sugere eletricista por texto (5.883ms)
+  Ô£ö rejeita categoria invalida (233.946ms)
+  Ô£ö sanitize remove prontidao sem cidade/urgencia (2.9994ms)
+  Ô£ö informacao insuficiente nao inventa categoria (0.6068ms)
+Ô£ö serviceAssist pedido (257.9517ms)
+ÔûÂ serviceAssist proposta
+  Ô£ö exige preco do prestador (0.721ms)
+  Ô£ö monta rascunho com valores do prestador (1.7621ms)
+Ô£ö serviceAssist proposta (3.0323ms)
+ÔûÂ serviceAssist cotas e idempotencia
+  Ô£ö quota free vs pro (0.9943ms)
+  Ô£ö idempotency id (0.7413ms)
+Ô£ö serviceAssist cotas e idempotencia (3.9381ms)
+ÔûÂ serviceAssist mergeClientCatalog e prontidao
+  Ô£ö mergeClientCatalog sanitiza ids e une ao DEFAULT (1.6401ms)
+  Ô£ö readyToPublish true quando campos obrigatorios ok (6.2023ms)
+  Ô£ö rejeita deadline invalido na proposta (0.437ms)
+Ô£ö serviceAssist mergeClientCatalog e prontidao (9.0077ms)
+ÔûÂ FASE4 webhookApply idempotencia
+  Ô£ö PAYMENTS_ENABLED=false nao aplica (2.1745ms)
+  Ô£ö sem eventId nao aplica (0.8618ms)
+  Ô£ö webhook duplicado = 1 ledger (1.2357ms)
+  Ô£ö eventos distintos = 2 ledger (1.0099ms)
+Ô£ö FASE4 webhookApply idempotencia (27.7363ms)
+Ôä╣ tests 115
+Ôä╣ suites 34
+Ôä╣ pass 115
+Ôä╣ fail 0
+Ôä╣ cancelled 0
+Ôä╣ skipped 0
+Ôä╣ todo 0
+Ôä╣ duration_ms 116674.9674
+npm notice
+npm notice New major version of npm available! 11.17.0 -> 12.1.0
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.1.0
+npm notice To update run: npm install -g npm@12.1.0
+npm notice

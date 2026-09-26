@@ -447,7 +447,7 @@ class _ChatState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     if (!AuthService.isAuth) {
       return Scaffold(
-        appBar: AppBar(title: Text(widget.otherName)),
+        appBar: CarajasAppBar(title: widget.otherName),
         body: EmptyState(
           emoji: '💬',
           title: 'Faça login para conversar',
@@ -462,31 +462,20 @@ class _ChatState extends State<ChatScreen> {
 
   Widget _authenticatedChat(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-          backgroundColor: AppColors.white,
-          foregroundColor: AppColors.textDark,
-          elevation: 0,
-          scrolledUnderElevation: 0,
-          titleSpacing: 0,
-          leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded,
-                  size: 20, color: AppColors.textDark),
-              onPressed: () => _searching
-                  ? setState(() {
-                      _searching = false;
-                      _searchQuery = '';
-                    })
-                  : Navigator.pop(context)),
-          title: _searching
+        appBar: CarajasAppBar(
+          title: widget.otherName,
+          titleWidget: _searching
               ? TextField(
                   autofocus: true,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
                   decoration: const InputDecoration(
                       hintText: 'Pesquisar na conversa...',
+                      hintStyle: TextStyle(color: Colors.white54),
                       border: InputBorder.none),
                   onChanged: (v) =>
                       setState(() => _searchQuery = v.toLowerCase()),
                 )
-              : Row(children: [
+              : Row(mainAxisSize: MainAxisSize.min, children: [
                   AppAvatar(
                       url: widget.otherPhoto,
                       name: widget.otherName,
@@ -501,7 +490,7 @@ class _ChatState extends State<ChatScreen> {
                             style: const TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
-                                color: AppColors.textDark)),
+                                color: Colors.white)),
                         Row(children: [
                           Container(
                               width: 8,
@@ -510,37 +499,33 @@ class _ChatState extends State<ChatScreen> {
                                   color: AppColors.success,
                                   shape: BoxShape.circle)),
                           const SizedBox(width: 4),
-                          const Text('Online agora',
+                          Text('Online agora',
                               style: TextStyle(
-                                  fontSize: 11, color: AppColors.textLight))
+                                  fontSize: 11,
+                                  color: Colors.white.withValues(alpha: 0.75)))
                         ]),
                       ]),
                 ]),
           actions: [
             if (_searching)
               IconButton(
-                  icon: const Icon(Icons.close_rounded,
-                      color: AppColors.textDark),
+                  icon: const Icon(Icons.close_rounded),
                   onPressed: () => setState(() {
                         _searching = false;
                         _searchQuery = '';
                       }))
             else ...[
               IconButton(
-                  icon: const Icon(Icons.search_rounded,
-                      color: AppColors.textDark),
+                  icon: const Icon(Icons.search_rounded),
                   onPressed: () => setState(() => _searching = true)),
               IconButton(
-                  icon:
-                      const Icon(Icons.phone_rounded, color: AppColors.primary),
+                  icon: const Icon(Icons.phone_rounded),
                   onPressed: () => _requestCall(isVideo: false)),
               IconButton(
-                  icon: const Icon(Icons.videocam_rounded,
-                      color: AppColors.primary),
+                  icon: const Icon(Icons.videocam_rounded),
                   onPressed: () => _requestCall(isVideo: true)),
               PopupMenuButton<String>(
-                icon: const Icon(Icons.more_vert_rounded,
-                    color: AppColors.textDark),
+                icon: const Icon(Icons.more_vert_rounded),
                 onSelected: (v) {
                   if (v == 'report') _reportUser(context);
                 },

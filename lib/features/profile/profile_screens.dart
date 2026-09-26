@@ -288,8 +288,19 @@ class ProfileScreen extends StatelessWidget {
                                       MaterialPageRoute(
                                           builder: (_) =>
                                               const ReferralScreen()))),
-                              _item(context, '🌗', 'Tema', _themeLabel(),
-                                  () => _showThemePicker(context)),
+                              ValueListenableBuilder<ThemeMode>(
+                                valueListenable: ThemeController.instance.mode,
+                                builder: (context, mode, _) => _item(
+                                    context,
+                                    '🌗',
+                                    'Tema',
+                                    _themeLabel(mode),
+                                    () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) =>
+                                                const ThemeSettingsScreen()))),
+                              ),
                               _item(context, 'ℹ️', 'Sobre o app',
                                   AppInfo.version, () => _showAbout(context)),
                               _item(
@@ -659,48 +670,48 @@ class ProfileScreen extends StatelessWidget {
             ));
   }
 
-  String _themeLabel() => switch (ThemeController.instance.mode.value) {
+  String _themeLabel(ThemeMode mode) => switch (mode) {
         ThemeMode.light => 'Claro',
         ThemeMode.dark => 'Escuro',
         ThemeMode.system => 'Automático (sistema)',
       };
 
-  void _showThemePicker(BuildContext context) {
-    showModalBottomSheet(
-        context: context,
-        builder: (_) => SafeArea(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-              const SizedBox(height: 8),
-              const SheetHandle(),
-              const SizedBox(height: 8),
-              const Padding(
-                  padding: EdgeInsets.all(16),
-                  child: Text('Escolha o tema',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w800))),
-              _themeOption(context, ThemeMode.light, '☀️', 'Claro'),
-              _themeOption(context, ThemeMode.dark, '🌙', 'Escuro'),
-              _themeOption(
-                  context, ThemeMode.system, '⚙️', 'Automático (sistema)'),
-              const SizedBox(height: 16),
-            ])));
-  }
+}
 
-  Widget _themeOption(
-      BuildContext context, ThemeMode m, String icon, String label) {
-    final selected = ThemeController.instance.mode.value == m;
+class ThemeSettingsScreen extends StatelessWidget {
+  const ThemeSettingsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+        appBar: const CarajasAppBar(title: 'Tema'),
+        body: ValueListenableBuilder<ThemeMode>(
+          valueListenable: ThemeController.instance.mode,
+          builder: (context, current, _) => ListView(
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            children: [
+              _themeOption(context, current, ThemeMode.light,
+                  Icons.light_mode_outlined, 'Claro'),
+              _themeOption(context, current, ThemeMode.dark,
+                  Icons.dark_mode_outlined, 'Escuro'),
+              _themeOption(context, current, ThemeMode.system,
+                  Icons.brightness_auto_outlined, 'Automático (sistema)'),
+            ],
+          ),
+        ),
+      );
+
+  Widget _themeOption(BuildContext context, ThemeMode current, ThemeMode m,
+      IconData icon, String label) {
+    final selected = current == m;
     return ListTile(
-      leading: Text(icon, style: const TextStyle(fontSize: 22)),
+      leading: Icon(icon, color: AppColors.primary),
       title: Text(label,
           style: TextStyle(
               fontWeight: selected ? FontWeight.w800 : FontWeight.w500)),
       trailing: selected
           ? const Icon(Icons.check_circle_rounded, color: AppColors.secondary)
           : null,
-      onTap: () async {
-        await ThemeController.instance.set(m);
-        if (context.mounted) Navigator.pop(context);
-      },
+      onTap: () => ThemeController.instance.set(m),
     );
   }
 }
@@ -747,7 +758,7 @@ class NotificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = AuthService.uid;
     return Scaffold(
-      appBar: AppBar(title: const Text('Notificações')),
+      appBar: const CarajasAppBar(title: 'Notificações'),
       body: uid == null
           ? EmptyState(
               emoji: '🔔',
@@ -894,7 +905,7 @@ class _ReviewState extends State<ReviewScreen> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('Avaliar serviço')),
+        appBar: const CarajasAppBar(title: 'Avaliar serviço'),
         body: LoadingOverlay(
             loading: _loading,
             child: SingleChildScrollView(
