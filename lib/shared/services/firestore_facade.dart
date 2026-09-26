@@ -185,7 +185,7 @@ class FS {
             return MapEntry(
                 k,
                 v.map((e) => e is Map
-                    ? safe(Map<String, dynamic>.from(e as Map))
+                    ? safe(Map<String, dynamic>.from(e))
                     : e is Timestamp
                         ? e.toDate().toIso8601String()
                         : e).toList());

@@ -46,6 +46,14 @@
         "destination": "/terms.html"
       },
       {
+        "source": "/account-deletion",
+        "destination": "/account-deletion.html"
+      },
+      {
+        "source": "/support",
+        "destination": "/support.html"
+      },
+      {
         "source": "**",
         "destination": "/index.html"
       }

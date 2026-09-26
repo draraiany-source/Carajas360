@@ -1,3 +1,5 @@
+import 'dart:io' show File;
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -209,17 +211,19 @@ class _ChatState extends State<ChatScreen> {
       );
       if (result == null || result.files.isEmpty) return;
       final picked = result.files.single;
-      final bytes = picked.bytes;
+      var bytes = picked.bytes;
+      if (bytes == null && picked.path != null && !kIsWeb) {
+        bytes = await File(picked.path!).readAsBytes();
+      }
       if (bytes == null) {
-        if (mounted) {
-          snack(context, 'Não foi possível ler o arquivo selecionado.',
-              bg: AppColors.error);
-        }
+        if (!mounted) return;
+        snack(context, 'Não foi possível ler o arquivo selecionado.',
+            bg: AppColors.error);
         return;
       }
       final fileName = picked.name;
-      if (mounted)
-        snack(context, 'Enviando documento...', bg: AppColors.primary);
+      if (!mounted) return;
+      snack(context, 'Enviando documento...', bg: AppColors.primary);
       final url = await FS.uploadChatMedia(bytes, fileName, widget.roomId);
       if (url != null) {
         await FS.sendMessage(
@@ -227,15 +231,17 @@ class _ChatState extends State<ChatScreen> {
             senderName: 'Você',
             text: '📄 $fileName',
             mediaUrl: url);
+        if (!mounted) return;
         _scrollBottom();
-      } else if (mounted) {
+      } else {
+        if (!mounted) return;
         snack(context, 'Falha ao enviar documento. Verifique sua conexão.',
             bg: AppColors.error);
       }
     } catch (e) {
-      if (mounted)
-        snack(context, 'Não foi possível selecionar o arquivo.',
-            bg: AppColors.error);
+      if (!mounted) return;
+      snack(context, 'Não foi possível selecionar o arquivo.',
+          bg: AppColors.error);
     }
   }
 

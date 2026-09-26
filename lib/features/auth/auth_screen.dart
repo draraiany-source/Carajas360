@@ -674,11 +674,10 @@ class _LoginState extends State<LoginScreen>
                                           try {
                                             await AuthService.resetPassword(
                                                 email);
-                                            if (mounted) {
-                                              snack(context,
-                                                  'E-mail de recuperação enviado!',
-                                                  bg: AppColors.secondary);
-                                            }
+                                            if (!context.mounted) return;
+                                            snack(context,
+                                                'E-mail de recuperação enviado!',
+                                                bg: AppColors.secondary);
                                           } on AuthFailure catch (e) {
                                             _err(e.message);
                                           } catch (_) {

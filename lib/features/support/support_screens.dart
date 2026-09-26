@@ -163,12 +163,11 @@ class SupportScreen extends StatelessWidget {
                     child: ElevatedButton(
                         onPressed: () async {
                           await FS.createSupportTicket(subj.text, msg.text);
-                          if (ctx.mounted) {
-                            Navigator.pop(ctx);
-                            snack(ctx,
-                                '✅ Chamado enviado! Em breve entraremos em contato.',
-                                bg: AppColors.secondary);
-                          }
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          snack(ctx,
+                              '✅ Chamado enviado! Em breve entraremos em contato.',
+                              bg: AppColors.secondary);
                         },
                         child: const Text('Enviar chamado'))),
               ]),
@@ -253,7 +252,7 @@ class _CouponsState extends State<CouponsScreen> {
       _err = null;
     });
     final coupon = await FS.validateCoupon(code);
-    if (!mounted) return;
+    if (!context.mounted) return;
     if (coupon != null) {
       setState(() {
         _found = coupon;
@@ -683,16 +682,15 @@ class _DelivState extends State<DeliveryScreen> {
                                         'price': 8.50
                                       });
                                       setState(() => _offerAvailable = false);
-                                      if (mounted) {
-                                        snack(context,
-                                            '✅ Entrega aceita! Iniciando rota...',
-                                            bg: AppColors.delivery);
-                                        Navigator.pushNamed(context, Routes.gps,
-                                            arguments: {
-                                              'ctx': 'mercado',
-                                              'orderId': orderId
-                                            });
-                                      }
+                                      if (!context.mounted) return;
+                                      snack(context,
+                                          '✅ Entrega aceita! Iniciando rota...',
+                                          bg: AppColors.delivery);
+                                      Navigator.pushNamed(context, Routes.gps,
+                                          arguments: {
+                                            'ctx': 'mercado',
+                                            'orderId': orderId
+                                          });
                                     },
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: Colors.white,

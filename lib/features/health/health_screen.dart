@@ -592,11 +592,10 @@ class _ScheduleSheetState extends State<_ScheduleSheet> {
                           if (uid != null)
                             await FS.pushNotif(uid, '🏥 Consulta agendada!',
                                 '${widget.type} às $_time', 'health');
-                          if (mounted) {
-                            Navigator.pop(context);
-                            snack(context, '✅ Consulta agendada com sucesso!',
-                                bg: AppColors.health);
-                          }
+                          if (!context.mounted) return;
+                          Navigator.pop(context);
+                          snack(context, '✅ Consulta agendada com sucesso!',
+                              bg: AppColors.health);
                         },
                   style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.health,
@@ -710,10 +709,10 @@ class AppointmentsScreen extends StatelessWidget {
                                       onPressed: () async {
                                         await FS.cancelAppointment(
                                             a['id'] as String);
-                                        if (context.mounted)
-                                          snack(
-                                              context, 'Agendamento cancelado',
-                                              bg: AppColors.error);
+                                        if (!context.mounted) return;
+                                        snack(
+                                            context, 'Agendamento cancelado',
+                                            bg: AppColors.error);
                                       },
                                       child: const Text('Cancelar',
                                           style: TextStyle(
