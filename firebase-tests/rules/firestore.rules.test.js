@@ -42,6 +42,8 @@ beforeEach(async () => {
       userId: 'pend', name: 'Pendente', categories: ['eletricista'],
       verified: false, active: false, rating: 0, totalReviews: 0,
     });
+    // Fase 2: contratação exige item ativo no catálogo.
+    await setDoc(doc(db, 'catalogNodes/eletricista'), { level: 'group', name: 'Eletricista', active: true, effectiveActive: true });
     await setDoc(doc(db, 'providers/adv'), {
       userId: 'adv', name: 'Advogada', categories: ['advogado'],
       verified: true, active: true, rating: 5, totalReviews: 1,
@@ -275,7 +277,7 @@ describe('financeiro e permissões', () => {
     await assertFails(setDoc(doc(as('cli'), 'payments/p1'), { userId: 'cli', status: 'approved' }));
   });
   test('pedido não nasce com comissão, repasse ou pago', async () => {
-    const o = { clientId: 'cli', status: 'pending', paymentStatus: 'unpaid', payoutProcessed: false };
+    const o = { clientId: 'cli', status: 'pending', paymentStatus: 'unpaid', payoutProcessed: false, category: 'eletricista' };
     await assertFails(setDoc(doc(as('cli'), 'orders/n1'), { ...o, commission: 0 }));
     await assertFails(setDoc(doc(as('cli'), 'orders/n1'), { ...o, paymentStatus: 'paid' }));
     await assertFails(setDoc(doc(as('cli'), 'orders/n1'), { ...o, status: 'completed' }));

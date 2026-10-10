@@ -1,15 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/chat_nav.dart';
-import '../../core/utils/demo_data.dart';
-import '../../shared/models/models.dart';
+import '../../core/catalog/catalog.dart';
+import '../../core/catalog/catalog_service.dart';
+import '../../core/catalog/catalog_widgets.dart';
+import '../../core/catalog/provider_search.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 
 class HealthScreen extends StatefulWidget {
-  const HealthScreen({super.key});
+  /// Especialidade pré-selecionada (ID do catálogo, vertical Saúde).
+  final String? initialCatalogId;
+  const HealthScreen({super.key, this.initialCatalogId});
   @override
   State<HealthScreen> createState() => _HealthState();
 }
@@ -18,57 +24,30 @@ class _HealthState extends State<HealthScreen> {
   int _mode = 0;
   String? _sel;
 
-  static const _specialties = [
-    {'id': 'medico', 'name': 'Médico', 'emoji': '🩺'},
-    {'id': 'psicologo', 'name': 'Psicólogo', 'emoji': '🧠'},
-    {'id': 'fisioterapeuta', 'name': 'Fisioterapeuta', 'emoji': '🦴'},
-    {'id': 'enfermeiro', 'name': 'Enfermeiro', 'emoji': '💉'},
-    {'id': 'nutricionista', 'name': 'Nutricionista', 'emoji': '🥗'},
-    {'id': 'home_care', 'name': 'Home Care', 'emoji': '🏠'},
-  ];
+  String _name = '';
+  Timer? _debounce;
+  int _tick = 0;
 
-  static final _demos = [
-    ProviderModel(
-        id: 'h1',
-        userId: 'u1',
-        name: 'Dra. Ana Lima',
-        categories: ['medico'],
-        rating: 5.0,
-        totalReviews: 480,
-        modalities: ['online', 'presential'],
-        minPrice: 120,
-        createdAt: DateTime.now()),
-    ProviderModel(
-        id: 'h2',
-        userId: 'u2',
-        name: 'Dr. Carlos Matos',
-        categories: ['psicologo'],
-        rating: 4.9,
-        totalReviews: 310,
-        modalities: ['online'],
-        minPrice: 150,
-        createdAt: DateTime.now()),
-    ProviderModel(
-        id: 'h3',
-        userId: 'u3',
-        name: 'Fis. Juliana',
-        categories: ['fisioterapeuta'],
-        rating: 4.8,
-        totalReviews: 220,
-        modalities: ['presential'],
-        minPrice: 100,
-        createdAt: DateTime.now()),
-    ProviderModel(
-        id: 'h4',
-        userId: 'u4',
-        name: 'Enf. Roberto',
-        categories: ['enfermeiro'],
-        rating: 4.7,
-        totalReviews: 180,
-        modalities: ['presential'],
-        minPrice: 80,
-        createdAt: DateTime.now()),
-  ];
+  @override
+  void initState() {
+    super.initState();
+    _sel = widget.initialCatalogId;
+  }
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    super.dispose();
+  }
+
+  static const _modes = [null, 'online', 'presential', 'home_care'];
+
+  /// Consulta real na vertical Saúde: "Todos" = toda a categoria Saúde;
+  /// especialidade = grupo do catálogo; modalidade e nome filtram de fato.
+  ProviderQuery get _query => ProviderQuery(
+      catalogToken: _sel != null ? 'g:$_sel' : 'c:cat_saude',
+      modality: _modes[_mode],
+      nameText: _name);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -126,8 +105,13 @@ class _HealthState extends State<HealthScreen> {
                           ]),
                         ]),
                     const SizedBox(height: 16),
-                    const AppSearchBar(
-                        hint: 'Buscar especialidade ou profissional...'),
+                    AppSearchBar(
+                        hint: 'Buscar profissional pelo nome...',
+                        onChanged: (v) {
+                          _debounce?.cancel();
+                          _debounce = Timer(const Duration(milliseconds: 350),
+                              () => mounted ? setState(() => _name = v.trim()) : null);
+                        }),
                     const SizedBox(height: 12),
                     TogglePills(
                         options: const [
@@ -143,49 +127,47 @@ class _HealthState extends State<HealthScreen> {
           SliverToBoxAdapter(
               child: Padding(
                   padding: const EdgeInsets.fromLTRB(0, 16, 0, 0),
-                  child: SizedBox(
-                      height: 58,
-                      child: ListView.separated(
+                  child: CatalogBuilder(
+                    compact: true,
+                    builder: (_, catalog) {
+                      final specs =
+                          catalog.groupsOfVertical(CatalogVertical.health);
+                      return SizedBox(
+                        height: 58,
+                        child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           padding: const EdgeInsets.symmetric(
                               horizontal: 16, vertical: 4),
-                          itemCount: _specialties.length,
+                          itemCount: specs.length,
                           separatorBuilder: (_, __) => const SizedBox(width: 8),
                           itemBuilder: (_, i) {
-                            final s = _specialties[i];
-                            final sel = _sel == s['id'];
-                            return GestureDetector(
-                                onTap: () =>
-                                    setState(() => _sel = sel ? null : s['id']),
-                                child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 14, vertical: 8),
-                                    decoration: BoxDecoration(
+                            final sp = specs[i];
+                            final sel = _sel == sp.id;
+                            return Semantics(
+                              button: true,
+                              selected: sel,
+                              label: sp.name,
+                              child: ChoiceChip(
+                                showCheckmark: false,
+                                selected: sel,
+                                selectedColor: AppColors.health,
+                                backgroundColor: AppColors.white,
+                                label: Text('${sp.icon}  ${sp.name}',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700,
                                         color: sel
-                                            ? AppColors.health
-                                            : AppColors.white,
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
-                                            color: sel
-                                                ? AppColors.health
-                                                : AppColors.border)),
-                                    child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Text(s['emoji']!,
-                                              style: const TextStyle(
-                                                  fontSize: 16)),
-                                          const SizedBox(width: 6),
-                                          Text(s['name']!,
-                                              style: TextStyle(
-                                                  fontSize: 12,
-                                                  fontWeight: FontWeight.w700,
-                                                  color: sel
-                                                      ? Colors.white
-                                                      : AppColors.textDark))
-                                        ])));
-                          })))),
+                                            ? Colors.white
+                                            : AppColors.textDark)),
+                                onSelected: (_) =>
+                                    setState(() => _sel = sel ? null : sp.id),
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ))),
           SliverToBoxAdapter(
               child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -204,34 +186,41 @@ class _HealthState extends State<HealthScreen> {
                   padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
                   child: SecHeader(title: '👨‍⚕️ Profissionais disponíveis'))),
           SliverToBoxAdapter(
-              child: StreamBuilder<List<ProviderModel>>(
-            stream: _sel != null
-                ? FS.providersStream(category: _sel, limit: 10)
-                : const Stream.empty(),
+              child: FutureBuilder<ProviderPage>(
+            key: ValueKey('${_query.key}|$_tick'),
+            future: ProviderSearch().fetch(_query, pageSize: 20),
             builder: (_, snap) {
-              if (snap.hasError) return QueryErrorView(error: snap.error);
-              final provs = DemoData.orEmpty(
-                  snap.data,
-                  _demos
-                      .where((p) => _sel == null || p.categories.contains(_sel))
-                      .toList());
+              if (snap.hasError) {
+                return QueryErrorView(
+                    error: snap.error, onRetry: () => setState(() => _tick++));
+              }
+              if (snap.connectionState != ConnectionState.done) {
+                return const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()));
+              }
+              final provs = snap.data!.items;
               if (provs.isEmpty)
                 return const Padding(
                     padding: EdgeInsets.all(20),
                     child: EmptyState(
                         emoji: '🔍',
                         title: 'Nenhum profissional',
-                        subtitle: 'Tente outra especialidade'));
+                        subtitle:
+                            'Nenhum profissional de saúde aprovado com estes filtros.'));
+              final catalog = CatalogService.instance.catalog;
               return Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Column(
                       children: provs.map((p) {
-                    final sp = _specialties.firstWhere(
-                        (s) => p.categories.contains(s['id']),
-                        orElse: () => {'name': 'Saúde', 'emoji': '🩺'});
+                    final spId = p.categories.firstWhere(
+                        (c) => catalog.rootOf(c)?.vertical == CatalogVertical.health,
+                        orElse: () => p.categories.isNotEmpty ? p.categories.first : '');
+                    final sp = catalog.byId(spId);
+                    final spName = sp?.name ?? 'Saúde';
                     return ProvCard(
                         name: p.name,
-                        role: '${sp['emoji']} ${sp['name']}',
+                        role: '${sp?.icon ?? '🩺'} $spName',
                         badge: p.badge,
                         price: p.minPrice != null
                             ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
@@ -243,7 +232,7 @@ class _HealthState extends State<HealthScreen> {
                         avatarBg: AppColors.health,
                         providerId: p.id,
                         onTap: () => _schedule(
-                            sp['name'] as String, p.minPrice?.toInt() ?? 150),
+                            spName, p.minPrice?.toInt() ?? 150),
                         onChat: () => ChatNav.open(context,
                             otherUserId:
                                 p.userId.isNotEmpty ? p.userId : p.id,

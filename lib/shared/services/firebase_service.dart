@@ -567,6 +567,15 @@ class FS {
     });
   }
 
+  /// Especialidades declaradas pelo prestador (IDs do catálogo). O índice
+  /// de busca é recalculado no servidor (onProviderIndex).
+  static Future<void> updateProviderCategories(
+          String providerId, List<String> categories) =>
+      _db.collection(Col.providers).doc(providerId).update({
+        'categories': categories,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+
   static Future<void> approveProvider(String id) => _db
       .collection(Col.providers)
       .doc(id)

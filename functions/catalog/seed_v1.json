@@ -1,0 +1,3479 @@
+{
+ "version": 1,
+ "nodes": [
+  {
+   "id": "cat_casa_reformas",
+   "level": "category",
+   "name": "Casa e Reformas",
+   "parentId": null,
+   "icon": "🏠",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Construção, reforma, elétrica e hidráulica",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "cat_limpeza",
+   "level": "category",
+   "name": "Limpeza",
+   "parentId": null,
+   "icon": "🧹",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Faxina, diaristas e limpeza pós-obra",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "cat_jardim",
+   "level": "category",
+   "name": "Jardim",
+   "parentId": null,
+   "icon": "🌿",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Jardinagem e paisagismo",
+   "legacyGroup": null,
+   "order": 30
+  },
+  {
+   "id": "cat_assistencia_tecnica",
+   "level": "category",
+   "name": "Assistência Técnica",
+   "parentId": null,
+   "icon": "🛠️",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Conserto de aparelhos e equipamentos",
+   "legacyGroup": null,
+   "order": 40
+  },
+  {
+   "id": "cat_automoveis",
+   "level": "category",
+   "name": "Automóveis",
+   "parentId": null,
+   "icon": "🚗",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Mecânica, auto elétrica e serviços automotivos",
+   "legacyGroup": null,
+   "order": 50
+  },
+  {
+   "id": "cat_beleza",
+   "level": "category",
+   "name": "Beleza",
+   "parentId": null,
+   "icon": "💅",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Cabelo, unhas, estética e bem-estar",
+   "legacyGroup": null,
+   "order": 60
+  },
+  {
+   "id": "cat_educacao",
+   "level": "category",
+   "name": "Educação",
+   "parentId": null,
+   "icon": "📚",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Aulas particulares, idiomas e treino",
+   "legacyGroup": null,
+   "order": 70
+  },
+  {
+   "id": "cat_tecnologia_design",
+   "level": "category",
+   "name": "Tecnologia e Design",
+   "parentId": null,
+   "icon": "💻",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Desenvolvimento, sistemas e design",
+   "legacyGroup": null,
+   "order": 80
+  },
+  {
+   "id": "cat_juridico_contabil",
+   "level": "category",
+   "name": "Jurídico e Contabilidade",
+   "parentId": null,
+   "icon": "⚖️",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Advocacia e contabilidade",
+   "legacyGroup": null,
+   "order": 90
+  },
+  {
+   "id": "cat_eventos",
+   "level": "category",
+   "name": "Eventos",
+   "parentId": null,
+   "icon": "🎉",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Fotografia, som e festas",
+   "legacyGroup": null,
+   "order": 100
+  },
+  {
+   "id": "cat_pets",
+   "level": "category",
+   "name": "Pets",
+   "parentId": null,
+   "icon": "🐾",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Cuidados com animais de estimação",
+   "legacyGroup": null,
+   "order": 110
+  },
+  {
+   "id": "cat_transporte_mudancas",
+   "level": "category",
+   "name": "Transporte e Mudanças",
+   "parentId": null,
+   "icon": "🚚",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Mudanças, motoristas e entregas",
+   "legacyGroup": null,
+   "order": 120
+  },
+  {
+   "id": "cat_agro",
+   "level": "category",
+   "name": "Agro",
+   "parentId": null,
+   "icon": "🌾",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Serviços rurais, lavoura e pecuária",
+   "legacyGroup": null,
+   "order": 130
+  },
+  {
+   "id": "cat_maquinas_equipamentos",
+   "level": "category",
+   "name": "Máquinas e Equipamentos",
+   "parentId": null,
+   "icon": "⚙️",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Operação e manutenção de máquinas",
+   "legacyGroup": null,
+   "order": 140
+  },
+  {
+   "id": "cat_drones",
+   "level": "category",
+   "name": "Drones",
+   "parentId": null,
+   "icon": "🚁",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Pulverização, imagens e inspeção com drones",
+   "legacyGroup": null,
+   "order": 150
+  },
+  {
+   "id": "cat_mao_de_obra",
+   "level": "category",
+   "name": "Mão de Obra",
+   "parentId": null,
+   "icon": "👷",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Serventes, vigilância e serviços gerais",
+   "legacyGroup": null,
+   "order": 160
+  },
+  {
+   "id": "cat_cuidados",
+   "level": "category",
+   "name": "Cuidados",
+   "parentId": null,
+   "icon": "🤝",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Babás e cuidadores",
+   "legacyGroup": null,
+   "order": 170
+  },
+  {
+   "id": "cat_servicos_empresariais",
+   "level": "category",
+   "name": "Serviços Empresariais",
+   "parentId": null,
+   "icon": "🏢",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Apoio administrativo e marketing",
+   "legacyGroup": null,
+   "order": 180
+  },
+  {
+   "id": "cat_saude",
+   "level": "category",
+   "name": "Saúde",
+   "parentId": null,
+   "icon": "🩺",
+   "color": null,
+   "vertical": "health",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential",
+    "online",
+    "home_care"
+   ],
+   "commercialModel": "quote",
+   "description": "Vertical especializada de saúde",
+   "legacyGroup": null,
+   "order": 190
+  },
+  {
+   "id": "cat_mercado_lojas",
+   "level": "category",
+   "name": "Mercado — Lojas",
+   "parentId": null,
+   "icon": "🛒",
+   "color": null,
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "fixed",
+   "description": "Segmentos de lojas do Mercado (compra)",
+   "legacyGroup": null,
+   "order": 200
+  },
+  {
+   "id": "cat_locacao",
+   "level": "category",
+   "name": "Locação",
+   "parentId": null,
+   "icon": "🔑",
+   "color": null,
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "fixed",
+   "description": "Aluguel de veículos e máquinas",
+   "legacyGroup": null,
+   "order": 210
+  },
+  {
+   "id": "cat_entregas",
+   "level": "category",
+   "name": "Entregas",
+   "parentId": null,
+   "icon": "📦",
+   "color": null,
+   "vertical": "delivery",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "Vertical de entregas",
+   "legacyGroup": null,
+   "order": 220
+  },
+  {
+   "id": "eletricista",
+   "level": "group",
+   "name": "Eletricista",
+   "parentId": "cat_casa_reformas",
+   "icon": "⚡",
+   "color": "#1565C0",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Casa",
+   "order": 10
+  },
+  {
+   "id": "encanador",
+   "level": "group",
+   "name": "Encanador",
+   "parentId": "cat_casa_reformas",
+   "icon": "🔧",
+   "color": "#0277BD",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Casa",
+   "order": 20
+  },
+  {
+   "id": "pedreiro",
+   "level": "group",
+   "name": "Pedreiro",
+   "parentId": "cat_casa_reformas",
+   "icon": "🧱",
+   "color": "#5D4037",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Casa",
+   "order": 30
+  },
+  {
+   "id": "pintor",
+   "level": "group",
+   "name": "Pintor",
+   "parentId": "cat_casa_reformas",
+   "icon": "🎨",
+   "color": "#E65100",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Casa",
+   "order": 40
+  },
+  {
+   "id": "marceneiro",
+   "level": "group",
+   "name": "Marceneiro",
+   "parentId": "cat_casa_reformas",
+   "icon": "🪚",
+   "color": "#6D4C41",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Casa",
+   "order": 50
+  },
+  {
+   "id": "carpinteiro",
+   "level": "group",
+   "name": "Carpinteiro",
+   "parentId": "cat_casa_reformas",
+   "icon": "🪵",
+   "color": "#795548",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 60
+  },
+  {
+   "id": "gesseiro",
+   "level": "group",
+   "name": "Gesseiro",
+   "parentId": "cat_casa_reformas",
+   "icon": "🧱",
+   "color": "#8D6E63",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 70
+  },
+  {
+   "id": "armador",
+   "level": "group",
+   "name": "Armador",
+   "parentId": "cat_casa_reformas",
+   "icon": "🔗",
+   "color": "#546E7A",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 80
+  },
+  {
+   "id": "soldador",
+   "level": "group",
+   "name": "Soldador",
+   "parentId": "cat_casa_reformas",
+   "icon": "🔥",
+   "color": "#D84315",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 90
+  },
+  {
+   "id": "svc_instalacao_chuveiro",
+   "level": "service",
+   "name": "Instalação de chuveiro",
+   "parentId": "eletricista",
+   "icon": "🚿",
+   "color": null,
+   "vertical": "services",
+   "keywords": [
+    "chuveiro eletrico"
+   ],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "both",
+   "description": "",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "svc_tomadas_interruptores",
+   "level": "service",
+   "name": "Tomadas e interruptores",
+   "parentId": "eletricista",
+   "icon": "🔌",
+   "color": null,
+   "vertical": "services",
+   "keywords": [
+    "tomada",
+    "interruptor"
+   ],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "both",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "svc_vazamentos",
+   "level": "service",
+   "name": "Conserto de vazamentos",
+   "parentId": "encanador",
+   "icon": "💧",
+   "color": null,
+   "vertical": "services",
+   "keywords": [
+    "vazamento",
+    "cano furado"
+   ],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "both",
+   "description": "",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "diarista",
+   "level": "group",
+   "name": "Diarista",
+   "parentId": "cat_limpeza",
+   "icon": "🧹",
+   "color": "#2E7D32",
+   "vertical": "services",
+   "keywords": [
+    "limpeza residencial"
+   ],
+   "synonyms": [
+    "faxina",
+    "limpeza",
+    "faxineira"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Limpeza",
+   "order": 10
+  },
+  {
+   "id": "faxineira",
+   "level": "group",
+   "name": "Faxineira",
+   "parentId": "cat_limpeza",
+   "icon": "🧽",
+   "color": "#388E3C",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "faxina",
+    "limpeza",
+    "diarista"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Limpeza",
+   "order": 20
+  },
+  {
+   "id": "svc_limpeza_pos_obra",
+   "level": "service",
+   "name": "Limpeza pós-obra",
+   "parentId": "diarista",
+   "icon": "🧽",
+   "color": null,
+   "vertical": "services",
+   "keywords": [
+    "limpeza pesada"
+   ],
+   "synonyms": [
+    "faxina pos obra"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "jardineiro",
+   "level": "group",
+   "name": "Jardineiro",
+   "parentId": "cat_jardim",
+   "icon": "🌿",
+   "color": "#2E7D32",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "jardinagem",
+    "paisagismo"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Jardim",
+   "order": 10
+  },
+  {
+   "id": "ar_condicionado",
+   "level": "group",
+   "name": "Ar-Condicionado",
+   "parentId": "cat_assistencia_tecnica",
+   "icon": "❄️",
+   "color": "#0288D1",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "ar condicionado",
+    "ar-condicionado",
+    "arcondicionado",
+    "split",
+    "climatizacao"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Equipamentos",
+   "order": 10
+  },
+  {
+   "id": "svc_ar_instalacao",
+   "level": "service",
+   "name": "Instalação de ar-condicionado",
+   "parentId": "ar_condicionado",
+   "icon": "❄️",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "instalar ar condicionado",
+    "instalacao split"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "both",
+   "description": "",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "svc_ar_limpeza",
+   "level": "service",
+   "name": "Limpeza e manutenção de ar-condicionado",
+   "parentId": "ar_condicionado",
+   "icon": "🧼",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "higienizacao ar condicionado",
+    "manutencao split"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "both",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "tecnico_celular",
+   "level": "group",
+   "name": "Técnico Celular",
+   "parentId": "cat_assistencia_tecnica",
+   "icon": "📱",
+   "color": "#1565C0",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "conserto de celular",
+    "assistencia celular",
+    "smartphone"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Tech",
+   "order": 20
+  },
+  {
+   "id": "informatica",
+   "level": "group",
+   "name": "Informática",
+   "parentId": "cat_assistencia_tecnica",
+   "icon": "💻",
+   "color": "#4527A0",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "tecnico de informatica",
+    "conserto de computador",
+    "notebook",
+    "formatacao"
+   ],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Tech",
+   "order": 30
+  },
+  {
+   "id": "mecanico",
+   "level": "group",
+   "name": "Mecânica",
+   "parentId": "cat_automoveis",
+   "icon": "🔧",
+   "color": "#37474F",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "mecanico",
+    "oficina",
+    "mecanica automotiva"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 10
+  },
+  {
+   "id": "svc_freios",
+   "level": "service",
+   "name": "Freios",
+   "parentId": "mecanico",
+   "icon": "🛑",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "pastilha de freio",
+    "disco de freio"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "both",
+   "description": "",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "svc_suspensao",
+   "level": "service",
+   "name": "Suspensão",
+   "parentId": "mecanico",
+   "icon": "🔩",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "amortecedor"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "both",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "svc_troca_oleo",
+   "level": "service",
+   "name": "Troca de óleo",
+   "parentId": "mecanico",
+   "icon": "🛢️",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "oleo do motor"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": null,
+   "order": 30
+  },
+  {
+   "id": "grp_auto_eletrica",
+   "level": "group",
+   "name": "Auto Elétrica",
+   "parentId": "cat_automoveis",
+   "icon": "🔋",
+   "color": null,
+   "vertical": "services",
+   "keywords": [
+    "bateria",
+    "alternador",
+    "motor de arranque"
+   ],
+   "synonyms": [
+    "autoeletrico",
+    "autoeletrica",
+    "auto eletrico",
+    "auto eletrica",
+    "eletricista automotivo"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "cabeleireiro",
+   "level": "group",
+   "name": "Cabeleireiro",
+   "parentId": "cat_beleza",
+   "icon": "✂️",
+   "color": "#AD1457",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Beleza",
+   "order": 10
+  },
+  {
+   "id": "manicure",
+   "level": "group",
+   "name": "Manicure/Pedicure",
+   "parentId": "cat_beleza",
+   "icon": "💅",
+   "color": "#E91E63",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Beleza",
+   "order": 20
+  },
+  {
+   "id": "esteticista",
+   "level": "group",
+   "name": "Esteticista",
+   "parentId": "cat_beleza",
+   "icon": "🌸",
+   "color": "#AD1457",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Beleza",
+   "order": 30
+  },
+  {
+   "id": "massagem",
+   "level": "group",
+   "name": "Massagem",
+   "parentId": "cat_beleza",
+   "icon": "💆",
+   "color": "#4A148C",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Beleza",
+   "order": 40
+  },
+  {
+   "id": "professor",
+   "level": "group",
+   "name": "Professor Particular",
+   "parentId": "cat_educacao",
+   "icon": "📚",
+   "color": "#1A237E",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "aula particular",
+    "reforco escolar"
+   ],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Educação",
+   "order": 10
+  },
+  {
+   "id": "ingles",
+   "level": "group",
+   "name": "Inglês",
+   "parentId": "cat_educacao",
+   "icon": "🇬🇧",
+   "color": "#1565C0",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "aula de ingles",
+    "idiomas"
+   ],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Educação",
+   "order": 20
+  },
+  {
+   "id": "personal_trainer",
+   "level": "group",
+   "name": "Personal Trainer",
+   "parentId": "cat_educacao",
+   "icon": "🏋️",
+   "color": "#1B5E20",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "personal",
+    "treino"
+   ],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Educação",
+   "order": 30
+  },
+  {
+   "id": "desenvolvedor",
+   "level": "group",
+   "name": "Desenvolvedor",
+   "parentId": "cat_tecnologia_design",
+   "icon": "👨‍💻",
+   "color": "#311B92",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "programador",
+    "desenvolvimento de software",
+    "sites",
+    "aplicativos"
+   ],
+   "modalities": [
+    "online",
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Tech",
+   "order": 10
+  },
+  {
+   "id": "grp_design_grafico",
+   "level": "group",
+   "name": "Design Gráfico",
+   "parentId": "cat_tecnologia_design",
+   "icon": "🎨",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "designer",
+    "logo",
+    "identidade visual"
+   ],
+   "modalities": [
+    "online",
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "advogado",
+   "level": "group",
+   "name": "Advogado",
+   "parentId": "cat_juridico_contabil",
+   "icon": "⚖️",
+   "color": "#1A237E",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "advocacia",
+    "juridico"
+   ],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Jurídico",
+   "order": 10
+  },
+  {
+   "id": "contador",
+   "level": "group",
+   "name": "Contador",
+   "parentId": "cat_juridico_contabil",
+   "icon": "📊",
+   "color": "#0D47A1",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "contabilidade",
+    "contabil",
+    "imposto de renda"
+   ],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Jurídico",
+   "order": 20
+  },
+  {
+   "id": "fotografo",
+   "level": "group",
+   "name": "Fotógrafo",
+   "parentId": "cat_eventos",
+   "icon": "📷",
+   "color": "#4A148C",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "fotografia"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Eventos",
+   "order": 10
+  },
+  {
+   "id": "dj",
+   "level": "group",
+   "name": "DJ",
+   "parentId": "cat_eventos",
+   "icon": "🎧",
+   "color": "#1A237E",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "som",
+    "musica para festas"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Eventos",
+   "order": 20
+  },
+  {
+   "id": "veterinario",
+   "level": "group",
+   "name": "Veterinário",
+   "parentId": "cat_pets",
+   "icon": "🐾",
+   "color": "#2E7D32",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "vet",
+    "clinica veterinaria"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Pets",
+   "order": 10
+  },
+  {
+   "id": "banho_tosa",
+   "level": "group",
+   "name": "Banho e Tosa",
+   "parentId": "cat_pets",
+   "icon": "🛁",
+   "color": "#00695C",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "pet shop",
+    "tosa"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Pets",
+   "order": 20
+  },
+  {
+   "id": "mudanca",
+   "level": "group",
+   "name": "Mudança",
+   "parentId": "cat_transporte_mudancas",
+   "icon": "📦",
+   "color": "#E65100",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "mudancas",
+    "frete residencial"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Transporte",
+   "order": 10
+  },
+  {
+   "id": "motorista",
+   "level": "group",
+   "name": "Motorista Particular",
+   "parentId": "cat_transporte_mudancas",
+   "icon": "🧑‍✈️",
+   "color": "#0D47A1",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "motorista particular",
+    "chofer"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 20
+  },
+  {
+   "id": "entregador_moto",
+   "level": "group",
+   "name": "Motoboy",
+   "parentId": "cat_transporte_mudancas",
+   "icon": "🛵",
+   "color": "#E65100",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "motoboy",
+    "moto entregador",
+    "entregas de moto"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Delivery",
+   "order": 30
+  },
+  {
+   "id": "grp_agro_consultoria",
+   "level": "group",
+   "name": "Consultoria Técnica",
+   "parentId": "cat_agro",
+   "icon": "🌱",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "agronomo",
+   "level": "service",
+   "name": "Agrônomo",
+   "parentId": "grp_agro_consultoria",
+   "icon": "🌾",
+   "color": "#2E7D32",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 10
+  },
+  {
+   "id": "tecnico_agricola",
+   "level": "service",
+   "name": "Técnico Agrícola",
+   "parentId": "grp_agro_consultoria",
+   "icon": "🌾",
+   "color": "#558B2F",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 20
+  },
+  {
+   "id": "zootecnista",
+   "level": "service",
+   "name": "Zootecnista",
+   "parentId": "grp_agro_consultoria",
+   "icon": "🐂",
+   "color": "#6D4C41",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 30
+  },
+  {
+   "id": "grp_agro_operacao",
+   "level": "group",
+   "name": "Operação de Máquinas Agrícolas",
+   "parentId": "cat_agro",
+   "icon": "🚜",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "tratorista",
+   "level": "service",
+   "name": "Tratorista",
+   "parentId": "grp_agro_operacao",
+   "icon": "🚜",
+   "color": "#2E7D32",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 10
+  },
+  {
+   "id": "op_colheitadeira",
+   "level": "service",
+   "name": "Operador de Colheitadeira",
+   "parentId": "grp_agro_operacao",
+   "icon": "🌾",
+   "color": "#388E3C",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 20
+  },
+  {
+   "id": "op_escavadeira",
+   "level": "service",
+   "name": "Operador de Escavadeira",
+   "parentId": "grp_agro_operacao",
+   "icon": "🏗️",
+   "color": "#F9A825",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 30
+  },
+  {
+   "id": "op_pa_carregadeira",
+   "level": "service",
+   "name": "Operador de Pá Carregadeira",
+   "parentId": "grp_agro_operacao",
+   "icon": "🚧",
+   "color": "#F9A825",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 40
+  },
+  {
+   "id": "op_motoniveladora",
+   "level": "service",
+   "name": "Operador de Motoniveladora",
+   "parentId": "grp_agro_operacao",
+   "icon": "🛣️",
+   "color": "#EF6C00",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 50
+  },
+  {
+   "id": "op_retroescavadeira",
+   "level": "service",
+   "name": "Operador de Retroescavadeira",
+   "parentId": "grp_agro_operacao",
+   "icon": "⛏️",
+   "color": "#EF6C00",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 60
+  },
+  {
+   "id": "op_rolo_compactador",
+   "level": "service",
+   "name": "Operador de Rolo Compactador",
+   "parentId": "grp_agro_operacao",
+   "icon": "🛞",
+   "color": "#6D4C41",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 70
+  },
+  {
+   "id": "op_caminhao_pipa",
+   "level": "service",
+   "name": "Operador de Caminhão Pipa",
+   "parentId": "grp_agro_operacao",
+   "icon": "🚰",
+   "color": "#0288D1",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 80
+  },
+  {
+   "id": "op_caminhao_basculante",
+   "level": "service",
+   "name": "Operador de Caminhão Basculante",
+   "parentId": "grp_agro_operacao",
+   "icon": "🚛",
+   "color": "#5D4037",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 90
+  },
+  {
+   "id": "grp_agro_lavoura",
+   "level": "group",
+   "name": "Lavoura",
+   "parentId": "cat_agro",
+   "icon": "🌽",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 30
+  },
+  {
+   "id": "pulverizacao_terrestre",
+   "level": "service",
+   "name": "Pulverização Terrestre",
+   "parentId": "grp_agro_lavoura",
+   "icon": "💨",
+   "color": "#43A047",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 10
+  },
+  {
+   "id": "aplicacao_defensivos",
+   "level": "service",
+   "name": "Aplicação de Defensivos",
+   "parentId": "grp_agro_lavoura",
+   "icon": "🧪",
+   "color": "#558B2F",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 20
+  },
+  {
+   "id": "irrigacao",
+   "level": "service",
+   "name": "Irrigação",
+   "parentId": "grp_agro_lavoura",
+   "icon": "💧",
+   "color": "#0288D1",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 30
+  },
+  {
+   "id": "plantio",
+   "level": "service",
+   "name": "Plantio",
+   "parentId": "grp_agro_lavoura",
+   "icon": "🌱",
+   "color": "#2E7D32",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 40
+  },
+  {
+   "id": "colheita",
+   "level": "service",
+   "name": "Colheita",
+   "parentId": "grp_agro_lavoura",
+   "icon": "🌾",
+   "color": "#689F38",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 50
+  },
+  {
+   "id": "silagem",
+   "level": "service",
+   "name": "Silagem",
+   "parentId": "grp_agro_lavoura",
+   "icon": "🌽",
+   "color": "#827717",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 60
+  },
+  {
+   "id": "grp_agro_topografia",
+   "level": "group",
+   "name": "Topografia e Georreferenciamento",
+   "parentId": "cat_agro",
+   "icon": "📐",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 40
+  },
+  {
+   "id": "topografia",
+   "level": "service",
+   "name": "Topografia",
+   "parentId": "grp_agro_topografia",
+   "icon": "📐",
+   "color": "#00695C",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 10
+  },
+  {
+   "id": "georreferenciamento",
+   "level": "service",
+   "name": "Georreferenciamento",
+   "parentId": "grp_agro_topografia",
+   "icon": "🛰️",
+   "color": "#00838F",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 20
+  },
+  {
+   "id": "grp_agro_infra",
+   "level": "group",
+   "name": "Infraestrutura Rural",
+   "parentId": "cat_agro",
+   "icon": "🏗️",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 50
+  },
+  {
+   "id": "poco_artesiano",
+   "level": "service",
+   "name": "Poço Artesiano",
+   "parentId": "grp_agro_infra",
+   "icon": "🕳️",
+   "color": "#0277BD",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 10
+  },
+  {
+   "id": "energia_solar_rural",
+   "level": "service",
+   "name": "Energia Solar Rural",
+   "parentId": "grp_agro_infra",
+   "icon": "☀️",
+   "color": "#F9A825",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 20
+  },
+  {
+   "id": "construcao_cercas",
+   "level": "service",
+   "name": "Construção de Cercas",
+   "parentId": "grp_agro_infra",
+   "icon": "🚧",
+   "color": "#6D4C41",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 30
+  },
+  {
+   "id": "soldador_rural",
+   "level": "service",
+   "name": "Soldador Rural",
+   "parentId": "grp_agro_infra",
+   "icon": "🔥",
+   "color": "#D84315",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 40
+  },
+  {
+   "id": "mecanico_agricola",
+   "level": "service",
+   "name": "Mecânico Agrícola",
+   "parentId": "grp_agro_infra",
+   "icon": "🔩",
+   "color": "#455A64",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 50
+  },
+  {
+   "id": "grp_agro_pecuaria",
+   "level": "group",
+   "name": "Pecuária",
+   "parentId": "cat_agro",
+   "icon": "🐄",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 60
+  },
+  {
+   "id": "capataz",
+   "level": "service",
+   "name": "Capataz",
+   "parentId": "grp_agro_pecuaria",
+   "icon": "🤠",
+   "color": "#795548",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 10
+  },
+  {
+   "id": "vaqueiro",
+   "level": "service",
+   "name": "Vaqueiro",
+   "parentId": "grp_agro_pecuaria",
+   "icon": "🐎",
+   "color": "#8D6E63",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 20
+  },
+  {
+   "id": "ordenhador",
+   "level": "service",
+   "name": "Ordenhador",
+   "parentId": "grp_agro_pecuaria",
+   "icon": "🥛",
+   "color": "#90A4AE",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 30
+  },
+  {
+   "id": "grp_agro_transporte",
+   "level": "group",
+   "name": "Transporte Rural",
+   "parentId": "cat_agro",
+   "icon": "🚛",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 70
+  },
+  {
+   "id": "transporte_gado",
+   "level": "service",
+   "name": "Transporte de Gado",
+   "parentId": "grp_agro_transporte",
+   "icon": "🐄",
+   "color": "#795548",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 10
+  },
+  {
+   "id": "transporte_maquinas",
+   "level": "service",
+   "name": "Transporte de Máquinas",
+   "parentId": "grp_agro_transporte",
+   "icon": "🚛",
+   "color": "#5D4037",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 20
+  },
+  {
+   "id": "frete_agricola",
+   "level": "service",
+   "name": "Frete Agrícola",
+   "parentId": "grp_agro_transporte",
+   "icon": "🚚",
+   "color": "#6D4C41",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Agro",
+   "order": 30
+  },
+  {
+   "id": "operador_maquinas",
+   "level": "group",
+   "name": "Operador de Máquinas",
+   "parentId": "cat_maquinas_equipamentos",
+   "icon": "⚙️",
+   "color": "#455A64",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "operador de maquinas pesadas"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 10
+  },
+  {
+   "id": "grp_manutencao_maquinas",
+   "level": "group",
+   "name": "Manutenção de Máquinas",
+   "parentId": "cat_maquinas_equipamentos",
+   "icon": "🔧",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "mecanico de maquinas pesadas"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "grp_drones_pulverizacao",
+   "level": "group",
+   "name": "Pulverização com Drone",
+   "parentId": "cat_drones",
+   "icon": "🚁",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "drone_pulverizacao",
+   "level": "service",
+   "name": "Pulverização com Drone",
+   "parentId": "grp_drones_pulverizacao",
+   "icon": "🚁",
+   "color": "#1565C0",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 10
+  },
+  {
+   "id": "drone_pulverizacao_urbana",
+   "level": "service",
+   "name": "Pulverização Urbana",
+   "parentId": "grp_drones_pulverizacao",
+   "icon": "🚁",
+   "color": "#1976D2",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 20
+  },
+  {
+   "id": "drone_agricultura_precisao",
+   "level": "service",
+   "name": "Agricultura de Precisão",
+   "parentId": "grp_drones_pulverizacao",
+   "icon": "🎯",
+   "color": "#00838F",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 30
+  },
+  {
+   "id": "grp_drones_imagem",
+   "level": "group",
+   "name": "Imagens Aéreas",
+   "parentId": "cat_drones",
+   "icon": "🎥",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "drone_filmagem",
+   "level": "service",
+   "name": "Filmagem Aérea",
+   "parentId": "grp_drones_imagem",
+   "icon": "🎥",
+   "color": "#283593",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 10
+  },
+  {
+   "id": "drone_fotografia",
+   "level": "service",
+   "name": "Fotografia Aérea",
+   "parentId": "grp_drones_imagem",
+   "icon": "📸",
+   "color": "#3949AB",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 20
+  },
+  {
+   "id": "grp_drones_mapeamento",
+   "level": "group",
+   "name": "Mapeamento e Inspeção",
+   "parentId": "cat_drones",
+   "icon": "🗺️",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 30
+  },
+  {
+   "id": "drone_mapeamento",
+   "level": "service",
+   "name": "Mapeamento de Fazendas",
+   "parentId": "grp_drones_mapeamento",
+   "icon": "🗺️",
+   "color": "#00695C",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 10
+  },
+  {
+   "id": "drone_topografia",
+   "level": "service",
+   "name": "Levantamento Topográfico",
+   "parentId": "grp_drones_mapeamento",
+   "icon": "📐",
+   "color": "#00838F",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 20
+  },
+  {
+   "id": "drone_inspecao_telhados",
+   "level": "service",
+   "name": "Inspeção de Telhados",
+   "parentId": "grp_drones_mapeamento",
+   "icon": "🏠",
+   "color": "#0288D1",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 30
+  },
+  {
+   "id": "drone_inspecao_industrial",
+   "level": "service",
+   "name": "Inspeção Industrial",
+   "parentId": "grp_drones_mapeamento",
+   "icon": "🏭",
+   "color": "#455A64",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 40
+  },
+  {
+   "id": "drone_monitoramento_obras",
+   "level": "service",
+   "name": "Monitoramento de Obras",
+   "parentId": "grp_drones_mapeamento",
+   "icon": "🏗️",
+   "color": "#37474F",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Drones",
+   "order": 50
+  },
+  {
+   "id": "servente",
+   "level": "group",
+   "name": "Servente de Obra",
+   "parentId": "cat_mao_de_obra",
+   "icon": "👷",
+   "color": "#6D4C41",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 10
+  },
+  {
+   "id": "aux_servicos_gerais",
+   "level": "group",
+   "name": "Auxiliar de Serviços Gerais",
+   "parentId": "cat_mao_de_obra",
+   "icon": "🧰",
+   "color": "#607D8B",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 20
+  },
+  {
+   "id": "trabalhador_rural",
+   "level": "group",
+   "name": "Trabalhador Rural",
+   "parentId": "cat_mao_de_obra",
+   "icon": "👨‍🌾",
+   "color": "#558B2F",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 30
+  },
+  {
+   "id": "caseiro",
+   "level": "group",
+   "name": "Caseiro",
+   "parentId": "cat_mao_de_obra",
+   "icon": "🏡",
+   "color": "#6D4C41",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 40
+  },
+  {
+   "id": "vigilante",
+   "level": "group",
+   "name": "Vigilante",
+   "parentId": "cat_mao_de_obra",
+   "icon": "🛡️",
+   "color": "#37474F",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 50
+  },
+  {
+   "id": "porteiro",
+   "level": "group",
+   "name": "Porteiro",
+   "parentId": "cat_mao_de_obra",
+   "icon": "🚪",
+   "color": "#455A64",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 60
+  },
+  {
+   "id": "baba",
+   "level": "group",
+   "name": "Babá",
+   "parentId": "cat_cuidados",
+   "icon": "👶",
+   "color": "#E91E63",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "baba",
+    "cuidadora infantil"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Cuidados",
+   "order": 10
+  },
+  {
+   "id": "cuidador_idosos",
+   "level": "group",
+   "name": "Cuidador de Idosos",
+   "parentId": "cat_cuidados",
+   "icon": "🧓",
+   "color": "#AD1457",
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "cuidadora de idosos",
+    "acompanhante de idosos"
+   ],
+   "modalities": [
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Mão de Obra",
+   "order": 20
+  },
+  {
+   "id": "grp_apoio_administrativo",
+   "level": "group",
+   "name": "Apoio Administrativo",
+   "parentId": "cat_servicos_empresariais",
+   "icon": "🗂️",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "grp_marketing",
+   "level": "group",
+   "name": "Marketing e Publicidade",
+   "parentId": "cat_servicos_empresariais",
+   "icon": "📣",
+   "color": null,
+   "vertical": "services",
+   "keywords": [],
+   "synonyms": [
+    "redes sociais",
+    "publicidade"
+   ],
+   "modalities": [
+    "online",
+    "presential"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "medico",
+   "level": "group",
+   "name": "Médico",
+   "parentId": "cat_saude",
+   "icon": "🩺",
+   "color": "#006064",
+   "vertical": "health",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Saúde",
+   "order": 10
+  },
+  {
+   "id": "enfermeiro",
+   "level": "group",
+   "name": "Enfermeiro",
+   "parentId": "cat_saude",
+   "icon": "💉",
+   "color": "#00838F",
+   "vertical": "health",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "presential",
+    "home_care"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Saúde",
+   "order": 20
+  },
+  {
+   "id": "fisioterapeuta",
+   "level": "group",
+   "name": "Fisioterapeuta",
+   "parentId": "cat_saude",
+   "icon": "🦴",
+   "color": "#00695C",
+   "vertical": "health",
+   "keywords": [],
+   "synonyms": [
+    "fisio",
+    "fisioterapia"
+   ],
+   "modalities": [
+    "presential",
+    "home_care"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Saúde",
+   "order": 30
+  },
+  {
+   "id": "psicologo",
+   "level": "group",
+   "name": "Psicólogo",
+   "parentId": "cat_saude",
+   "icon": "🧠",
+   "color": "#6A1B9A",
+   "vertical": "health",
+   "keywords": [],
+   "synonyms": [
+    "psicologia",
+    "terapia"
+   ],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Saúde",
+   "order": 40
+  },
+  {
+   "id": "nutricionista",
+   "level": "group",
+   "name": "Nutricionista",
+   "parentId": "cat_saude",
+   "icon": "🥗",
+   "color": "#2E7D32",
+   "vertical": "health",
+   "keywords": [],
+   "synonyms": [
+    "nutricao"
+   ],
+   "modalities": [
+    "presential",
+    "online"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Saúde",
+   "order": 50
+  },
+  {
+   "id": "home_care",
+   "level": "group",
+   "name": "Home Care",
+   "parentId": "cat_saude",
+   "icon": "🏠",
+   "color": "#00838F",
+   "vertical": "health",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [
+    "home_care"
+   ],
+   "commercialModel": "quote",
+   "description": "",
+   "legacyGroup": "Saúde",
+   "order": 60
+  },
+  {
+   "id": "loja_material_construcao",
+   "level": "group",
+   "name": "Material de Construção",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🧱",
+   "color": "#6D4C41",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 10
+  },
+  {
+   "id": "loja_autopecas",
+   "level": "group",
+   "name": "Autopeças",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🔧",
+   "color": "#455A64",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 20
+  },
+  {
+   "id": "loja_agropecuaria",
+   "level": "group",
+   "name": "Loja Agropecuária",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🌾",
+   "color": "#2E7D32",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 30
+  },
+  {
+   "id": "loja_ferragens",
+   "level": "group",
+   "name": "Ferragens",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🔩",
+   "color": "#546E7A",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 40
+  },
+  {
+   "id": "loja_moveis",
+   "level": "group",
+   "name": "Móveis",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🛋️",
+   "color": "#795548",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 50
+  },
+  {
+   "id": "loja_celulares",
+   "level": "group",
+   "name": "Celulares",
+   "parentId": "cat_mercado_lojas",
+   "icon": "📱",
+   "color": "#1976D2",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 60
+  },
+  {
+   "id": "loja_eletrodomesticos",
+   "level": "group",
+   "name": "Eletrodomésticos",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🔌",
+   "color": "#0288D1",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 70
+  },
+  {
+   "id": "loja_ferramentas",
+   "level": "group",
+   "name": "Ferramentas",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🧰",
+   "color": "#F9A825",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 80
+  },
+  {
+   "id": "loja_piscinas",
+   "level": "group",
+   "name": "Piscinas",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🏊",
+   "color": "#00ACC1",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 90
+  },
+  {
+   "id": "loja_energia_solar",
+   "level": "group",
+   "name": "Energia Solar",
+   "parentId": "cat_mercado_lojas",
+   "icon": "☀️",
+   "color": "#F9A825",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 100
+  },
+  {
+   "id": "loja_seguranca_eletronica",
+   "level": "group",
+   "name": "Segurança Eletrônica",
+   "parentId": "cat_mercado_lojas",
+   "icon": "📹",
+   "color": "#37474F",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 110
+  },
+  {
+   "id": "loja_jardinagem",
+   "level": "group",
+   "name": "Jardinagem",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🪴",
+   "color": "#558B2F",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 120
+  },
+  {
+   "id": "loja_epis",
+   "level": "group",
+   "name": "EPIs e Segurança",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🦺",
+   "color": "#F9A825",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 130
+  },
+  {
+   "id": "loja_racoes",
+   "level": "group",
+   "name": "Rações",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🐕",
+   "color": "#795548",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 140
+  },
+  {
+   "id": "loja_veterinarios",
+   "level": "group",
+   "name": "Produtos Veterinários",
+   "parentId": "cat_mercado_lojas",
+   "icon": "💉",
+   "color": "#00695C",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 150
+  },
+  {
+   "id": "loja_eletrica",
+   "level": "group",
+   "name": "Elétrica",
+   "parentId": "cat_mercado_lojas",
+   "icon": "💡",
+   "color": "#F9A825",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 160
+  },
+  {
+   "id": "loja_hidraulica",
+   "level": "group",
+   "name": "Hidráulica",
+   "parentId": "cat_mercado_lojas",
+   "icon": "🚿",
+   "color": "#0277BD",
+   "vertical": "market",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Lojas",
+   "order": 170
+  },
+  {
+   "id": "grp_locacao_veiculos",
+   "level": "group",
+   "name": "Veículos para alugar",
+   "parentId": "cat_locacao",
+   "icon": "🚗",
+   "color": null,
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": null,
+   "order": 10
+  },
+  {
+   "id": "grp_locacao_maquinas",
+   "level": "group",
+   "name": "Máquinas para alugar",
+   "parentId": "cat_locacao",
+   "icon": "🚜",
+   "color": null,
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": null,
+   "order": 20
+  },
+  {
+   "id": "aluguel_trator",
+   "level": "service",
+   "name": "Aluguel de Trator",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🚜",
+   "color": "#2E7D32",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 10
+  },
+  {
+   "id": "aluguel_escavadeira",
+   "level": "service",
+   "name": "Aluguel de Escavadeira",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🏗️",
+   "color": "#F9A825",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 20
+  },
+  {
+   "id": "aluguel_retroescavadeira",
+   "level": "service",
+   "name": "Aluguel de Retroescavadeira",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "⛏️",
+   "color": "#EF6C00",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 30
+  },
+  {
+   "id": "aluguel_pa_carregadeira",
+   "level": "service",
+   "name": "Aluguel de Pá Carregadeira",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🚧",
+   "color": "#F9A825",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 40
+  },
+  {
+   "id": "aluguel_motoniveladora",
+   "level": "service",
+   "name": "Aluguel de Motoniveladora",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🛣️",
+   "color": "#EF6C00",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 50
+  },
+  {
+   "id": "aluguel_basculante",
+   "level": "service",
+   "name": "Caminhão Basculante",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🚛",
+   "color": "#5D4037",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 60
+  },
+  {
+   "id": "aluguel_caminhao_pipa",
+   "level": "service",
+   "name": "Caminhão Pipa",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🚰",
+   "color": "#0288D1",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 70
+  },
+  {
+   "id": "aluguel_guindaste",
+   "level": "service",
+   "name": "Guindaste",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🏗️",
+   "color": "#C62828",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 80
+  },
+  {
+   "id": "aluguel_plataforma",
+   "level": "service",
+   "name": "Plataforma Elevatória",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🛗",
+   "color": "#6A1B9A",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 90
+  },
+  {
+   "id": "aluguel_compactador",
+   "level": "service",
+   "name": "Compactador",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🧱",
+   "color": "#6D4C41",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 100
+  },
+  {
+   "id": "aluguel_betoneira",
+   "level": "service",
+   "name": "Betoneira",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🛞",
+   "color": "#757575",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 110
+  },
+  {
+   "id": "aluguel_rocadeira",
+   "level": "service",
+   "name": "Roçadeira",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🌿",
+   "color": "#558B2F",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 120
+  },
+  {
+   "id": "aluguel_gerador",
+   "level": "service",
+   "name": "Gerador",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🔌",
+   "color": "#F9A825",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 130
+  },
+  {
+   "id": "aluguel_compressor",
+   "level": "service",
+   "name": "Compressor",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "💨",
+   "color": "#455A64",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 140
+  },
+  {
+   "id": "aluguel_carro",
+   "level": "service",
+   "name": "Aluguel de Carro",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🚗",
+   "color": "#1565C0",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 10
+  },
+  {
+   "id": "aluguel_caminhonete",
+   "level": "service",
+   "name": "Aluguel de Caminhonete",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🛻",
+   "color": "#0277BD",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 20
+  },
+  {
+   "id": "aluguel_van",
+   "level": "service",
+   "name": "Aluguel de Van",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🚐",
+   "color": "#00695C",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 30
+  },
+  {
+   "id": "aluguel_caminhao",
+   "level": "service",
+   "name": "Aluguel de Caminhão",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🚛",
+   "color": "#5D4037",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 40
+  },
+  {
+   "id": "aluguel_moto",
+   "level": "service",
+   "name": "Aluguel de Moto",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🏍️",
+   "color": "#E65100",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 50
+  },
+  {
+   "id": "aluguel_onibus",
+   "level": "service",
+   "name": "Aluguel de Ônibus",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🚌",
+   "color": "#283593",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 60
+  },
+  {
+   "id": "aluguel_maquinas_agricolas",
+   "level": "service",
+   "name": "Máquinas Agrícolas",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🚜",
+   "color": "#2E7D32",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 70
+  },
+  {
+   "id": "aluguel_reboque",
+   "level": "service",
+   "name": "Reboque",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🚙",
+   "color": "#455A64",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 80
+  },
+  {
+   "id": "aluguel_carretinha",
+   "level": "service",
+   "name": "Carretinha",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🛒",
+   "color": "#6D4C41",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 90
+  },
+  {
+   "id": "aluguel_suv",
+   "level": "service",
+   "name": "Aluguel de SUV",
+   "parentId": "grp_locacao_veiculos",
+   "icon": "🚙",
+   "color": "#1565C0",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Veículos",
+   "order": 100
+  },
+  {
+   "id": "aluguel_rolo_compactador",
+   "level": "service",
+   "name": "Rolo Compactador",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🛞",
+   "color": "#6D4C41",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 150
+  },
+  {
+   "id": "aluguel_perfuratriz",
+   "level": "service",
+   "name": "Perfuratriz",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🕳️",
+   "color": "#455A64",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 160
+  },
+  {
+   "id": "aluguel_mini_escavadeira",
+   "level": "service",
+   "name": "Mini Escavadeira",
+   "parentId": "grp_locacao_maquinas",
+   "icon": "🚧",
+   "color": "#F9A825",
+   "vertical": "rental",
+   "keywords": [],
+   "synonyms": [],
+   "modalities": [],
+   "commercialModel": "fixed",
+   "description": "",
+   "legacyGroup": "Máquinas",
+   "order": 170
+  }
+ ],
+ "legacyGroupMap": {
+  "Casa": "cat_casa_reformas",
+  "Limpeza": "cat_limpeza",
+  "Jardim": "cat_jardim",
+  "Saúde": "cat_saude",
+  "Beleza": "cat_beleza",
+  "Educação": "cat_educacao",
+  "Tech": "cat_tecnologia_design",
+  "Veículos": "cat_automoveis",
+  "Pets": "cat_pets",
+  "Jurídico": "cat_juridico_contabil",
+  "Eventos": "cat_eventos",
+  "Transporte": "cat_transporte_mudancas",
+  "Equipamentos": "cat_assistencia_tecnica",
+  "Agro": "cat_agro",
+  "Cuidados": "cat_cuidados",
+  "Delivery": "cat_transporte_mudancas",
+  "Drones": "cat_drones",
+  "Máquinas": "cat_locacao",
+  "Mão de Obra": "cat_mao_de_obra",
+  "Lojas": "cat_mercado_lojas"
+ },
+ "legacyIds": [
+  "advogado",
+  "agronomo",
+  "aluguel_basculante",
+  "aluguel_betoneira",
+  "aluguel_caminhao",
+  "aluguel_caminhao_pipa",
+  "aluguel_caminhonete",
+  "aluguel_carretinha",
+  "aluguel_carro",
+  "aluguel_compactador",
+  "aluguel_compressor",
+  "aluguel_escavadeira",
+  "aluguel_gerador",
+  "aluguel_guindaste",
+  "aluguel_maquinas_agricolas",
+  "aluguel_mini_escavadeira",
+  "aluguel_moto",
+  "aluguel_motoniveladora",
+  "aluguel_onibus",
+  "aluguel_pa_carregadeira",
+  "aluguel_perfuratriz",
+  "aluguel_plataforma",
+  "aluguel_reboque",
+  "aluguel_retroescavadeira",
+  "aluguel_rocadeira",
+  "aluguel_rolo_compactador",
+  "aluguel_suv",
+  "aluguel_trator",
+  "aluguel_van",
+  "aplicacao_defensivos",
+  "ar_condicionado",
+  "armador",
+  "aux_servicos_gerais",
+  "baba",
+  "banho_tosa",
+  "cabeleireiro",
+  "capataz",
+  "carpinteiro",
+  "caseiro",
+  "colheita",
+  "construcao_cercas",
+  "contador",
+  "cuidador_idosos",
+  "desenvolvedor",
+  "diarista",
+  "dj",
+  "drone_agricultura_precisao",
+  "drone_filmagem",
+  "drone_fotografia",
+  "drone_inspecao_industrial",
+  "drone_inspecao_telhados",
+  "drone_mapeamento",
+  "drone_monitoramento_obras",
+  "drone_pulverizacao",
+  "drone_pulverizacao_urbana",
+  "drone_topografia",
+  "eletricista",
+  "encanador",
+  "energia_solar_rural",
+  "enfermeiro",
+  "entregador_moto",
+  "esteticista",
+  "faxineira",
+  "fisioterapeuta",
+  "fotografo",
+  "frete_agricola",
+  "georreferenciamento",
+  "gesseiro",
+  "home_care",
+  "informatica",
+  "ingles",
+  "irrigacao",
+  "jardineiro",
+  "loja_agropecuaria",
+  "loja_autopecas",
+  "loja_celulares",
+  "loja_eletrica",
+  "loja_eletrodomesticos",
+  "loja_energia_solar",
+  "loja_epis",
+  "loja_ferragens",
+  "loja_ferramentas",
+  "loja_hidraulica",
+  "loja_jardinagem",
+  "loja_material_construcao",
+  "loja_moveis",
+  "loja_piscinas",
+  "loja_racoes",
+  "loja_seguranca_eletronica",
+  "loja_veterinarios",
+  "manicure",
+  "marceneiro",
+  "massagem",
+  "mecanico",
+  "mecanico_agricola",
+  "medico",
+  "motorista",
+  "mudanca",
+  "nutricionista",
+  "op_caminhao_basculante",
+  "op_caminhao_pipa",
+  "op_colheitadeira",
+  "op_escavadeira",
+  "op_motoniveladora",
+  "op_pa_carregadeira",
+  "op_retroescavadeira",
+  "op_rolo_compactador",
+  "operador_maquinas",
+  "ordenhador",
+  "pedreiro",
+  "personal_trainer",
+  "pintor",
+  "plantio",
+  "poco_artesiano",
+  "porteiro",
+  "professor",
+  "psicologo",
+  "pulverizacao_terrestre",
+  "servente",
+  "silagem",
+  "soldador",
+  "soldador_rural",
+  "tecnico_agricola",
+  "tecnico_celular",
+  "topografia",
+  "trabalhador_rural",
+  "transporte_gado",
+  "transporte_maquinas",
+  "tratorista",
+  "vaqueiro",
+  "veterinario",
+  "vigilante",
+  "zootecnista"
+ ]
+}

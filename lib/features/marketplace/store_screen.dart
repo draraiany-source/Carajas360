@@ -7,6 +7,8 @@ import '../../core/constants/app_constants.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../../core/catalog/catalog.dart';
+import '../../core/catalog/catalog_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────
 // MINHA LOJA (Vol.12: Marketplace — lojas de empresas)
@@ -162,37 +164,16 @@ class _StoreFormState extends State<_StoreForm> {
                     borderRadius: BorderRadius.circular(14)),
                 padding: const EdgeInsets.all(10),
                 child: SingleChildScrollView(
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                      for (final g in Categories.groups) ...[
-                        Padding(
-                            padding: const EdgeInsets.only(top: 6, bottom: 8),
-                            child: Text(g.toUpperCase(),
-                                style: const TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppColors.textLight,
-                                    letterSpacing: .6))),
-                        Wrap(
-                            spacing: 8,
-                            runSpacing: 8,
-                            children: Categories.all
-                                .where((c) => c.group == g)
-                                .map((c) {
-                              final sel = _selectedCats.contains(c.id);
-                              return CatChip(
-                                  emoji: c.emoji,
-                                  name: c.name,
-                                  categoryId: c.id,
-                                  color: c.color,
-                                  selected: sel,
-                                  onTap: () => setState(() => sel
-                                      ? _selectedCats.remove(c.id)
-                                      : _selectedCats.add(c.id)));
-                            }).toList()),
-                      ],
-                    ])),
+                    // Fonte única: catálogo administrável.
+                    child: CatalogBuilder(
+                        compact: true,
+                        builder: (_, catalog) => CatalogMultiSelect(
+                            catalog: catalog,
+                            vertical: CatalogVertical.market,
+                            selected: _selectedCats,
+                            onChanged: (v) => setState(() => _selectedCats
+                              ..clear()
+                              ..addAll(v))))),
               ),
               const SizedBox(height: 24),
               SizedBox(

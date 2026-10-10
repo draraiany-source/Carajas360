@@ -8,6 +8,8 @@ import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../../core/catalog/catalog_service.dart';
+import '../../core/catalog/catalog_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────
 // FAVORITES SCREEN (Vol.3/Vol.5: coleção favorites)
@@ -41,8 +43,7 @@ class FavoritesScreen extends StatelessWidget {
               itemBuilder: (_, i) {
                 final p = favs[i];
                 final catName = p.categories.isNotEmpty
-                    ? (Categories.byId(p.categories.first)?.name ??
-                        p.categories.first)
+                    ? CatalogService.instance.catalog.nameOf(p.categories.first)
                     : 'Profissional';
                 return Dismissible(
                   key: Key(p.id),
@@ -214,7 +215,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                 itemCount: orders.length,
                 itemBuilder: (_, i) {
                   final o = orders[i];
-                  final cat = Categories.byId(o.category);
+                  final cat = CatalogService.instance.catalog.byId(o.category);
                   return Container(
                     margin: const EdgeInsets.only(bottom: 10),
                     decoration: AppDecorations.card(r: 16),
@@ -227,11 +228,11 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                                 width: 42,
                                 height: 42,
                                 decoration: BoxDecoration(
-                                    color: (cat?.color ?? AppColors.primary)
+                                    color: catalogColor(cat)
                                         .withValues(alpha: 0.12),
                                     borderRadius: BorderRadius.circular(12)),
                                 alignment: Alignment.center,
-                                child: Text(cat?.emoji ?? '🔧',
+                                child: Text(cat?.icon ?? '🔧',
                                     style: const TextStyle(fontSize: 20))),
                             const SizedBox(width: 12),
                             Expanded(
@@ -243,6 +244,14 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w700,
                                           fontSize: 14)),
+                                  // Serviço contratado (snapshot do pedido).
+                                  CatalogLabel(o.category,
+                                      snapshotName: o.serviceName,
+                                      maxLines: 1,
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.primary,
+                                          fontWeight: FontWeight.w600)),
                                   Text(fmtDate(o.createdAt),
                                       style: const TextStyle(
                                           fontSize: 11,
@@ -428,7 +437,7 @@ class _RequestServiceState extends State<RequestServiceScreen> {
       return;
     }
     setState(() => _improvingDescription = true);
-    final catName = Categories.byId(widget.category)?.name ?? widget.category;
+    final catName = CatalogService.instance.catalog.nameOf(widget.category);
     final suggestion = await AiSvc.suggestDescription(
         category: catName, draft: _description.text.trim());
     if (!mounted) return;
@@ -448,7 +457,7 @@ class _RequestServiceState extends State<RequestServiceScreen> {
       return;
     }
     setState(() => _loadingBudget = true);
-    final catName = Categories.byId(widget.category)?.name ?? widget.category;
+    final catName = CatalogService.instance.catalog.nameOf(widget.category);
     final suggestion = await AiSvc.suggestBudget(
         category: catName, description: _description.text.trim());
     if (!mounted) return;
@@ -458,11 +467,31 @@ class _RequestServiceState extends State<RequestServiceScreen> {
     });
   }
 
+  /// Bloqueia nova contratação de serviço desativado/inexistente e
+  /// operações sem confirmação do servidor (catálogo só em cache).
+  String? _blockReason(CatalogState s) {
+    if (!s.hasData) return 'Catálogo indisponível no momento.';
+    if (s.fromCache) {
+      return 'Você está offline. A solicitação só pode ser enviada com conexão.';
+    }
+    if (widget.category.isEmpty || !s.catalog.isActive(widget.category)) {
+      return 'Este serviço não está disponível para novas contratações.';
+    }
+    return null;
+  }
+
   Future<void> _submit() async {
     if (!_form.currentState!.validate()) return;
+    final block = _blockReason(CatalogService.instance.state.value);
+    if (block != null) {
+      snack(context, block, bg: AppColors.error);
+      return;
+    }
     setState(() => _loading = true);
 
-    final orderId = await FS.createOrder({
+    final String orderId;
+    try {
+      orderId = await FS.createOrder({
       'providerId': widget.providerId,
       'category': widget.category,
       'title': _title.text.trim(),
@@ -470,6 +499,14 @@ class _RequestServiceState extends State<RequestServiceScreen> {
       'address': _address.text.trim(),
       'urgent': _urgent,
     });
+    } catch (e) {
+      if (mounted) {
+        setState(() => _loading = false);
+        snack(context, 'Não foi possível enviar a solicitação: $e',
+            bg: AppColors.error);
+      }
+      return;
+    }
 
     final roomId = await FS.getOrCreateRoom(widget.providerId);
     await FS.sendMessage(
@@ -519,14 +556,27 @@ class _RequestServiceState extends State<RequestServiceScreen> {
                                   style: const TextStyle(
                                       fontWeight: FontWeight.w800,
                                       fontSize: 15)),
-                              Text(
-                                  Categories.byId(widget.category)?.name ??
-                                      widget.category,
+                              CatalogLabel(widget.category,
                                   style: const TextStyle(
                                       fontSize: 12,
                                       color: AppColors.textLight)),
                             ])),
                       ])),
+                  ValueListenableBuilder<CatalogState>(
+                    valueListenable: CatalogService.instance.state,
+                    builder: (_, cs, __) {
+                      final block = cs.loading && !cs.hasData ? null : _blockReason(cs);
+                      if (block == null) return const SizedBox.shrink();
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 12),
+                        child: InfoBanner(
+                            icon: '⛔',
+                            text: block,
+                            bg: const Color(0xFFFFEBEE),
+                            fg: AppColors.error),
+                      );
+                    },
+                  ),
                   const SizedBox(height: 20),
                   TextFormField(
                       controller: _title,

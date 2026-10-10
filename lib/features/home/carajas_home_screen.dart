@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../../core/catalog/catalog_service.dart';
+import '../../core/catalog/catalog_widgets.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/modules/platform_modules.dart';
@@ -312,8 +314,8 @@ class _HomeScreenState extends State<HomeScreen> {
                   child: Column(
                     children: list.map((p) {
                       final cat = p.categories.isNotEmpty
-                          ? (Categories.byId(p.categories.first)?.name ??
-                              p.categories.first)
+                          ? CatalogService.instance.catalog
+                              .nameOf(p.categories.first)
                           : 'Profissional';
                       return ProvCard(
                         name: p.name,
@@ -354,29 +356,37 @@ class _HomeScreenState extends State<HomeScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const SecHeader(title: 'Mais procurados'),
+                  // Categorias reais do catálogo administrável.
+                  const SecHeader(title: 'Categorias de serviço'),
                   const SizedBox(height: 10),
-                  SizedBox(
-                    height: 40,
-                    child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: Categories.all.length.clamp(0, 12),
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (_, i) {
-                        final c = Categories.all[i];
-                        return CatChip(
-                          emoji: c.emoji,
-                          name: c.name,
-                          categoryId: c.id,
-                          color: c.color,
-                          selected: false,
-                          onTap: () => Navigator.pushNamed(
-                              context, Routes.search,
-                              arguments: {'category': c.id}),
-                        );
-                      },
-                    ),
+                  CatalogBuilder(
+                    compact: true,
+                    showCacheBanner: false,
+                    builder: (_, catalog) {
+                      final cats = catalog.categories();
+                      return SizedBox(
+                        height: 44,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          itemCount: cats.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (_, i) {
+                            final c = cats[i];
+                            return CatChip(
+                              emoji: c.icon,
+                              name: c.name,
+                              categoryId: c.id,
+                              color: catalogColor(c),
+                              selected: false,
+                              onTap: () => Navigator.pushNamed(
+                                  context, Routes.search,
+                                  arguments: {'catalogId': c.id}),
+                            );
+                          },
+                        ),
+                      );
+                    },
                   ),
                 ],
               ),

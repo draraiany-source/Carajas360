@@ -443,7 +443,9 @@ class DeliveryScreen extends StatefulWidget {
 
 class _DelivState extends State<DeliveryScreen> {
   int _tab = 0;
-  bool _offerAvailable = true;
+  // Oferta de entrega FIXA (fictícia): só em dev com DEMO_DATA. Ofertas
+  // reais dependem da integração de entregas (fase própria).
+  bool _offerAvailable = DemoData.allow;
 
   @override
   Widget build(BuildContext context) => Scaffold(

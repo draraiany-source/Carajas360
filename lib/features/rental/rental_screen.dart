@@ -10,6 +10,8 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../shared/widgets/micro_interactions.dart';
+import '../../core/catalog/catalog.dart';
+import '../../core/catalog/catalog_service.dart';
 
 // ─────────────────────────────────────────────────────────────
 // LOCAÇÃO (Vol.13) — vitrine de veículos e máquinas para aluguel.
@@ -379,8 +381,7 @@ class RentalDetailScreen extends StatelessWidget {
                     _row('Especificações', rental.specs!),
                   _row(
                       'Categoria',
-                      Categories.byId(rental.category)?.name ??
-                          rental.category),
+                      CatalogService.instance.catalog.nameOf(rental.category)),
                 ]),
               ),
               if (rental.description != null &&
@@ -581,6 +582,17 @@ class _RentalFormState extends State<_RentalForm> {
 
   late RentalKind _kind = widget.edit?.kind ?? RentalKind.vehicle;
   late String _cat = widget.edit?.category ?? 'aluguel_carro';
+
+  @override
+  void initState() {
+    super.initState();
+    CatalogService.instance.ensureStarted();
+    CatalogService.instance.state.addListener(_onCatalog);
+  }
+
+  void _onCatalog() {
+    if (mounted) setState(() {});
+  }
   late List<String> _photos = [...?widget.edit?.photos];
   bool _saving = false;
 
@@ -604,6 +616,7 @@ class _RentalFormState extends State<_RentalForm> {
     ]) {
       c.dispose();
     }
+    CatalogService.instance.state.removeListener(_onCatalog);
     super.dispose();
   }
 
@@ -613,10 +626,11 @@ class _RentalFormState extends State<_RentalForm> {
   }
 
   /// Categorias disponíveis conforme o tipo escolhido.
-  List<ServiceCategory> get _cats => Categories.all
-      .where((c) =>
-          c.group == (_kind == RentalKind.vehicle ? 'Veículos' : 'Máquinas'))
-      .toList();
+  /// Categorias de locação vindas do catálogo (vertical Locação).
+  List<CatalogNode> get _cats => CatalogService.instance.catalog.children(
+      _kind == RentalKind.vehicle
+          ? 'grp_locacao_veiculos'
+          : 'grp_locacao_maquinas');
 
   Future<void> _addPhoto() async {
     final picked = await ImagePicker().pickImage(
@@ -757,7 +771,7 @@ class _RentalFormState extends State<_RentalForm> {
             decoration: const InputDecoration(labelText: 'Categoria'),
             items: _cats
                 .map((c) => DropdownMenuItem(
-                    value: c.id, child: Text('${c.emoji}  ${c.name}')))
+                    value: c.id, child: Text('${c.icon}  ${c.name}')))
                 .toList(),
             onChanged: (v) => setState(() => _cat = v ?? _cat),
           ),

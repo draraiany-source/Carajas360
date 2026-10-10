@@ -1117,3 +1117,8 @@ exports.generatePixHttp = functions.https.onRequest(gone);
 exports.checkPaymentHttp = functions.https.onRequest(gone);
 exports.processCardPaymentHttp = functions.https.onRequest(gone);
 exports.aiAssistantHttp = functions.https.onRequest(gone);
+
+// ── Catálogo (Fase 2): fonte única, migração, questionários e busca ──
+Object.assign(exports, require('./catalog')({
+  functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION,
+}));

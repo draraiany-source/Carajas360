@@ -13,6 +13,7 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../support/support_screens.dart';
+import '../../core/catalog/catalog_widgets.dart';
 
 class SplashScreen extends StatefulWidget {
   final bool firebaseReady;
@@ -1293,46 +1294,18 @@ class _RegState extends State<RegisterScreen>
                                         border: Border.all(
                                             color: SpanDs.border)),
                                     padding: const EdgeInsets.all(12),
+                                    // Fonte única: catálogo administrável.
                                     child: SingleChildScrollView(
-                                        child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                          for (final g
-                                              in Categories.groups) ...[
-                                            Padding(
-                                                padding: const EdgeInsets.only(
-                                                    top: 4, bottom: 8),
-                                                child: Text(g.toUpperCase(),
-                                                    style: SpanDs.poppins(
-                                                        size: 10,
-                                                        weight: FontWeight.w800,
-                                                        color: SpanDs
-                                                            .textTertiary,
-                                                        letterSpacing: 0.8))),
-                                            Wrap(
-                                                spacing: 8,
-                                                runSpacing: 8,
-                                                children: Categories.all
-                                                    .where((c) => c.group == g)
-                                                    .map((c) {
-                                                  final sel = _selectedCats
-                                                      .contains(c.id);
-                                                  return CatChip(
-                                                      emoji: c.emoji,
-                                                      name: c.name,
-                                                      categoryId: c.id,
-                                                      color: c.color,
-                                                      selected: sel,
-                                                      onTap: () => setState(
-                                                          () => sel
-                                                              ? _selectedCats
-                                                                  .remove(c.id)
-                                                              : _selectedCats
-                                                                  .add(c.id)));
-                                                }).toList()),
-                                          ],
-                                        ])),
+                                        child: CatalogBuilder(
+                                            compact: true,
+                                            builder: (_, catalog) =>
+                                                CatalogMultiSelect(
+                                                    catalog: catalog,
+                                                    selected: _selectedCats,
+                                                    onChanged: (v) => setState(
+                                                        () => _selectedCats
+                                                          ..clear()
+                                                          ..addAll(v))))),
                                   ),
                                   const SizedBox(height: 16),
                                 ],

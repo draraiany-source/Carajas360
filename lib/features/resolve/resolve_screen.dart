@@ -6,6 +6,9 @@ import '../../core/utils/chat_nav.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../../core/catalog/catalog_selection.dart';
+import '../../core/catalog/catalog_service.dart';
+import '../../core/catalog/catalog_widgets.dart';
 
 /// Cliente: descreve necessidade e recebe propostas.
 class ResolveScreen extends StatefulWidget {
@@ -17,7 +20,8 @@ class ResolveScreen extends StatefulWidget {
 class _ResolveScreenState extends State<ResolveScreen> {
   final _desc = TextEditingController();
   final _city = TextEditingController(text: RegionCities.defaultCity);
-  String? _category;
+  CatalogSelection _sel = CatalogSelection.none;
+  String? get _category => _sel.groupId == null ? null : _sel.selectedId;
   bool _sending = false;
 
   @override
@@ -37,7 +41,18 @@ class _ResolveScreenState extends State<ResolveScreen> {
       return;
     }
     if (_category == null) {
-      snack(context, 'Selecione uma categoria');
+      snack(context, 'Selecione a categoria e o grupo do serviço');
+      return;
+    }
+    final cs = CatalogService.instance.state.value;
+    if (cs.fromCache) {
+      snack(context, 'Você está offline. O pedido só pode ser enviado com conexão.',
+          bg: AppColors.error);
+      return;
+    }
+    if (!cs.catalog.isActive(_category!)) {
+      snack(context, 'Este serviço não está disponível para novas solicitações.',
+          bg: AppColors.error);
       return;
     }
     setState(() => _sending = true);
@@ -102,26 +117,15 @@ class _ResolveScreenState extends State<ResolveScreen> {
             ),
           ),
           const SizedBox(height: 16),
-          const Text('Categoria',
+          const Text('Serviço',
               style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
           const SizedBox(height: 8),
-          SizedBox(
-            height: 40,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: Categories.all.length.clamp(0, 30),
-              separatorBuilder: (_, __) => const SizedBox(width: 8),
-              itemBuilder: (_, i) {
-                final c = Categories.all[i];
-                return CatChip(
-                  emoji: c.emoji,
-                  name: c.name,
-                  categoryId: c.id,
-                  color: c.color,
-                  selected: _category == c.id,
-                  onTap: () => setState(() => _category = c.id),
-                );
-              },
+          CatalogBuilder(
+            compact: true,
+            builder: (_, catalog) => CatalogDropdownSelector(
+              catalog: catalog,
+              selection: _sel.sanitize(catalog),
+              onChanged: (v) => setState(() => _sel = v),
             ),
           ),
           const SizedBox(height: 16),
@@ -214,7 +218,7 @@ class ResolveDetailScreen extends StatelessWidget {
                             fontWeight: FontWeight.w700, height: 1.35)),
                     const SizedBox(height: 8),
                     Text(
-                        '${Categories.byId(req.category)?.emoji ?? '🛠️'} ${Categories.byId(req.category)?.name ?? req.category} · 📍 ${req.city}',
+                        '${CatalogService.instance.catalog.byId(req.category)?.icon ?? '🛠️'} ${req.serviceName ?? CatalogService.instance.catalog.nameOf(req.category)} · 📍 ${req.city}',
                         style: const TextStyle(
                             color: AppColors.textLight, fontSize: 12)),
                     const SizedBox(height: 4),
@@ -615,7 +619,7 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
                               fontWeight: FontWeight.w700, height: 1.35)),
                       const SizedBox(height: 6),
                       Text(
-                          '📍 ${r.city}${r.neighborhood != null ? ' · ${r.neighborhood}' : ''} · ${Categories.byId(r.category)?.name ?? r.category}',
+                          '📍 ${r.city}${r.neighborhood != null ? ' · ${r.neighborhood}' : ''} · ${CatalogService.instance.catalog.nameOf(r.category)}',
                           style: const TextStyle(
                               fontSize: 12, color: AppColors.textLight)),
                       const SizedBox(height: 10),

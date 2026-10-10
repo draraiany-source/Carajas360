@@ -1,4 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
+
+import 'catalog_test.dart' show seedCatalog;
 import 'package:servico_conecta/core/constants/app_constants.dart';
 import 'package:servico_conecta/shared/models/models.dart';
 import 'package:servico_conecta/shared/services/firebase_service.dart';
@@ -52,26 +54,21 @@ void main() {
     });
   });
 
-  group('Categorias de Serviço', () {
-    test('Categories.all não está vazia e tem categorias esperadas', () {
-      expect(Categories.all, isNotEmpty);
-      expect(Categories.byId('eletricista'), isNotNull);
-      expect(Categories.byId('medico'), isNotNull);
-      expect(Categories.byId('categoria_inexistente_xyz'), isNull);
+  group('Catálogo (seed v1)', () {
+    final catalog = seedCatalog();
+    test('catálogo tem os itens esperados', () {
+      expect(catalog.isEmpty, isFalse);
+      expect(catalog.byId('eletricista'), isNotNull);
+      expect(catalog.byId('medico'), isNotNull);
+      expect(catalog.byId('categoria_inexistente_xyz'), isNull);
     });
 
-    test('todas as categorias têm id, name e emoji não vazios', () {
-      for (final c in Categories.all) {
-        expect(c.id, isNotEmpty, reason: 'categoria com id vazio');
-        expect(c.name, isNotEmpty, reason: 'categoria ${c.id} sem nome');
-        expect(c.emoji, isNotEmpty, reason: 'categoria ${c.id} sem emoji');
+    test('todos os itens têm id, nome e ícone', () {
+      for (final c in catalog.all) {
+        expect(c.id, isNotEmpty);
+        expect(c.name, isNotEmpty, reason: '${c.id} sem nome');
+        expect(c.icon, isNotEmpty, reason: '${c.id} sem ícone');
       }
-    });
-
-    test('não há ids de categoria duplicados', () {
-      final ids = Categories.all.map((c) => c.id).toList();
-      final uniqueIds = ids.toSet();
-      expect(ids.length, uniqueIds.length, reason: 'existem categorias com id duplicado');
     });
   });
 

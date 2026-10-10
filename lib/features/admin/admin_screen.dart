@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'catalog_admin_tab.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
@@ -120,7 +121,7 @@ class _AdminState extends State<AdminScreen>
           body: TabBarView(controller: _tab, children: [
             _UsersTab(),
             _ValidationTab(),
-            _CategoriesTab(),
+            const CatalogAdminTab(),
             _FinancialTab(),
             _MarketingTab(),
             _SupportTab(),
@@ -587,110 +588,7 @@ class _ValidationTab extends StatelessWidget {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════
-// 3. CATEGORIAS E SERVIÇOS (criar/editar/excluir/ordenação)
-// ═══════════════════════════════════════════════════════════════
-class _CategoriesTab extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        backgroundColor: Colors.transparent,
-        floatingActionButton: FloatingActionButton(
-            onPressed: () => _editCategory(context),
-            backgroundColor: AppColors.primary,
-            child: const Icon(Icons.add, color: Colors.white)),
-        body: ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: Categories.all.length,
-            itemBuilder: (_, i) {
-              final c = Categories.all[i];
-              return Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  decoration: AppDecorations.card(r: 14),
-                  child: ListTile(
-                    leading: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                            color: c.color.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(12)),
-                        alignment: Alignment.center,
-                        child: Text(c.emoji,
-                            style: const TextStyle(fontSize: 20))),
-                    title: Text(c.name,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14)),
-                    subtitle: Text(c.group,
-                        style: const TextStyle(
-                            fontSize: 11, color: AppColors.textLight)),
-                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                      IconButton(
-                          icon: const Icon(Icons.edit_outlined,
-                              size: 18, color: AppColors.primary),
-                          onPressed: () =>
-                              _editCategory(context, name: c.name)),
-                      IconButton(
-                          icon: const Icon(Icons.delete_outline,
-                              size: 18, color: AppColors.error),
-                          onPressed: () => _confirmDelete(context, c.name)),
-                    ]),
-                  ));
-            }),
-      );
-
-  void _editCategory(BuildContext context, {String? name}) {
-    final ctrl = TextEditingController(text: name);
-    showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => Padding(
-              padding: EdgeInsets.fromLTRB(
-                  20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 32),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(height: 8),
-                const SheetHandle(),
-                const SizedBox(height: 16),
-                Text(name == null ? 'Nova categoria' : 'Editar categoria',
-                    style: const TextStyle(
-                        fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 16),
-                TextFormField(
-                    controller: ctrl,
-                    decoration:
-                        const InputDecoration(hintText: 'Nome da categoria')),
-                const SizedBox(height: 14),
-                SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                        onPressed: () {
-                          Navigator.pop(context);
-                          snack(context, '✅ Categoria salva!',
-                              bg: AppColors.secondary);
-                        },
-                        child: const Text('Salvar'))),
-              ]),
-            ));
-  }
-
-  void _confirmDelete(BuildContext context, String name) => showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-            title: const Text('Excluir categoria'),
-            content: Text(
-                'Deseja realmente excluir "$name"? Serviços vinculados poderão ficar sem categoria.'),
-            actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancelar')),
-              TextButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    snack(context, 'Categoria excluída', bg: AppColors.error);
-                  },
-                  child: const Text('Excluir',
-                      style: TextStyle(color: AppColors.error))),
-            ],
-          ));
-}
+// 3. CATÁLOGO: ver catalog_admin_tab.dart (fonte única administrável).
 
 // ═══════════════════════════════════════════════════════════════
 // 4. FINANCEIRO (comissões, repasses, saques, estornos, assinaturas)

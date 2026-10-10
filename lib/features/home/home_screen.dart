@@ -1,19 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../core/catalog/catalog.dart';
+import '../../core/catalog/catalog_selection.dart';
+import '../../core/catalog/catalog_service.dart';
+import '../../core/catalog/catalog_widgets.dart';
+import '../../core/catalog/provider_search.dart';
+import '../../core/modules/platform_modules.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/chat_nav.dart';
-import '../../core/utils/query_errors.dart';
-import 'service_filter.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../shared/widgets/micro_interactions.dart';
+import '../company/company_public_screen.dart';
 
-/// Hub do módulo Serviços (núcleo original do Serviço Conecta).
-/// A Home da plataforma Carajás 360 fica em [HomeScreen] (carajas_home_screen.dart).
+/// Hub do módulo Serviços. Categorias, grupos e serviços vêm do catálogo
+/// administrável (catalogNodes); a lista de profissionais é consultada
+/// no servidor para a seleção atual.
 class ServicesHubScreen extends StatefulWidget {
   const ServicesHubScreen({super.key});
   @override
@@ -21,60 +29,23 @@ class ServicesHubScreen extends StatefulWidget {
 }
 
 class _ServicesHubState extends State<ServicesHubScreen> {
-  ServiceFilter _filter = const ServiceFilter();
-  late Stream<List<ProviderModel>> _featured;
-  // Grupos vindos da fonte única de categorias — assim novos segmentos
-  // (Agro, Drones, Máquinas, Veículos, Lojas...) aparecem automaticamente.
-  final _groups = [ServiceFilter.allGroups, ...Categories.groups];
+  CatalogSelection _sel = CatalogSelection.none;
+  int _retryTick = 0;
 
-  static const _modules = [
-    {'id': 'services', 'icon': '🔧', 'label': 'Serviços'},
-    {'id': 'health', 'icon': '🏥', 'label': 'Saúde'},
-    {'id': 'delivery', 'icon': '📦', 'label': 'Entregas'},
-    {'id': 'marketplace', 'icon': '🛒', 'label': 'Mercado'},
-    {'id': 'rental', 'icon': '🔑', 'label': 'Aluguel'},
-    {'id': 'machines', 'icon': '🚜', 'label': 'Máquinas'},
-    {'id': 'vehicles', 'icon': '🚗', 'label': 'Veículos'},
-    {'id': 'labor', 'icon': '👷', 'label': 'Mão de Obra'},
-    {'id': 'drones', 'icon': '🚁', 'label': 'Drones'},
-    {'id': 'pets', 'icon': '🐾', 'label': 'Pets'},
-    {'id': 'beauty', 'icon': '💅', 'label': 'Beleza'},
-    {'id': 'education', 'icon': '📚', 'label': 'Educação'},
-    {'id': 'agro', 'icon': '🌾', 'label': 'Agro'},
-    {'id': 'ai', 'icon': '🤖', 'label': 'IA'},
+  /// Verticais especializadas (módulos próprios). Uma categoria de serviço
+  /// nunca libera um módulo marcado "Em desenvolvimento".
+  static const _verticals = [
+    {'id': 'health', 'icon': '🏥', 'label': 'Saúde', 'route': Routes.health},
+    {'id': 'delivery', 'icon': '📦', 'label': 'Entregas', 'route': Routes.delivery},
+    {'id': 'marketplace', 'icon': '🛒', 'label': 'Mercado', 'route': Routes.marketplace},
+    {'id': 'rental', 'icon': '🔑', 'label': 'Locação', 'route': Routes.rental},
+    {'id': 'ai', 'icon': '🤖', 'label': 'Assistente', 'route': Routes.aiAssistant},
   ];
 
-  /// Atalhos do hub que filtram por grupo (precisam existir no catálogo).
-  static const moduleGroups = {
-    'agro': 'Agro',
-    'drones': 'Drones',
-    'labor': 'Mão de Obra',
-    'pets': 'Pets',
-    'beauty': 'Beleza',
-    'education': 'Educação',
-  };
-
-  @override
-  void initState() {
-    super.initState();
-    _featured = _query();
+  void _select(CatalogSelection s) {
+    if (s == _sel) return;
+    setState(() => _sel = s);
   }
-
-  Stream<List<ProviderModel>> _query() => FS.providersStream(
-      category: _filter.queryCategory,
-      categories: _filter.queryCategories,
-      limit: 5);
-
-  /// Atualiza filtro e consulta juntos (a lista nunca fica sem filtro).
-  void _setFilter(ServiceFilter f) {
-    if (f == _filter) return;
-    setState(() {
-      _filter = f;
-      _featured = _query();
-    });
-  }
-
-  void _retry() => setState(() => _featured = _query());
 
   @override
   Widget build(BuildContext context) {
@@ -83,10 +54,7 @@ class _ServicesHubState extends State<ServicesHubScreen> {
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       body: RefreshIndicator(
         color: AppColors.primary,
-        onRefresh: () async {
-          await Future.delayed(const Duration(milliseconds: 600));
-          if (mounted) setState(() {});
-        },
+        onRefresh: () async => setState(() => _retryTick++),
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(
               child: StreamBuilder<UserModel?>(
@@ -185,39 +153,14 @@ class _ServicesHubState extends State<ServicesHubScreen> {
           SliverToBoxAdapter(
               child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 18, 16, 0),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               const SecHeader(title: 'O que você precisa hoje?'),
               const SizedBox(height: 12),
-              GridView.count(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                crossAxisCount: 5,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 0.9,
-                children: _modules
-                    .map((m) => GestureDetector(
-                        onTap: () => _navigate(m['id']!),
-                        child: Container(
-                            decoration: AppDecorations.card(r: 14),
-                            padding: const EdgeInsets.symmetric(
-                                vertical: 10, horizontal: 2),
-                            child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(m['icon']!,
-                                      style: const TextStyle(fontSize: 24)),
-                                  const SizedBox(height: 5),
-                                  Text(m['label']!,
-                                      style: const TextStyle(
-                                          fontSize: 9,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppColors.textDark),
-                                      textAlign: TextAlign.center),
-                                ]))))
-                    .toList(),
-              ),
+              _tileGrid([
+                for (final v in _verticals)
+                  _tile(v['icon']!, v['label']!,
+                      () => Navigator.pushNamed(context, v['route']!)),
+              ]),
             ]),
           )),
           SliverToBoxAdapter(
@@ -256,159 +199,34 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                 )),
           )),
           SliverToBoxAdapter(
-              child: Padding(
-            padding: const EdgeInsets.fromLTRB(0, 20, 0, 0),
-            child:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: SecHeader(title: 'Categorias')),
-              const SizedBox(height: 10),
-              SizedBox(
-                  height: 40,
-                  child: ListView.separated(
-                      scrollDirection: Axis.horizontal,
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      itemCount: _groups.length,
-                      separatorBuilder: (_, __) => const SizedBox(width: 8),
-                      itemBuilder: (_, i) {
-                        final sel = _filter.group == _groups[i];
-                        return Semantics(
-                          button: true,
-                          selected: sel,
-                          label: 'Grupo ${_groups[i]}',
-                          child: GestureDetector(
-                            onTap: () =>
-                                _setFilter(_filter.selectGroup(_groups[i])),
-                            child: AnimatedContainer(
-                                duration: const Duration(milliseconds: 200),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 8),
-                                decoration: BoxDecoration(
-                                    color: sel
-                                        ? AppColors.primary
-                                        : AppColors.white,
-                                    borderRadius: BorderRadius.circular(20),
-                                    border: Border.all(
-                                        color: sel
-                                            ? AppColors.primary
-                                            : AppColors.border)),
-                                child: Text(_groups[i],
-                                    style: TextStyle(
-                                        fontSize: 12,
-                                        fontWeight: FontWeight.w600,
-                                        color: sel
-                                            ? AppColors.white
-                                            : AppColors.textDark)))));
-                      })),
-              // Serviços do grupo selecionado: tocar filtra os profissionais
-              // abaixo (tocar de novo remove o filtro de serviço).
-              if (!_filter.isAll)
-                Padding(
-                  padding: const EdgeInsets.only(top: 10),
-                  child: SizedBox(
-                      height: 40,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: _filter.groupServiceIds.length,
-                        separatorBuilder: (_, __) => const SizedBox(width: 8),
-                        itemBuilder: (_, i) {
-                          final c =
-                              Categories.byId(_filter.groupServiceIds[i])!;
-                          return CatChip(
-                              emoji: c.emoji,
-                              name: c.name,
-                              categoryId: c.id,
-                              color: c.color,
-                              selected: _filter.service == c.id,
-                              onTap: () =>
-                                  _setFilter(_filter.toggleService(c.id)));
-                        },
-                      )),
-                ),
-            ]),
-          )),
-          SliverToBoxAdapter(
-              child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
-                  child: SecHeader(
-                      title: _featuredTitle,
-                      action: 'Ver todos →',
-                      onAction: () => Navigator.pushNamed(
-                              context, Routes.search, arguments: {
-                            if (_filter.service != null)
-                              'category': _filter.service,
-                            if (_filter.service == null && !_filter.isAll)
-                              'group': _filter.group,
-                          })))),
-          SliverToBoxAdapter(
-              child: StreamBuilder<List<ProviderModel>>(
-            key: ValueKey(_filter.key),
-            stream: _featured,
-            builder: (_, snap) {
-              if (snap.hasError) {
-                return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: EmptyState(
-                        emoji: '⚠️',
-                        title: 'Não foi possível carregar profissionais',
-                        subtitle: friendlyQueryError(snap.error),
-                        actionLabel: 'Tentar novamente',
-                        onAction: _retry));
-              }
-              if (!snap.hasData) {
-                return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: Column(
-                        children: List.generate(
-                            3, (_) => const SkeletonCard())));
-              }
-              final provs = snap.data!
-                  .where((p) => _filter.matches(p.categories))
-                  .toList();
-              if (provs.isEmpty) {
-                return Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                    child: EmptyState(
-                        emoji: '🔍',
-                        title: 'Nenhum profissional disponível',
-                        subtitle: _filter.isAll
-                            ? 'Ainda não há profissionais aprovados disponíveis.'
-                            : 'Ainda não há profissionais aprovados em ${_filterLabel()}.'));
-              }
-              return Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                  child: Column(
-                      children: provs.map((p) {
-                    final specialty = _filter.contractedCategory(p.categories);
-                    return ProvCard(
-                      name: p.name,
-                      role: _filter.roleLabel(p.categories),
-                      badge: p.badge,
-                      price: p.minPrice != null
-                          ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
-                          : 'Consultar',
-                      rating: p.rating,
-                      reviews: p.totalReviews,
-                      isOnline: p.modalities.contains('online'),
-                      photo: p.photoUrl,
-                      providerId: p.id,
-                      onTap: () => Navigator.pushNamed(
-                          context, Routes.requestService,
-                          arguments: {
-                            'providerId': p.id,
-                            'providerName': p.name,
-                            'category': specialty,
-                          }),
-                      onChat: () => ChatNav.open(context,
-                          otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
-                          otherName: p.name,
-                          otherPhoto: p.photoUrl),
-                    );
-                  }).toList()));
-            },
-          )),
+            child: CatalogBuilder(
+              key: ValueKey('hub-cat-$_retryTick'),
+              compact: true,
+              builder: (_, catalog) {
+                final sel = _sel.sanitize(catalog);
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 20, 16, 6),
+                      child: SecHeader(title: 'Categorias')),
+                  CatalogChipSelector(
+                      catalog: catalog, selection: sel, onChanged: _select),
+                  Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                      child: SecHeader(
+                          title: sel.isEmpty
+                              ? 'Em destaque'
+                              : 'Em destaque · ${catalog.nameOf(sel.selectedId)}',
+                          action: 'Ver todos →',
+                          onAction: () => Navigator.pushNamed(context, Routes.search,
+                              arguments: {if (sel.selectedId != null) 'catalogId': sel.selectedId}))),
+                  _FeaturedProviders(
+                      key: ValueKey('featured-${sel.key}-$_retryTick'),
+                      catalog: catalog,
+                      selection: sel),
+                ]);
+              },
+            ),
+          ),
           SliverToBoxAdapter(
               child: uid != null
                   ? StreamBuilder<UserModel?>(
@@ -424,12 +242,44 @@ class _ServicesHubState extends State<ServicesHubScreen> {
     );
   }
 
-  String _filterLabel() => _filter.service != null
-      ? (Categories.byId(_filter.service!)?.name ?? _filter.service!)
-      : _filter.group;
+  /// Grade responsiva (celular, tablet, desktop).
+  Widget _tileGrid(List<Widget> tiles) => LayoutBuilder(builder: (_, box) {
+        final cols = (box.maxWidth / 92).floor().clamp(4, 10);
+        return GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: cols,
+          mainAxisSpacing: 8,
+          crossAxisSpacing: 8,
+          childAspectRatio: 0.95,
+          children: tiles,
+        );
+      });
 
-  String get _featuredTitle =>
-      _filter.isAll ? 'Em destaque' : 'Em destaque · ${_filterLabel()}';
+  Widget _tile(String icon, String label, VoidCallback onTap) => Semantics(
+        button: true,
+        label: label,
+        excludeSemantics: true,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: onTap,
+          child: Container(
+              decoration: AppDecorations.card(r: 14),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(icon, style: const TextStyle(fontSize: 24)),
+                const SizedBox(height: 5),
+                Text(label,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.textDark),
+                    textAlign: TextAlign.center),
+              ])),
+        ),
+      );
 
   Widget _promoBanner(String slug, String route) {
     final path = AppAssets.banners[slug];
@@ -478,124 +328,256 @@ class _ServicesHubState extends State<ServicesHubScreen> {
             ]),
           ));
 
-  void _navigate(String id) {
-    switch (id) {
-      case 'health':
-        Navigator.pushNamed(context, Routes.health);
-        break;
-      case 'delivery':
-        Navigator.pushNamed(context, Routes.delivery);
-        break;
-      case 'marketplace':
-        Navigator.pushNamed(context, Routes.marketplace);
-        break;
-      case 'ai':
-        Navigator.pushNamed(context, Routes.aiAssistant);
-        break;
-      // Locação: abre a vitrine já na aba certa.
-      case 'rental':
-        Navigator.pushNamed(context, Routes.rental);
-        break;
-      case 'vehicles':
-        Navigator.pushNamed(context, Routes.rental, arguments: {'tab': 0});
-        break;
-      case 'machines':
-        Navigator.pushNamed(context, Routes.rental, arguments: {'tab': 1});
-        break;
-      // Segmentos de serviço: filtram o hub pelo grupo.
-      case 'agro':
-      case 'drones':
-      case 'labor':
-      case 'pets':
-      case 'beauty':
-      case 'education':
-        _setFilter(_filter.selectGroup(moduleGroups[id]!));
-        break;
-      default:
-        Navigator.pushNamed(context, Routes.search);
-    }
+}
+
+/// Primeira página de profissionais para a seleção atual. Ao trocar a
+/// seleção, o widget é recriado (key): nunca exibe resultados antigos.
+class _FeaturedProviders extends StatefulWidget {
+  final Catalog catalog;
+  final CatalogSelection selection;
+  const _FeaturedProviders({super.key, required this.catalog, required this.selection});
+  @override
+  State<_FeaturedProviders> createState() => _FeaturedProvidersState();
+}
+
+class _FeaturedProvidersState extends State<_FeaturedProviders> {
+  late Future<ProviderPage> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  void _load() {
+    _future = ProviderSearch().fetch(
+        ProviderQuery(catalogToken: widget.selection.token(widget.catalog)),
+        pageSize: 5);
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.fromLTRB(16, 12,
+            MediaQuery.of(context).size.width > 980 ? MediaQuery.of(context).size.width - 940 : 16, 0),
+        child: FutureBuilder<ProviderPage>(
+          future: _future,
+          builder: (_, snap) {
+            if (snap.hasError) {
+              return QueryErrorView(
+                  error: snap.error,
+                  title: 'Não foi possível carregar profissionais',
+                  onRetry: () => setState(_load));
+            }
+            if (snap.connectionState != ConnectionState.done) {
+              return Column(children: List.generate(3, (_) => const SkeletonCard()));
+            }
+            final list = snap.data!.items
+                .where((p) => widget.selection.matches(widget.catalog, p.categories))
+                .toList();
+            if (list.isEmpty) {
+              return EmptyState(
+                  emoji: '🔍',
+                  title: 'Nenhum profissional disponível',
+                  subtitle: widget.selection.isEmpty
+                      ? 'Ainda não há profissionais aprovados disponíveis.'
+                      : 'Ainda não há profissionais aprovados em '
+                          '${widget.catalog.nameOf(widget.selection.selectedId)}.');
+            }
+            return Column(children: [
+              for (final p in list)
+                ProviderResultCard(
+                    provider: p, catalog: widget.catalog, selection: widget.selection),
+            ]);
+          },
+        ),
+      );
+}
+
+/// Card de profissional ligado ao catálogo (especialidade correta na
+/// contratação; serviço desativado bloqueia nova contratação).
+class ProviderResultCard extends StatelessWidget {
+  final ProviderModel provider;
+  final Catalog catalog;
+  final CatalogSelection selection;
+  const ProviderResultCard(
+      {super.key, required this.provider, required this.catalog, required this.selection});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = provider;
+    final specialty = selection.contractedCategory(catalog, p.categories);
+    return ProvCard(
+      key: ValueKey(p.id),
+      name: p.name,
+      role: specialty.isEmpty ? 'Profissional' : catalog.nameOf(specialty),
+      badge: p.badge,
+      price: p.minPrice != null
+          ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
+          : 'Consultar',
+      rating: p.rating,
+      reviews: p.totalReviews,
+      isOnline: p.modalities.contains('online'),
+      photo: p.photoUrl,
+      providerId: p.id,
+      onTap: () => Navigator.pushNamed(context, Routes.requestService, arguments: {
+        'providerId': p.id,
+        'providerName': p.name,
+        'category': specialty,
+      }),
+      onChat: () => ChatNav.open(context,
+          otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
+          otherName: p.name,
+          otherPhoto: p.photoUrl),
+    );
   }
 }
 
+// ─────────────────────────────────────────────────────────────
+// BUSCA
+// ─────────────────────────────────────────────────────────────
 class SearchScreen extends StatefulWidget {
-  /// Categoria pré-selecionada (usada ao vir de um chip de segmento).
-  final String? initialCategory;
-  /// Grupo pré-selecionado (ex.: "Casa"), vindo do hub Serviços.
-  final String? initialGroup;
-  const SearchScreen({super.key, this.initialCategory, this.initialGroup});
+  /// Item do catálogo pré-selecionado (categoria, grupo ou serviço).
+  final String? initialCatalogId;
+  const SearchScreen({super.key, this.initialCatalogId});
   @override
   State<SearchScreen> createState() => _SearchState();
 }
 
 class _SearchState extends State<SearchScreen> {
   final _ctrl = TextEditingController();
+  final _scroll = ScrollController();
+  Timer? _debounce;
   String _q = '';
-  late ServiceFilter _filter;
-  late Stream<List<ProviderModel>> _results;
-  bool _onlineOnly = false;
-  String _sort = 'rating';
+  CatalogSelection? _pendingInitial;
+  /// Usuário pediu para buscar o texto no nome (ignora correspondência
+  /// com o catálogo).
+  bool _nameOnly = false;
+  CatalogSelection _sel = CatalogSelection.none;
+  String? _city;
+  String? _modality;
+  double? _minRating;
+  double? _maxPrice;
+  ProviderSort _sort = ProviderSort.rating;
 
-  String? get _cat => _filter.service;
+  // Paginação
+  final _items = <ProviderModel>[];
+  dynamic _cursor;
+  bool _hasMore = true;
+  bool _loading = false;
+  Object? _error;
+  int _generation = 0;
+  String? _queryKey;
+
+  // Empresas
+  Future<List<CompanyHit>>? _companies;
 
   @override
   void initState() {
     super.initState();
-    final cat = widget.initialCategory;
-    final group = widget.initialGroup;
-    _filter = cat != null && Categories.byId(cat) != null
-        ? const ServiceFilter().toggleService(cat)
-        : (group != null && Categories.groups.contains(group)
-            ? const ServiceFilter().selectGroup(group)
-            : const ServiceFilter());
-    _results = _query();
-  }
-
-  Stream<List<ProviderModel>> _query() => FS.providersStream(
-      category: _filter.queryCategory,
-      categories: _filter.queryCategories,
-      limit: 30);
-
-  void _setFilter(ServiceFilter f) {
-    if (f == _filter) return;
-    setState(() {
-      _filter = f;
-      _results = _query();
+    _scroll.addListener(() {
+      if (_scroll.position.pixels > _scroll.position.maxScrollExtent - 300) {
+        _loadMore();
+      }
     });
+    if (widget.initialCatalogId != null) {
+      _pendingInitial = const CatalogSelection(); // resolvido com o catálogo
+    }
   }
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _ctrl.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  // Busca inteligente (Vol.11: IA): interpreta a query em linguagem
-  // natural e pré-seleciona a categoria mais próxima do catálogo,
-  // em vez do usuário precisar navegar manualmente pelos chips.
-  Future<void> _smartSearch() async {
-    if (_q.trim().isEmpty) {
-      snack(context, 'Digite o que você precisa primeiro');
-      return;
+  void _onText(String v) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 350), () {
+      if (!mounted) return;
+      setState(() {
+        _q = v.trim();
+        _nameOnly = false;
+      });
+    });
+  }
+
+  /// Consulta efetiva: seleção explícita OU correspondência forte do texto
+  /// com um item do catálogo ("eletricista" busca o serviço); senão o
+  /// texto é procurado no NOME dos profissionais.
+  ({ProviderQuery query, CatalogNode? implicit}) _effective(Catalog c) {
+    CatalogNode? implicit;
+    var token = _sel.token(c);
+    var nameText = _q;
+    if (token == null && _q.isNotEmpty && !_nameOnly) {
+      final m = c.search(_q, verticals: {CatalogVertical.services, CatalogVertical.health}, limit: 1);
+      if (m.isNotEmpty && m.first.score >= 80) {
+        implicit = m.first.node;
+        token = Catalog.tokenFor(implicit);
+        nameText = '';
+      }
     }
-    showDialog(
-        context: context,
-        barrierDismissible: false,
-        builder: (_) => const Center(child: CircularProgressIndicator()));
-    final catNames = Categories.all.map((c) => c.name).toList();
-    final result = await AiSvc.smartSearchCategory(_q, catNames);
-    if (!mounted) return;
-    Navigator.of(context, rootNavigator: true).pop();
-    if (result != null && result.isNotEmpty) {
-      final matched = Categories.all.firstWhere((c) => c.name == result,
-          orElse: () => Categories.all.first);
-      _setFilter(ServiceFilter(group: matched.group, service: matched.id));
-      snack(context, '🔍 Categoria sugerida: ${matched.name}',
-          bg: AppColors.secondary);
-    } else {
-      snack(context,
-          'Não consegui identificar uma categoria. Tente ser mais específico.',
-          bg: AppColors.error);
+    return (
+      query: ProviderQuery(
+          catalogToken: token,
+          nameText: nameText,
+          city: _city,
+          modality: _modality,
+          minRating: _minRating,
+          maxInitialPrice: _maxPrice,
+          sort: _sort),
+      implicit: implicit,
+    );
+  }
+
+  void _ensureQuery(ProviderQuery q) {
+    if (q.key == _queryKey) return;
+    _queryKey = q.key;
+    _generation++;
+    _items.clear();
+    _cursor = null;
+    _hasMore = true;
+    _error = null;
+    _loading = false;
+    _companies = _q.length >= 2 ? CompanySearch().byName(_q) : null;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadMore(q));
+  }
+
+  ProviderQuery? _current;
+
+  Future<void> _loadMore([ProviderQuery? q]) async {
+    final query = q ?? _current;
+    if (query == null || _loading || !_hasMore) return;
+    final gen = _generation;
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    try {
+      final page = await ProviderSearch().fetch(query, after: _cursor, pageSize: 20);
+      if (!mounted || gen != _generation) return; // resposta antiga: descarta
+      setState(() {
+        _items.addAll(page.items.where((p) => !_items.any((x) => x.id == p.id)));
+        _cursor = page.cursor;
+        _hasMore = page.hasMore;
+        _loading = false;
+      });
+    } catch (e) {
+      if (!mounted || gen != _generation) return;
+      setState(() {
+        _error = e;
+        _loading = false;
+      });
     }
+  }
+
+  void _retry() {
+    setState(() {
+      _error = null;
+      _hasMore = true;
+    });
+    _loadMore();
   }
 
   @override
@@ -604,11 +586,12 @@ class _SearchState extends State<SearchScreen> {
           titleSpacing: 0,
           title: TextField(
               controller: _ctrl,
-              autofocus: true,
-              onChanged: (v) => setState(() => _q = v),
+              autofocus: widget.initialCatalogId == null,
+              onChanged: _onText,
+              textInputAction: TextInputAction.search,
               style: const TextStyle(color: Colors.white, fontSize: 15),
               decoration: const InputDecoration(
-                  hintText: 'Buscar profissionais...',
+                  hintText: 'Serviço, profissional ou empresa',
                   hintStyle: TextStyle(color: Colors.white54, fontSize: 15),
                   border: InputBorder.none,
                   enabledBorder: InputBorder.none,
@@ -617,187 +600,305 @@ class _SearchState extends State<SearchScreen> {
                   contentPadding: EdgeInsets.symmetric(vertical: 14))),
           actions: [
             IconButton(
-                icon: const Icon(Icons.auto_awesome_rounded),
-                tooltip: 'Busca inteligente com IA',
-                onPressed: _smartSearch),
-            IconButton(
-                icon: const Icon(Icons.filter_list_rounded),
-                onPressed: _filters),
+                tooltip: 'Filtros',
+                icon: const Icon(Icons.tune_rounded),
+                onPressed: _openFilters),
           ],
         ),
-        body: Column(children: [
-          SizedBox(
-              height: 58,
-              child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  itemCount: _chipServices.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) {
-                    final c = _chipServices[i];
-                    return CatChip(
-                        emoji: c.emoji,
-                        name: c.name,
-                        categoryId: c.id,
-                        color: c.color,
-                        selected: _cat == c.id,
-                        onTap: () => _setFilter(_filter.toggleService(c.id)));
-                  })),
-          if (!_filter.isAll)
-            InfoBanner(
-                icon: '🗂️',
-                text: _cat != null
-                    ? 'Serviço: ${Categories.byId(_cat!)?.name ?? _cat}'
-                    : 'Grupo: ${_filter.group}',
-                bg: const Color(0xFFE3F0FF),
-                fg: AppColors.primary),
-          if (_onlineOnly)
-            const InfoBanner(
-                icon: '📹',
-                text: 'Filtro ativo: somente atendimento online',
-                bg: Color(0xFFE3F0FF),
-                fg: AppColors.primary),
-          Expanded(
-              child: StreamBuilder<List<ProviderModel>>(
-            key: ValueKey(_filter.key),
-            stream: _results,
-            builder: (_, snap) {
-              if (snap.hasError) {
-                return EmptyState(
-                    emoji: '⚠️',
-                    title: 'Não foi possível buscar profissionais',
-                    subtitle: friendlyQueryError(snap.error),
-                    actionLabel: 'Tentar novamente',
-                    onAction: () => setState(() => _results = _query()));
-              }
-              var list = (snap.data ?? [])
-                  .where((p) => _filter.matches(p.categories))
-                  .toList();
-              if (_q.isNotEmpty) {
-                final q = _q.toLowerCase();
-                list = list
-                    .where((p) =>
-                        p.name.toLowerCase().contains(q) ||
-                        p.categories.any((c) =>
-                            c.contains(q) ||
-                            (Categories.byId(c)?.name.toLowerCase() ?? '')
-                                .contains(q)))
-                    .toList();
-              }
-              if (_onlineOnly)
-                list =
-                    list.where((p) => p.modalities.contains('online')).toList();
-              list = [...list];
-              if (_sort == 'reviews') {
-                list.sort((a, b) => b.totalReviews.compareTo(a.totalReviews));
-              } else if (_sort == 'price_asc') {
-                list.sort((a, b) => (a.minPrice ?? double.infinity)
-                    .compareTo(b.minPrice ?? double.infinity));
-              } else {
-                list.sort((a, b) => b.rating.compareTo(a.rating));
-              }
-              if (snap.data == null)
-                return ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: 5,
-                    itemBuilder: (_, __) => const SkeletonCard());
-              if (list.isEmpty)
-                return const EmptyState(
-                    emoji: '🔍',
-                    title: 'Nenhum resultado',
-                    subtitle: 'Tente outros filtros ou palavras-chave',
-                    asset: AppAssets.estadoNenhumResultado);
-              return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: list.length,
-                  itemBuilder: (_, i) {
-                    final p = list[i];
-                    final catName = _filter.roleLabel(p.categories);
-                    return FadeSlideIn(
-                        index: i,
-                        child: ProvCard(
-                            key: ValueKey(p.id),
-                            name: p.name,
-                            role: catName,
-                            badge: p.badge,
-                            price: p.minPrice != null
-                                ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
-                                : 'Consultar',
-                            rating: p.rating,
-                            reviews: p.totalReviews,
-                            isOnline: p.modalities.contains('online'),
-                            photo: p.photoUrl,
-                            providerId: p.id,
-                            onTap: () => Navigator.pushNamed(
-                                    context, Routes.requestService, arguments: {
-                                  'providerId': p.id,
-                                  'providerName': p.name,
-                                  'category':
-                                      _filter.contractedCategory(p.categories)
-                                }),
-                            onChat: () => ChatNav.open(context,
-                                otherUserId:
-                                    p.userId.isNotEmpty ? p.userId : p.id,
-                                otherName: p.name,
-                                otherPhoto: p.photoUrl)));
-                  });
-            },
-          )),
-        ]),
+        body: CatalogBuilder(builder: (_, catalog) {
+          if (_pendingInitial != null) {
+            _sel = CatalogSelection.forNode(catalog, widget.initialCatalogId!).sanitize(catalog);
+            _pendingInitial = null;
+          }
+          _sel = _sel.sanitize(catalog);
+          final eff = _effective(catalog);
+          _current = eff.query;
+          _ensureQuery(eff.query);
+          final matches = _q.isEmpty
+              ? const <CatalogMatch>[]
+              : catalog.search(_q, verticals: {CatalogVertical.services, CatalogVertical.health}, limit: 6);
+          final otherVerticals = _q.isEmpty
+              ? const <CatalogMatch>[]
+              : catalog.search(_q, verticals: {CatalogVertical.market, CatalogVertical.rental}, limit: 3);
+          // Desktop: conteúdo centralizado com largura legível.
+          return ListView(controller: _scroll, padding: EdgeInsets.symmetric(
+              horizontal: MediaQuery.of(context).size.width > 980
+                  ? (MediaQuery.of(context).size.width - 940) / 2
+                  : 0), children: [
+            CatalogChipSelector(
+                catalog: catalog,
+                selection: _sel,
+                onChanged: (s) => setState(() => _sel = s)),
+            _activeFilters(catalog, eff.implicit),
+            if (matches.isNotEmpty) ...[
+              _section('Serviços e categorias'),
+              for (final m in matches) _catalogTile(catalog, m.node),
+            ],
+            if (otherVerticals.isNotEmpty) _verticalShortcuts(otherVerticals),
+            if (_companies != null) _companySection(),
+            _section(eff.implicit != null
+                ? 'Profissionais · ${eff.implicit!.name}'
+                : (_q.isNotEmpty && _sel.isEmpty ? 'Profissionais com "$_q" no nome' : 'Profissionais')),
+            ..._providerList(catalog),
+            const SizedBox(height: 40),
+          ]);
+        }),
       );
 
-  /// Chips: serviços do grupo ativo, ou todos quando sem grupo.
-  List<ServiceCategory> get _chipServices => _filter.isAll
-      ? Categories.all
-      : _filter.groupServiceIds.map((id) => Categories.byId(id)!).toList();
+  Widget _section(String t) => Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+      child: Text(t,
+          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14)));
 
-  void _filters() => showModalBottomSheet(
-      context: context,
-      builder: (_) => StatefulBuilder(
-          builder: (ctx, setS) => Padding(
-              padding: const EdgeInsets.fromLTRB(20, 0, 20, 32),
-              child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 8),
-                    const SheetHandle(),
-                    const SizedBox(height: 16),
-                    const Text('Filtros',
-                        style: TextStyle(
-                            fontSize: 18, fontWeight: FontWeight.w800)),
-                    const SizedBox(height: 14),
-                    SwitchListTile(
-                        title: const Text('Somente online'),
-                        subtitle: const Text('Atendimento remoto disponível'),
-                        value: _onlineOnly,
-                        onChanged: (v) {
-                          setS(() => _onlineOnly = v);
-                          setState(() {});
-                        }),
-                    const Divider(),
-                    const Text('Ordenar por',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 15)),
-                    for (final e in {
-                      'rating': '⭐ Melhor avaliação',
-                      'reviews': '📊 Mais avaliações',
-                      'price_asc': '💰 Menor preço'
-                    }.entries)
-                      RadioListTile<String>(
-                          title: Text(e.value),
-                          value: e.key,
-                          groupValue: _sort,
-                          onChanged: (v) {
-                            setS(() => _sort = v!);
-                            setState(() {});
-                          }),
-                    const SizedBox(height: 8),
-                    SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                            onPressed: () => Navigator.pop(ctx),
-                            child: const Text('Aplicar'))),
-                  ]))));
+  Widget _catalogTile(Catalog c, CatalogNode n) {
+    final path = c.pathOf(n.id).map((x) => x.name).join(' › ');
+    return ListTile(
+      leading: Text(n.icon, style: const TextStyle(fontSize: 22)),
+      title: Text(n.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+      subtitle: Text(path, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: AppTag(n.levelLabel, bg: AppColors.primarySoft, fg: AppColors.primary),
+      onTap: () {
+        if (n.vertical == CatalogVertical.health) {
+          Navigator.pushNamed(context, Routes.health, arguments: {'catalogId': n.id});
+          return;
+        }
+        _ctrl.clear();
+        setState(() {
+          _q = '';
+          _sel = CatalogSelection.forNode(c, n.id);
+        });
+      },
+    );
+  }
+
+  Widget _verticalShortcuts(List<CatalogMatch> ms) {
+    final hasMarket = ms.any((m) => m.node.vertical == CatalogVertical.market);
+    final hasRental = ms.any((m) => m.node.vertical == CatalogVertical.rental);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Wrap(spacing: 8, runSpacing: 8, children: [
+        if (hasMarket)
+          ActionChip(
+              avatar: const Text('🛒'),
+              label: const Text('Procurar produtos no Mercado'),
+              onPressed: () => Navigator.pushNamed(context, Routes.marketplace)),
+        if (hasRental)
+          ActionChip(
+              avatar: const Text('🔑'),
+              label: const Text('Ver anúncios de Locação'),
+              onPressed: () => Navigator.pushNamed(context, Routes.rental)),
+      ]),
+    );
+  }
+
+  Widget _companySection() => FutureBuilder<List<CompanyHit>>(
+        future: _companies,
+        builder: (_, snap) {
+          if (snap.connectionState != ConnectionState.done) return const SizedBox.shrink();
+          if (snap.hasError || (snap.data ?? const []).isEmpty) return const SizedBox.shrink();
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _section('Empresas'),
+            for (final c in snap.data!)
+              ListTile(
+                leading: AppAvatar(url: c.logoUrl, name: c.name, size: 40, r: 10),
+                title: Text(c.name, style: const TextStyle(fontWeight: FontWeight.w700)),
+                subtitle: c.city == null ? null : Text(c.city!),
+                trailing: const AppTag('Empresa', bg: AppColors.surfaceMuted, fg: AppColors.textDark),
+                onTap: () => Navigator.push(context,
+                    MaterialPageRoute(builder: (_) => CompanyPublicScreen(companyId: c.id))),
+              ),
+          ]);
+        },
+      );
+
+  List<Widget> _providerList(Catalog c) {
+    if (_error != null && _items.isEmpty) {
+      return [
+        Padding(
+            padding: const EdgeInsets.all(16),
+            child: QueryErrorView(
+                error: _error, title: 'Não foi possível buscar profissionais', onRetry: _retry))
+      ];
+    }
+    if (_items.isEmpty && (_loading || _hasMore)) {
+      return [
+        for (var i = 0; i < 4; i++)
+          const Padding(padding: EdgeInsets.symmetric(horizontal: 16), child: SkeletonCard())
+      ];
+    }
+    if (_items.isEmpty) {
+      return const [
+        EmptyState(
+            emoji: '🔍',
+            title: 'Nenhum profissional encontrado',
+            subtitle: 'Tente outro serviço, cidade ou filtros.',
+            asset: AppAssets.estadoNenhumResultado)
+      ];
+    }
+    return [
+      for (var i = 0; i < _items.length; i++)
+        Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: FadeSlideIn(
+                index: i % 20,
+                child: ProviderResultCard(provider: _items[i], catalog: c, selection: _sel))),
+      if (_loading)
+        const Padding(
+            padding: EdgeInsets.all(16),
+            child: Center(child: CircularProgressIndicator(semanticsLabel: 'Carregando mais'))),
+      if (_error != null)
+        Padding(
+            padding: const EdgeInsets.all(16),
+            child: QueryErrorView(error: _error, onRetry: _retry)),
+      if (!_loading && _hasMore && _error == null)
+        Center(
+            child: TextButton(onPressed: _loadMore, child: const Text('Carregar mais'))),
+      if (!_hasMore)
+        const Padding(
+            padding: EdgeInsets.all(12),
+            child: Center(
+                child: Text('Fim dos resultados',
+                    style: TextStyle(fontSize: 12, color: AppColors.textLight)))),
+    ];
+  }
+
+  Widget _activeFilters(Catalog c, CatalogNode? implicit) {
+    final chips = <Widget>[
+      if (implicit != null)
+        InputChip(
+            label: Text('Serviço: ${implicit.name}'),
+            onDeleted: () => setState(() => _nameOnly = true),
+            tooltip: 'Buscar "$_q" no nome dos profissionais'),
+      if (_city != null)
+        InputChip(label: Text('📍 $_city'), onDeleted: () => setState(() => _city = null)),
+      if (_modality != null)
+        InputChip(
+            label: Text(_modalityLabel(_modality!)),
+            onDeleted: () => setState(() => _modality = null)),
+      if (_minRating != null)
+        InputChip(
+            label: Text('⭐ ${_minRating!.toStringAsFixed(1)}+'),
+            onDeleted: () => setState(() => _minRating = null)),
+      if (_maxPrice != null)
+        InputChip(
+            label: Text('Até R\$ ${_maxPrice!.toStringAsFixed(0)}'),
+            onDeleted: () => setState(() => _maxPrice = null)),
+      if (_sort != ProviderSort.rating)
+        InputChip(
+            label: Text(_sortLabel(_sort)),
+            onDeleted: () => setState(() => _sort = ProviderSort.rating)),
+    ];
+    if (chips.isEmpty) return const SizedBox.shrink();
+    return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
+        child: Wrap(spacing: 6, runSpacing: 6, children: chips));
+  }
+
+  static String _modalityLabel(String m) => switch (m) {
+        'online' => '💻 Online',
+        'home_care' => '🏠 Domiciliar',
+        _ => '📍 Presencial',
+      };
+
+  static String _sortLabel(ProviderSort s) => switch (s) {
+        ProviderSort.rating => 'Melhor avaliação',
+        ProviderSort.reviews => 'Mais avaliações',
+        ProviderSort.priceAsc => 'Menor preço inicial',
+      };
+
+  void _openFilters() {
+    final priceCtrl = TextEditingController(
+        text: _maxPrice == null ? '' : _maxPrice!.toStringAsFixed(0));
+    String? city = _city;
+    String? modality = _modality;
+    double? minRating = _minRating;
+    var sort = _sort;
+    showModalBottomSheet(
+        context: context,
+        isScrollControlled: true,
+        builder: (ctx) => StatefulBuilder(
+            builder: (ctx, setS) => SafeArea(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.fromLTRB(
+                        20, 0, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
+                    child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          const SheetHandle(),
+                          const SizedBox(height: 12),
+                          const Text('Filtros',
+                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                          const SizedBox(height: 12),
+                          DropdownButtonFormField<String?>(
+                            initialValue: city,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                                labelText: 'Cidade', border: OutlineInputBorder()),
+                            items: [
+                              const DropdownMenuItem<String?>(value: null, child: Text('Todas')),
+                              for (final c in [...RegionCities.priority, ...RegionCities.nearby])
+                                DropdownMenuItem<String?>(value: c, child: Text(c)),
+                            ],
+                            onChanged: (v) => setS(() => city = v),
+                          ),
+                          const SizedBox(height: 12),
+                          const Text('Modalidade', style: TextStyle(fontWeight: FontWeight.w700)),
+                          Wrap(spacing: 6, children: [
+                            for (final m in const ['presential', 'online', 'home_care'])
+                              ChoiceChip(
+                                  label: Text(_modalityLabel(m)),
+                                  selected: modality == m,
+                                  onSelected: (on) => setS(() => modality = on ? m : null)),
+                          ]),
+                          const SizedBox(height: 12),
+                          const Text('Avaliação mínima', style: TextStyle(fontWeight: FontWeight.w700)),
+                          Wrap(spacing: 6, children: [
+                            for (final r in const [null, 4.0, 4.5])
+                              ChoiceChip(
+                                  label: Text(r == null ? 'Todas' : '${r.toStringAsFixed(1)}+'),
+                                  selected: minRating == r,
+                                  onSelected: (_) => setS(() => minRating = r)),
+                          ]),
+                          const SizedBox(height: 12),
+                          TextField(
+                              controller: priceCtrl,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                  labelText: 'Preço inicial até (R\$)',
+                                  helperText: 'Profissionais sem preço informado não aparecem com este filtro',
+                                  border: OutlineInputBorder())),
+                          const SizedBox(height: 12),
+                          const Text('Ordenar por', style: TextStyle(fontWeight: FontWeight.w700)),
+                          Wrap(spacing: 6, children: [
+                            for (final s in ProviderSort.values)
+                              ChoiceChip(
+                                  label: Text(_sortLabel(s)),
+                                  selected: sort == s,
+                                  onSelected: (_) => setS(() => sort = s)),
+                          ]),
+                          const SizedBox(height: 8),
+                          const Text(
+                              'Distância e disponibilidade ainda não estão disponíveis como filtro.',
+                              style: TextStyle(fontSize: 11, color: AppColors.textLight)),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                              width: double.infinity,
+                              child: ElevatedButton(
+                                  onPressed: () {
+                                    final p = double.tryParse(priceCtrl.text.replaceAll(',', '.'));
+                                    setState(() {
+                                      _city = city;
+                                      _modality = modality;
+                                      _minRating = minRating;
+                                      _maxPrice = (p != null && p > 0) ? p : null;
+                                      _sort = sort;
+                                    });
+                                    Navigator.pop(ctx);
+                                  },
+                                  child: const Text('Aplicar'))),
+                        ]),
+                  ),
+                )));
+  }
 }

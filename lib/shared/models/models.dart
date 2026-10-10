@@ -305,6 +305,9 @@ class ProviderModel {
   // [ProviderVerification] (providers/{id}/private/verification).
   final String? photoUrl, bio, city;
   final List<String> categories, modalities, serviceAreas;
+  /// Índice de busca mantido pelo servidor (onProviderIndex).
+  final List<String> searchTokens;
+  final String? cityKey;
   final double rating;
   final int totalReviews;
   final bool active, verified;
@@ -321,6 +324,8 @@ class ProviderModel {
     this.categories = const [],
     this.modalities = const ['presential'],
     this.serviceAreas = const [],
+    this.searchTokens = const [],
+    this.cityKey,
     this.rating = 0.0,
     this.totalReviews = 0,
     this.active = true,
@@ -347,6 +352,8 @@ class ProviderModel {
         categories: List<String>.from(m['categories'] ?? []),
         modalities: List<String>.from(m['modalities'] ?? ['presential']),
         serviceAreas: List<String>.from(m['serviceAreas'] ?? []),
+        searchTokens: List<String>.from(m['searchTokens'] ?? const []),
+        cityKey: m['cityKey'] as String?,
         rating: (m['rating'] as num?)?.toDouble() ?? 0.0,
         totalReviews: (m['totalReviews'] as num?)?.toInt() ?? 0,
         active: m['active'] ?? true,
@@ -396,6 +403,9 @@ enum OrderStatus {
 class OrderModel {
   final String id, clientId, category, title, description, address;
   final String? providerId;
+  /// Nome do serviço gravado no momento da contratação (serviceSnapshot).
+  /// Mantém o histórico legível mesmo se o catálogo mudar.
+  final String? serviceName;
   final double? price;
   final OrderStatus status;
   final bool urgent, reviewed;
@@ -409,6 +419,7 @@ class OrderModel {
     required this.description,
     required this.address,
     this.providerId,
+    this.serviceName,
     this.price,
     this.status = OrderStatus.pending,
     this.urgent = false,
@@ -437,6 +448,7 @@ class OrderModel {
         id: id,
         clientId: m['clientId'] ?? '',
         providerId: m['providerId'],
+        serviceName: (m['serviceSnapshot'] as Map?)?['name'] as String?,
         category: m['category'] ?? '',
         title: m['title'] ?? '',
         description: m['description'] ?? '',
@@ -1222,6 +1234,7 @@ class ResolveOpportunities {
 
 class ResolveRequest {
   final String id, clientId, clientName, description, category, city;
+  final String? serviceName;
   final String? address;
   final ResolveStatus status;
   final int proposalCount;
@@ -1238,6 +1251,7 @@ class ResolveRequest {
     required this.category,
     required this.city,
     this.address,
+    this.serviceName,
     this.status = ResolveStatus.open,
     this.proposalCount = 0,
     required this.createdAt,
@@ -1254,6 +1268,7 @@ class ResolveRequest {
         category: m['category'] ?? '',
         city: m['city'] ?? '',
         address: m['address'],
+        serviceName: (m['serviceSnapshot'] as Map?)?['name'] as String?,
         status: ResolveStatus.values.firstWhere(
             (s) => s.name == (m['status'] ?? 'open'),
             orElse: () => ResolveStatus.open),

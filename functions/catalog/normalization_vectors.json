@@ -1,0 +1,29 @@
+{
+  "normalize": [
+    ["Ar-Condicionado", "ar condicionado"],
+    ["ar condicionado", "ar condicionado"],
+    ["  Auto   Elétrica ", "auto eletrica"],
+    ["AUTOELÉTRICO", "autoeletrico"],
+    ["Mão de Obra", "mao de obra"],
+    ["Canaã dos Carajás", "canaa dos carajas"],
+    ["Pá-Carregadeira 3/4", "pa carregadeira 3 4"],
+    ["", ""]
+  ],
+  "compact": [
+    ["ar-condicionado", "arcondicionado"],
+    ["Auto Elétrica", "autoeletrica"]
+  ],
+  "searchExpectations": [
+    ["ar condicionado", "ar_condicionado"],
+    ["ar-condicionado", "ar_condicionado"],
+    ["arcondicionado", "ar_condicionado"],
+    ["faxina", "diarista"],
+    ["limpeza", "diarista"],
+    ["auto elétrica", "grp_auto_eletrica"],
+    ["autoelétrico", "grp_auto_eletrica"],
+    ["mecanica", "mecanico"],
+    ["FREIOS", "svc_freios"],
+    ["eletricista", "eletricista"],
+    ["juridico", "cat_juridico_contabil"]
+  ]
+}

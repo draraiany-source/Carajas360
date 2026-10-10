@@ -44,6 +44,14 @@ service cloud.firestore {
     }
     function profileTypes() { return ['client', 'provider', 'deliverer', 'company']; }
 
+    // Item do catálogo existe e está ativo (incluindo ancestrais).
+    // Desativar no admin impede NOVAS contratações; históricos seguem.
+    function catalogActive(id) {
+      return id is string && id.size() > 0 &&
+        exists(/databases/$(database)/documents/catalogNodes/$(id)) &&
+        get(/databases/$(database)/documents/catalogNodes/$(id)).data.effectiveActive == true;
+    }
+
     function ownsCompany(companyId) {
       return isAuth() && (
         isAdmin() ||
@@ -134,11 +142,11 @@ service cloud.firestore {
         incoming().ownerId == uid() &&
         incoming().get('verified', false) == false &&
         incoming().get('plan', 'free') == 'free' &&
-        !incoming().keys().hasAny(['rating', 'totalReviews', 'commissionRate']);
+        !incoming().keys().hasAny(['rating', 'totalReviews', 'commissionRate', 'searchTokens', 'cityKey']);
       allow update: if isAdmin() || (
         resource.data.ownerId == uid() &&
         !changed().hasAny(['verified', 'plan', 'ownerId', 'active',
-          'rating', 'totalReviews', 'commissionRate'])
+          'rating', 'totalReviews', 'commissionRate', 'searchTokens', 'cityKey'])
       );
       allow delete: if isAdmin();
     }
@@ -224,8 +232,11 @@ service cloud.firestore {
         && !incoming().keys().hasAny([
           'commission', 'platformFee', 'providerAmount', 'payoutStatus',
           'transactionId', 'cashbackGranted', 'paidAt', 'payoutAt',
-          'reviewed', 'refunded', 'refundAmount'
-        ]);
+          'reviewed', 'refunded', 'refundAmount', 'serviceSnapshot'
+        ])
+        // Serviço contratado precisa estar ativo no catálogo.
+        && (incoming().get('type', 'service') == 'marketplace' ||
+            catalogActive(incoming().get('category', '')));
       // Cliente/prestador só marcam review. Status/preço/repasse: Cloud Functions.
       allow update: if isAdmin() || (
         isAuth() &&
@@ -418,9 +429,11 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // Coleção legada (antes da Fase 2). Congelada: o catálogo vive em
+    // catalogNodes. Mantida só para inventário da migração.
     match /categories/{categoryId} {
-      allow read: if true;
-      allow write: if isAdmin();
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     match /support/{ticketId} {
@@ -466,6 +479,7 @@ service cloud.firestore {
         incoming().description.size() >= 10 &&
         incoming().description.size() <= 2000 &&
         incoming().category is string && incoming().category.size() > 0 &&
+        catalogActive(incoming().category) &&
         incoming().createdAt == request.time;
       allow update: if isAdmin() || (
         isAuth() && req().clientId == uid() && req().status == 'open' && (
@@ -530,6 +544,27 @@ service cloud.firestore {
         incoming().price is number && incoming().price > 0
       );
       allow delete: if isAdmin();
+    }
+
+    // ── Catálogo (Fase 2) ─────────────────────────────────────────
+    // Leitura pública (inclui itens inativos, para exibir históricos).
+    // Escrita SOMENTE pelas Cloud Functions de admin (validadas).
+    match /catalogNodes/{nodeId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /catalogMeta/{docId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /catalogMigrations/{docId} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+    // Questionários: publicados são públicos; rascunhos só admin.
+    match /serviceQuestionnaires/{qId} {
+      allow read: if resource.data.status == 'published' || isAdmin();
+      allow write: if false;
     }
 
     match /{document=**} {

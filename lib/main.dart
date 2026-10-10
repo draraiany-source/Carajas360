@@ -132,9 +132,10 @@ class ServicoConectaApp extends StatelessWidget {
                 return _route(const MainNav());
               case Routes.search:
                 final sa = settings.arguments as Map<String, dynamic>?;
+                // 'category' mantido por compatibilidade (IDs antigos).
                 return _route(SearchScreen(
-                    initialCategory: sa?['category'] as String?,
-                    initialGroup: sa?['group'] as String?));
+                    initialCatalogId:
+                        (sa?['catalogId'] ?? sa?['category']) as String?));
               case Routes.chat:
                 final a = settings.arguments as Map<String, dynamic>?;
                 return _route(ChatScreen(
@@ -153,7 +154,9 @@ class ServicoConectaApp extends StatelessWidget {
               case Routes.admin:
                 return _route(const AdminGate(child: AdminScreen()));
               case Routes.health:
-                return _route(const HealthScreen());
+                final ha = settings.arguments as Map<String, dynamic>?;
+                return _route(HealthScreen(
+                    initialCatalogId: ha?['catalogId'] as String?));
               case Routes.marketplace:
                 return _route(const MarketplaceScreen());
               case Routes.store:

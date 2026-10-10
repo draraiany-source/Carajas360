@@ -11,6 +11,9 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../core/security/order_policy.dart';
 import '../../shared/widgets/widgets.dart';
+import '../../core/catalog/catalog_service.dart';
+import '../../core/catalog/catalog_widgets.dart';
+import 'provider_services_screen.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PROVIDER HOME SCREEN (Vol.3: Perfil do Profissional — Serviços,
@@ -171,7 +174,21 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                           );
                         },
                       ),
-                      const SizedBox(height: 10),
+                      const SizedBox(height: 8),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          style: TextButton.styleFrom(
+                              foregroundColor: Colors.white),
+                          onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const ProviderServicesScreen())),
+                          icon: const Icon(Icons.tune_rounded, size: 18),
+                          label: const Text('Minhas especialidades'),
+                        ),
+                      ),
                       // ── Ganhos do dia, no padrão dos apps de motorista/entregador.
                       StreamBuilder<List<OrderModel>>(
                         stream: FS.providerOrdersStream(
@@ -268,7 +285,7 @@ class _OrderList extends StatelessWidget {
             itemCount: orders.length,
             itemBuilder: (_, i) {
               final o = orders[i];
-              final cat = Categories.byId(o.category);
+              final cat = CatalogService.instance.catalog.byId(o.category);
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: AppDecorations.card(r: 16),
@@ -281,11 +298,10 @@ class _OrderList extends StatelessWidget {
                             width: 42,
                             height: 42,
                             decoration: BoxDecoration(
-                                color: (cat?.color ?? AppColors.primary)
-                                    .withOpacity(0.12),
+                                color: catalogColor(cat).withOpacity(0.12),
                                 borderRadius: BorderRadius.circular(12)),
                             alignment: Alignment.center,
-                            child: Text(cat?.emoji ?? '🔧',
+                            child: Text(cat?.icon ?? '🔧',
                                 style: const TextStyle(fontSize: 20))),
                         const SizedBox(width: 12),
                         Expanded(
@@ -303,6 +319,12 @@ class _OrderList extends StatelessWidget {
                                       bg: Color(0xFFFFEBEE),
                                       fg: AppColors.error),
                               ]),
+                              CatalogLabel(o.category,
+                                  snapshotName: o.serviceName,
+                                  style: const TextStyle(
+                                      fontSize: 11,
+                                      color: AppColors.primary,
+                                      fontWeight: FontWeight.w600)),
                               Text(fmtDate(o.createdAt),
                                   style: const TextStyle(
                                       fontSize: 11,
