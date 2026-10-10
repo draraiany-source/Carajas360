@@ -17,6 +17,9 @@ analyzer:
     - "build/**"
     - "node_modules/**"
     - "functions/node_modules/**"
+    - android/**
+    - ios/**
+    - web/**
 
 linter:
   rules:

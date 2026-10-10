@@ -209,6 +209,7 @@ class _HealthState extends State<HealthScreen> {
                 ? FS.providersStream(category: _sel, limit: 10)
                 : const Stream.empty(),
             builder: (_, snap) {
+              if (snap.hasError) return QueryErrorView(error: snap.error);
               final provs = DemoData.orEmpty(
                   snap.data,
                   _demos

@@ -5,7 +5,8 @@ import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/chat_nav.dart';
-import '../../core/utils/demo_data.dart';
+import '../../core/utils/query_errors.dart';
+import 'service_filter.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -20,10 +21,11 @@ class ServicesHubScreen extends StatefulWidget {
 }
 
 class _ServicesHubState extends State<ServicesHubScreen> {
-  String _selGroup = 'Todos';
+  ServiceFilter _filter = const ServiceFilter();
+  late Stream<List<ProviderModel>> _featured;
   // Grupos vindos da fonte única de categorias — assim novos segmentos
   // (Agro, Drones, Máquinas, Veículos, Lojas...) aparecem automaticamente.
-  final _groups = ['Todos', ...Categories.groups];
+  final _groups = [ServiceFilter.allGroups, ...Categories.groups];
 
   static const _modules = [
     {'id': 'services', 'icon': '🔧', 'label': 'Serviços'},
@@ -42,44 +44,37 @@ class _ServicesHubState extends State<ServicesHubScreen> {
     {'id': 'ai', 'icon': '🤖', 'label': 'IA'},
   ];
 
-  static final _demoProviders = [
-    ProviderModel(
-        id: 'd1',
-        userId: 'u1',
-        name: 'Carlos Silva',
-        categories: ['eletricista'],
-        rating: 4.9,
-        totalReviews: 312,
-        modalities: ['presential'],
-        createdAt: DateTime.now()),
-    ProviderModel(
-        id: 'd2',
-        userId: 'u2',
-        name: 'Ana Oliveira',
-        categories: ['diarista'],
-        rating: 4.8,
-        totalReviews: 524,
-        modalities: ['presential'],
-        createdAt: DateTime.now()),
-    ProviderModel(
-        id: 'd3',
-        userId: 'u3',
-        name: 'Dr. Marcos',
-        categories: ['medico'],
-        rating: 5.0,
-        totalReviews: 480,
-        modalities: ['online', 'presential'],
-        createdAt: DateTime.now()),
-    ProviderModel(
-        id: 'd4',
-        userId: 'u4',
-        name: 'Julia Santos',
-        categories: ['cabeleireiro'],
-        rating: 4.7,
-        totalReviews: 198,
-        modalities: ['presential'],
-        createdAt: DateTime.now()),
-  ];
+  /// Atalhos do hub que filtram por grupo (precisam existir no catálogo).
+  static const moduleGroups = {
+    'agro': 'Agro',
+    'drones': 'Drones',
+    'labor': 'Mão de Obra',
+    'pets': 'Pets',
+    'beauty': 'Beleza',
+    'education': 'Educação',
+  };
+
+  @override
+  void initState() {
+    super.initState();
+    _featured = _query();
+  }
+
+  Stream<List<ProviderModel>> _query() => FS.providersStream(
+      category: _filter.queryCategory,
+      categories: _filter.queryCategories,
+      limit: 5);
+
+  /// Atualiza filtro e consulta juntos (a lista nunca fica sem filtro).
+  void _setFilter(ServiceFilter f) {
+    if (f == _filter) return;
+    setState(() {
+      _filter = f;
+      _featured = _query();
+    });
+  }
+
+  void _retry() => setState(() => _featured = _query());
 
   @override
   Widget build(BuildContext context) {
@@ -277,9 +272,14 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                       itemCount: _groups.length,
                       separatorBuilder: (_, __) => const SizedBox(width: 8),
                       itemBuilder: (_, i) {
-                        final sel = _selGroup == _groups[i];
-                        return GestureDetector(
-                            onTap: () => setState(() => _selGroup = _groups[i]),
+                        final sel = _filter.group == _groups[i];
+                        return Semantics(
+                          button: true,
+                          selected: sel,
+                          label: 'Grupo ${_groups[i]}',
+                          child: GestureDetector(
+                            onTap: () =>
+                                _setFilter(_filter.selectGroup(_groups[i])),
                             child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 padding: const EdgeInsets.symmetric(
@@ -299,11 +299,11 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                                         fontWeight: FontWeight.w600,
                                         color: sel
                                             ? AppColors.white
-                                            : AppColors.textDark))));
+                                            : AppColors.textDark)))));
                       })),
-              // Categorias do grupo selecionado — dá acesso direto aos
-              // segmentos (Agro, Drones, Máquinas, Veículos, Lojas...).
-              if (_selGroup != 'Todos')
+              // Serviços do grupo selecionado: tocar filtra os profissionais
+              // abaixo (tocar de novo remove o filtro de serviço).
+              if (!_filter.isAll)
                 Padding(
                   padding: const EdgeInsets.only(top: 10),
                   child: SizedBox(
@@ -311,23 +311,19 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                       child: ListView.separated(
                         scrollDirection: Axis.horizontal,
                         padding: const EdgeInsets.symmetric(horizontal: 16),
-                        itemCount: Categories.all
-                            .where((c) => c.group == _selGroup)
-                            .length,
+                        itemCount: _filter.groupServiceIds.length,
                         separatorBuilder: (_, __) => const SizedBox(width: 8),
                         itemBuilder: (_, i) {
-                          final c = Categories.all
-                              .where((c) => c.group == _selGroup)
-                              .elementAt(i);
+                          final c =
+                              Categories.byId(_filter.groupServiceIds[i])!;
                           return CatChip(
                               emoji: c.emoji,
                               name: c.name,
                               categoryId: c.id,
                               color: c.color,
-                              selected: false,
-                              onTap: () => Navigator.pushNamed(
-                                  context, Routes.search,
-                                  arguments: {'category': c.id}));
+                              selected: _filter.service == c.id,
+                              onTap: () =>
+                                  _setFilter(_filter.toggleService(c.id)));
                         },
                       )),
                 ),
@@ -337,26 +333,58 @@ class _ServicesHubState extends State<ServicesHubScreen> {
               child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
                   child: SecHeader(
-                      title: 'Em destaque',
+                      title: _featuredTitle,
                       action: 'Ver todos →',
-                      onAction: () =>
-                          Navigator.pushNamed(context, Routes.search)))),
+                      onAction: () => Navigator.pushNamed(
+                              context, Routes.search, arguments: {
+                            if (_filter.service != null)
+                              'category': _filter.service,
+                            if (_filter.service == null && !_filter.isAll)
+                              'group': _filter.group,
+                          })))),
           SliverToBoxAdapter(
               child: StreamBuilder<List<ProviderModel>>(
-            stream: FS.providersStream(limit: 5),
+            key: ValueKey(_filter.key),
+            stream: _featured,
             builder: (_, snap) {
-              final provs = DemoData.orEmpty(snap.data, _demoProviders);
+              if (snap.hasError) {
+                return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: EmptyState(
+                        emoji: '⚠️',
+                        title: 'Não foi possível carregar profissionais',
+                        subtitle: friendlyQueryError(snap.error),
+                        actionLabel: 'Tentar novamente',
+                        onAction: _retry));
+              }
+              if (!snap.hasData) {
+                return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: Column(
+                        children: List.generate(
+                            3, (_) => const SkeletonCard())));
+              }
+              final provs = snap.data!
+                  .where((p) => _filter.matches(p.categories))
+                  .toList();
+              if (provs.isEmpty) {
+                return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                    child: EmptyState(
+                        emoji: '🔍',
+                        title: 'Nenhum profissional disponível',
+                        subtitle: _filter.isAll
+                            ? 'Ainda não há profissionais aprovados disponíveis.'
+                            : 'Ainda não há profissionais aprovados em ${_filterLabel()}.'));
+              }
               return Padding(
                   padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                   child: Column(
                       children: provs.map((p) {
-                    final catName = p.categories.isNotEmpty
-                        ? (Categories.byId(p.categories.first)?.name ??
-                            p.categories.first)
-                        : 'Profissional';
+                    final specialty = _filter.contractedCategory(p.categories);
                     return ProvCard(
                       name: p.name,
-                      role: catName,
+                      role: _filter.roleLabel(p.categories),
                       badge: p.badge,
                       price: p.minPrice != null
                           ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
@@ -371,9 +399,7 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                           arguments: {
                             'providerId': p.id,
                             'providerName': p.name,
-                            'category': p.categories.isNotEmpty
-                                ? p.categories.first
-                                : ''
+                            'category': specialty,
                           }),
                       onChat: () => ChatNav.open(context,
                           otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
@@ -397,6 +423,13 @@ class _ServicesHubState extends State<ServicesHubScreen> {
       ),
     );
   }
+
+  String _filterLabel() => _filter.service != null
+      ? (Categories.byId(_filter.service!)?.name ?? _filter.service!)
+      : _filter.group;
+
+  String get _featuredTitle =>
+      _filter.isAll ? 'Em destaque' : 'Em destaque · ${_filterLabel()}';
 
   Widget _promoBanner(String slug, String route) {
     final path = AppAssets.banners[slug];
@@ -469,24 +502,14 @@ class _ServicesHubState extends State<ServicesHubScreen> {
       case 'machines':
         Navigator.pushNamed(context, Routes.rental, arguments: {'tab': 1});
         break;
-      // Segmentos de serviço: abrem a busca filtrada pelo grupo.
+      // Segmentos de serviço: filtram o hub pelo grupo.
       case 'agro':
-        setState(() => _selGroup = 'Agro');
-        break;
       case 'drones':
-        setState(() => _selGroup = 'Drones');
-        break;
       case 'labor':
-        setState(() => _selGroup = 'Mão de Obra');
-        break;
       case 'pets':
-        setState(() => _selGroup = 'Pets');
-        break;
       case 'beauty':
-        setState(() => _selGroup = 'Beleza');
-        break;
       case 'education':
-        setState(() => _selGroup = 'Educação');
+        _setFilter(_filter.selectGroup(moduleGroups[id]!));
         break;
       default:
         Navigator.pushNamed(context, Routes.search);
@@ -497,7 +520,9 @@ class _ServicesHubState extends State<ServicesHubScreen> {
 class SearchScreen extends StatefulWidget {
   /// Categoria pré-selecionada (usada ao vir de um chip de segmento).
   final String? initialCategory;
-  const SearchScreen({super.key, this.initialCategory});
+  /// Grupo pré-selecionado (ex.: "Casa"), vindo do hub Serviços.
+  final String? initialGroup;
+  const SearchScreen({super.key, this.initialCategory, this.initialGroup});
   @override
   State<SearchScreen> createState() => _SearchState();
 }
@@ -505,14 +530,37 @@ class SearchScreen extends StatefulWidget {
 class _SearchState extends State<SearchScreen> {
   final _ctrl = TextEditingController();
   String _q = '';
-  String? _cat;
+  late ServiceFilter _filter;
+  late Stream<List<ProviderModel>> _results;
   bool _onlineOnly = false;
   String _sort = 'rating';
+
+  String? get _cat => _filter.service;
 
   @override
   void initState() {
     super.initState();
-    _cat = widget.initialCategory;
+    final cat = widget.initialCategory;
+    final group = widget.initialGroup;
+    _filter = cat != null && Categories.byId(cat) != null
+        ? const ServiceFilter().toggleService(cat)
+        : (group != null && Categories.groups.contains(group)
+            ? const ServiceFilter().selectGroup(group)
+            : const ServiceFilter());
+    _results = _query();
+  }
+
+  Stream<List<ProviderModel>> _query() => FS.providersStream(
+      category: _filter.queryCategory,
+      categories: _filter.queryCategories,
+      limit: 30);
+
+  void _setFilter(ServiceFilter f) {
+    if (f == _filter) return;
+    setState(() {
+      _filter = f;
+      _results = _query();
+    });
   }
 
   @override
@@ -540,7 +588,7 @@ class _SearchState extends State<SearchScreen> {
     if (result != null && result.isNotEmpty) {
       final matched = Categories.all.firstWhere((c) => c.name == result,
           orElse: () => Categories.all.first);
-      setState(() => _cat = matched.id);
+      _setFilter(ServiceFilter(group: matched.group, service: matched.id));
       snack(context, '🔍 Categoria sugerida: ${matched.name}',
           bg: AppColors.secondary);
     } else {
@@ -584,19 +632,26 @@ class _SearchState extends State<SearchScreen> {
                   scrollDirection: Axis.horizontal,
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  itemCount: Categories.all.length,
+                  itemCount: _chipServices.length,
                   separatorBuilder: (_, __) => const SizedBox(width: 8),
                   itemBuilder: (_, i) {
-                    final c = Categories.all[i];
+                    final c = _chipServices[i];
                     return CatChip(
                         emoji: c.emoji,
                         name: c.name,
                         categoryId: c.id,
                         color: c.color,
                         selected: _cat == c.id,
-                        onTap: () =>
-                            setState(() => _cat = _cat == c.id ? null : c.id));
+                        onTap: () => _setFilter(_filter.toggleService(c.id)));
                   })),
+          if (!_filter.isAll)
+            InfoBanner(
+                icon: '🗂️',
+                text: _cat != null
+                    ? 'Serviço: ${Categories.byId(_cat!)?.name ?? _cat}'
+                    : 'Grupo: ${_filter.group}',
+                bg: const Color(0xFFE3F0FF),
+                fg: AppColors.primary),
           if (_onlineOnly)
             const InfoBanner(
                 icon: '📹',
@@ -605,15 +660,29 @@ class _SearchState extends State<SearchScreen> {
                 fg: AppColors.primary),
           Expanded(
               child: StreamBuilder<List<ProviderModel>>(
-            stream: FS.providersStream(category: _cat, limit: 30),
+            key: ValueKey(_filter.key),
+            stream: _results,
             builder: (_, snap) {
-              var list = snap.data ?? [];
+              if (snap.hasError) {
+                return EmptyState(
+                    emoji: '⚠️',
+                    title: 'Não foi possível buscar profissionais',
+                    subtitle: friendlyQueryError(snap.error),
+                    actionLabel: 'Tentar novamente',
+                    onAction: () => setState(() => _results = _query()));
+              }
+              var list = (snap.data ?? [])
+                  .where((p) => _filter.matches(p.categories))
+                  .toList();
               if (_q.isNotEmpty) {
                 final q = _q.toLowerCase();
                 list = list
                     .where((p) =>
                         p.name.toLowerCase().contains(q) ||
-                        p.categories.any((c) => c.contains(q)))
+                        p.categories.any((c) =>
+                            c.contains(q) ||
+                            (Categories.byId(c)?.name.toLowerCase() ?? '')
+                                .contains(q)))
                     .toList();
               }
               if (_onlineOnly)
@@ -644,12 +713,7 @@ class _SearchState extends State<SearchScreen> {
                   itemCount: list.length,
                   itemBuilder: (_, i) {
                     final p = list[i];
-                    final catName = _cat != null
-                        ? (Categories.byId(_cat!)?.name ?? _cat!)
-                        : (p.categories.isNotEmpty
-                            ? (Categories.byId(p.categories.first)?.name ??
-                                p.categories.first)
-                            : 'Profissional');
+                    final catName = _filter.roleLabel(p.categories);
                     return FadeSlideIn(
                         index: i,
                         child: ProvCard(
@@ -669,9 +733,8 @@ class _SearchState extends State<SearchScreen> {
                                     context, Routes.requestService, arguments: {
                                   'providerId': p.id,
                                   'providerName': p.name,
-                                  'category': p.categories.isNotEmpty
-                                      ? p.categories.first
-                                      : (_cat ?? '')
+                                  'category':
+                                      _filter.contractedCategory(p.categories)
                                 }),
                             onChat: () => ChatNav.open(context,
                                 otherUserId:
@@ -683,6 +746,11 @@ class _SearchState extends State<SearchScreen> {
           )),
         ]),
       );
+
+  /// Chips: serviços do grupo ativo, ou todos quando sem grupo.
+  List<ServiceCategory> get _chipServices => _filter.isAll
+      ? Categories.all
+      : _filter.groupServiceIds.map((id) => Categories.byId(id)!).toList();
 
   void _filters() => showModalBottomSheet(
       context: context,

@@ -301,8 +301,10 @@ String xpLevelOf(int xp) {
 
 class ProviderModel {
   final String id, userId, name;
-  final String? photoUrl, bio, city, documentUrl, selfieUrl;
-  final List<String> categories, modalities, certificates, serviceAreas;
+  // Perfil PÚBLICO. Documento, selfie e certificados ficam em
+  // [ProviderVerification] (providers/{id}/private/verification).
+  final String? photoUrl, bio, city;
+  final List<String> categories, modalities, serviceAreas;
   final double rating;
   final int totalReviews;
   final bool active, verified;
@@ -316,11 +318,8 @@ class ProviderModel {
     this.photoUrl,
     this.bio,
     this.city,
-    this.documentUrl,
-    this.selfieUrl,
     this.categories = const [],
     this.modalities = const ['presential'],
-    this.certificates = const [],
     this.serviceAreas = const [],
     this.rating = 0.0,
     this.totalReviews = 0,
@@ -345,11 +344,8 @@ class ProviderModel {
         photoUrl: m['photoUrl'],
         bio: m['bio'],
         city: m['city'],
-        documentUrl: m['documentUrl'],
-        selfieUrl: m['selfieUrl'],
         categories: List<String>.from(m['categories'] ?? []),
         modalities: List<String>.from(m['modalities'] ?? ['presential']),
-        certificates: List<String>.from(m['certificates'] ?? []),
         serviceAreas: List<String>.from(m['serviceAreas'] ?? []),
         rating: (m['rating'] as num?)?.toDouble() ?? 0.0,
         totalReviews: (m['totalReviews'] as num?)?.toInt() ?? 0,
@@ -357,6 +353,34 @@ class ProviderModel {
         verified: m['verified'] ?? false,
         minPrice: (m['minPrice'] as num?)?.toDouble(),
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      );
+}
+
+/// Documentação privada de verificação do prestador. Guarda CAMINHOS do
+/// Storage (nunca download URLs públicas); visível só ao dono e ao admin.
+class ProviderVerification {
+  final String? documentPath, selfiePath;
+  final List<String> certificates, certificatePaths;
+
+  const ProviderVerification({
+    this.documentPath,
+    this.selfiePath,
+    this.certificates = const [],
+    this.certificatePaths = const [],
+  });
+
+  bool get isEmpty =>
+      documentPath == null &&
+      selfiePath == null &&
+      certificates.isEmpty &&
+      certificatePaths.isEmpty;
+
+  factory ProviderVerification.fromMap(Map<String, dynamic> m) =>
+      ProviderVerification(
+        documentPath: m['documentPath'] as String?,
+        selfiePath: m['selfiePath'] as String?,
+        certificates: List<String>.from(m['certificates'] ?? const []),
+        certificatePaths: List<String>.from(m['certificatePaths'] ?? const []),
       );
 }
 
@@ -1141,6 +1165,60 @@ class BookingModel {
 
 // ── Resolve Carajás (solicitações abertas + propostas) ─────────
 enum ResolveStatus { open, matched, closed, cancelled }
+
+/// Oportunidade Resolve vista pelo prestador (resumo sem endereço ou
+/// contato), entregue pela callable listResolveOpportunities.
+class ResolveOpportunity {
+  final String id, description, category, city;
+  final String? neighborhood;
+  final int proposalCount;
+  final DateTime? createdAt;
+  final bool alreadyProposed;
+
+  const ResolveOpportunity({
+    required this.id,
+    required this.description,
+    required this.category,
+    required this.city,
+    this.neighborhood,
+    this.proposalCount = 0,
+    this.createdAt,
+    this.alreadyProposed = false,
+  });
+
+  factory ResolveOpportunity.fromMap(Map<String, dynamic> m) {
+    final ms = (m['createdAtMs'] as num?)?.toInt();
+    return ResolveOpportunity(
+      id: (m['id'] ?? '') as String,
+      description: (m['description'] ?? '') as String,
+      category: (m['category'] ?? '') as String,
+      city: (m['city'] ?? '') as String,
+      neighborhood: m['neighborhood'] as String?,
+      proposalCount: (m['proposalCount'] as num?)?.toInt() ?? 0,
+      createdAt: ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms),
+      alreadyProposed: m['alreadyProposed'] == true,
+    );
+  }
+}
+
+/// Resultado da consulta de oportunidades (inclui o motivo quando o
+/// prestador ainda não é elegível).
+class ResolveOpportunities {
+  final bool eligible;
+  final String? reason;
+  final List<ResolveOpportunity> items;
+  const ResolveOpportunities(
+      {required this.eligible, this.reason, this.items = const []});
+
+  String get reasonLabel => switch (reason) {
+        'not_provider' => 'Cadastre-se como profissional para ver oportunidades.',
+        'not_verified' =>
+          'Seu cadastro está em análise. Após a aprovação você verá oportunidades.',
+        'inactive' => 'Fique disponível (online) para receber oportunidades.',
+        'no_services' => 'Informe os serviços que você atende no seu perfil.',
+        _ => 'Oportunidades indisponíveis no momento.',
+      };
+}
 
 class ResolveRequest {
   final String id, clientId, clientName, description, category, city;

@@ -556,6 +556,10 @@ class _ChatState extends State<ChatScreen> {
               child: StreamBuilder<List<MessageModel>>(
             stream: FS.messagesStream(widget.roomId),
             builder: (_, snap) {
+              if (snap.hasError) {
+                return QueryErrorView(
+                    error: snap.error, title: 'Conversa indisponível');
+              }
               final allMsgs = DemoData.orEmpty(snap.data, _demo);
               if (snap.hasData) FS.markMessagesRead(widget.roomId);
               if (snap.hasData && allMsgs.isEmpty) {

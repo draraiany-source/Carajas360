@@ -175,9 +175,25 @@ class ResolveDetailScreen extends StatelessWidget {
       body: StreamBuilder<ResolveRequest?>(
         stream: FS.resolveRequestStream(requestId),
         builder: (_, reqSnap) {
+          if (reqSnap.hasError) {
+            return const EmptyState(
+              emoji: '🔒',
+              title: 'Solicitação indisponível',
+              subtitle:
+                  'Você não tem acesso a esta solicitação ou ela foi removida.',
+            );
+          }
+          if (reqSnap.connectionState == ConnectionState.waiting &&
+              !reqSnap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final req = reqSnap.data;
           if (req == null) {
-            return const Center(child: CircularProgressIndicator());
+            return const EmptyState(
+              emoji: '🔍',
+              title: 'Solicitação não encontrada',
+              subtitle: 'Ela pode ter sido removida.',
+            );
           }
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -220,6 +236,13 @@ class ResolveDetailScreen extends StatelessWidget {
                   stream: FS.resolveProposalsStream(requestId),
                   builder: (_, snap) {
                     final list = snap.data ?? [];
+                    if (snap.hasError) {
+                      return const EmptyState(
+                        emoji: '⚠️',
+                        title: 'Não foi possível carregar as propostas',
+                        subtitle: 'Verifique sua conexão e tente novamente.',
+                      );
+                    }
                     if (snap.connectionState == ConnectionState.waiting &&
                         list.isEmpty) {
                       return const Center(child: CircularProgressIndicator());
@@ -243,12 +266,21 @@ class ResolveDetailScreen extends StatelessWidget {
                           canAccept: req.status == ResolveStatus.open &&
                               req.clientId == AuthService.uid,
                           onAccept: () async {
-                            await FS.acceptResolveProposal(
-                              requestId: requestId,
-                              proposalId: p.id,
-                              providerId: p.providerId,
-                              providerName: p.providerName,
-                            );
+                            try {
+                              await FS.acceptResolveProposal(
+                                requestId: requestId,
+                                proposalId: p.id,
+                                providerId: p.providerId,
+                                providerName: p.providerName,
+                              );
+                            } catch (e) {
+                              if (context.mounted) {
+                                snack(context,
+                                    'Não foi possível aceitar: a solicitação já pode ter sido fechada.',
+                                    bg: AppColors.error);
+                              }
+                              return;
+                            }
                             if (!context.mounted) return;
                             snack(context, 'Proposta aceita!',
                                 bg: AppColors.secondary);
@@ -422,17 +454,32 @@ class ResolveOpportunitiesScreen extends StatefulWidget {
 }
 
 class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
-  Future<void> _propose(ResolveRequest req) async {
+  late Future<ResolveOpportunities> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = _load();
+  }
+
+  Future<ResolveOpportunities> _load() async {
     if (AuthService.uid == null) {
-      snack(context, 'Faca login para enviar propostas');
-      return;
+      return const ResolveOpportunities(eligible: false, reason: 'not_provider');
     }
-    final prov = await FS.myProviderStream().first;
-    if (!mounted) return;
-    if (prov == null) {
-      snack(context,
-          'Cadastre-se como profissional para enviar propostas.',
-          bg: AppColors.error);
+    return FS.resolveOpportunities();
+  }
+
+  Future<void> _refresh() async {
+    final f = _load();
+    setState(() => _future = f);
+    try {
+      await f;
+    } catch (_) {/* exibido pelo FutureBuilder */}
+  }
+
+  Future<void> _propose(ResolveOpportunity req) async {
+    if (AuthService.uid == null) {
+      snack(context, 'Faça login para enviar propostas');
       return;
     }
     final priceCtrl = TextEditingController();
@@ -445,7 +492,8 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
         content: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
               controller: priceCtrl,
-              keyboardType: TextInputType.number,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(labelText: 'Valor (R\$)')),
           TextField(
               controller: daysCtrl,
@@ -454,6 +502,7 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
           TextField(
               controller: msgCtrl,
               maxLines: 3,
+              maxLength: 1000,
               decoration: const InputDecoration(labelText: 'Mensagem')),
         ]),
         actions: [
@@ -466,117 +515,125 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
         ],
       ),
     );
-    if (ok != true || !mounted) {
-      priceCtrl.dispose();
-      daysCtrl.dispose();
-      msgCtrl.dispose();
-      return;
-    }
     final price = double.tryParse(priceCtrl.text.replaceAll(',', '.')) ?? 0;
-    final days = int.tryParse(daysCtrl.text) ?? 1;
-    final message =
-        msgCtrl.text.trim().isEmpty ? null : msgCtrl.text.trim();
+    final days = int.tryParse(daysCtrl.text) ?? 0;
+    final message = msgCtrl.text.trim().isEmpty ? null : msgCtrl.text.trim();
     priceCtrl.dispose();
     daysCtrl.dispose();
     msgCtrl.dispose();
+    if (ok != true || !mounted) return;
     if (price <= 0) {
-      snack(context, 'Informe um valor valido');
+      snack(context, 'Informe um valor válido');
+      return;
+    }
+    if (days < 1) {
+      snack(context, 'Informe um prazo válido (em dias)');
       return;
     }
     try {
       await FS.submitResolveProposal(
         requestId: req.id,
-        providerName: prov.name,
-        providerPhoto: prov.photoUrl,
         price: price,
         deadlineDays: days,
         message: message,
-        rating: prov.rating,
-        totalServices: prov.totalReviews,
       );
       if (!mounted) return;
       snack(context, 'Proposta enviada!', bg: AppColors.secondary);
+      _refresh();
     } catch (e) {
       if (!mounted) return;
-      snack(context, 'Erro: $e', bg: AppColors.error);
+      snack(context, 'Não foi possível enviar: $e', bg: AppColors.error);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Oportunidades Resolve')),
-      body: StreamBuilder<ProviderModel?>(
-        stream: FS.myProviderStream(),
-        builder: (_, provSnap) {
-          final prov = provSnap.data;
-          return StreamBuilder<List<ResolveRequest>>(
-            stream: FS.resolveOpportunitiesStream(),
-            builder: (_, snap) {
-              var list = snap.data ?? [];
-              if (prov != null && prov.categories.isNotEmpty) {
-                list = list
-                    .where((r) => prov.categories.contains(r.category))
-                    .toList();
-              }
-              if (snap.connectionState == ConnectionState.waiting &&
-                  list.isEmpty) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (prov == null) {
-                return const EmptyState(
-                  emoji: '👷',
-                  title: 'Area do profissional',
-                  subtitle:
-                      'Cadastre-se como prestador para ver oportunidades Resolve.',
-                );
-              }
-              if (list.isEmpty) {
-                return const EmptyState(
+      appBar: AppBar(title: const Text('Oportunidades Resolve'), actions: [
+        IconButton(
+            tooltip: 'Atualizar',
+            onPressed: _refresh,
+            icon: const Icon(Icons.refresh_rounded)),
+      ]),
+      body: FutureBuilder<ResolveOpportunities>(
+        future: _future,
+        builder: (_, snap) {
+          if (snap.connectionState != ConnectionState.done) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError) {
+            return EmptyState(
+              emoji: '⚠️',
+              title: 'Não foi possível carregar',
+              subtitle: '${snap.error}',
+              actionLabel: 'Tentar novamente',
+              onAction: _refresh,
+            );
+          }
+          final data = snap.data!;
+          if (!data.eligible) {
+            return EmptyState(
+              emoji: '👷',
+              title: 'Área do profissional',
+              subtitle: data.reasonLabel,
+            );
+          }
+          if (data.items.isEmpty) {
+            return RefreshIndicator(
+              onRefresh: _refresh,
+              child: ListView(children: const [
+                SizedBox(height: 80),
+                EmptyState(
                   emoji: '📍',
                   title: 'Nenhuma oportunidade agora',
                   subtitle:
-                      'Quando clientes pedirem orcamentos na sua categoria, eles aparecem aqui.',
+                      'Quando clientes da sua região pedirem orçamentos nos seus serviços, eles aparecem aqui.',
+                ),
+              ]),
+            );
+          }
+          return RefreshIndicator(
+            onRefresh: _refresh,
+            child: ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: data.items.length,
+              separatorBuilder: (_, __) => const SizedBox(height: 10),
+              itemBuilder: (_, i) {
+                final r = data.items[i];
+                return Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: AppColors.border),
+                    color: AppColors.white,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(r.description,
+                          style: const TextStyle(
+                              fontWeight: FontWeight.w700, height: 1.35)),
+                      const SizedBox(height: 6),
+                      Text(
+                          '📍 ${r.city}${r.neighborhood != null ? ' · ${r.neighborhood}' : ''} · ${Categories.byId(r.category)?.name ?? r.category}',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textLight)),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: r.alreadyProposed
+                            ? const AppTag('Proposta enviada',
+                                bg: AppColors.secondary)
+                            : ElevatedButton(
+                                onPressed: () => _propose(r),
+                                child: const Text('Enviar proposta'),
+                              ),
+                      ),
+                    ],
+                  ),
                 );
-              }
-              return ListView.separated(
-                padding: const EdgeInsets.all(16),
-                itemCount: list.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 10),
-                itemBuilder: (_, i) {
-                  final r = list[i];
-                  return Container(
-                    padding: const EdgeInsets.all(14),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: AppColors.border),
-                      color: AppColors.white,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(r.description,
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, height: 1.35)),
-                        const SizedBox(height: 6),
-                        Text(
-                            '📍 ${r.city} · ${Categories.byId(r.category)?.name ?? r.category}',
-                            style: const TextStyle(
-                                fontSize: 12, color: AppColors.textLight)),
-                        const SizedBox(height: 10),
-                        Align(
-                          alignment: Alignment.centerRight,
-                          child: ElevatedButton(
-                            onPressed: () => _propose(r),
-                            child: const Text('Enviar proposta'),
-                          ),
-                        ),
-                      ],
-                    ),
-                  );
-                },
-              );
-            },
+              },
+            ),
           );
         },
       ),

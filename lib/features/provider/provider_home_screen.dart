@@ -256,6 +256,7 @@ class _OrderList extends StatelessWidget {
   Widget build(BuildContext context) => StreamBuilder<List<OrderModel>>(
         stream: FS.providerOrdersStream(statuses: statuses),
         builder: (_, snap) {
+          if (snap.hasError) return QueryErrorView(error: snap.error);
           final orders = DemoData.orEmpty(
               snap.data,
               statuses.contains(OrderStatus.pending) ? demo : <OrderModel>[]);
@@ -458,18 +459,29 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
   Future<void> _submit() async {
     setState(() => _loading = true);
     try {
-      String? photoUrl, documentUrl, selfieUrl;
+      // Foto: URL pública. Documento e selfie: caminho privado no Storage.
+      String? photoUrl, documentPath, selfiePath;
       if (_photo != null && _photoBytes != null) {
         photoUrl = await FS.uploadProviderFile(
             _photoBytes!, _photo!.name, 'photo');
       }
       if (_document != null && _documentBytes != null) {
-        documentUrl = await FS.uploadProviderFile(
+        documentPath = await FS.uploadProviderFile(
             _documentBytes!, _document!.name, 'document');
       }
       if (_selfie != null && _selfieBytes != null) {
-        selfieUrl = await FS.uploadProviderFile(
+        selfiePath = await FS.uploadProviderFile(
             _selfieBytes!, _selfie!.name, 'selfie');
+      }
+      final failed = (_photo != null && photoUrl == null) ||
+          (_document != null && documentPath == null) ||
+          (_selfie != null && selfiePath == null);
+      if (failed) {
+        if (mounted) {
+          snack(context, 'Falha ao enviar arquivos. Verifique a conexão e tente novamente.',
+              bg: AppColors.error);
+        }
+        return;
       }
 
       final areas = _areasCtrl.text
@@ -480,8 +492,8 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
 
       await FS.updateProviderDocuments(
         photoUrl: photoUrl,
-        documentUrl: documentUrl,
-        selfieUrl: selfieUrl,
+        documentPath: documentPath,
+        selfiePath: selfiePath,
         certificates: _certificates,
         serviceAreas: areas,
       );
@@ -491,6 +503,11 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
             '✅ Documentos enviados! Aguarde a aprovação do administrador.',
             bg: AppColors.secondary);
         Navigator.pushReplacementNamed(context, Routes.main);
+      }
+    } catch (e) {
+      if (mounted) {
+        snack(context, 'Não foi possível salvar o cadastro: $e',
+            bg: AppColors.error);
       }
     } finally {
       if (mounted) setState(() => _loading = false);

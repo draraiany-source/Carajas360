@@ -1,4 +1,18 @@
 rules_version = '2';
+// ════════════════════════════════════════════════════════════════
+// Carajás 360 — Firestore Rules (Fase 1: segurança e privacidade)
+//
+// Princípios:
+//  • Dados privados de prestadores ficam em providers/{id}/private/*.
+//  • Perfil público de prestador só é listável quando verificado.
+//  • Chat: participantes e vínculos imutáveis; sala com id canônico.
+//  • Resolve: detalhes/endereço só para cliente, admin e prestador
+//    escolhido. Oportunidades e propostas passam por Cloud Functions,
+//    que validam a elegibilidade do prestador.
+//  • Avaliação: só o cliente do pedido concluído, para o prestador do
+//    pedido, uma por contratação.
+//  • Notas, verificações, saldos, comissões e permissões: só servidor.
+// ════════════════════════════════════════════════════════════════
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -7,8 +21,8 @@ service cloud.firestore {
     function isOwner(id) { return isAuth() && uid() == id; }
     function isAdminClaim() {
       return isAuth() && (
-        request.auth.token.admin == true ||
-        request.auth.token.role == 'admin'
+        request.auth.token.get('admin', false) == true ||
+        request.auth.token.get('role', '') == 'admin'
       );
     }
     function isAdmin() {
@@ -17,12 +31,19 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/users/$(uid())) &&
           get(/databases/$(database)/documents/users/$(uid())).data.type == 'admin');
     }
+    function incoming() { return request.resource.data; }
+    function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
+
+    // Campos que nenhum usuário comum pode gravar no próprio perfil.
     function userProtectedKeys() {
       return [
-        'type', 'role', 'roles', 'adminRole', 'verified', 'active', 'plan',
-        'walletId', 'financialStatus', 'permissions', 'createdAt', 'xp', 'status'
+        'type', 'role', 'roles', 'adminRole', 'admin', 'verified', 'active',
+        'plan', 'walletId', 'financialStatus', 'permissions', 'createdAt',
+        'xp', 'status', 'balance', 'rating', 'totalReviews', 'commissionRate'
       ];
     }
+    function profileTypes() { return ['client', 'provider', 'deliverer', 'company']; }
+
     function ownsCompany(companyId) {
       return isAuth() && (
         isAdmin() ||
@@ -31,46 +52,93 @@ service cloud.firestore {
       );
     }
 
+    // ── Usuários (perfil privado: só dono e admin) ────────────────
     match /users/{userId} {
       allow get: if isOwner(userId) || isAdmin();
       allow list: if isAdmin();
       allow create: if isOwner(userId) &&
-        request.resource.data.type in ['client', 'provider', 'deliverer', 'company'] &&
-        !('adminRole' in request.resource.data.keys());
-      allow update: if (isOwner(userId) &&
-          !request.resource.data.diff(resource.data).affectedKeys()
-            .hasAny(userProtectedKeys())) ||
-        isAdmin();
+        incoming().type in profileTypes() &&
+        !incoming().keys().hasAny([
+          'role', 'adminRole', 'admin', 'permissions', 'walletId',
+          'financialStatus', 'balance', 'rating', 'totalReviews', 'commissionRate'
+        ]) &&
+        incoming().get('verified', false) == false &&
+        incoming().get('xp', 0) == 0 &&
+        incoming().get('status', 'active') == 'active' &&
+        incoming().get('plan', 'free') == 'free' &&
+        (!('roles' in incoming()) || incoming().roles.hasOnly(profileTypes()));
+      allow update: if isAdmin() || (
+        isOwner(userId) && !changed().hasAny(userProtectedKeys())
+      );
       allow delete: if isOwner(userId) || isAdmin();
     }
 
+    // ── Prestadores: perfil PÚBLICO ───────────────────────────────
+    // Documentos de identidade, selfie e certificados NÃO podem estar
+    // aqui; ficam em providers/{id}/private/verification.
+    function providerPublicEditable() {
+      return [
+        'name', 'photoUrl', 'bio', 'city', 'state', 'categories',
+        'modalities', 'minPrice', 'serviceAreas', 'radiusKm', 'updatedAt'
+      ];
+    }
+    function providerServerKeys() {
+      return ['userId', 'rating', 'totalReviews', 'active', 'verified', 'createdAt'];
+    }
+    function validProviderShape(d) {
+      return d.name is string && d.name.size() > 0 && d.name.size() <= 120 &&
+        d.categories is list && d.categories.size() > 0 && d.categories.size() <= 30 &&
+        (!('modalities' in d) || d.modalities.hasOnly(['presential', 'online', 'home_care']));
+    }
+
     match /providers/{providerId} {
-      allow read: if true;
+      // Pendentes (não verificados) só são visíveis ao próprio dono e ao admin.
+      allow read: if resource.data.verified == true ||
+        (isAuth() && resource.data.userId == uid()) ||
+        isAdmin();
       allow create: if isOwner(providerId) &&
-        request.resource.data.get('verified', false) == false &&
-        request.resource.data.get('userId', providerId) == uid();
+        incoming().keys().hasOnly(providerPublicEditable().concat(providerServerKeys())) &&
+        incoming().userId == uid() &&
+        incoming().get('verified', false) == false &&
+        incoming().get('active', false) == false &&
+        incoming().get('rating', 0) == 0 &&
+        incoming().get('totalReviews', 0) == 0 &&
+        validProviderShape(incoming());
       allow update: if isAdmin() || (
         isOwner(providerId) &&
-        !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['verified', 'plan', 'status', 'rating', 'totalReviews', 'userId']) &&
-        (
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['active']) ||
-          resource.data.verified == true
-        )
+        changed().hasOnly(providerPublicEditable().concat(['active'])) &&
+        (!changed().hasAny(['active']) || resource.data.verified == true) &&
+        validProviderShape(incoming())
       );
       allow delete: if isAdmin();
+
+      // Documentação privada de verificação (somente dono e admin).
+      match /private/{docId} {
+        allow read: if isOwner(providerId) || isAdmin();
+        allow create, update: if isAdmin() || (
+          isOwner(providerId) &&
+          docId == 'verification' &&
+          incoming().keys().hasOnly([
+            'documentPath', 'selfiePath', 'certificates', 'certificatePaths',
+            'submittedAt', 'updatedAt'
+          ]) &&
+          (!('certificates' in incoming()) || incoming().certificates.size() <= 20)
+        );
+        allow delete: if isAdmin();
+      }
     }
 
     match /companies/{companyId} {
       allow read: if true;
       allow create: if isAuth() &&
-        request.resource.data.ownerId == uid() &&
-        request.resource.data.get('verified', false) == false &&
-        request.resource.data.get('plan', 'free') == 'free';
+        incoming().ownerId == uid() &&
+        incoming().get('verified', false) == false &&
+        incoming().get('plan', 'free') == 'free' &&
+        !incoming().keys().hasAny(['rating', 'totalReviews', 'commissionRate']);
       allow update: if isAdmin() || (
         resource.data.ownerId == uid() &&
-        !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['verified', 'plan', 'ownerId', 'active'])
+        !changed().hasAny(['verified', 'plan', 'ownerId', 'active',
+          'rating', 'totalReviews', 'commissionRate'])
       );
       allow delete: if isAdmin();
     }
@@ -93,28 +161,36 @@ service cloud.firestore {
 
     match /stores/{storeId} {
       allow read: if true;
-      allow create: if isAuth() && request.resource.data.ownerId == uid();
-      allow update, delete: if isAuth() &&
-        (resource.data.ownerId == uid() || isAdmin());
+      allow create: if isAuth() && incoming().ownerId == uid() &&
+        !incoming().keys().hasAny(['rating', 'totalReviews', 'verified', 'commissionRate']);
+      allow update: if isAdmin() || (isAuth() &&
+        resource.data.ownerId == uid() &&
+        !changed().hasAny(['ownerId', 'rating', 'totalReviews', 'verified', 'commissionRate']));
+      allow delete: if isAuth() && (resource.data.ownerId == uid() || isAdmin());
     }
 
     match /products/{productId} {
       allow read: if true;
       allow create: if isAuth() &&
+        !incoming().keys().hasAny(['rating', 'totalReviews']) &&
         (ownsCompany(request.resource.data.get('companyId', '')) ||
          get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.ownerId == uid() ||
          isAdmin());
-      allow update: if isAuth() &&
-        (get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == uid() || isAdmin());
+      allow update: if isAdmin() || (isAuth() &&
+        get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == uid() &&
+        !changed().hasAny(['storeId', 'rating', 'totalReviews']));
       allow delete: if isAuth() &&
         (get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == uid() || isAdmin());
     }
 
     match /rentals/{rentalId} {
       allow read: if true;
-      allow create: if isAuth() && request.resource.data.ownerId == uid();
-      allow update, delete: if isAuth() &&
-        (resource.data.ownerId == uid() || isAdmin());
+      allow create: if isAuth() && incoming().ownerId == uid() &&
+        !incoming().keys().hasAny(['rating', 'totalReviews', 'verified']);
+      allow update: if isAdmin() || (isAuth() &&
+        resource.data.ownerId == uid() &&
+        !changed().hasAny(['ownerId', 'rating', 'totalReviews', 'verified']));
+      allow delete: if isAuth() && (resource.data.ownerId == uid() || isAdmin());
     }
 
     match /bookings/{bookingId} {
@@ -125,8 +201,7 @@ service cloud.firestore {
       allow update: if isAuth() &&
         (resource.data.ownerId == uid() ||
          resource.data.clientId == uid() || isAdmin()) &&
-        !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['price', 'total', 'clientId', 'ownerId', 'rentalId']);
+        !changed().hasAny(['price', 'total', 'clientId', 'ownerId', 'rentalId']);
     }
 
     match /contracts/{contractId} {
@@ -142,46 +217,77 @@ service cloud.firestore {
         isAdmin()
       );
       allow create: if isAuth()
-        && request.resource.data.clientId == uid()
-        && request.resource.data.status == 'pending'
-        && request.resource.data.get('payoutProcessed', false) == false
-        && request.resource.data.get('paymentStatus', 'unpaid') in ['unpaid', 'pending']
-        && !request.resource.data.keys().hasAny([
+        && incoming().clientId == uid()
+        && incoming().status == 'pending'
+        && incoming().get('payoutProcessed', false) == false
+        && incoming().get('paymentStatus', 'unpaid') in ['unpaid', 'pending']
+        && !incoming().keys().hasAny([
           'commission', 'platformFee', 'providerAmount', 'payoutStatus',
-          'transactionId', 'cashbackGranted'
+          'transactionId', 'cashbackGranted', 'paidAt', 'payoutAt',
+          'reviewed', 'refunded', 'refundAmount'
         ]);
-      // Client/prestador só marcam review. Status/preço/repasse: Cloud Functions (Admin SDK).
+      // Cliente/prestador só marcam review. Status/preço/repasse: Cloud Functions.
       allow update: if isAdmin() || (
         isAuth() &&
         (resource.data.clientId == uid() || resource.data.providerId == uid()) &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed']) &&
+        changed().hasOnly(['reviewed']) &&
         resource.data.status == 'completed' &&
-        request.resource.data.reviewed == true
+        incoming().reviewed == true
       );
       allow delete: if isAdmin();
     }
 
+    // ── Chat ──────────────────────────────────────────────────────
+    // Sala 1:1 com id canônico "{uidMenor}_{uidMaior}". Participantes e
+    // vínculos (orderId/requestId) são definidos na criação e nunca
+    // mudam por usuários comuns.
     match /chatRooms/{roomId} {
       function roomParticipants() {
         return get(/databases/$(database)/documents/chatRooms/$(roomId)).data.participants;
       }
-      allow read: if isAuth() && request.auth.uid in resource.data.participants;
-      allow create: if isAuth() &&
-        request.auth.uid in request.resource.data.participants;
-      allow update: if isAuth() && request.auth.uid in resource.data.participants;
+      function validNewRoom() {
+        let p = incoming().participants;
+        return p is list && p.size() == 2 &&
+          p[0] is string && p[1] is string &&
+          p[0] < p[1] &&
+          roomId == p[0] + '_' + p[1] &&
+          uid() in p &&
+          incoming().keys().hasOnly(['participants', 'createdAt', 'orderId', 'requestId']) &&
+          incoming().createdAt == request.time;
+      }
+      // get de sala inexistente é permitido (resource == null) para o
+      // fluxo "abrir ou criar"; não revela conteúdo algum.
+      allow get: if isAuth() && (resource == null || uid() in resource.data.participants);
+      allow list: if isAuth() && uid() in resource.data.participants;
+      allow create: if isAuth() && validNewRoom();
+      allow update: if isAuth() &&
+        uid() in resource.data.participants &&
+        changed().hasOnly(['lastMsg', 'lastMsgTime', 'typing_' + uid()]) &&
+        (!changed().hasAny(['lastMsg']) ||
+          (incoming().lastMsg is string && incoming().lastMsg.size() <= 4000));
+      allow delete: if isAdmin();
 
       match /messages/{msgId} {
-        allow read: if isAuth() && request.auth.uid in roomParticipants();
+        allow read: if isAuth() && uid() in roomParticipants();
         allow create: if isAuth() &&
-          request.resource.data.senderId == request.auth.uid &&
-          request.auth.uid in roomParticipants();
-        allow update: if isAuth() && request.auth.uid in roomParticipants() && (
-          (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']) &&
-            resource.data.senderId != request.auth.uid) ||
-          (resource.data.senderId == request.auth.uid &&
-            request.resource.data.diff(resource.data).affectedKeys()
-              .hasOnly(['deleted', 'text', 'mediaUrl']))
+          uid() in roomParticipants() &&
+          incoming().senderId == uid() &&
+          incoming().keys().hasOnly([
+            'senderId', 'senderName', 'text', 'read', 'mediaUrl',
+            'replyToText', 'replyToSender', 'createdAt'
+          ]) &&
+          incoming().read == false &&
+          incoming().text is string && incoming().text.size() <= 4000;
+        allow update: if isAuth() && uid() in roomParticipants() && (
+          // Destinatário marca como lida.
+          (resource.data.senderId != uid() &&
+            changed().hasOnly(['read']) && incoming().read == true) ||
+          // Remetente apaga para todos.
+          (resource.data.senderId == uid() &&
+            changed().hasOnly(['deleted', 'text', 'mediaUrl']) &&
+            incoming().deleted == true && incoming().text == '')
         );
+        allow delete: if isAdmin();
       }
     }
 
@@ -211,6 +317,11 @@ service cloud.firestore {
       allow read, write: if false;
     }
 
+    match /migrations/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
     match /deliveries/{deliveryId} {
       allow read: if isAuth() && (
         resource.data.clientId == request.auth.uid ||
@@ -225,7 +336,7 @@ service cloud.firestore {
         resource.data.driverId == request.auth.uid ||
         resource.data.delivererId == request.auth.uid ||
         isAdmin()
-      );
+      ) && !changed().hasAny(['clientId', 'driverId', 'delivererId', 'price', 'total']);
     }
 
     match /appointments/{appointmentId} {
@@ -240,37 +351,55 @@ service cloud.firestore {
         resource.data.clientId == request.auth.uid ||
         resource.data.providerId == request.auth.uid ||
         isAdmin()
-      );
+      ) && !changed().hasAny(['clientId', 'providerId', 'price']);
     }
 
     match /favorites/{favId} {
       allow read: if isAuth() && resource.data.userId == request.auth.uid;
-      allow create: if isAuth() && request.resource.data.userId == request.auth.uid;
+      allow create: if isAuth() &&
+        incoming().userId == uid() &&
+        favId.matches(uid() + '_.+');
       allow delete: if isAuth() && resource.data.userId == request.auth.uid;
     }
 
+    // ── Avaliações ────────────────────────────────────────────────
+    // Uma por contratação (id = "{orderId}_{clientId}", só create).
+    // A Cloud Function onReviewCreated revalida e recalcula a nota.
     match /reviews/{reviewId} {
+      function reviewedOrder() {
+        return get(/databases/$(database)/documents/orders/$(incoming().orderId)).data;
+      }
       allow read: if true;
       allow create: if isAuth()
-        && request.resource.data.clientId == uid()
-        && reviewId == request.resource.data.orderId + '_' + uid()
-        && request.resource.data.orderId is string
-        && request.resource.data.orderId.size() > 0
-        && request.resource.data.stars is int
-        && request.resource.data.stars >= 1
-        && request.resource.data.stars <= 5
-        && exists(/databases/$(database)/documents/orders/$(request.resource.data.orderId))
-        && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.clientId
-             == uid()
-        && get(/databases/$(database)/documents/orders/$(request.resource.data.orderId)).data.status
-             == 'completed';
+        && incoming().keys().hasOnly([
+          'orderId', 'clientId', 'providerId', 'clientName', 'clientPhoto',
+          'stars', 'comment', 'tags', 'createdAt'
+        ])
+        && incoming().clientId == uid()
+        && incoming().orderId is string
+        && incoming().orderId.size() > 0
+        && reviewId == incoming().orderId + '_' + uid()
+        && incoming().stars is int
+        && incoming().stars >= 1
+        && incoming().stars <= 5
+        && (!('comment' in incoming()) || incoming().comment == null ||
+            (incoming().comment is string && incoming().comment.size() <= 1000))
+        && (!('tags' in incoming()) || incoming().tags == null ||
+            (incoming().tags is list && incoming().tags.size() <= 10))
+        && incoming().createdAt == request.time
+        && exists(/databases/$(database)/documents/orders/$(incoming().orderId))
+        && reviewedOrder().clientId == uid()
+        && reviewedOrder().status == 'completed'
+        && incoming().providerId is string
+        && reviewedOrder().providerId == incoming().providerId
+        && incoming().providerId != uid();
       allow update, delete: if false;
     }
 
     match /notifications/{notifId} {
       allow read: if isAuth() && resource.data.userId == uid();
       allow update: if isAuth() && resource.data.userId == uid()
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']);
+        && changed().hasOnly(['read']);
       allow create, delete: if false;
     }
 
@@ -311,33 +440,94 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    // ── Resolve Carajás ───────────────────────────────────────────
+    // Solicitações NÃO são públicas. Prestadores elegíveis consultam
+    // oportunidades pela callable listResolveOpportunities (dados
+    // resumidos, sem endereço) e enviam propostas pela callable
+    // submitResolveProposal (valida aprovação, conta ativa e serviço).
     match /resolveRequests/{id} {
-      allow read: if isAuth();
-      allow create: if isAuth() && request.resource.data.clientId == uid();
-      allow update: if isAuth() && (
-        resource.data.clientId == uid() ||
-        isAdmin() ||
-        (
-          request.resource.data.diff(resource.data).affectedKeys()
-            .hasOnly(['proposalCount']) &&
-          request.resource.data.proposalCount ==
-            resource.data.proposalCount + 1
+      function req() { return resource.data; }
+      allow read: if isAuth() && (
+        req().clientId == uid() ||
+        req().get('matchedProviderId', '') == uid() ||
+        isAdmin()
+      );
+      allow create: if isAuth() &&
+        incoming().clientId == uid() &&
+        incoming().status == 'open' &&
+        incoming().proposalCount == 0 &&
+        incoming().keys().hasOnly([
+          'clientId', 'clientName', 'description', 'category', 'city',
+          'neighborhood', 'modality', 'status', 'proposalCount',
+          'leadMonetizationReady', 'leadFee', 'createdAt'
+        ]) &&
+        incoming().get('leadFee', null) == null &&
+        incoming().description is string &&
+        incoming().description.size() >= 10 &&
+        incoming().description.size() <= 2000 &&
+        incoming().category is string && incoming().category.size() > 0 &&
+        incoming().createdAt == request.time;
+      allow update: if isAdmin() || (
+        isAuth() && req().clientId == uid() && req().status == 'open' && (
+          // Cancelar a própria solicitação.
+          (changed().hasOnly(['status', 'cancelledAt']) &&
+            incoming().status == 'cancelled') ||
+          // Escolher UMA proposta (lote atômico com a proposta).
+          (changed().hasOnly(['status', 'matchedProviderId', 'matchedProposalId', 'matchedAt']) &&
+            incoming().status == 'matched' &&
+            getAfter(/databases/$(database)/documents/resolveProposals/$(incoming().matchedProposalId)).data.requestId == id &&
+            getAfter(/databases/$(database)/documents/resolveProposals/$(incoming().matchedProposalId)).data.providerId == incoming().matchedProviderId &&
+            getAfter(/databases/$(database)/documents/resolveProposals/$(incoming().matchedProposalId)).data.accepted == true)
         )
       );
       allow delete: if isAdmin();
+
+      // Endereço e contato: cliente, admin e prestador escolhido.
+      match /private/{docId} {
+        function parent() {
+          return get(/databases/$(database)/documents/resolveRequests/$(id)).data;
+        }
+        allow read: if isAuth() && (
+          parent().clientId == uid() ||
+          parent().get('matchedProviderId', '') == uid() ||
+          isAdmin()
+        );
+        allow create, update: if isAuth() &&
+          docId == 'details' &&
+          getAfter(/databases/$(database)/documents/resolveRequests/$(id)).data.clientId == uid() &&
+          incoming().keys().hasOnly(['address', 'reference', 'phone', 'updatedAt']);
+        allow delete: if isAdmin();
+      }
     }
 
     match /resolveProposals/{id} {
+      function parentReq() {
+        return get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data;
+      }
       allow read: if isAuth() && (
         resource.data.providerId == uid() ||
+        resource.data.get('clientId', '') == uid() ||
         isAdmin() ||
-        get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == uid()
+        parentReq().clientId == uid()
       );
-      allow create: if isAuth() && request.resource.data.providerId == uid();
-      allow update: if isAuth() && (
-        resource.data.providerId == uid() ||
-        get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == uid() ||
-        isAdmin()
+      // Criação somente pela callable submitResolveProposal.
+      allow create: if false;
+      allow update: if isAdmin() || (
+        // Cliente aceita (em lote com a solicitação -> matched).
+        isAuth() &&
+        parentReq().clientId == uid() &&
+        parentReq().status == 'open' &&
+        resource.data.accepted == false &&
+        changed().hasOnly(['accepted', 'acceptedAt']) &&
+        incoming().accepted == true &&
+        getAfter(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.matchedProposalId == id
+      ) || (
+        // Prestador ajusta a própria proposta enquanto não aceita.
+        isAuth() &&
+        resource.data.providerId == uid() &&
+        resource.data.accepted == false &&
+        changed().hasOnly(['price', 'deadlineDays', 'message', 'available', 'updatedAt']) &&
+        incoming().price is number && incoming().price > 0
       );
       allow delete: if isAdmin();
     }

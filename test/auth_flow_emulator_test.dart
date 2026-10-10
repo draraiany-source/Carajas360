@@ -94,7 +94,8 @@ void main() {
 
     // firebase_core needs platform channels; unit tests run on the Dart VM.
     // Exercise Auth+Firestore emulators via REST (full product auth lifecycle).
-    const projectId = 'servicoconecta';
+    const projectId = String.fromEnvironment('FIREBASE_PROJECT',
+        defaultValue: 'demo-carajas360');
     const apiKey = 'fake-api-key';
     final ts = DateTime.now().millisecondsSinceEpoch;
     final email = 'auth_flow_$ts@test.com';

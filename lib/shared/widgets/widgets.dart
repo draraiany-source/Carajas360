@@ -8,6 +8,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
 import '../services/firebase_service.dart';
 import 'micro_interactions.dart';
+import '../../core/utils/query_errors.dart';
 
 class GradHeader extends StatelessWidget {
   final Gradient gradient;
@@ -607,3 +608,23 @@ String fmtDate(DateTime dt) {
 
 String fmtTime(DateTime dt) =>
     '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
+
+/// Erro de consulta explícito (sem dados fictícios no lugar). Use em
+/// StreamBuilder/FutureBuilder quando `snapshot.hasError`.
+class QueryErrorView extends StatelessWidget {
+  final Object? error;
+  final VoidCallback? onRetry;
+  final String title;
+  const QueryErrorView(
+      {super.key,
+      required this.error,
+      this.onRetry,
+      this.title = 'Não foi possível carregar'});
+  @override
+  Widget build(BuildContext context) => EmptyState(
+      emoji: '⚠️',
+      title: title,
+      subtitle: friendlyQueryError(error),
+      actionLabel: onRetry != null ? 'Tentar novamente' : null,
+      onAction: onRetry);
+}

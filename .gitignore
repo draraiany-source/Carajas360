@@ -99,3 +99,11 @@ audit_*.txt
 coverage/
 *.g.dart.bak
 *.freezed.dart.bak
+
+# Ambientes: arquivos reais de hml/prod ficam fora do Git
+config/env/hml.json
+config/env/prod.json
+android/.gradle/
+# Emuladores / testes de regras
+firebase-tests/node_modules/
+*-debug.log

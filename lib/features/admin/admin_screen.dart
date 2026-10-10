@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
@@ -410,7 +411,8 @@ class _ValidationTab extends StatelessWidget {
                           Row(children: [
                             Expanded(
                                 child: OutlinedButton(
-                                    onPressed: () => _viewDocuments(context, d),
+                                    onPressed: () =>
+                                        _viewDocuments(context, docs[i].id, d),
                                     style: OutlinedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 10)),
@@ -495,62 +497,92 @@ class _ValidationTab extends StatelessWidget {
         },
       );
 
-  void _viewDocuments(BuildContext context, Map<String, dynamic> providerData) {
-    final docs = List<String>.from(providerData['documents'] ?? []);
+  // Documentação privada (providers/{id}/private/verification). Os
+  // arquivos são abertos por URL temporária gerada no servidor.
+  void _viewDocuments(BuildContext context, String providerId,
+      Map<String, dynamic> providerData) {
     showModalBottomSheet(
         context: context,
-        builder: (_) => Padding(
+        isScrollControlled: true,
+        builder: (sheetCtx) => Padding(
               padding: const EdgeInsets.all(20),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SheetHandle(),
-                const SizedBox(height: 16),
-                Text('Documentos: ${providerData['name'] ?? '—'}',
-                    style: const TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 12),
-                if (docs.isEmpty)
-                  const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 20),
-                      child: EmptyState(
-                          emoji: '📄',
-                          title: 'Nenhum documento',
-                          subtitle: 'O prestador ainda não enviou documentos'))
-                else
-                  for (final url in docs)
-                    ListTile(
-                      leading: const Icon(Icons.insert_drive_file_outlined,
-                          color: AppColors.primary),
-                      title: Text(url.split('/').last,
-                          style: const TextStyle(fontSize: 13),
-                          overflow: TextOverflow.ellipsis),
-                      trailing: const Icon(Icons.open_in_new_rounded,
-                          size: 18, color: AppColors.textLight),
-                      onTap: () => snack(context, 'Abrindo documento...',
-                          bg: AppColors.primary),
-                    ),
-                const SizedBox(height: 12),
-                for (final doc in [
-                  'CPF',
-                  'Comprovante de endereço',
-                  'Certificação/Registro profissional'
-                ])
-                  ListTile(
-                    leading: const Icon(Icons.description_outlined,
-                        color: AppColors.textLight),
-                    title: Text(doc, style: const TextStyle(fontSize: 13)),
-                    trailing: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(
-                            color: AppColors.warning.withOpacity(0.15),
-                            borderRadius: BorderRadius.circular(8)),
-                        child: const Text('pendente',
-                            style: TextStyle(
-                                fontSize: 10,
-                                color: AppColors.warning,
-                                fontWeight: FontWeight.w700))),
-                  ),
-              ]),
+              child: FutureBuilder<ProviderVerification?>(
+                future: FS.getProviderVerification(providerId),
+                builder: (_, snap) {
+                  final v = snap.data;
+                  final files = <MapEntry<String, String>>[
+                    if (v?.documentPath != null)
+                      MapEntry('Documento (RG/CNH)', v!.documentPath!),
+                    if (v?.selfiePath != null)
+                      MapEntry('Selfie de validação', v!.selfiePath!),
+                    for (final p in v?.certificatePaths ?? const <String>[])
+                      MapEntry('Certificado', p),
+                  ];
+                  return Column(mainAxisSize: MainAxisSize.min, children: [
+                    const SheetHandle(),
+                    const SizedBox(height: 16),
+                    Text('Documentos: ${providerData['name'] ?? '—'}',
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 12),
+                    if (snap.connectionState != ConnectionState.done)
+                      const Padding(
+                          padding: EdgeInsets.all(24),
+                          child: CircularProgressIndicator())
+                    else if (snap.hasError)
+                      EmptyState(
+                          emoji: '⚠️',
+                          title: 'Erro ao carregar documentos',
+                          subtitle: '${snap.error}')
+                    else if (v == null || v.isEmpty)
+                      const Padding(
+                          padding: EdgeInsets.symmetric(vertical: 20),
+                          child: EmptyState(
+                              emoji: '📄',
+                              title: 'Nenhum documento',
+                              subtitle:
+                                  'O prestador ainda não enviou documentos'))
+                    else ...[
+                      for (final f in files)
+                        ListTile(
+                          leading: const Icon(Icons.lock_outline_rounded,
+                              color: AppColors.primary),
+                          title: Text(f.key,
+                              style: const TextStyle(fontSize: 13)),
+                          subtitle: Text(f.value.split('/').last,
+                              style: const TextStyle(fontSize: 11),
+                              overflow: TextOverflow.ellipsis),
+                          trailing: const Icon(Icons.open_in_new_rounded,
+                              size: 18, color: AppColors.textLight),
+                          onTap: () async {
+                            try {
+                              final url = await FS.verificationFileUrl(
+                                  providerId, f.value);
+                              if (url != null) {
+                                await launchUrl(Uri.parse(url),
+                                    mode: LaunchMode.externalApplication);
+                              }
+                            } catch (e) {
+                              if (sheetCtx.mounted) {
+                                snack(sheetCtx, 'Não foi possível abrir: $e',
+                                    bg: AppColors.error);
+                              }
+                            }
+                          },
+                        ),
+                      for (final c in v.certificates)
+                        ListTile(
+                          leading: const Icon(Icons.verified_outlined,
+                              color: AppColors.textLight),
+                          title: Text(c, style: const TextStyle(fontSize: 13)),
+                          subtitle: const Text('Certificado informado (texto)',
+                              style: TextStyle(fontSize: 11)),
+                        ),
+                    ],
+                    const SizedBox(height: 12),
+                  ]);
+                },
+              ),
             ));
   }
 }

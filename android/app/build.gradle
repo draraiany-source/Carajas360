@@ -17,12 +17,20 @@ plugins {
 //    storeFile=/caminho/absoluto/para/upload-keystore.jks
 // Sem key.properties o build de RELEASE falha (não assina com debug).
 // Use android/key.properties.example como modelo.
+// CI: as mesmas chaves podem vir de variáveis de ambiente
+// (CARAJAS_KEYSTORE_PATH, CARAJAS_KEYSTORE_PASSWORD, CARAJAS_KEY_ALIAS,
+// CARAJAS_KEY_PASSWORD) — nenhuma credencial fica no repositório.
 def keystoreProperties = new Properties()
 def keystorePropertiesFile = rootProject.file('key.properties')
-def hasReleaseKeystore = keystorePropertiesFile.exists()
-if (hasReleaseKeystore) {
+if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+} else if (System.getenv('CARAJAS_KEYSTORE_PATH')) {
+    keystoreProperties['storeFile'] = System.getenv('CARAJAS_KEYSTORE_PATH')
+    keystoreProperties['storePassword'] = System.getenv('CARAJAS_KEYSTORE_PASSWORD') ?: ''
+    keystoreProperties['keyAlias'] = System.getenv('CARAJAS_KEY_ALIAS') ?: 'upload'
+    keystoreProperties['keyPassword'] = System.getenv('CARAJAS_KEY_PASSWORD') ?: ''
 }
+def hasReleaseKeystore = keystoreProperties['storeFile'] != null
 
 // Maps API key: android/local.properties → MAPS_API_KEY=AIza...
 // (não versionar a key). Fallback mantém placeholder explícito.
@@ -54,6 +62,32 @@ android {
         versionName flutter.versionName
         multiDexEnabled true
         manifestPlaceholders += [MAPS_API_KEY: mapsApiKey]
+        resValue "string", "app_name", "Carajás 360"
+    }
+
+    // Ambientes explícitos. Produção preserva o applicationId original
+    // (br.com.servicoconecta); dev/hml instalam lado a lado com sufixo.
+    // Cada flavor usa seu google-services.json:
+    //   src/dev/  (emuladores)   src/hml/  (homologação)   app/ (produção)
+    // Build: flutter build apk --flavor hml --dart-define-from-file=config/env/hml.json
+    flavorDimensions "env"
+    productFlavors {
+        dev {
+            dimension "env"
+            applicationIdSuffix ".dev"
+            versionNameSuffix "-dev"
+            resValue "string", "app_name", "Carajás 360 DEV"
+        }
+        hml {
+            dimension "env"
+            applicationIdSuffix ".hml"
+            versionNameSuffix "-hml"
+            resValue "string", "app_name", "Carajás 360 HML"
+        }
+        prod {
+            dimension "env"
+            resValue "string", "app_name", "Carajás 360"
+        }
     }
 
     signingConfigs {
@@ -95,7 +129,7 @@ gradle.taskGraph.whenReady { graph ->
     }
     if (needsReleaseKey && !hasReleaseKeystore) {
         throw new GradleException(
-            "Release exige android/key.properties (veja key.properties.example). " +
+            "Release exige android/key.properties ou CARAJAS_KEYSTORE_* (veja key.properties.example). " +
             "Não usamos assinatura debug em release — Play Store rejeitaria o AAB.")
     }
 }

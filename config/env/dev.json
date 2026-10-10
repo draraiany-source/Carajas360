@@ -1,0 +1,5 @@
+{
+  "APP_ENV": "dev",
+  "USE_FIREBASE_EMULATOR": "true",
+  "DEMO_DATA": "false"
+}

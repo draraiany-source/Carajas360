@@ -197,6 +197,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
               child: StreamBuilder<List<OrderModel>>(
             stream: FS.orderHistoryStream(status: _filter),
             builder: (_, snap) {
+              if (snap.hasError) return QueryErrorView(error: snap.error);
               final orders = DemoData.orEmpty(
                   snap.data,
                   _demo

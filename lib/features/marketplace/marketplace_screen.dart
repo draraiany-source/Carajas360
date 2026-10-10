@@ -5,6 +5,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/demo_data.dart';
+import '../../core/utils/query_errors.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -34,11 +36,22 @@ class _MarketState extends State<MarketplaceScreen> {
   final Map<String, int> _cart = {};
   bool _paying = false;
   StreamSubscription<List<ProductModel>>? _prodSub;
+  Object? _prodError;
 
   @override
   void initState() {
     super.initState();
-    // Produtos anunciados por lojas (Firestore) somam-se ao catálogo local.
+    _listenProducts();
+  }
+
+  /// Catálogo real (Firestore). Falha NÃO é substituída por lojas e
+  /// preços de demonstração: a tela mostra o erro com "Tentar novamente".
+  void _listenProducts() {
+    _prodSub?.cancel();
+    setState(() {
+      _prodError = null;
+      _storeProducts = null;
+    });
     _prodSub = FS.productsStream().listen((list) {
       if (!mounted) return;
       setState(() => _storeProducts = list
@@ -53,7 +66,9 @@ class _MarketState extends State<MarketplaceScreen> {
                 rating: p.rating,
               ))
           .toList());
-    }, onError: (_) {/* offline ou sem permissão: mantém o catálogo local */});
+    }, onError: (Object e) {
+      if (mounted) setState(() => _prodError = e);
+    });
   }
 
   @override
@@ -74,7 +89,9 @@ class _MarketState extends State<MarketplaceScreen> {
     {'id': 'tools', 'name': 'Ferramentas', 'emoji': '🧰'},
   ];
 
-  final _products = [
+  /// Catálogo FICTÍCIO apenas para desenvolvimento local
+  /// (DEMO_DATA=true em dev). Nunca aparece em homologação/produção.
+  final _demoProducts = [
     MarketProduct(
         id: 'p1',
         name: 'Arroz Tipo 1 5kg',
@@ -270,11 +287,13 @@ class _MarketState extends State<MarketplaceScreen> {
         rating: 4.7),
   ];
 
-  /// Produtos publicados por lojas no Firestore, mesclados ao catálogo
-  /// local. Preenchido pelo stream em initState.
-  List<MarketProduct> _storeProducts = const [];
+  /// Produtos publicados por lojas no Firestore (null = carregando).
+  List<MarketProduct>? _storeProducts;
 
-  List<MarketProduct> get _allProducts => [..._products, ..._storeProducts];
+  List<MarketProduct> get _allProducts => [
+        if (DemoData.allow) ..._demoProducts,
+        ...?_storeProducts,
+      ];
 
   List<MarketProduct> get _filtered {
     final cat = _cats[_cat]['id'];
@@ -389,7 +408,7 @@ class _MarketState extends State<MarketplaceScreen> {
                       const Icon(Icons.delivery_dining_rounded,
                           color: Colors.white70, size: 16),
                       const SizedBox(width: 6),
-                      Text('Entrega: 30-60 min  •  Grátis acima de R\$ 50',
+                      Text('Frete e prazo informados pela loja no pedido',
                           style: TextStyle(
                               color: Colors.white.withOpacity(0.8),
                               fontSize: 11,
@@ -438,6 +457,32 @@ class _MarketState extends State<MarketplaceScreen> {
                                                   : AppColors.textDark))
                                     ])));
                       }))))),
+          if (_prodError != null)
+            SliverToBoxAdapter(
+                child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: EmptyState(
+                        emoji: '⚠️',
+                        title: 'Catálogo indisponível',
+                        subtitle: friendlyQueryError(_prodError),
+                        actionLabel: 'Tentar novamente',
+                        onAction: _listenProducts)))
+          else if (_storeProducts == null)
+            const SliverToBoxAdapter(
+                child: Padding(
+                    padding: EdgeInsets.all(40),
+                    child: Center(child: CircularProgressIndicator())))
+          else if (_filtered.isEmpty)
+            SliverToBoxAdapter(
+                child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: EmptyState(
+                        emoji: '🛒',
+                        title: 'Nenhum produto disponível',
+                        subtitle: 'Ainda não há produtos publicados por lojas '
+                            'nesta categoria.',
+                        asset: AppAssets.mktSemProdutos)))
+          else
           SliverPadding(
               padding: const EdgeInsets.all(16),
               sliver: SliverGrid(

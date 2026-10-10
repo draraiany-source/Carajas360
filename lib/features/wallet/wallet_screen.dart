@@ -231,6 +231,7 @@ class _WalletState extends State<WalletScreen>
   Widget _extract() => StreamBuilder<List<TransactionModel>>(
       stream: _uid.isNotEmpty ? FS.txStream() : const Stream.empty(),
       builder: (_, s) {
+        if (s.hasError) return QueryErrorView(error: s.error);
         final txs = DemoData.orEmpty(s.data, _demoTxs);
         if (txs.isEmpty)
           return const EmptyState(
@@ -660,6 +661,9 @@ class PixScreen extends StatefulWidget {
 class _PixState extends State<PixScreen> {
   bool _loading = true, _paid = false;
   String? _code;
+  /// Motivo de indisponibilidade (gateway desligado/erro). Nunca exibimos
+  /// um código PIX fictício.
+  String? _unavailable;
   String? _paymentId;
   bool _polling = false;
   int _countdown = 30 * 60;
@@ -678,7 +682,10 @@ class _PixState extends State<PixScreen> {
   }
 
   Future<void> _generate() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _unavailable = null;
+    });
 
     // Tenta gerar um PIX real pela Cloud Function (Mercado Pago).
     final email = '${_uid.isNotEmpty ? _uid : 'demo'}@servicoconecta.com.br';
@@ -703,18 +710,14 @@ class _PixState extends State<PixScreen> {
       _countdownStart();
       _startPolling();
     } else {
-      // Sem gateway: não auto-credita (evita abuso em produção/demo).
+      // Sem gateway ou falha: indisponibilidade explícita, sem QR falso.
       setState(() {
         _loading = false;
-        _code =
-            '00020126580014BR.GOV.BCB.PIX0136${_uid.isNotEmpty ? _uid : 'demo'}@servicoconecta.com.br5204000053039865802BR5925ServicoConecta6009SAO PAULO62070503***6304ABCD';
+        _code = null;
+        _unavailable =
+            'O pagamento PIX não está disponível neste ambiente no momento. '
+            'Nenhuma cobrança foi gerada.';
       });
-      _countdownStart();
-      if (mounted) {
-        snack(context,
-            'Pagamentos PIX ainda não configurados. Configure o gateway para confirmar recargas.',
-            bg: AppColors.warning);
-      }
     }
   }
 
@@ -782,7 +785,9 @@ class _PixState extends State<PixScreen> {
                             ? 'Pagamento confirmado!'
                             : _loading
                                 ? 'Gerando QR Code...'
-                                : 'Aguardando pagamento...',
+                                : _unavailable != null
+                                    ? 'Pagamento não gerado'
+                                    : 'Aguardando pagamento...',
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -805,6 +810,13 @@ class _PixState extends State<PixScreen> {
                     child: CircularProgressIndicator(color: AppColors.pix))
               else if (_paid)
                 _success()
+              else if (_unavailable != null)
+                EmptyState(
+                    emoji: '⛔',
+                    title: 'PIX indisponível',
+                    subtitle: _unavailable!,
+                    actionLabel: 'Tentar novamente',
+                    onAction: _generate)
               else
                 _qr(),
             ])),

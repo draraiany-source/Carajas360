@@ -173,6 +173,8 @@ class _GpsState extends State<GpsScreen> with TickerProviderStateMixin {
   // configurada ainda, cota excedida), mantém a linha reta como
   // fallback — a tela nunca quebra por causa disso.
   Future<void> _fetchRoute() async {
+    // Sem chave configurada não há rota real: mantém a linha reta.
+    if (RuntimeConfig.hasPlaceholderMaps) return;
     try {
       final url = Uri.parse(
         'https://maps.googleapis.com/maps/api/directions/json'

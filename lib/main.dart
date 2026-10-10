@@ -10,7 +10,9 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'shared/widgets/micro_interactions.dart';
 import 'core/constants/app_constants.dart';
+import 'core/config/app_env.dart';
 import 'core/utils/firebase_bootstrap.dart';
+import 'core/widgets/config_unavailable.dart';
 import 'shared/services/firebase_service.dart';
 
 import 'package:servico_conecta/features/auth/auth_screen.dart';
@@ -44,6 +46,7 @@ Future<void> main() async {
   await ThemeController.instance.load();
 
   bool firebaseOk = false;
+  List<String> configProblems = const [];
   try {
     await FirebaseBootstrap.initialize();
     // FCM/Analytics podem falhar nos emuladores — nao bloqueiam auth.
@@ -71,11 +74,20 @@ Future<void> main() async {
       };
     }
     firebaseOk = true;
+  } on AppConfigurationException catch (e) {
+    configProblems = e.problems;
   } catch (e) {
-    debugPrint('Firebase nao configurado — modo demonstracao: $e');
+    configProblems = ['Falha ao iniciar o Firebase: $e'];
   }
 
-  runApp(ServicoConectaApp(firebaseOk: firebaseOk));
+  // Sem configuração válida o app NÃO simula operação: mostra
+  // indisponibilidade explícita (em qualquer ambiente).
+  if (!firebaseOk) {
+    debugPrint('Configuração indisponível:\n${configProblems.join('\n')}');
+    runApp(ConfigUnavailableApp(problems: configProblems));
+    return;
+  }
+  runApp(const ServicoConectaApp(firebaseOk: true));
 }
 
 class ServicoConectaApp extends StatelessWidget {
@@ -91,6 +103,14 @@ class ServicoConectaApp extends StatelessWidget {
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: themeMode,
+          // Faixa de ambiente fora de produção (evita confundir dados).
+          builder: (context, child) => AppEnv.isProd
+              ? child!
+              : Banner(
+                  message: AppEnv.isHml ? 'HML' : 'DEV',
+                  location: BannerLocation.topEnd,
+                  color: AppEnv.isHml ? Colors.deepOrange : Colors.purple,
+                  child: child!),
           navigatorObservers: firebaseOk
               ? [
                   FirebaseAnalyticsObserver(
@@ -112,8 +132,9 @@ class ServicoConectaApp extends StatelessWidget {
                 return _route(const MainNav());
               case Routes.search:
                 final sa = settings.arguments as Map<String, dynamic>?;
-                return _route(
-                    SearchScreen(initialCategory: sa?['category'] as String?));
+                return _route(SearchScreen(
+                    initialCategory: sa?['category'] as String?,
+                    initialGroup: sa?['group'] as String?));
               case Routes.chat:
                 final a = settings.arguments as Map<String, dynamic>?;
                 return _route(ChatScreen(

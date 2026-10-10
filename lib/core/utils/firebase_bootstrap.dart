@@ -4,11 +4,23 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show appFlavor;
 
 import '../../firebase_options.dart';
+import '../config/app_env.dart';
 
-/// Inicializa Firebase. Emuladores so em debug/profile com keys placeholder
-/// ou dart-define — nunca em release de loja.
+/// Falha de configuração: o app mostra indisponibilidade explícita em vez
+/// de aparentar operação válida.
+class AppConfigurationException implements Exception {
+  final List<String> problems;
+  const AppConfigurationException(this.problems);
+  @override
+  String toString() => problems.join('\n');
+}
+
+/// Inicializa Firebase conforme o ambiente (dev/hml/prod).
+/// Emuladores: somente em dev (ou USE_FIREBASE_EMULATOR=true), e nunca em
+/// release.
 abstract final class FirebaseBootstrap {
   static const useEmulatorDefine =
       bool.fromEnvironment('USE_FIREBASE_EMULATOR', defaultValue: false);
@@ -20,10 +32,21 @@ abstract final class FirebaseBootstrap {
 
   static bool get shouldUseEmulator {
     if (kReleaseMode) return false;
-    return useEmulatorDefine || hasPlaceholderKeys;
+    return useEmulatorDefine || AppEnv.isDev;
   }
 
+  static List<String> get configurationProblems =>
+      AppEnv.configurationProblems(
+        releaseMode: kReleaseMode,
+        define: AppEnv.rawDefine,
+        flavor: appFlavor,
+        firebasePlaceholder: hasPlaceholderKeys,
+        useEmulator: shouldUseEmulator,
+      );
+
   static String get _emulatorHost {
+    const custom = String.fromEnvironment('FIREBASE_EMULATOR_HOST');
+    if (custom.isNotEmpty) return custom;
     if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
       return '10.0.2.2';
     }
@@ -32,22 +55,13 @@ abstract final class FirebaseBootstrap {
   }
 
   static Future<void> initialize() async {
+    final problems = configurationProblems;
+    if (problems.isNotEmpty) throw AppConfigurationException(problems);
+
     await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform);
 
-    if (!shouldUseEmulator) {
-      if (hasPlaceholderKeys && kReleaseMode) {
-        throw StateError(
-          'firebase_options.dart ainda contém placeholders (COLE_SUA_*). '
-          'Configure com `flutterfire configure` antes de um build de release/Play.',
-        );
-      }
-      if (hasPlaceholderKeys) {
-        debugPrint(
-            'AVISO: firebase_options ainda tem placeholders — use emulador ou flutterfire configure.');
-      }
-      return;
-    }
+    if (!shouldUseEmulator) return;
 
     final host = _emulatorHost;
     try {
@@ -69,7 +83,7 @@ abstract final class FirebaseBootstrap {
       debugPrint('Firestore network toggle: $e');
     }
 
-    debugPrint(
-        'Firebase emuladores: Auth/Firestore/Storage em $host (9099/8080/9199)');
+    debugPrint('Firebase (${AppEnv.label}) em emuladores: '
+        'Auth/Firestore/Storage/Functions em $host');
   }
 }

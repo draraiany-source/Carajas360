@@ -665,6 +665,7 @@ class NotificationsScreen extends StatelessWidget {
       body: StreamBuilder<List<NotifModel>>(
         stream: uid != null ? FS.notifStream() : const Stream.empty(),
         builder: (_, snap) {
+          if (snap.hasError) return QueryErrorView(error: snap.error);
           final notifs = DemoData.orEmpty(snap.data, _demo);
           if (notifs.isEmpty)
             return const EmptyState(

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -433,19 +434,103 @@ class FS {
     debugPrint('addXp ignorado no client (xp=$xp)');
   }
 
+  /// Prestadores aprovados e disponíveis, ordenados por nota.
+  ///
+  /// [category]: um serviço específico (array-contains).
+  /// [categories]: qualquer serviço de um grupo (array-contains-any, em
+  /// blocos de 30 — limite do Firestore — mesclados no app).
+  /// Índice: providers(active ASC, verified ASC, categories CONTAINS,
+  /// rating DESC) — declarado em firestore.indexes.json.
+  /// Erros de consulta são propagados no stream (sem fallback fictício).
   static Stream<List<ProviderModel>> providersStream(
-      {String? category, int limit = 20}) {
-    Query q = _db
+      {String? category, List<String>? categories, int limit = 20}) {
+    final allowed = category != null
+        ? <String>{category}
+        : (categories == null || categories.isEmpty
+            ? null
+            : categories.toSet());
+
+    Query<Map<String, dynamic>> base() => _db
         .collection(Col.providers)
         .where('active', isEqualTo: true)
-        .where('verified', isEqualTo: true)
-        .orderBy('rating', descending: true)
-        .limit(limit);
-    if (category != null) q = q.where('categories', arrayContains: category);
-    return q.snapshots().map((s) => s.docs
-        .map((d) =>
-            ProviderModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-        .toList());
+        .where('verified', isEqualTo: true);
+
+    List<ProviderModel> parse(QuerySnapshot<Map<String, dynamic>> s) => s.docs
+        .map((d) => ProviderModel.fromMap(d.id, d.data()))
+        // Defesa extra: nunca exibir prestador de outro serviço.
+        .where((p) =>
+            allowed == null || p.categories.any((c) => allowed.contains(c)))
+        .toList();
+
+    if (category != null) {
+      return base()
+          .where('categories', arrayContains: category)
+          .orderBy('rating', descending: true)
+          .limit(limit)
+          .snapshots()
+          .map(parse);
+    }
+    if (allowed == null) {
+      return base()
+          .orderBy('rating', descending: true)
+          .limit(limit)
+          .snapshots()
+          .map(parse);
+    }
+    final chunks = <List<String>>[];
+    final list = allowed.toList();
+    for (var i = 0; i < list.length; i += 30) {
+      chunks.add(list.sublist(i, i + 30 > list.length ? list.length : i + 30));
+    }
+    final streams = chunks
+        .map((c) => base()
+            .where('categories', arrayContainsAny: c)
+            .orderBy('rating', descending: true)
+            .limit(limit)
+            .snapshots()
+            .map(parse))
+        .toList();
+    if (streams.length == 1) return streams.first;
+    return mergeProviderStreams(streams, limit: limit);
+  }
+
+  /// Combina resultados de várias consultas (sem duplicar prestadores),
+  /// mantendo ordenação por nota. Emite só depois que todas responderem.
+  static Stream<List<ProviderModel>> mergeProviderStreams(
+      List<Stream<List<ProviderModel>>> streams,
+      {int limit = 20}) {
+    late StreamController<List<ProviderModel>> ctrl;
+    final latest = List<List<ProviderModel>?>.filled(streams.length, null);
+    final subs = <StreamSubscription<List<ProviderModel>>>[];
+    void emit() {
+      if (latest.any((l) => l == null)) return;
+      final byId = <String, ProviderModel>{};
+      for (final l in latest) {
+        for (final p in l!) {
+          byId[p.id] = p;
+        }
+      }
+      final merged = byId.values.toList()
+        ..sort((a, b) => b.rating.compareTo(a.rating));
+      ctrl.add(merged.take(limit).toList());
+    }
+
+    ctrl = StreamController<List<ProviderModel>>(
+      onListen: () {
+        for (var i = 0; i < streams.length; i++) {
+          subs.add(streams[i].listen((v) {
+            latest[i] = v;
+            emit();
+          }, onError: ctrl.addError));
+        }
+      },
+      onCancel: () async {
+        for (final s in subs) {
+          await s.cancel();
+        }
+      },
+    );
+    return ctrl.stream;
   }
 
   // Cria o perfil de prestador (coleção providers) vinculado ao usuário
@@ -460,11 +545,11 @@ class FS {
     List<String> modalities = const ['presential'],
     double? minPrice,
     String? photoUrl,
-    String? documentUrl,
-    String? selfieUrl,
-    List<String> certificates = const [],
     List<String> serviceAreas = const [],
   }) async {
+    // Somente campos públicos. Documentos vão para private/verification
+    // (ver updateProviderDocuments); nota, verificação e status são do
+    // servidor/admin.
     await _db.collection(Col.providers).doc(userId).set({
       'userId': userId,
       'name': name,
@@ -473,16 +558,13 @@ class FS {
       'modalities': modalities,
       'minPrice': minPrice,
       'photoUrl': photoUrl,
-      'documentUrl': documentUrl,
-      'selfieUrl': selfieUrl,
-      'certificates': certificates,
       'serviceAreas': serviceAreas,
-      'rating': 0.0,
+      'rating': 0,
       'totalReviews': 0,
       'active': false,
       'verified': false,
       'createdAt': FieldValue.serverTimestamp(),
-    }, SetOptions(merge: true));
+    });
   }
 
   static Future<void> approveProvider(String id) => _db
@@ -490,23 +572,51 @@ class FS {
       .doc(id)
       .update({'verified': true, 'active': true});
 
-  // Atualiza os documentos de validação enviados no onboarding do
-  // prestador (foto, RG/CNH, selfie, certificados, áreas atendidas).
+  // Atualiza os dados enviados no onboarding do prestador. A foto e as
+  // áreas atendidas são públicas; documento, selfie e certificados vão
+  // para providers/{uid}/private/verification (somente dono e admin) e
+  // guardam apenas o CAMINHO do Storage, nunca uma URL pública.
   static Future<void> updateProviderDocuments({
     String? photoUrl,
-    String? documentUrl,
-    String? selfieUrl,
+    String? documentPath,
+    String? selfiePath,
     List<String> certificates = const [],
     List<String> serviceAreas = const [],
   }) async {
     if (_uid == null) return;
-    await _db.collection(Col.providers).doc(_uid).set({
+    final ref = _db.collection(Col.providers).doc(_uid);
+    final batch = _db.batch();
+    final public = <String, dynamic>{
       if (photoUrl != null) 'photoUrl': photoUrl,
-      if (documentUrl != null) 'documentUrl': documentUrl,
-      if (selfieUrl != null) 'selfieUrl': selfieUrl,
-      if (certificates.isNotEmpty) 'certificates': certificates,
       if (serviceAreas.isNotEmpty) 'serviceAreas': serviceAreas,
-    }, SetOptions(merge: true));
+    };
+    if (public.isNotEmpty) {
+      batch.update(ref, {...public, 'updatedAt': FieldValue.serverTimestamp()});
+    }
+    final private = <String, dynamic>{
+      if (documentPath != null) 'documentPath': documentPath,
+      if (selfiePath != null) 'selfiePath': selfiePath,
+      if (certificates.isNotEmpty) 'certificates': certificates,
+    };
+    if (private.isNotEmpty) {
+      batch.set(
+          ref.collection('private').doc('verification'),
+          {...private, 'submittedAt': FieldValue.serverTimestamp()},
+          SetOptions(merge: true));
+    }
+    await batch.commit();
+  }
+
+  /// Documentação privada (admin ou o próprio prestador).
+  static Future<ProviderVerification?> getProviderVerification(
+      String providerId) async {
+    final d = await _db
+        .collection(Col.providers)
+        .doc(providerId)
+        .collection('private')
+        .doc('verification')
+        .get();
+    return d.exists ? ProviderVerification.fromMap(d.data()!) : null;
   }
 
   static Future<String> createOrder(Map<String, dynamic> data) async {
@@ -615,12 +725,26 @@ class FS {
     await _transition(orderId, 'start');
   }
 
+  /// Sala 1:1 com id canônico. Participantes são definidos só na
+  /// criação (imutáveis pelas regras); não sobrescreve sala existente.
   static Future<String> getOrCreateRoom(String otherUserId) async {
-    final ids = [_uid ?? 'me', otherUserId]..sort();
+    final me = _uid;
+    if (me == null) {
+      throw const CloudCallException('Faça login para conversar.',
+          code: 'unauthenticated');
+    }
+    if (otherUserId.isEmpty || otherUserId == me) {
+      throw const CloudCallException('Contato inválido.',
+          code: 'invalid-argument');
+    }
+    final ids = [me, otherUserId]..sort();
     final id = ids.join('_');
-    await _db.collection(Col.chatRooms).doc(id).set(
-        {'participants': ids, 'createdAt': FieldValue.serverTimestamp()},
-        SetOptions(merge: true));
+    final ref = _db.collection(Col.chatRooms).doc(id);
+    final snap = await ref.get();
+    if (!snap.exists) {
+      await ref.set(
+          {'participants': ids, 'createdAt': FieldValue.serverTimestamp()});
+    }
     return id;
   }
 
@@ -698,23 +822,33 @@ class FS {
     }
   }
 
-  // Upload de documentos do cadastro de prestador (foto de perfil,
-  // documento de identidade, selfie de validação, certificados —
-  // Vol.3: Cadastro de Profissionais). O campo `kind` organiza os
-  // arquivos em subpastas dentro de providers/{uid}/.
+  // Upload de arquivos do cadastro de prestador. `photo` é pública e
+  // retorna a download URL. `document`, `selfie` e `certificate` são
+  // privados: retorna apenas o CAMINHO no Storage (o admin gera uma URL
+  // temporária pela callable getVerificationFileUrl).
   static Future<String?> uploadProviderFile(
       Uint8List bytes, String fileName, String kind) async {
     if (_uid == null) return null;
     try {
       final ext = _extOf(fileName);
-      final ref = FirebaseStorage.instance.ref().child(
-          'providers/$_uid/$kind/${DateTime.now().millisecondsSinceEpoch}.$ext');
+      final path =
+          'providers/$_uid/$kind/${DateTime.now().millisecondsSinceEpoch}.$ext';
+      final ref = FirebaseStorage.instance.ref().child(path);
       await ref.putData(bytes, _metaFor(fileName));
-      return await ref.getDownloadURL();
+      if (kind == 'photo') return await ref.getDownloadURL();
+      return path;
     } catch (e) {
       debugPrint('Upload de documento do prestador falhou: $e');
       return null;
     }
+  }
+
+  /// Admin: URL temporária para um documento privado de verificação.
+  static Future<String?> verificationFileUrl(
+      String providerId, String path) async {
+    final r = await CloudFn.call(
+        'getVerificationFileUrl', {'providerId': providerId, 'path': path});
+    return r['url'] as String?;
   }
 
   static Stream<List<MessageModel>> messagesStream(String roomId) => _db
@@ -1691,6 +1825,10 @@ class FS {
   }
 
   // ── Resolve Carajás ─────────────────────────────────────────
+  // A solicitação não é pública. Endereço/contato ficam em
+  // resolveRequests/{id}/private/details (cliente, admin e prestador
+  // escolhido). Prestadores compatíveis são notificados por evento no
+  // servidor (onResolveRequestCreated) — falha de push não afeta o envio.
   static Future<String> createResolveRequest({
     required String description,
     required String category,
@@ -1698,38 +1836,32 @@ class FS {
     String? address,
     String? clientName,
   }) async {
-    final doc = await _db.collection(Col.resolveRequests).add({
+    if (_uid == null) {
+      throw const CloudCallException('Faça login para pedir orçamento.',
+          code: 'unauthenticated');
+    }
+    final ref = _db.collection(Col.resolveRequests).doc();
+    final batch = _db.batch();
+    batch.set(ref, {
       'clientId': _uid,
       'clientName': clientName ?? '',
       'description': description,
       'category': category,
       'city': city,
-      'address': address,
       'status': 'open',
       'proposalCount': 0,
       'leadMonetizationReady': true,
       'leadFee': null,
       'createdAt': FieldValue.serverTimestamp(),
     });
-
-    // Notifica prestadores compatíveis (até 20) — base para lead pago.
-    final providers = await _db
-        .collection(Col.providers)
-        .where('active', isEqualTo: true)
-        .where('categories', arrayContains: category)
-        .limit(20)
-        .get();
-    for (final p in providers.docs) {
-      final pid = (p.data()['userId'] as String?) ?? p.id;
-      await pushNotif(
-          pid,
-          '⚡ Nova oportunidade Resolve',
-          description.length > 80
-              ? '${description.substring(0, 80)}…'
-              : description,
-          'resolve');
+    if (address != null && address.trim().isNotEmpty) {
+      batch.set(ref.collection('private').doc('details'), {
+        'address': address.trim(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
     }
-    return doc.id;
+    await batch.commit();
+    return ref.id;
   }
 
   static Stream<List<ResolveRequest>> myResolveRequestsStream() {
@@ -1751,68 +1883,35 @@ class FS {
       .map((s) =>
           s.exists ? ResolveRequest.fromMap(s.id, s.data()!) : null);
 
-  static Stream<List<ResolveRequest>> resolveOpportunitiesStream({
-    String? category,
-    String? city,
-  }) {
-    Query<Map<String, dynamic>> q = _db
-        .collection(Col.resolveRequests)
-        .where('status', isEqualTo: 'open')
-        .orderBy('createdAt', descending: true)
-        .limit(40);
-    if (category != null) {
-      q = q.where('category', isEqualTo: category);
-    }
-    return q.snapshots().map((s) {
-      var list = s.docs
-          .map((d) => ResolveRequest.fromMap(d.id, d.data()))
-          .toList();
-      if (city != null && city.isNotEmpty) {
-        final c = city.toLowerCase();
-        list = list
-            .where((r) => r.city.toLowerCase().contains(c))
-            .toList();
-      }
-      return list;
-    });
+  /// Oportunidades para o prestador logado, filtradas no servidor por
+  /// aprovação, conta ativa, serviço e região (sem endereço/contato).
+  static Future<ResolveOpportunities> resolveOpportunities() async {
+    final r = await CloudFn.call('listResolveOpportunities');
+    final items = (r['items'] as List? ?? const [])
+        .whereType<Map>()
+        .map((m) => ResolveOpportunity.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+    return ResolveOpportunities(
+        eligible: r['eligible'] == true,
+        reason: r['reason'] as String?,
+        items: items);
   }
 
+  /// Proposta validada no servidor (prestador elegível, solicitação
+  /// aberta, sem duplicidade). Nome/foto/nota vêm do perfil no servidor.
   static Future<String> submitResolveProposal({
     required String requestId,
-    required String providerName,
-    String? providerPhoto,
     required double price,
     required int deadlineDays,
     String? message,
-    double rating = 0,
-    int totalServices = 0,
   }) async {
-    final id = await _db.collection(Col.resolveProposals).add({
+    final r = await CloudFn.call('submitResolveProposal', {
       'requestId': requestId,
-      'providerId': _uid,
-      'providerName': providerName,
-      'providerPhoto': providerPhoto,
       'price': price,
       'deadlineDays': deadlineDays,
-      'message': message,
-      'rating': rating,
-      'totalServices': totalServices,
-      'available': true,
-      'accepted': false,
-      'createdAt': FieldValue.serverTimestamp(),
-    }).then((d) => d.id);
-
-    await _db.collection(Col.resolveRequests).doc(requestId).update({
-      'proposalCount': FieldValue.increment(1),
+      if (message != null) 'message': message,
     });
-
-    final req = await _db.collection(Col.resolveRequests).doc(requestId).get();
-    final clientId = req.data()?['clientId'] as String?;
-    if (clientId != null) {
-      await pushNotif(clientId, '💬 Nova proposta Resolve',
-          '$providerName enviou uma proposta para seu pedido.', 'resolve');
-    }
-    return id;
+    return (r['id'] as String?) ?? '';
   }
 
   static Stream<List<ResolveProposal>> resolveProposalsStream(
@@ -1826,23 +1925,27 @@ class FS {
               .map((d) => ResolveProposal.fromMap(d.id, d.data()))
               .toList());
 
+  /// Escolhe UMA proposta em lote atômico (proposta aceita + solicitação
+  /// "matched"). As regras recusam um segundo aceite. O prestador é
+  /// notificado pelo servidor (onResolveRequestMatched).
   static Future<void> acceptResolveProposal({
     required String requestId,
     required String proposalId,
     required String providerId,
     required String providerName,
   }) async {
-    await _db.collection(Col.resolveProposals).doc(proposalId).update({
+    final batch = _db.batch();
+    batch.update(_db.collection(Col.resolveProposals).doc(proposalId), {
       'accepted': true,
+      'acceptedAt': FieldValue.serverTimestamp(),
     });
-    await _db.collection(Col.resolveRequests).doc(requestId).update({
+    batch.update(_db.collection(Col.resolveRequests).doc(requestId), {
       'status': 'matched',
       'matchedProviderId': providerId,
       'matchedProposalId': proposalId,
+      'matchedAt': FieldValue.serverTimestamp(),
     });
-    await pushNotif(providerId, '✅ Proposta aceita!',
-        'Sua proposta Resolve foi aceita. Fale com o cliente no chat.',
-        'resolve');
+    await batch.commit();
   }
 
   /// Lista salas do usuário autenticado (inbox unificado).
@@ -1965,6 +2068,11 @@ class PaySvc {
     required String cvv,
     required String docNumber,
   }) async {
+    // Sem chave pública do gateway configurada, não tenta tokenizar.
+    if (RuntimeConfig.hasPlaceholderMercadoPago) {
+      debugPrint('Mercado Pago não configurado neste ambiente.');
+      return null;
+    }
     try {
       final r = await http
           .post(

@@ -1,4 +1,3 @@
-import '../../core/utils/platform_info.dart';
 import 'firebase_service.dart';
 
 /// Métodos de pagamento suportados pela plataforma.
@@ -10,7 +9,7 @@ extension PaymentMethodX on PaymentMethod {
         PaymentMethod.creditCard => 'Cartão de crédito',
         PaymentMethod.googlePay => 'Google Pay',
         PaymentMethod.applePay => 'Apple Pay',
-        PaymentMethod.wallet => 'Carteira ServiçoConecta',
+        PaymentMethod.wallet => 'Carteira Carajás 360',
       };
 
   String get icon => switch (this) {
@@ -44,17 +43,20 @@ class PaymentResult {
 
 /// Camada de abstração sobre os provedores de pagamento.
 abstract class PaymentGateway {
-  /// Métodos disponíveis na plataforma atual. Apple Pay só em iOS;
-  /// Google Pay no restante (inclui Web/Android).
+  /// Métodos com integração efetiva. Apple Pay e Google Pay NÃO são
+  /// oferecidos enquanto não houver integração de merchant real (o enum
+  /// permanece para compatibilidade). [isIOS] mantido por compatibilidade.
   static List<PaymentMethod> availableMethods({bool? isIOS}) {
-    final apple = isIOS ?? PlatformInfo.isIOS;
-    return [
+    return const [
       PaymentMethod.pix,
       PaymentMethod.creditCard,
-      if (apple) PaymentMethod.applePay else PaymentMethod.googlePay,
       PaymentMethod.wallet,
     ];
   }
+
+  /// Integração efetiva por método (Apple/Google Pay: não integrados).
+  static bool isIntegrated(PaymentMethod m) =>
+      m != PaymentMethod.applePay && m != PaymentMethod.googlePay;
 
   /// Ponto único de entrada para cobrar. Roteia para o provedor certo
   /// conforme o método escolhido.

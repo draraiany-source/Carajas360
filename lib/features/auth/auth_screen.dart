@@ -136,7 +136,7 @@ class _SplashState extends State<SplashScreen>
                                       color: Colors.orange.withOpacity(0.2),
                                       borderRadius: BorderRadius.circular(12)),
                                   child: const Text(
-                                      '⚠️ Modo demonstração\nConfigure o Firebase para ativar tudo',
+                                      '⚠️ Serviço indisponível',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                           color: Colors.white70,

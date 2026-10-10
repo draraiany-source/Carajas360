@@ -1,7 +1,12 @@
 rules_version = '2';
+// Carajás 360 — Storage Rules (Fase 1)
+// Documentos de verificação de prestadores são privados: não use
+// getDownloadURL para publicá-los. O app grava apenas o CAMINHO em
+// providers/{uid}/private/verification e o admin gera a URL sob demanda.
 service firebase.storage {
   match /b/{bucket}/o {
 
+    function isAuth() { return request.auth != null; }
     function isImage() {
       return request.resource.contentType.matches('image/.*') &&
              request.resource.size < 8 * 1024 * 1024;
@@ -13,39 +18,49 @@ service firebase.storage {
              request.resource.size < 15 * 1024 * 1024;
     }
     function isAdmin() {
-      return request.auth != null &&
-        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.type == 'admin';
+      return isAuth() && (
+        request.auth.token.get('admin', false) == true ||
+        request.auth.token.get('role', '') == 'admin' ||
+        firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.type == 'admin'
+      );
     }
     function isParticipant(roomId) {
-      return request.auth != null &&
+      return isAuth() &&
         request.auth.uid in firestore.get(/databases/(default)/documents/chatRooms/$(roomId)).data.participants;
     }
 
-    match /users/{userId}/{allPaths=**} {
+    // Foto de perfil do usuário: pública. Demais arquivos do usuário: privados.
+    match /users/{userId}/photo/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId && isImage();
+      allow write: if isAuth() && request.auth.uid == userId && isImage();
+    }
+    match /users/{userId}/{allPaths=**} {
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuth() && request.auth.uid == userId && isImage();
     }
 
+    // Foto pública do prestador.
     match /providers/{userId}/photo/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && request.auth.uid == userId && isImage();
+      allow write: if isAuth() && request.auth.uid == userId && isImage();
     }
 
+    // Documento, selfie e certificados: somente dono e admin.
     match /providers/{userId}/{docType}/{allPaths=**} {
-      allow read: if request.auth != null &&
-        (request.auth.uid == userId || isAdmin());
-      allow write: if request.auth != null && request.auth.uid == userId && isDocOrImage();
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow write: if isAuth() && request.auth.uid == userId &&
+        docType in ['document', 'selfie', 'certificate'] && isDocOrImage();
     }
 
     match /orders/{orderId}/{allPaths=**} {
-      allow read: if request.auth != null && (
+      allow read: if isAuth() && (
         firestore.get(/databases/(default)/documents/orders/$(orderId)).data.clientId
           == request.auth.uid ||
         firestore.get(/databases/(default)/documents/orders/$(orderId)).data.providerId
           == request.auth.uid ||
         isAdmin()
       );
-      allow write: if request.auth != null && isDocOrImage() && (
+      allow write: if isAuth() && isDocOrImage() && (
         firestore.get(/databases/(default)/documents/orders/$(orderId)).data.clientId
           == request.auth.uid ||
         firestore.get(/databases/(default)/documents/orders/$(orderId)).data.providerId
@@ -56,19 +71,23 @@ service firebase.storage {
 
     match /stores/{storeId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && isImage() &&
+      allow write: if isAuth() && isImage() &&
         firestore.get(/databases/(default)/documents/stores/$(storeId)).data.ownerId == request.auth.uid;
     }
 
     match /rentals/{rentalId}/{allPaths=**} {
       allow read: if true;
-      allow write: if request.auth != null && isImage() &&
+      allow write: if isAuth() && isImage() &&
         firestore.get(/databases/(default)/documents/rentals/$(rentalId)).data.ownerId == request.auth.uid;
     }
 
     match /chat_media/{roomId}/{allPaths=**} {
       allow read: if isParticipant(roomId);
       allow write: if isParticipant(roomId) && isDocOrImage();
+    }
+
+    match /{allPaths=**} {
+      allow read, write: if false;
     }
   }
 }

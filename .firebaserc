@@ -1,1 +1,8 @@
-{"projects":{"default":"servicoconecta"}}
+{
+  "projects": {
+    "default": "demo-carajas360",
+    "dev": "demo-carajas360",
+    "hml": "carajas360-hml",
+    "prod": "servicoconecta"
+  }
+}
