@@ -76,6 +76,9 @@ abstract class Routes {
   static const companyProfile = '/company';
   static const favorites = '/favorites';
   static const myOrders = '/my-orders';
+  static const cart = '/cart';
+  static const marketOrders = '/market-orders';
+  static const storeOrders = '/store-orders';
   static const requestService = '/request-service';
   static const providerHome = '/provider-home';
   static const providerOnboarding = '/provider-onboarding';

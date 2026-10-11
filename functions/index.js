@@ -1,9 +1,10 @@
 /**
  * Carajás 360 — Cloud Functions (staging-safe)
  *
- * Pagamentos reais (Mercado Pago) só rodam se:
- *   PAYMENTS_ENABLED=true  E  MERCADOPAGO_ACCESS_TOKEN no env/Secret Manager.
- * Por padrão o gateway real permanece DESLIGADO.
+ * Pagamentos (Fase 3): somente homologação/sandbox. O gateway só liga com
+ * PAYMENTS_GATEWAY=mercadopago + PAYMENTS_ENV=sandbox + credencial de TESTE
+ * + segredo do webhook, fora do projeto de produção (ver financeCore
+ * gatewayMode). No emulador, PAYMENTS_GATEWAY=fake usa o simulador.
  */
 const functions = require('firebase-functions');
 const admin = require('firebase-admin');
@@ -12,12 +13,13 @@ const axios = require('axios');
 const crypto = require('crypto');
 const policy = require('./orderPolicy');
 const sec = require('./security');
+const fin = require('./financeCore');
+const { readWallet, postLedger } = require('./payments/wallet');
 
 admin.initializeApp();
 const db = admin.firestore();
 
 const REGION = 'us-central1';
-const PAYMENTS_ENABLED = process.env.PAYMENTS_ENABLED === 'true';
 const ENFORCE_APP_CHECK = process.env.ENFORCE_APP_CHECK === 'true';
 const ALLOWED_PROFILE_TYPES = ['client', 'provider', 'deliverer', 'company'];
 
@@ -124,43 +126,29 @@ async function notifySafe(userId, title, body, type) {
   }
 }
 
-async function adjustWalletTx(tx, uid, type, amount, description, icon, extra) {
-  if (!uid || !(amount > 0)) {
-    throw httpsError('invalid-argument', 'Parâmetros de carteira inválidos');
-  }
-  const walletRef = db.collection('wallets').doc(uid);
-  const snap = await tx.get(walletRef);
-  const bal = snap.exists ? Number(snap.data().balance || 0) : 0;
-  if (type === 'debit' || type === 'withdraw') {
-    if (bal < amount) throw httpsError('failed-precondition', 'Saldo insuficiente');
-    tx.set(walletRef, { userId: uid, balance: policy.round2(bal - amount) }, { merge: true });
-  } else {
-    tx.set(walletRef, { userId: uid, balance: policy.round2(bal + amount) }, { merge: true });
-  }
-  tx.set(db.collection('transactions').doc(), {
-    userId: uid,
-    type,
-    amount,
-    description: description || '',
-    icon: icon || '💰',
-    status: type === 'withdraw' ? 'pending' : 'done',
-    createdAt: FieldValue.serverTimestamp(),
-    ...(extra || {}),
-  });
+/** Taxa de comissão do snapshot do pedido de serviço (bps → fração). */
+function orderCommissionRate(order) {
+  const bps = order && order.financeTerms && order.financeTerms.commissionBps;
+  return Number.isInteger(bps) ? bps / 10000 : undefined;
 }
 
-function requirePaymentsGateway() {
-  if (!PAYMENTS_ENABLED) {
-    throw httpsError(
-      'failed-precondition',
-      'Pagamentos reais desligados neste ambiente (staging).',
-    );
-  }
-  const token = getMpToken();
-  if (!token) {
-    throw httpsError('failed-precondition', 'Gateway de pagamento não configurado');
-  }
-  return token;
+/**
+ * Crédito do repasse do prestador como SALDO INTERNO (não é transferência
+ * bancária). Idempotente pela chave do razão. Usar em duas fases:
+ * `const w = await readProviderWallet(...)` antes de qualquer escrita.
+ */
+function readProviderWallet(tx, providerId, orderId) {
+  return readWallet(tx, db, providerId, `payout_service_${orderId}`);
+}
+function postProviderPayout(tx, w, orderId, providerAmount) {
+  const out = postLedger(tx, w, {
+    type: 'sale_release',
+    amountCents: fin.toCents(providerAmount),
+    description: 'Serviço concluído (saldo interno)',
+    refKind: 'service',
+    refId: orderId,
+  });
+  if (!out.ok) throw httpsError('failed-precondition', 'Falha ao lançar repasse interno');
 }
 
 function publicPaymentView(pay, id) {
@@ -251,6 +239,7 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
           paymentOrderId: pay.orderId,
           gatewayStatus: pay.status,
           paidAmount: pay.amount,
+          commissionRate: orderCommissionRate(order),
         });
         if (!decision.ok) {
           throw httpsError('failed-precondition', 'Repasse recusado: ' + decision.reason);
@@ -262,10 +251,8 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
         updates.platformFee = decision.commission;
         updates.providerAmount = decision.providerAmount;
 
-        await adjustWalletTx(
-          tx, order.providerId, 'credit', decision.providerAmount,
-          'Pagamento por serviço concluído', '💰', { orderId },
-        );
+        const providerWallet = await readProviderWallet(tx, order.providerId, orderId);
+        postProviderPayout(tx, providerWallet, orderId, decision.providerAmount);
         tx.set(db.collection('financialAudits').doc(), {
           orderId,
           userId: auth.uid,
@@ -344,10 +331,13 @@ exports.processPayout = functions.region(REGION).https.onCall(async (data, conte
       paymentOrderId: pay.orderId,
       gatewayStatus: pay.status,
       paidAmount: pay.amount,
+      commissionRate: orderCommissionRate(order),
     });
     if (!decision.ok) {
       throw httpsError('failed-precondition', 'Repasse recusado: ' + decision.reason);
     }
+    // Todas as leituras antes das escritas.
+    const providerWallet = await readProviderWallet(tx, order.providerId, orderId);
     tx.update(orderRef, {
       payoutProcessed: true,
       payoutStatus: 'done',
@@ -356,10 +346,7 @@ exports.processPayout = functions.region(REGION).https.onCall(async (data, conte
       platformFee: decision.commission,
       providerAmount: decision.providerAmount,
     });
-    await adjustWalletTx(
-      tx, order.providerId, 'credit', decision.providerAmount,
-      'Pagamento por serviço concluído', '💰', { orderId },
-    );
+    postProviderPayout(tx, providerWallet, orderId, decision.providerAmount);
     tx.set(db.collection('financialAudits').doc(), {
       orderId,
       userId: auth.uid,
@@ -392,10 +379,18 @@ exports.payOrderWithWallet = functions.region(REGION).https.onCall(async (data, 
     if ((order.paymentStatus || 'unpaid') === 'paid') {
       return { ok: true, already: true, paymentStatus: 'paid' };
     }
+    if (['cancelled', 'completed'].includes(order.status)) {
+      throw httpsError('failed-precondition', 'Pedido cancelado ou concluído');
+    }
     const amount = Number(order.price);
     if (!(amount > 0)) throw httpsError('failed-precondition', 'Pedido sem preço definido');
     const paymentId = `wallet_${orderId}`;
-    await adjustWalletTx(tx, auth.uid, 'debit', amount, `Pagamento pedido ${orderId}`, '👜', { orderId });
+    const w = await readWallet(tx, db, auth.uid, `pay_service_${orderId}`);
+    const debit = postLedger(tx, w, {
+      type: 'payment', amountCents: fin.toCents(amount), description: `Pagamento pedido ${orderId}`,
+      refKind: 'service', refId: orderId,
+    });
+    if (!debit.ok) throw httpsError('failed-precondition', 'Saldo insuficiente');
     tx.set(db.collection('payments').doc(paymentId), {
       orderId,
       userId: auth.uid,
@@ -417,85 +412,22 @@ exports.payOrderWithWallet = functions.region(REGION).https.onCall(async (data, 
   });
 });
 
-exports.generatePix = functions.region(REGION).https.onCall(async (data, context) => {
-  const auth = requireAuth(context);
-  await enforceRateLimit(auth.uid, 'pix', 8, 60 * 60 * 1000);
-  const token = requirePaymentsGateway();
+/**
+ * Callables antigas de cobrança: criavam a cobrança antes do pedido, com
+ * id gerado no aparelho e idempotência por minuto. Substituídas por
+ * createMarketOrder/createWalletRecharge + startPayment (payments/).
+ */
+function deprecatedPayment() {
+  throw httpsError('failed-precondition', 'Fluxo de pagamento antigo desativado. Atualize o app (use startPayment).');
+}
+exports.generatePix = functions.region(REGION).https.onCall(deprecatedPayment);
+exports.processCardPayment = functions.region(REGION).https.onCall(deprecatedPayment);
 
-  const purpose = String(data?.purpose || 'order');
-  if (!['order', 'wallet_recharge'].includes(purpose)) {
-    throw httpsError('invalid-argument', 'purpose inválido');
-  }
-
-  let amount;
-  let orderId = data?.orderId ? String(data.orderId) : null;
-  let description = String(data?.description || 'Pagamento Carajás 360').slice(0, 200);
-  const email = String(data?.email || '').trim();
-
-  if (purpose === 'order') {
-    if (!orderId) throw httpsError('invalid-argument', 'orderId obrigatório');
-    const orderSnap = await db.collection('orders').doc(orderId).get();
-    if (!orderSnap.exists) throw httpsError('not-found', 'Pedido não encontrado');
-    const order = orderSnap.data();
-    if (order.clientId !== auth.uid) throw httpsError('permission-denied', 'Pedido de outro usuário');
-    amount = Number(order.price);
-    if (!(amount > 0)) throw httpsError('failed-precondition', 'Pedido sem preço definido');
-    description = description || order.title || 'Pedido Carajás 360';
-  } else {
-    amount = Number(data?.amount);
-    if (!(amount >= 10) || amount > 5000) {
-      throw httpsError('invalid-argument', 'Valor de recarga inválido (R$ 10 a R$ 5.000)');
-    }
-    orderId = null;
-  }
-
-  const platformFee = policy.round2(amount * policy.COMMISSION_RATE);
-  const netAmount = policy.round2(amount - platformFee);
-  const idempotency = `${auth.uid}:${purpose}:${orderId || 'wallet'}:${Math.floor(Date.now() / 60000)}`;
-
-  const response = await axios.post('https://api.mercadopago.com/v1/payments', {
-    transaction_amount: amount,
-    description,
-    payment_method_id: 'pix',
-    payer: { email: email || `${auth.uid}@users.carajas360.invalid` },
-  }, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'X-Idempotency-Key': idempotency,
-    },
-  });
-
-  const { id, status, point_of_interaction } = response.data;
-  await db.collection('payments').doc(String(id)).set({
-    orderId,
-    userId: auth.uid,
-    purpose,
-    amount,
-    platformFee,
-    netAmount,
-    method: 'pix',
-    status: status === 'pending' ? 'pending' : (status || 'processing'),
-    walletCredited: false,
-    externalId: String(id),
-    createdAt: FieldValue.serverTimestamp(),
-  });
-  if (orderId) {
-    await db.collection('orders').doc(orderId).update({
-      paymentStatus: 'pending',
-      transactionId: String(id),
-    });
-  }
-
-  const qr = point_of_interaction?.transaction_data || {};
-  return {
-    id: String(id),
-    status,
-    qr_code: qr.qr_code || null,
-    qr_code_base64: qr.qr_code_base64 || null,
-  };
-});
-
+/**
+ * Consulta de pagamentos LEGADOS (coleção `payments`). Se a recarga antiga
+ * for aprovada, credita uma única vez (chave `recharge_legacy_{id}`), com
+ * todas as leituras antes das escritas. Consulta o gateway só em sandbox.
+ */
 exports.checkPayment = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
   await enforceRateLimit(auth.uid, 'checkpay', 30, 60 * 60 * 1000);
@@ -510,23 +442,39 @@ exports.checkPayment = functions.region(REGION).https.onCall(async (data, contex
     throw httpsError('permission-denied', 'Pagamento de outro usuário');
   }
 
-  if (localData.method === 'wallet' || !PAYMENTS_ENABLED || !getMpToken()) {
+  if (localData.method === 'wallet' || fin.gatewayMode(process.env).mode !== 'mercadopago') {
     return publicPaymentView(localData, id);
   }
 
-  const response = await axios.get(`https://api.mercadopago.com/v1/payments/${id}`, {
+  const response = await axios.get(`https://api.mercadopago.com/v1/payments/${encodeURIComponent(id)}`, {
     headers: { Authorization: `Bearer ${getMpToken()}` },
+    timeout: 15000,
   });
   const status = response.data.status;
+  const gatewayCents = fin.toCents(response.data.transaction_amount);
 
   await db.runTransaction(async (tx) => {
+    // 1) Leituras
     const snap = await tx.get(payRef);
     if (!snap.exists) return;
     const p = snap.data();
-    if (status === 'approved' && p.status !== 'approved') {
+    const approving = status === 'approved' && p.status !== 'approved';
+    const needsCredit = approving && p.purpose === 'wallet_recharge' && p.userId && !p.walletCredited;
+    const wallet = needsCredit ? await readWallet(tx, db, p.userId, `recharge_legacy_${id}`) : null;
+    // 2) Escritas
+    if (approving) {
+      if (gatewayCents !== fin.toCents(p.amount)) {
+        tx.set(db.collection('financialIssues').doc(), {
+          type: 'payment_divergence', legacyPaymentId: id, status: 'open',
+          detail: `valor diferente (${gatewayCents} ≠ ${fin.toCents(p.amount)})`,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+        return;
+      }
       tx.update(payRef, {
         status: 'approved',
         paidAt: FieldValue.serverTimestamp(),
+        ...(needsCredit ? { walletCredited: true } : {}),
       });
       if (p.orderId) {
         tx.update(db.collection('orders').doc(p.orderId), {
@@ -535,9 +483,11 @@ exports.checkPayment = functions.region(REGION).https.onCall(async (data, contex
           paidAt: FieldValue.serverTimestamp(),
         });
       }
-      if (p.purpose === 'wallet_recharge' && p.userId && !p.walletCredited) {
-        await adjustWalletTx(tx, p.userId, 'credit', Number(p.amount), 'Recarga via PIX', '⚡', { paymentId: id });
-        tx.update(payRef, { walletCredited: true });
+      if (wallet) {
+        postLedger(tx, wallet, {
+          type: 'recharge', amountCents: fin.toCents(p.amount), description: 'Recarga via PIX',
+          refKind: 'legacy_payment', refId: id,
+        });
       }
     } else if (status && status !== p.status) {
       tx.update(payRef, { status });
@@ -546,77 +496,6 @@ exports.checkPayment = functions.region(REGION).https.onCall(async (data, contex
 
   const after = (await payRef.get()).data();
   return publicPaymentView(after, id);
-});
-
-exports.processCardPayment = functions.region(REGION).https.onCall(async (data, context) => {
-  const auth = requireAuth(context);
-  await enforceRateLimit(auth.uid, 'card', 8, 60 * 60 * 1000);
-  const token = requirePaymentsGateway();
-  const cardToken = String(data?.cardToken || '');
-  if (!cardToken) throw httpsError('invalid-argument', 'Token do cartão ausente');
-
-  const orderId = String(data?.orderId || '');
-  if (!orderId) throw httpsError('invalid-argument', 'orderId obrigatório');
-  const orderSnap = await db.collection('orders').doc(orderId).get();
-  if (!orderSnap.exists) throw httpsError('not-found', 'Pedido não encontrado');
-  const order = orderSnap.data();
-  if (order.clientId !== auth.uid) throw httpsError('permission-denied', 'Pedido de outro usuário');
-  const amount = Number(order.price);
-  if (!(amount > 0)) throw httpsError('failed-precondition', 'Pedido sem preço definido');
-
-  const platformFee = policy.round2(amount * policy.COMMISSION_RATE);
-  const netAmount = policy.round2(amount - platformFee);
-  const email = String(data?.email || '').trim();
-  const installments = Number(data?.installments || 1);
-  const payerDocNumber = data?.payerDocNumber ? String(data.payerDocNumber).replace(/\D/g, '') : undefined;
-
-  const response = await axios.post('https://api.mercadopago.com/v1/payments', {
-    transaction_amount: amount,
-    description: String(data?.description || order.title || 'Pagamento Carajás 360').slice(0, 200),
-    token: cardToken,
-    installments: installments >= 1 && installments <= 12 ? installments : 1,
-    payer: {
-      email: email || `${auth.uid}@users.carajas360.invalid`,
-      identification: payerDocNumber ? { type: 'CPF', number: payerDocNumber } : undefined,
-    },
-  }, {
-    headers: {
-      Authorization: `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'X-Idempotency-Key': `${auth.uid}:${orderId}:card`,
-    },
-  });
-
-  const { id, status, status_detail } = response.data;
-  await db.collection('payments').doc(String(id)).set({
-    orderId,
-    userId: auth.uid,
-    purpose: 'order',
-    amount,
-    platformFee,
-    netAmount,
-    method: 'card',
-    status,
-    statusDetail: status_detail,
-    installments,
-    walletCredited: false,
-    externalId: String(id),
-    createdAt: FieldValue.serverTimestamp(),
-    ...(status === 'approved' ? { paidAt: FieldValue.serverTimestamp() } : {}),
-  });
-  if (status === 'approved') {
-    await db.collection('orders').doc(orderId).update({
-      paymentStatus: 'paid',
-      transactionId: String(id),
-      paidAt: FieldValue.serverTimestamp(),
-    });
-  } else {
-    await db.collection('orders').doc(orderId).update({
-      paymentStatus: 'pending',
-      transactionId: String(id),
-    });
-  }
-  return { id: String(id), status, statusDetail: status_detail };
 });
 
 exports.aiAssistant = functions.region(REGION).https.onCall(async (data, context) => {
@@ -658,57 +537,48 @@ exports.aiAssistant = functions.region(REGION).https.onCall(async (data, context
   return { reply };
 });
 
+/**
+ * Operações de carteira pelo cliente. Débito livre e saque foram
+ * DESATIVADOS: débito só acontece dentro de um pagamento (startPayment) e
+ * não há transferência bancária integrada nesta fase. Resta o cashback de
+ * pedido de serviço concluído, calculado no servidor e creditado uma vez.
+ */
 exports.walletOp = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
   const op = String(data?.op || '');
-  const value = Number(data?.amount);
-  if (!['debit', 'withdraw', 'cashback'].includes(op)) {
+  if (op === 'withdraw') {
+    throw httpsError('failed-precondition', 'Saque/transferência bancária ainda não está disponível. O saldo permanece na carteira interna.');
+  }
+  if (op !== 'cashback') {
     throw httpsError('invalid-argument', 'Operação não permitida');
   }
-  if (op !== 'cashback' && !(value > 0)) {
-    throw httpsError('invalid-argument', 'Valor inválido');
-  }
-
-  if (op === 'cashback') {
-    const orderId = String(data?.orderId || '');
-    if (!orderId) throw httpsError('invalid-argument', 'orderId obrigatório');
-    return db.runTransaction(async (tx) => {
-      const orderRef = db.collection('orders').doc(orderId);
-      const orderSnap = await tx.get(orderRef);
-      if (!orderSnap.exists) throw httpsError('not-found', 'Pedido não encontrado');
-      const order = orderSnap.data();
-      if (order.status !== 'completed') throw httpsError('failed-precondition', 'Pedido não concluído');
-      if (order.clientId !== auth.uid && order.providerId !== auth.uid) {
-        throw httpsError('permission-denied', 'Sem permissão');
-      }
-      if (order.cashbackGranted) return { ok: true, already: true };
-      const cashback = policy.round2(Number(order.price || 0) * 0.02);
-      if (cashback > 0) {
-        await adjustWalletTx(
-          tx, order.clientId, 'credit', cashback,
-          `Cashback: ${order.title || 'Serviço'}`, '🎁', { orderId },
-        );
-      }
-      tx.update(orderRef, { cashbackGranted: true });
-      return { ok: true, cashback };
-    });
-  }
-
-  if (op === 'withdraw' && value < 10) {
-    throw httpsError('invalid-argument', 'Saque mínimo R$ 10');
-  }
-  await db.runTransaction(async (tx) => {
-    await adjustWalletTx(
-      tx,
-      auth.uid,
-      op,
-      value,
-      data?.description || (op === 'withdraw' ? `Saque para ${data?.pixKey || ''}` : ''),
-      data?.icon || (op === 'withdraw' ? '📤' : '👜'),
-      op === 'withdraw' ? { pixKey: data?.pixKey || null } : {},
-    );
+  const orderId = String(data?.orderId || '');
+  if (!orderId) throw httpsError('invalid-argument', 'orderId obrigatório');
+  return db.runTransaction(async (tx) => {
+    const orderRef = db.collection('orders').doc(orderId);
+    const orderSnap = await tx.get(orderRef);
+    if (!orderSnap.exists) throw httpsError('not-found', 'Pedido não encontrado');
+    const order = orderSnap.data();
+    if (order.status !== 'completed') throw httpsError('failed-precondition', 'Pedido não concluído');
+    if (order.clientId !== auth.uid && order.providerId !== auth.uid) {
+      throw httpsError('permission-denied', 'Sem permissão');
+    }
+    if (order.cashbackGranted) return { ok: true, already: true };
+    if ((order.paymentStatus || 'unpaid') !== 'paid') {
+      throw httpsError('failed-precondition', 'Pedido sem pagamento confirmado');
+    }
+    const bps = Number.isInteger(order.financeTerms?.cashbackBps) ? order.financeTerms.cashbackBps : 200;
+    const cashbackCents = fin.bpsOf(fin.toCents(order.price || 0) || 0, bps);
+    const w = cashbackCents > 0 ? await readWallet(tx, db, order.clientId, `cashback_service_${orderId}`) : null;
+    if (w) {
+      postLedger(tx, w, {
+        type: 'cashback', amountCents: cashbackCents, description: `Cashback: ${order.title || 'Serviço'}`,
+        refKind: 'service', refId: orderId,
+      });
+    }
+    tx.update(orderRef, { cashbackGranted: true });
+    return { ok: true, cashback: fin.fromCents(cashbackCents), cashbackCents };
   });
-  return { ok: true };
 });
 
 exports.createNotification = functions.region(REGION).https.onCall(async (data, context) => {
@@ -1122,3 +992,10 @@ exports.aiAssistantHttp = functions.https.onRequest(gone);
 Object.assign(exports, require('./catalog')({
   functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION,
 }));
+
+// ── Pedidos do Mercado, pagamentos e financeiro (Fase 3, sandbox) ──
+const payments = require('./payments')({
+  functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit,
+});
+delete payments.__internals;
+Object.assign(exports, payments);

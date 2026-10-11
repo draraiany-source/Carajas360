@@ -6,6 +6,8 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/span_ds.dart';
 import '../../core/constants/app_constants.dart';
+import '../checkout/cart_service.dart';
+import '../checkout/checkout_screen.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/platform_info.dart';
@@ -435,7 +437,15 @@ class _LoginState extends State<LoginScreen>
       if (mounted) Navigator.pushReplacementNamed(context, Routes.register);
     } else {
       await PushSvc.saveToken(uid);
-      if (mounted) Navigator.pushReplacementNamed(context, Routes.main);
+      // Volta à ação iniciada antes do login (ex.: finalizar a compra).
+      final pendingStore = await CartService.takePendingCheckout();
+      if (!mounted) return;
+      final nav = Navigator.of(context);
+      nav.pushReplacementNamed(Routes.main);
+      if (pendingStore != null) {
+        nav.push(MaterialPageRoute(
+            builder: (_) => CheckoutScreen(storeId: pendingStore)));
+      }
     }
   }
 

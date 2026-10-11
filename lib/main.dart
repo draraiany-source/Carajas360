@@ -36,6 +36,9 @@ import 'package:servico_conecta/features/company/company_screen.dart';
 import 'package:servico_conecta/features/orders/orders_screen.dart';
 import 'package:servico_conecta/features/provider/provider_home_screen.dart';
 import 'package:servico_conecta/core/auth/access_control.dart';
+import 'package:servico_conecta/features/checkout/cart_service.dart';
+import 'package:servico_conecta/features/checkout/checkout_screen.dart';
+import 'package:servico_conecta/features/checkout/market_order_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -87,6 +90,8 @@ Future<void> main() async {
     runApp(ConfigUnavailableApp(problems: configProblems));
     return;
   }
+  // Carrinho persistente (aparelho + conta); não bloqueia a abertura.
+  CartService.instance.start();
   runApp(const ServicoConectaApp(firebaseOk: true));
 }
 
@@ -193,6 +198,14 @@ class ServicoConectaApp extends StatelessWidget {
                 return _route(const FavoritesScreen());
               case Routes.myOrders:
                 return _route(const MyOrdersScreen());
+              case Routes.cart:
+                return _route(const CartScreen());
+              case Routes.marketOrders:
+                return _route(const RequireAuth(
+                    title: 'Pedidos', child: MyMarketOrdersScreen()));
+              case Routes.storeOrders:
+                return _route(const RequireAuth(
+                    title: 'Pedidos da loja', child: StoreOrdersScreen()));
               case Routes.requestService:
                 final a = settings.arguments as Map<String, dynamic>?;
                 return _route(RequestServiceScreen(

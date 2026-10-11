@@ -7,6 +7,8 @@ import '../../core/constants/app_constants.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../checkout/market_order_screen.dart';
+import '../checkout/payments_api.dart';
 import '../../core/catalog/catalog.dart';
 import '../../core/catalog/catalog_widgets.dart';
 
@@ -230,6 +232,7 @@ class _StoreDashboard extends StatelessWidget {
                 : null,
           ),
         )),
+        SliverToBoxAdapter(child: _DeliverySettings(store: store)),
         SliverToBoxAdapter(
             child: Container(
           decoration: AppDecorations.gradient(AppGradients.delivery, r: 0),
@@ -881,4 +884,86 @@ class StoreProfileScreen extends StatelessWidget {
           ),
         ]),
       );
+}
+
+/// Frete e modos de entrega da loja. O servidor usa estes campos para
+/// calcular o total do pedido (o app nunca define o frete).
+class _DeliverySettings extends StatefulWidget {
+  final StoreModel store;
+  const _DeliverySettings({required this.store});
+  @override
+  State<_DeliverySettings> createState() => _DeliverySettingsState();
+}
+
+class _DeliverySettingsState extends State<_DeliverySettings> {
+  late final _fee = TextEditingController(
+      text: ((widget.store.deliveryFeeCents ?? 0) / 100).toStringAsFixed(2));
+  late bool _delivery = widget.store.deliveryEnabled;
+  late bool _pickup = widget.store.pickupEnabled;
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _fee.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final cents =
+        ((double.tryParse(_fee.text.replaceAll(',', '.')) ?? -1) * 100).round();
+    if (cents < 0 || cents > 100000) {
+      snack(context, 'Frete inválido (R\$ 0 a R\$ 1.000)', bg: AppColors.error);
+      return;
+    }
+    if (!_delivery && !_pickup) {
+      snack(context, 'Ative entrega ou retirada', bg: AppColors.error);
+      return;
+    }
+    setState(() => _saving = true);
+    final ok = await FS.updateStoreDelivery(widget.store.id,
+        deliveryFeeCents: cents, deliveryEnabled: _delivery, pickupEnabled: _pickup);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    snack(context, ok ? 'Entrega atualizada' : 'Não foi possível salvar',
+        bg: ok ? AppColors.secondary : AppColors.error);
+  }
+
+  @override
+  Widget build(BuildContext context) => Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      decoration: AppDecorations.card(r: 16),
+      padding: const EdgeInsets.all(14),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Expanded(
+              child: Text('🚚 Entrega e pedidos',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15))),
+          TextButton(
+              onPressed: () => Navigator.push(context,
+                  MaterialPageRoute(builder: (_) => const StoreOrdersScreen())),
+              child: const Text('Pedidos recebidos')),
+        ]),
+        SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Faz entrega'),
+            value: _delivery,
+            onChanged: (v) => setState(() => _delivery = v)),
+        if (_delivery)
+          TextField(
+              controller: _fee,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(
+                  labelText: 'Taxa de entrega', prefixText: 'R\$ ')),
+        SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Aceita retirada na loja'),
+            value: _pickup,
+            onChanged: (v) => setState(() => _pickup = v)),
+        Text('Taxa atual: ${brl(widget.store.deliveryFeeCents ?? 0)}',
+            style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
+        Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+                onPressed: _saving ? null : _save, child: const Text('Salvar'))),
+      ]));
 }

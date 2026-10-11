@@ -500,16 +500,20 @@ class MessageModel {
 
 class WalletModel {
   final String userId;
-  final double balance;
-  const WalletModel({required this.userId, required this.balance});
+  final int balanceCents;
+  const WalletModel({required this.userId, required this.balanceCents});
+  double get balance => balanceCents / 100;
   factory WalletModel.fromMap(Map<String, dynamic> m) => WalletModel(
       userId: m['userId'] ?? '',
-      balance: (m['balance'] as num?)?.toDouble() ?? 0.0);
+      // Saldo em centavos (fonte da verdade); `balance` legado em reais.
+      balanceCents: (m['balanceCents'] as num?)?.toInt() ??
+          (((m['balance'] as num?)?.toDouble() ?? 0) * 100).round());
 }
 
 class TransactionModel {
   final String id, userId, type, description, icon, status;
   final double amount;
+  final int? signedCents;
   final DateTime createdAt;
 
   const TransactionModel(
@@ -520,9 +524,16 @@ class TransactionModel {
       required this.description,
       required this.icon,
       required this.status,
+      this.signedCents,
       required this.createdAt});
 
-  bool get isCredit => type == 'credit';
+  static const _debitTypes = {
+    'debit', 'payment', 'withdraw', 'sale_reversal', 'cashback_reversal'
+  };
+  bool get isCredit =>
+      signedCents != null ? signedCents! > 0 : !_debitTypes.contains(type);
+  int get amountCents =>
+      signedCents?.abs() ?? (amount * 100).round();
 
   factory TransactionModel.fromMap(String id, Map<String, dynamic> m) =>
       TransactionModel(
@@ -533,6 +544,7 @@ class TransactionModel {
         description: m['description'] ?? '',
         icon: m['icon'] ?? '💰',
         status: m['status'] ?? 'done',
+        signedCents: (m['signedCents'] as num?)?.toInt(),
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       );
 }
@@ -835,6 +847,9 @@ class StoreModel {
   final double rating;
   final int totalReviews, totalProducts;
   final bool verified, active;
+  // Entrega/retirada (Fase 3): frete em centavos usado pelo servidor.
+  final int? deliveryFeeCents;
+  final bool deliveryEnabled, pickupEnabled;
   final DateTime createdAt;
 
   const StoreModel({
@@ -854,6 +869,9 @@ class StoreModel {
     this.totalProducts = 0,
     this.verified = false,
     this.active = true,
+    this.deliveryFeeCents,
+    this.deliveryEnabled = true,
+    this.pickupEnabled = true,
     required this.createdAt,
   });
 
@@ -874,6 +892,9 @@ class StoreModel {
         totalProducts: m['totalProducts'] ?? 0,
         verified: m['verified'] ?? false,
         active: m['active'] ?? true,
+        deliveryFeeCents: (m['deliveryFeeCents'] as num?)?.toInt(),
+        deliveryEnabled: m['deliveryEnabled'] ?? true,
+        pickupEnabled: m['pickupEnabled'] ?? true,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       );
 
@@ -893,6 +914,9 @@ class StoreModel {
         'totalProducts': totalProducts,
         'verified': verified,
         'active': active,
+        if (deliveryFeeCents != null) 'deliveryFeeCents': deliveryFeeCents,
+        'deliveryEnabled': deliveryEnabled,
+        'pickupEnabled': pickupEnabled,
       };
 }
 

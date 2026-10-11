@@ -279,13 +279,10 @@ class _CompanyDashboard extends StatelessWidget {
                                     fontSize: 13)),
                             if (company.plan == PlanTier.free)
                               ElevatedButton(
-                                  onPressed: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) => const PixScreen(
-                                              amount: 149.90,
-                                              desc:
-                                                  'Upgrade Plano Profissional - Empresa'))),
+                                  // Assinatura sem cobrança integrada nesta fase.
+                                  onPressed: () => snack(context,
+                                      'Upgrade de plano ainda não está disponível para contratação no app.',
+                                      bg: AppColors.warning),
                                   style: ElevatedButton.styleFrom(
                                       backgroundColor: AppColors.gold,
                                       foregroundColor: AppColors.textDark,

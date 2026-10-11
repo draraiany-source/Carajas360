@@ -7,9 +7,9 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'catalog_admin_tab.dart';
+import 'finance_admin_tab.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/constants/app_constants.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -33,6 +33,7 @@ class _AdminState extends State<AdminScreen>
     'Validação',
     'Categorias',
     'Financeiro',
+    'Pagamentos',
     'Marketing',
     'Atendimento',
     'Denúncias',
@@ -123,6 +124,7 @@ class _AdminState extends State<AdminScreen>
             _ValidationTab(),
             const CatalogAdminTab(),
             _FinancialTab(),
+            const FinanceAdminTab(),
             _MarketingTab(),
             _SupportTab(),
             _ReportsTab(),
@@ -1291,7 +1293,6 @@ class _SettingsTab extends StatefulWidget {
 }
 
 class _SettingsTabState extends State<_SettingsTab> {
-  final _commissionCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
   bool _maintenanceMode = false;
@@ -1299,7 +1300,6 @@ class _SettingsTabState extends State<_SettingsTab> {
 
   @override
   void dispose() {
-    _commissionCtrl.dispose();
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
     super.dispose();
@@ -1308,9 +1308,6 @@ class _SettingsTabState extends State<_SettingsTab> {
   void _loadOnce(Map<String, dynamic> config) {
     if (_loaded) return;
     _loaded = true;
-    _commissionCtrl.text =
-        (((config['commissionRate'] as num?) ?? AppConst.commission) * 100)
-            .toStringAsFixed(0);
     _emailCtrl.text = config['supportEmail'] ?? '';
     _phoneCtrl.text = config['supportPhone'] ?? '';
     _maintenanceMode = config['maintenanceMode'] ?? false;
@@ -1318,11 +1315,8 @@ class _SettingsTabState extends State<_SettingsTab> {
 
   Future<void> _save() async {
     setState(() => _saving = true);
-    final rate =
-        (double.tryParse(_commissionCtrl.text.replaceAll(',', '.')) ?? 15) /
-            100;
+    // Comissão/cashback: aba "Pagamentos" (config/finance, só servidor).
     await FS.updatePlatformConfig({
-      'commissionRate': rate,
       'supportEmail': _emailCtrl.text.trim(),
       'supportPhone': _phoneCtrl.text.trim(),
       'maintenanceMode': _maintenanceMode,
@@ -1345,19 +1339,10 @@ class _SettingsTabState extends State<_SettingsTab> {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Comissão da plataforma',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 16)),
-                    const SizedBox(height: 4),
-                    const Text('Percentual retido em cada serviço concluído',
+                    const Text(
+                        'Comissão, cashback e parcelamento ficam na aba "Pagamentos" (versionados no servidor).',
                         style: TextStyle(
                             fontSize: 12, color: AppColors.textLight)),
-                    const SizedBox(height: 10),
-                    TextFormField(
-                        controller: _commissionCtrl,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                            suffixText: '%', hintText: '15')),
                     const SizedBox(height: 20),
                     const Text('Contato de suporte',
                         style: TextStyle(

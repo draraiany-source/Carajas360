@@ -904,20 +904,12 @@ class FS {
           s.docs.map((d) => TransactionModel.fromMap(d.id, d.data())).toList());
 
   static Future<bool> credit(double amount, String desc, String icon) async {
-    // Crédito livre pelo client foi removido (fraude). Use recarga PIX
-    // (Cloud Function checkPayment) ou cashback via walletOp.
+    // Crédito livre pelo client foi removido (fraude). Saldo só muda no
+    // servidor: recarga (createWalletRecharge + startPayment), cashback e
+    // repasse interno. Débito livre e saque também foram removidos.
     debugPrint(
         'FS.credit bloqueado no client ($amount / $desc). Use gateway/Functions.');
     return false;
-  }
-
-  static Future<bool> debit(double amount, String desc, String icon) async {
-    return _walletOp(
-      op: 'debit',
-      amount: amount,
-      description: desc,
-      icon: icon,
-    );
   }
 
   static Future<bool> payOrderWithWallet(String orderId) async {
@@ -938,18 +930,6 @@ class FS {
       debugPrint('switchProfileType: $e');
       return false;
     }
-  }
-
-  // Saque para conta bancária via PIX. Cloud Function debita o saldo.
-  static Future<bool> withdraw(double amount, String pixKey) async {
-    if (amount < 10) return false;
-    return _walletOp(
-      op: 'withdraw',
-      amount: amount,
-      description: 'Saque para $pixKey',
-      icon: '📤',
-      pixKey: pixKey,
-    );
   }
 
   static Future<bool> _walletOp({
@@ -1064,17 +1044,6 @@ class FS {
   static Future<void> cancelAppointment(String id) =>
       _db.collection(Col.appointments).doc(id).update({'status': 'cancelled'});
 
-  static Future<String> createCartOrder(Map<String, dynamic> data) async {
-    final doc = await _db.collection(Col.orders).add({
-      ...data,
-      'clientId': _uid,
-      'type': 'marketplace',
-      'status': 'pending',
-      'createdAt': FieldValue.serverTimestamp()
-    });
-    return doc.id;
-  }
-
   static Future<void> createSupportTicket(String subject, String message) =>
       _db.collection(Col.support).add({
         'userId': _uid,
@@ -1187,6 +1156,24 @@ class FS {
         .doc(store.id)
         .set(data, SetOptions(merge: true));
     return store.id;
+  }
+
+  /// Frete/modos de entrega (usados pelo servidor no cálculo do pedido).
+  static Future<bool> updateStoreDelivery(String storeId,
+      {required int deliveryFeeCents,
+      required bool deliveryEnabled,
+      required bool pickupEnabled}) async {
+    try {
+      await _db.collection(Col.stores).doc(storeId).update({
+        'deliveryFeeCents': deliveryFeeCents,
+        'deliveryEnabled': deliveryEnabled,
+        'pickupEnabled': pickupEnabled,
+      });
+      return true;
+    } catch (e) {
+      debugPrint('updateStoreDelivery: $e');
+      return false;
+    }
   }
 
   /// Loja do usuário logado (null se ainda não cadastrou).
@@ -2034,41 +2021,10 @@ class PaySvc {
   // Public Key do Mercado Pago via --dart-define=MERCADOPAGO_PUBLIC_KEY=...
   static String get _mpPublicKey => RuntimeConfig.mercadoPagoPublicKey;
 
-  static Future<Map<String, dynamic>?> generatePix(
-      {required double amount,
-      required String description,
-      required String email,
-      required String orderId,
-      String? userId,
-      String purpose = 'order'}) async {
-    try {
-      return await CloudFn.call('generatePix', {
-        'amount': amount,
-        'description': description,
-        'email': email,
-        if (orderId.isNotEmpty) 'orderId': orderId,
-        'purpose': purpose,
-      });
-    } catch (e) {
-      debugPrint('PIX error: $e');
-      return null;
-    }
-  }
-
-  static Future<String?> checkPayment(String paymentId) async {
-    try {
-      final data = await CloudFn.call('checkPayment', {'id': paymentId});
-      return data['status'] as String?;
-    } catch (e) {
-      debugPrint('checkPayment error: $e');
-      return null;
-    }
-  }
-
   // ── Cartão de crédito (Vol.17: Pagamentos) ─────────────────────
   // Tokeniza o cartão direto com o Mercado Pago (nunca passa pelo
   // nosso backend em texto puro — exigência de PCI-DSS) e então
-  // envia apenas o token para a Cloud Function processar a cobrança.
+  // envia apenas o token para startPayment (Cloud Function) cobrar.
   static Future<String?> tokenizeCard({
     required String cardNumber,
     required String holderName,
@@ -2111,32 +2067,6 @@ class PaySvc {
     }
   }
 
-  static Future<Map<String, dynamic>?> payWithCard({
-    required double amount,
-    required String description,
-    required String email,
-    required String orderId,
-    required String cardToken,
-    int installments = 1,
-    String? docNumber,
-  }) async {
-    try {
-      return await CloudFn.call('processCardPayment', {
-        'description': description,
-        'email': email,
-        'orderId': orderId,
-        'cardToken': cardToken,
-        'installments': installments,
-        'payerDocNumber': docNumber,
-      });
-    } catch (e) {
-      debugPrint('Erro no pagamento com cartão: $e');
-      return null;
-    }
-  }
-
-  static Future<bool> payWallet(double amount, String desc, String icon) =>
-      FS.debit(amount, desc, icon);
   static double fee(double amount) => amount * AppConst.commission;
   static String fmt(double v) =>
       'R\$ ${v.toStringAsFixed(2).replaceAll('.', ',')}';

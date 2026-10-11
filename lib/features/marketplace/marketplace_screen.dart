@@ -10,10 +10,12 @@ import '../../core/utils/query_errors.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
-import '../wallet/wallet_screen.dart';
+import '../checkout/cart.dart';
+import '../checkout/cart_service.dart';
+import '../checkout/checkout_screen.dart';
 
 class MarketProduct {
-  final String id, name, emoji, category, store;
+  final String id, name, emoji, category, store, storeId;
   final double price, rating;
   MarketProduct(
       {required this.id,
@@ -22,7 +24,18 @@ class MarketProduct {
       required this.category,
       required this.price,
       required this.store,
+      this.storeId = 'demo',
       required this.rating});
+
+  /// Linha do carrinho (preço só para exibição; o servidor recalcula).
+  CartLine line(int qty) => CartLine(
+      productId: id,
+      storeId: storeId,
+      storeName: store,
+      name: name,
+      emoji: emoji,
+      unitPriceCents: (price * 100).round(),
+      qty: qty);
 }
 
 class MarketplaceScreen extends StatefulWidget {
@@ -33,8 +46,7 @@ class MarketplaceScreen extends StatefulWidget {
 
 class _MarketState extends State<MarketplaceScreen> {
   int _cat = 0;
-  final Map<String, int> _cart = {};
-  bool _paying = false;
+  Cart get _cart => CartService.instance.cart;
   StreamSubscription<List<ProductModel>>? _prodSub;
   Object? _prodError;
 
@@ -42,6 +54,11 @@ class _MarketState extends State<MarketplaceScreen> {
   void initState() {
     super.initState();
     _listenProducts();
+    CartService.instance.addListener(_onCart);
+  }
+
+  void _onCart() {
+    if (mounted) setState(() {});
   }
 
   /// Catálogo real (Firestore). Falha NÃO é substituída por lojas e
@@ -63,6 +80,7 @@ class _MarketState extends State<MarketplaceScreen> {
                 category: p.category,
                 price: p.finalPrice,
                 store: p.storeName,
+                storeId: p.storeId,
                 rating: p.rating,
               ))
           .toList());
@@ -74,6 +92,7 @@ class _MarketState extends State<MarketplaceScreen> {
   @override
   void dispose() {
     _prodSub?.cancel();
+    CartService.instance.removeListener(_onCart);
     super.dispose();
   }
 
@@ -302,19 +321,9 @@ class _MarketState extends State<MarketplaceScreen> {
         : _allProducts.where((p) => p.category == cat).toList();
   }
 
-  int get _totalItems => _cart.values.fold(0, (s, q) => s + q);
-  double get _totalPrice => _cart.entries.fold(0.0, (s, e) {
-        final p = _allProducts.firstWhere((p) => p.id == e.key,
-            orElse: () => MarketProduct(
-                id: '',
-                name: '',
-                emoji: '',
-                category: '',
-                price: 0,
-                store: '',
-                rating: 0));
-        return s + (p.price * e.value);
-      });
+  int get _totalItems => _cart.totalItems;
+  double get _totalPrice =>
+      _cart.lines.fold<int>(0, (t, l) => t + l.subtotalCents) / 100;
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -488,7 +497,7 @@ class _MarketState extends State<MarketplaceScreen> {
               sliver: SliverGrid(
                 delegate: SliverChildBuilderDelegate((_, i) {
                   final p = _filtered[i];
-                  final qty = _cart[p.id] ?? 0;
+                  final qty = _cart.qtyOf(p.id);
                   return Container(
                       decoration: AppDecorations.card(r: 16),
                       padding: const EdgeInsets.all(12),
@@ -554,8 +563,8 @@ class _MarketState extends State<MarketplaceScreen> {
                                     width: double.infinity,
                                     height: 32,
                                     child: ElevatedButton(
-                                        onPressed: () =>
-                                            setState(() => _cart[p.id] = 1),
+                                        onPressed: () => CartService.instance
+                                            .setQty(p.line(1), 1),
                                         style: ElevatedButton.styleFrom(
                                             backgroundColor:
                                                 AppColors.secondary,
@@ -570,12 +579,8 @@ class _MarketState extends State<MarketplaceScreen> {
                                                 color: Colors.white))))
                                 : Row(children: [
                                     GestureDetector(
-                                        onTap: () => setState(() {
-                                              if (qty > 1)
-                                                _cart[p.id] = qty - 1;
-                                              else
-                                                _cart.remove(p.id);
-                                            }),
+                                        onTap: () => CartService.instance
+                                            .setQty(p.line(qty), qty - 1),
                                         child: Container(
                                             width: 30,
                                             height: 30,
@@ -594,8 +599,8 @@ class _MarketState extends State<MarketplaceScreen> {
                                                 fontWeight: FontWeight.w800,
                                                 fontSize: 15))),
                                     GestureDetector(
-                                        onTap: () => setState(
-                                            () => _cart[p.id] = qty + 1),
+                                        onTap: () => CartService.instance
+                                            .setQty(p.line(qty), qty + 1),
                                         child: Container(
                                             width: 30,
                                             height: 30,
@@ -627,7 +632,7 @@ class _MarketState extends State<MarketplaceScreen> {
                 ]),
                 padding: const EdgeInsets.fromLTRB(20, 14, 20, 32),
                 child: ElevatedButton(
-                    onPressed: _paying ? null : _checkout,
+                    onPressed: _checkout,
                     style: ElevatedButton.styleFrom(
                         backgroundColor: AppColors.secondary,
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -685,121 +690,9 @@ class _MarketState extends State<MarketplaceScreen> {
               ));
       return;
     }
-    showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => Padding(
-              padding: EdgeInsets.fromLTRB(
-                  20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 32),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(height: 8),
-                const SheetHandle(),
-                const SizedBox(height: 16),
-                const Text('Confirmar pedido',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 16),
-                Container(
-                    decoration: AppDecorations.card(r: 16),
-                    padding: const EdgeInsets.all(16),
-                    child: Column(children: [
-                      ..._cart.entries.map((e) {
-                        final p = _allProducts.firstWhere((p) => p.id == e.key,
-                            orElse: () => MarketProduct(
-                                id: e.key,
-                                name: 'Produto',
-                                emoji: '📦',
-                                category: '',
-                                price: 0,
-                                store: '',
-                                rating: 0));
-                        return Padding(
-                            padding: const EdgeInsets.only(bottom: 8),
-                            child: Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Expanded(
-                                      child: Text(
-                                          '${p.emoji} ${p.name} x${e.value}',
-                                          style: const TextStyle(
-                                              fontSize: 13,
-                                              color: AppColors.textDark))),
-                                  Text(PaySvc.fmt(p.price * e.value),
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13))
-                                ]));
-                      }),
-                      const Divider(),
-                      Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text('Total',
-                                style: TextStyle(
-                                    fontWeight: FontWeight.w800, fontSize: 15)),
-                            Text(PaySvc.fmt(_totalPrice),
-                                style: const TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 15,
-                                    color: AppColors.secondary))
-                          ]),
-                    ])),
-                const SizedBox(height: 16),
-                const Text('Forma de pagamento',
-                    style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.textLight)),
-                const SizedBox(height: 10),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Text('⚡', style: TextStyle(fontSize: 22)),
-                  title: const Text('PIX',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle: const Text('Confirmação instantânea',
-                      style: TextStyle(fontSize: 11)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => PixScreen(
-                                amount: _totalPrice,
-                                desc: 'Pedido MercadoConecta',
-                                onPaid: _finalizeOrder)));
-                  },
-                ),
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  leading: const Icon(Icons.credit_card_rounded,
-                      color: AppColors.primary),
-                  title: const Text('Cartão de crédito',
-                      style: TextStyle(fontWeight: FontWeight.w700)),
-                  subtitle:
-                      const Text('Em até 12x', style: TextStyle(fontSize: 11)),
-                  trailing: const Icon(Icons.chevron_right_rounded),
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => CardPaymentScreen(
-                                amount: _totalPrice,
-                                desc: 'Pedido MercadoConecta',
-                                onPaid: _finalizeOrder)));
-                  },
-                ),
-              ]),
-            ));
-  }
-
-  Future<void> _finalizeOrder() async {
-    setState(() => _paying = true);
-    await FS.createCartOrder(
-        {'items': _cart, 'total': _totalPrice, 'category': 'marketplace'});
-    _cart.clear();
-    if (mounted) setState(() => _paying = false);
+    // Carrinho por loja → checkout com valores do servidor. Nada é
+    // cobrado nem removido do carrinho antes do pedido ser pago.
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const CartScreen()));
   }
 }

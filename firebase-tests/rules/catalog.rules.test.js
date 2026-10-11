@@ -59,7 +59,8 @@ test('nova contratação exige serviço ativo no catálogo', async () => {
   await assertFails(setDoc(doc(as('cli'), 'orders/o3'), { ...base, category: 'nao_existe' }));
   await assertFails(setDoc(doc(as('cli'), 'orders/o4'), base), 'sem serviço');
   await assertFails(setDoc(doc(as('cli'), 'orders/o5'), { ...base, category: 'eletricista', serviceSnapshot: { name: 'forjado' } }));
-  await assertSucceeds(setDoc(doc(as('cli'), 'orders/o6'), { ...base, type: 'marketplace', category: 'marketplace' }));
+  // Fase 3: compra do Mercado só via createMarketOrder (valores do servidor).
+  await assertFails(setDoc(doc(as('cli'), 'orders/o6'), { ...base, type: 'marketplace', category: 'marketplace' }));
   const req = { clientId: 'cli', clientName: 'C', description: 'Preciso trocar pastilhas', city: 'X', status: 'open', proposalCount: 0, leadMonetizationReady: true, leadFee: null, createdAt: serverTimestamp() };
   await assertFails(setDoc(doc(as('cli'), 'resolveRequests/r1'), { ...req, category: 'svc_freios' }));
   await assertSucceeds(setDoc(doc(as('cli'), 'resolveRequests/r2'), { ...req, category: 'eletricista' }));

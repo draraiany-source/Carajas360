@@ -12,6 +12,8 @@ rules_version = '2';
 //  • Avaliação: só o cliente do pedido concluído, para o prestador do
 //    pedido, uma por contratação.
 //  • Notas, verificações, saldos, comissões e permissões: só servidor.
+//  • Fase 3: pedidos do Mercado, tentativas de pagamento, reembolsos,
+//    razão da carteira e configuração financeira: escrita só servidor.
 // ════════════════════════════════════════════════════════════════
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -232,11 +234,14 @@ service cloud.firestore {
         && !incoming().keys().hasAny([
           'commission', 'platformFee', 'providerAmount', 'payoutStatus',
           'transactionId', 'cashbackGranted', 'paidAt', 'payoutAt',
-          'reviewed', 'refunded', 'refundAmount', 'serviceSnapshot'
+          'reviewed', 'refunded', 'refundAmount', 'serviceSnapshot',
+          'financeTerms', 'paidAttemptId'
         ])
+        // Fase 3: compras do Mercado só via createMarketOrder (marketOrders),
+        // com preço/frete/total calculados no servidor.
+        && incoming().get('type', 'service') != 'marketplace'
         // Serviço contratado precisa estar ativo no catálogo.
-        && (incoming().get('type', 'service') == 'marketplace' ||
-            catalogActive(incoming().get('category', '')));
+        && catalogActive(incoming().get('category', ''));
       // Cliente/prestador só marcam review. Status/preço/repasse: Cloud Functions.
       allow update: if isAdmin() || (
         isAuth() &&
@@ -316,6 +321,67 @@ service cloud.firestore {
     match /payments/{paymentId} {
       allow read: if isAuth() &&
         (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // ── Fase 3: pedidos do Mercado, pagamentos e financeiro ───────
+    // Tudo é gravado SOMENTE por Cloud Functions (valores do servidor).
+    function isFinanceAdmin() {
+      return isAdminClaim() || (isAdmin() &&
+        get(/databases/$(database)/documents/users/$(uid())).data.get('adminRole', 'master') in ['master', 'financial']);
+    }
+    // Carrinho sincronizado (só o dono). Preços aqui são apenas exibição;
+    // o pedido recalcula tudo no servidor.
+    match /carts/{userId} {
+      allow read, delete: if isOwner(userId);
+      allow create, update: if isOwner(userId) &&
+        incoming().keys().hasOnly(['items', 'updatedAt']) &&
+        incoming().items is list && incoming().items.size() <= 100;
+    }
+    match /marketOrders/{orderId} {
+      allow read: if isAuth() && (
+        resource.data.clientId == uid() ||
+        resource.data.storeOwnerId == uid() ||
+        isFinanceAdmin());
+      allow write: if false;
+      match /events/{eventId} {
+        allow read: if isAuth() && (
+          get(/databases/$(database)/documents/marketOrders/$(orderId)).data.clientId == uid() ||
+          get(/databases/$(database)/documents/marketOrders/$(orderId)).data.storeOwnerId == uid() ||
+          isFinanceAdmin());
+        allow write: if false;
+      }
+    }
+    match /paymentAttempts/{attemptId} {
+      allow read: if isAuth() && (resource.data.userId == uid() || isFinanceAdmin());
+      allow write: if false;
+      match /events/{eventId} {
+        allow read: if isFinanceAdmin();
+        allow write: if false;
+      }
+    }
+    match /walletRecharges/{id} {
+      allow read: if isAuth() && (resource.data.userId == uid() || isFinanceAdmin());
+      allow write: if false;
+    }
+    match /earnings/{orderId} {
+      allow read: if isAuth() && (resource.data.sellerId == uid() || isFinanceAdmin());
+      allow write: if false;
+    }
+    match /refunds/{id} {
+      allow read: if isFinanceAdmin();
+      allow write: if false;
+    }
+    match /financialIssues/{id} {
+      allow read: if isFinanceAdmin();
+      allow write: if false;
+    }
+    match /webhookEvents/{id} {
+      allow read: if isFinanceAdmin();
+      allow write: if false;
+    }
+    match /reconciliationRuns/{id} {
+      allow read: if isFinanceAdmin();
       allow write: if false;
     }
 
@@ -450,7 +516,13 @@ service cloud.firestore {
 
     match /config/{doc} {
       allow read: if true;
-      allow write: if isAdmin();
+      // config/finance (comissão, cashback, parcelas...) só pela callable
+      // updateFinanceConfig, que valida limites e versiona.
+      allow write: if isAdmin() && doc != 'finance';
+    }
+    match /config/{doc}/history/{version} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // ── Resolve Carajás ───────────────────────────────────────────

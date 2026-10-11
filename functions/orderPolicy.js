@@ -73,6 +73,7 @@ function canPayout({
   paymentOrderId,
   gatewayStatus,
   paidAmount,
+  commissionRate,
 }) {
   if (payoutProcessed) return { ok: false, reason: 'already_processed' };
   if (status !== 'completed') return { ok: false, reason: 'order_not_completed' };
@@ -87,7 +88,10 @@ function canPayout({
   if (paidAmount != null && Math.abs(Number(paidAmount) - gross) > 0.009) {
     return { ok: false, reason: 'amount_mismatch' };
   }
-  const commission = round2(gross * COMMISSION_RATE);
+  // Taxa do snapshot do pedido (financeTerms); legado sem snapshot usa 15%.
+  const rate = Number.isFinite(commissionRate) && commissionRate >= 0 && commissionRate <= 0.5
+    ? commissionRate : COMMISSION_RATE;
+  const commission = round2(gross * rate);
   const providerAmount = round2(gross - commission);
   return { ok: true, gross, commission, providerAmount };
 }

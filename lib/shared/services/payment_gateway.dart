@@ -1,6 +1,8 @@
-import 'firebase_service.dart';
-
 /// Métodos de pagamento suportados pela plataforma.
+///
+/// A cobrança passa SEMPRE pelo backend (Fase 3): o pedido é criado antes
+/// (createMarketOrder / createWalletRecharge) e o pagamento é iniciado por
+/// `startPayment` com o id persistido. Ver lib/features/checkout/.
 enum PaymentMethod { pix, creditCard, googlePay, applePay, wallet }
 
 extension PaymentMethodX on PaymentMethod {
@@ -19,92 +21,27 @@ extension PaymentMethodX on PaymentMethod {
         PaymentMethod.applePay => '',
         PaymentMethod.wallet => '👜',
       };
+
+  /// Valor de `method` aceito por startPayment.
+  String? get apiMethod => switch (this) {
+        PaymentMethod.pix => 'pix',
+        PaymentMethod.creditCard => 'card',
+        PaymentMethod.wallet => 'wallet',
+        _ => null,
+      };
 }
 
-/// Resultado padronizado de uma tentativa de pagamento, independente
-/// do gateway usado por baixo.
-class PaymentResult {
-  final bool success;
-  final String? transactionId;
-  final String? error;
-  final bool pending; // ex.: PIX aguardando confirmação
-
-  const PaymentResult(
-      {required this.success,
-      this.transactionId,
-      this.error,
-      this.pending = false});
-
-  factory PaymentResult.ok(String id, {bool pending = false}) =>
-      PaymentResult(success: true, transactionId: id, pending: pending);
-  factory PaymentResult.fail(String error) =>
-      PaymentResult(success: false, error: error);
-}
-
-/// Camada de abstração sobre os provedores de pagamento.
 abstract class PaymentGateway {
-  /// Métodos com integração efetiva. Apple Pay e Google Pay NÃO são
-  /// oferecidos enquanto não houver integração de merchant real (o enum
-  /// permanece para compatibilidade). [isIOS] mantido por compatibilidade.
-  static List<PaymentMethod> availableMethods({bool? isIOS}) {
-    return const [
-      PaymentMethod.pix,
-      PaymentMethod.creditCard,
-      PaymentMethod.wallet,
-    ];
-  }
+  /// Métodos com integração efetiva (Mercado Pago sandbox + carteira
+  /// interna). Apple Pay e Google Pay NÃO são oferecidos.
+  static List<PaymentMethod> availableMethods({bool? isIOS}) => const [
+        PaymentMethod.pix,
+        PaymentMethod.creditCard,
+        PaymentMethod.wallet,
+      ];
 
-  /// Integração efetiva por método (Apple/Google Pay: não integrados).
-  static bool isIntegrated(PaymentMethod m) =>
-      m != PaymentMethod.applePay && m != PaymentMethod.googlePay;
+  static bool isIntegrated(PaymentMethod m) => m.apiMethod != null;
 
-  /// Ponto único de entrada para cobrar. Roteia para o provedor certo
-  /// conforme o método escolhido.
-  static Future<PaymentResult> charge({
-    required PaymentMethod method,
-    required double amount,
-    required String description,
-    required String orderId,
-    String? email,
-  }) async {
-    switch (method) {
-      case PaymentMethod.pix:
-        final data = await PaySvc.generatePix(
-            amount: amount,
-            description: description,
-            email: email ?? '',
-            orderId: orderId);
-        if (data == null)
-          return PaymentResult.fail('Não foi possível gerar o PIX.');
-        // PIX é assíncrono: a confirmação vem por webhook/polling.
-        return PaymentResult.ok(data['id']?.toString() ?? orderId,
-            pending: true);
-
-      case PaymentMethod.wallet:
-        final ok = await FS.payOrderWithWallet(orderId);
-        return ok
-            ? PaymentResult.ok(orderId)
-            : PaymentResult.fail(
-                'Não foi possível pagar com a carteira. Confira o saldo e o preço do pedido.');
-
-      case PaymentMethod.creditCard:
-        // O fluxo de cartão passa por tela dedicada (tokenização PCI).
-        // Este método fica reservado para cobranças com token já obtido.
-        return PaymentResult.fail(
-            'Use a tela de cartão para tokenizar antes de cobrar.');
-
-      case PaymentMethod.googlePay:
-      case PaymentMethod.applePay:
-        // Ponto de integração pronto. A implementação nativa requer o
-        // pacote `pay` + credenciais de merchant configuradas. Enquanto
-        // não conectado, retorna um erro claro em vez de simular sucesso.
-        return PaymentResult.fail(
-            '${method.label} ainda não está ativado. Configure as credenciais de merchant para habilitar.');
-    }
-  }
-
-  /// Indica se o método precisa de uma tela dedicada (cartão) ou pode
-  /// ser cobrado inline (carteira, carteiras digitais nativas).
   static bool needsDedicatedScreen(PaymentMethod method) =>
       method == PaymentMethod.creditCard || method == PaymentMethod.pix;
 }
