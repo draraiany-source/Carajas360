@@ -89,7 +89,9 @@ service cloud.firestore {
     function providerPublicEditable() {
       return [
         'name', 'photoUrl', 'bio', 'city', 'state', 'categories',
-        'modalities', 'minPrice', 'serviceAreas', 'radiusKm', 'updatedAt'
+        'modalities', 'minPrice', 'serviceAreas', 'radiusKm', 'updatedAt',
+        // Fase 4: matching (localização aproximada, disponibilidade, pausa).
+        'geo', 'availability', 'acceptingRequests', 'unavailableUntil'
       ];
     }
     function providerServerKeys() {
@@ -98,7 +100,19 @@ service cloud.firestore {
     function validProviderShape(d) {
       return d.name is string && d.name.size() > 0 && d.name.size() <= 120 &&
         d.categories is list && d.categories.size() > 0 && d.categories.size() <= 30 &&
-        (!('modalities' in d) || d.modalities.hasOnly(['presential', 'online', 'home_care']));
+        (!('modalities' in d) || d.modalities.hasOnly(['presential', 'online', 'home_care'])) &&
+        (!('radiusKm' in d) || d.radiusKm == null || (d.radiusKm is number && d.radiusKm >= 1 && d.radiusKm <= 200)) &&
+        (!('geo' in d) || d.geo == null || (d.geo.keys().hasOnly(['lat', 'lng']) &&
+          d.geo.lat is number && d.geo.lat >= -90 && d.geo.lat <= 90 &&
+          d.geo.lng is number && d.geo.lng >= -180 && d.geo.lng <= 180)) &&
+        (!('availability' in d) || d.availability == null || (d.availability.keys().hasOnly(['weekdays', 'periods']) &&
+          (!('weekdays' in d.availability) || (d.availability.weekdays is list && d.availability.weekdays.size() <= 7 &&
+            d.availability.weekdays.hasOnly([0, 1, 2, 3, 4, 5, 6]))) &&
+          (!('periods' in d.availability) || (d.availability.periods is list &&
+            d.availability.periods.hasOnly(['morning', 'afternoon', 'evening']))))) &&
+        (!('acceptingRequests' in d) || d.acceptingRequests is bool) &&
+        (!('unavailableUntil' in d) || d.unavailableUntil == null ||
+          (d.unavailableUntil is string && d.unavailableUntil.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')));
     }
 
     match /providers/{providerId} {
@@ -537,34 +551,13 @@ service cloud.firestore {
         req().get('matchedProviderId', '') == uid() ||
         isAdmin()
       );
-      allow create: if isAuth() &&
-        incoming().clientId == uid() &&
-        incoming().status == 'open' &&
-        incoming().proposalCount == 0 &&
-        incoming().keys().hasOnly([
-          'clientId', 'clientName', 'description', 'category', 'city',
-          'neighborhood', 'modality', 'status', 'proposalCount',
-          'leadMonetizationReady', 'leadFee', 'createdAt'
-        ]) &&
-        incoming().get('leadFee', null) == null &&
-        incoming().description is string &&
-        incoming().description.size() >= 10 &&
-        incoming().description.size() <= 2000 &&
-        incoming().category is string && incoming().category.size() > 0 &&
-        catalogActive(incoming().category) &&
-        incoming().createdAt == request.time;
+      // Fase 4: criação e aceite SOMENTE pelas callables createResolveRequest
+      // (valida questionário/anexos) e acceptResolveProposal (transacional).
+      allow create: if false;
       allow update: if isAdmin() || (
-        isAuth() && req().clientId == uid() && req().status == 'open' && (
-          // Cancelar a própria solicitação.
-          (changed().hasOnly(['status', 'cancelledAt']) &&
-            incoming().status == 'cancelled') ||
-          // Escolher UMA proposta (lote atômico com a proposta).
-          (changed().hasOnly(['status', 'matchedProviderId', 'matchedProposalId', 'matchedAt']) &&
-            incoming().status == 'matched' &&
-            getAfter(/databases/$(database)/documents/resolveProposals/$(incoming().matchedProposalId)).data.requestId == id &&
-            getAfter(/databases/$(database)/documents/resolveProposals/$(incoming().matchedProposalId)).data.providerId == incoming().matchedProviderId &&
-            getAfter(/databases/$(database)/documents/resolveProposals/$(incoming().matchedProposalId)).data.accepted == true)
-        )
+        isAuth() && req().clientId == uid() && req().status == 'open' &&
+        changed().hasOnly(['status', 'cancelledAt']) &&
+        incoming().status == 'cancelled'
       );
       allow delete: if isAdmin();
 
@@ -578,10 +571,13 @@ service cloud.firestore {
           parent().get('matchedProviderId', '') == uid() ||
           isAdmin()
         );
-        allow create, update: if isAuth() &&
+        // Criado pelo servidor; o cliente só ajusta endereço/contato
+        // (anexos são gravados apenas pelo servidor, após validação).
+        allow create: if false;
+        allow update: if isAuth() &&
           docId == 'details' &&
-          getAfter(/databases/$(database)/documents/resolveRequests/$(id)).data.clientId == uid() &&
-          incoming().keys().hasOnly(['address', 'reference', 'phone', 'updatedAt']);
+          parent().clientId == uid() &&
+          changed().hasOnly(['address', 'reference', 'phone', 'updatedAt']);
         allow delete: if isAdmin();
       }
     }
@@ -598,24 +594,24 @@ service cloud.firestore {
       );
       // Criação somente pela callable submitResolveProposal.
       allow create: if false;
+      // Aceite: só pela callable acceptResolveProposal.
       allow update: if isAdmin() || (
-        // Cliente aceita (em lote com a solicitação -> matched).
-        isAuth() &&
-        parentReq().clientId == uid() &&
-        parentReq().status == 'open' &&
-        resource.data.accepted == false &&
-        changed().hasOnly(['accepted', 'acceptedAt']) &&
-        incoming().accepted == true &&
-        getAfter(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.matchedProposalId == id
-      ) || (
-        // Prestador ajusta a própria proposta enquanto não aceita.
+        // Prestador ajusta ou retira a própria proposta enquanto não aceita.
         isAuth() &&
         resource.data.providerId == uid() &&
         resource.data.accepted == false &&
+        resource.data.get('status', 'sent') == 'sent' &&
         changed().hasOnly(['price', 'deadlineDays', 'message', 'available', 'updatedAt']) &&
         incoming().price is number && incoming().price > 0
       );
       allow delete: if isAdmin();
+    }
+
+    // Agenda do pedido (Fase 4): criada no aceite, só servidor grava.
+    match /scheduleEntries/{orderId} {
+      allow read: if isAuth() && (
+        resource.data.clientId == uid() || resource.data.providerId == uid() || isAdmin());
+      allow write: if false;
     }
 
     // ── Catálogo (Fase 2) ─────────────────────────────────────────

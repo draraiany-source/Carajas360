@@ -410,6 +410,9 @@ class OrderModel {
   final OrderStatus status;
   final bool urgent, reviewed;
   final DateTime createdAt;
+  /// unpaid | pending | paid (servidor). Origem 'resolve' = contratado por proposta.
+  final String paymentStatus;
+  final String? source;
 
   const OrderModel({
     required this.id,
@@ -425,7 +428,11 @@ class OrderModel {
     this.urgent = false,
     this.reviewed = false,
     required this.createdAt,
+    this.paymentStatus = 'unpaid',
+    this.source,
   });
+
+  bool get isPaid => paymentStatus == 'paid';
 
   String get statusLabel {
     switch (status) {
@@ -460,6 +467,8 @@ class OrderModel {
         urgent: m['urgent'] ?? false,
         reviewed: m['reviewed'] ?? false,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        paymentStatus: (m['paymentStatus'] ?? 'unpaid').toString(),
+        source: m['source'] as String?,
       );
 }
 
@@ -1206,10 +1215,13 @@ enum ResolveStatus { open, matched, closed, cancelled }
 /// contato), entregue pela callable listResolveOpportunities.
 class ResolveOpportunity {
   final String id, description, category, city;
-  final String? neighborhood;
-  final int proposalCount;
+  final String? neighborhood, modality, preferredDate, preferredPeriod;
+  final int proposalCount, attachmentCount;
   final DateTime? createdAt;
   final bool alreadyProposed;
+  final double? distanceKm;
+  /// Respostas do questionário (rótulo/valor), sem dados privados.
+  final List<Map<String, String>> answers;
 
   const ResolveOpportunity({
     required this.id,
@@ -1217,9 +1229,15 @@ class ResolveOpportunity {
     required this.category,
     required this.city,
     this.neighborhood,
+    this.modality,
+    this.preferredDate,
+    this.preferredPeriod,
     this.proposalCount = 0,
+    this.attachmentCount = 0,
     this.createdAt,
     this.alreadyProposed = false,
+    this.distanceKm,
+    this.answers = const [],
   });
 
   factory ResolveOpportunity.fromMap(Map<String, dynamic> m) {
@@ -1230,9 +1248,18 @@ class ResolveOpportunity {
       category: (m['category'] ?? '') as String,
       city: (m['city'] ?? '') as String,
       neighborhood: m['neighborhood'] as String?,
+      modality: m['modality'] as String?,
+      preferredDate: m['preferredDate'] as String?,
+      preferredPeriod: m['preferredPeriod'] as String?,
       proposalCount: (m['proposalCount'] as num?)?.toInt() ?? 0,
+      attachmentCount: (m['attachmentCount'] as num?)?.toInt() ?? 0,
       createdAt: ms == null ? null : DateTime.fromMillisecondsSinceEpoch(ms),
       alreadyProposed: m['alreadyProposed'] == true,
+      distanceKm: (m['distanceKm'] as num?)?.toDouble(),
+      answers: ((m['answers'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((a) => {'label': '${a['label'] ?? ''}', 'value': '${a['value'] ?? ''}'})
+          .toList(),
     );
   }
 }
@@ -1252,6 +1279,7 @@ class ResolveOpportunities {
           'Seu cadastro está em análise. Após a aprovação você verá oportunidades.',
         'inactive' => 'Fique disponível (online) para receber oportunidades.',
         'no_services' => 'Informe os serviços que você atende no seu perfil.',
+        'account_blocked' => 'Sua conta está bloqueada. Fale com o suporte.',
         _ => 'Oportunidades indisponíveis no momento.',
       };
 }
@@ -1260,6 +1288,13 @@ class ResolveRequest {
   final String id, clientId, clientName, description, category, city;
   final String? serviceName;
   final String? address;
+  // Fase 4: modalidade, data/período, questionário e contratação.
+  final String modality;
+  final String? preferredDate, preferredPeriod;
+  final List<Map<String, String>> answers;
+  final int attachmentCount;
+  final String? orderId, chatRoomId, matchedProposalId, matchedProviderId;
+  final double? acceptedPrice;
   final ResolveStatus status;
   final int proposalCount;
   final DateTime createdAt;
@@ -1281,6 +1316,16 @@ class ResolveRequest {
     required this.createdAt,
     this.leadMonetizationReady = true,
     this.leadFee,
+    this.modality = 'presential',
+    this.preferredDate,
+    this.preferredPeriod,
+    this.answers = const [],
+    this.attachmentCount = 0,
+    this.orderId,
+    this.chatRoomId,
+    this.matchedProposalId,
+    this.matchedProviderId,
+    this.acceptedPrice,
   });
 
   factory ResolveRequest.fromMap(String id, Map<String, dynamic> m) =>
@@ -1301,6 +1346,19 @@ class ResolveRequest {
             (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         leadMonetizationReady: m['leadMonetizationReady'] ?? true,
         leadFee: (m['leadFee'] as num?)?.toDouble(),
+        modality: (m['modality'] ?? 'presential').toString(),
+        preferredDate: m['preferredDate'] as String?,
+        preferredPeriod: m['preferredPeriod'] as String?,
+        answers: ((m['publicAnswers'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((a) => {'label': '${a['label'] ?? ''}', 'value': '${a['value'] ?? ''}'})
+            .toList(),
+        attachmentCount: (m['attachmentCount'] as num?)?.toInt() ?? 0,
+        orderId: m['orderId'] as String?,
+        chatRoomId: m['chatRoomId'] as String?,
+        matchedProposalId: m['matchedProposalId'] as String?,
+        matchedProviderId: m['matchedProviderId'] as String?,
+        acceptedPrice: ((m['acceptedTerms'] as Map?)?['price'] as num?)?.toDouble(),
       );
 
   Map<String, dynamic> toMap() => {
@@ -1328,6 +1386,8 @@ class ResolveProposal {
   final bool available;
   final DateTime createdAt;
   final bool accepted;
+  /// sent | accepted | not_selected (servidor).
+  final String status;
 
   const ResolveProposal({
     required this.id,
@@ -1343,6 +1403,7 @@ class ResolveProposal {
     this.available = true,
     required this.createdAt,
     this.accepted = false,
+    this.status = 'sent',
   });
 
   factory ResolveProposal.fromMap(String id, Map<String, dynamic> m) =>
@@ -1361,6 +1422,7 @@ class ResolveProposal {
         createdAt:
             (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         accepted: m['accepted'] ?? false,
+        status: (m['status'] ?? 'sent').toString(),
       );
 
   Map<String, dynamic> toMap() => {

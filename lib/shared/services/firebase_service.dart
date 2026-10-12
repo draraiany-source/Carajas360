@@ -1825,39 +1825,68 @@ class FS {
   // resolveRequests/{id}/private/details (cliente, admin e prestador
   // escolhido). Prestadores compatíveis são notificados por evento no
   // servidor (onResolveRequestCreated) — falha de push não afeta o envio.
+  /// Cria a solicitação pela callable (valida questionário e anexos no
+  /// servidor). Idempotente: repetir com o mesmo [requestId] devolve a
+  /// mesma solicitação.
   static Future<String> createResolveRequest({
+    required String requestId,
     required String description,
     required String category,
     required String city,
+    String modality = 'presential',
+    String? preferredDate,
+    String preferredPeriod = 'any',
+    Map<String, double>? geo,
     String? address,
-    String? clientName,
+    String? phone,
+    Map<String, Object?> answers = const {},
   }) async {
     if (_uid == null) {
       throw const CloudCallException('Faça login para pedir orçamento.',
           code: 'unauthenticated');
     }
-    final ref = _db.collection(Col.resolveRequests).doc();
-    final batch = _db.batch();
-    batch.set(ref, {
-      'clientId': _uid,
-      'clientName': clientName ?? '',
+    final r = await CloudFn.call('createResolveRequest', {
+      'requestId': requestId,
       'description': description,
       'category': category,
       'city': city,
-      'status': 'open',
-      'proposalCount': 0,
-      'leadMonetizationReady': true,
-      'leadFee': null,
-      'createdAt': FieldValue.serverTimestamp(),
+      'modality': modality,
+      if (preferredDate != null) 'preferredDate': preferredDate,
+      'preferredPeriod': preferredPeriod,
+      if (geo != null) 'geo': geo,
+      if (address != null && address.trim().isNotEmpty) 'address': address.trim(),
+      if (phone != null && phone.trim().isNotEmpty) 'phone': phone.trim(),
+      'answers': answers,
     });
-    if (address != null && address.trim().isNotEmpty) {
-      batch.set(ref.collection('private').doc('details'), {
-        'address': address.trim(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    }
-    await batch.commit();
-    return ref.id;
+    return (r['id'] ?? '').toString();
+  }
+
+  /// Envia um anexo do questionário para a pasta privada do usuário.
+  /// Retorna o caminho no Storage (o servidor valida tipo e tamanho).
+  static Future<String?> uploadResolveAttachment(
+      Uint8List bytes, String fileName) async {
+    if (_uid == null) return null;
+    final ext = _extOf(fileName);
+    if (!['jpg', 'jpeg', 'png', 'webp', 'pdf'].contains(ext)) return null;
+    final path =
+        'resolveUploads/$_uid/${DateTime.now().microsecondsSinceEpoch}/anexo.$ext';
+    await FirebaseStorage.instance.ref(path).putData(bytes, _metaFor(fileName));
+    return path;
+  }
+
+  static Future<Map<String, dynamic>?> resolveQuestionnaire(String id) async {
+    final s = await _db.collection('serviceQuestionnaires').doc(id).get();
+    if (!s.exists || s.data()?['status'] != 'published') return null;
+    return {'id': s.id, ...s.data()!};
+  }
+
+  static Future<void> cancelResolveRequest(String requestId) =>
+      CloudFn.call('cancelResolveRequest', {'requestId': requestId});
+
+  static Future<String?> resolveAttachmentUrl(String requestId, int index) async {
+    final r = await CloudFn.call(
+        'getResolveAttachmentUrl', {'requestId': requestId, 'index': index});
+    return r['url'] as String?;
   }
 
   static Stream<List<ResolveRequest>> myResolveRequestsStream() {
@@ -1921,28 +1950,15 @@ class FS {
               .map((d) => ResolveProposal.fromMap(d.id, d.data()))
               .toList());
 
-  /// Escolhe UMA proposta em lote atômico (proposta aceita + solicitação
-  /// "matched"). As regras recusam um segundo aceite. O prestador é
-  /// notificado pelo servidor (onResolveRequestMatched).
-  static Future<void> acceptResolveProposal({
+  /// Aceite transacional no servidor: seleciona UMA proposta e cria o
+  /// pedido operacional com chat, agenda e condições financeiras.
+  /// Repetir devolve o mesmo pedido.
+  static Future<Map<String, dynamic>> acceptResolveProposal({
     required String requestId,
     required String proposalId,
-    required String providerId,
-    required String providerName,
-  }) async {
-    final batch = _db.batch();
-    batch.update(_db.collection(Col.resolveProposals).doc(proposalId), {
-      'accepted': true,
-      'acceptedAt': FieldValue.serverTimestamp(),
-    });
-    batch.update(_db.collection(Col.resolveRequests).doc(requestId), {
-      'status': 'matched',
-      'matchedProviderId': providerId,
-      'matchedProposalId': proposalId,
-      'matchedAt': FieldValue.serverTimestamp(),
-    });
-    await batch.commit();
-  }
+  }) =>
+      CloudFn.call('acceptResolveProposal',
+          {'requestId': requestId, 'proposalId': proposalId});
 
   /// Lista salas do usuário autenticado (inbox unificado).
   static Stream<List<ChatRoomPreview>> chatRoomsStream() {

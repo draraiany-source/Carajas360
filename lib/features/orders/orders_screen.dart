@@ -10,6 +10,8 @@ import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../core/catalog/catalog_service.dart';
 import '../../core/catalog/catalog_widgets.dart';
+import '../checkout/payment_screens.dart';
+import '../checkout/payments_api.dart';
 
 // ─────────────────────────────────────────────────────────────
 // FAVORITES SCREEN (Vol.3/Vol.5: coleção favorites)
@@ -279,6 +281,24 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                                       style: TextStyle(
                                           fontSize: 12,
                                           color: AppColors.error))),
+                            // Pagamento pelo servidor (Fase 3), com o valor do pedido.
+                            if (!o.isPaid &&
+                                o.clientId == AuthService.uid &&
+                                (o.price ?? 0) > 0 &&
+                                (o.status == OrderStatus.accepted ||
+                                    o.status == OrderStatus.inProgress))
+                              TextButton(
+                                  onPressed: () => _pay(context, o),
+                                  child: const Text('Pagar',
+                                      style: TextStyle(fontSize: 12))),
+                            if (o.isPaid)
+                              const Padding(
+                                  padding: EdgeInsets.only(right: 6),
+                                  child: Text('Pago',
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          color: AppColors.secondary,
+                                          fontWeight: FontWeight.w700))),
                             if (o.status == OrderStatus.inProgress)
                               TextButton(
                                   onPressed: () => Navigator.pushNamed(
@@ -305,6 +325,26 @@ class _MyOrdersState extends State<MyOrdersScreen> {
           )),
         ]),
       );
+
+  void _pay(BuildContext context, OrderModel o) {
+    final target = PayTarget('service', o.id, ((o.price ?? 0) * 100).round(), o.title);
+    showModalBottomSheet(
+        context: context,
+        builder: (c) => SafeArea(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                for (final m in const [('pix', 'Pix'), ('card', 'Cartão de crédito')])
+                  ListTile(
+                      title: Text(m.$2),
+                      onTap: () {
+                        Navigator.pop(c);
+                        Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                                builder: (_) => PaymentScreen(target: target, method: m.$1)));
+                      }),
+              ]),
+            ));
+  }
 
   Widget _filterChip(String label, OrderStatus? status) {
     final sel = _filter == status;

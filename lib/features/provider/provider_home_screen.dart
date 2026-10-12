@@ -14,6 +14,7 @@ import '../../shared/widgets/widgets.dart';
 import '../../core/catalog/catalog_service.dart';
 import '../../core/catalog/catalog_widgets.dart';
 import 'provider_services_screen.dart';
+import 'provider_attendance_screen.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PROVIDER HOME SCREEN (Vol.3: Perfil do Profissional — Serviços,
@@ -187,6 +188,20 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                                       const ProviderServicesScreen())),
                           icon: const Icon(Icons.tune_rounded, size: 18),
                           label: const Text('Minhas especialidades'),
+                        ),
+                      ),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: TextButton.icon(
+                          style: TextButton.styleFrom(
+                              foregroundColor: Colors.white),
+                          onPressed: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                  builder: (_) =>
+                                      const ProviderAttendanceScreen())),
+                          icon: const Icon(Icons.place_outlined, size: 18),
+                          label: const Text('Meu atendimento (raio, dias, modalidade)'),
                         ),
                       ),
                       // ── Ganhos do dia, no padrão dos apps de motorista/entregador.

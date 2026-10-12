@@ -52,6 +52,18 @@ service firebase.storage {
         docType in ['document', 'selfie', 'certificate'] && isDocOrImage();
     }
 
+    // Anexos do questionário Resolve (Fase 4): o cliente envia para a
+    // própria pasta; o servidor valida e só libera ao profissional
+    // escolhido por URL temporária (getResolveAttachmentUrl).
+    match /resolveUploads/{userId}/{allPaths=**} {
+      allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAuth() && request.auth.uid == userId && resource == null &&
+        (request.resource.contentType.matches('image/(jpeg|png|webp|heic)') ||
+         request.resource.contentType == 'application/pdf') &&
+        request.resource.size < 10 * 1024 * 1024;
+      allow update, delete: if false;
+    }
+
     match /orders/{orderId}/{allPaths=**} {
       allow read: if isAuth() && (
         firestore.get(/databases/(default)/documents/orders/$(orderId)).data.clientId

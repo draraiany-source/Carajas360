@@ -62,8 +62,10 @@ test('nova contratação exige serviço ativo no catálogo', async () => {
   // Fase 3: compra do Mercado só via createMarketOrder (valores do servidor).
   await assertFails(setDoc(doc(as('cli'), 'orders/o6'), { ...base, type: 'marketplace', category: 'marketplace' }));
   const req = { clientId: 'cli', clientName: 'C', description: 'Preciso trocar pastilhas', city: 'X', status: 'open', proposalCount: 0, leadMonetizationReady: true, leadFee: null, createdAt: serverTimestamp() };
+  // Fase 4: solicitação só pela callable createResolveRequest (que também
+  // exige o serviço ativo — coberto nos testes de integração).
   await assertFails(setDoc(doc(as('cli'), 'resolveRequests/r1'), { ...req, category: 'svc_freios' }));
-  await assertSucceeds(setDoc(doc(as('cli'), 'resolveRequests/r2'), { ...req, category: 'eletricista' }));
+  await assertFails(setDoc(doc(as('cli'), 'resolveRequests/r2'), { ...req, category: 'eletricista' }));
 });
 
 test('índice de busca de empresa é do servidor', async () => {

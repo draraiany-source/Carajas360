@@ -169,14 +169,14 @@ describe('resolve', () => {
     category: 'eletricista', city: 'Parauapebas', status: 'open', proposalCount: 0,
     leadMonetizationReady: true, leadFee: null,
   };
-  test('solicitação não aceita endereço no documento principal', async () => {
+  test('solicitação não é criada direto pelo app (só pela callable)', async () => {
     await assertFails(setDoc(doc(as('cli'), 'resolveRequests/r1'), { ...base, address: 'Rua A, 10', createdAt: serverTimestamp() }));
     await assertFails(setDoc(doc(as('cli'), 'resolveRequests/r1'), { ...base, proposalCount: 3, createdAt: serverTimestamp() }));
     const db = as('cli');
     const b = writeBatch(db);
     b.set(doc(db, 'resolveRequests/r1'), { ...base, createdAt: serverTimestamp() });
     b.set(doc(db, 'resolveRequests/r1/private/details'), { address: 'Rua A, 10', updatedAt: serverTimestamp() });
-    await assertSucceeds(b.commit());
+    await assertFails(b.commit(), 'Fase 4: createResolveRequest valida questionário/anexos');
   });
   test('qualquer autenticado NÃO lê solicitações nem endereços', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
@@ -196,7 +196,7 @@ describe('resolve', () => {
     await assertFails(setDoc(doc(as('pro'), 'resolveProposals/r1_pro'), { requestId: 'r1', providerId: 'pro', price: 100, accepted: false }));
     await assertFails(updateDoc(doc(as('pro'), 'resolveRequests/r1'), { proposalCount: 1 }));
   });
-  test('aceite atômico de uma única proposta; prestador escolhido passa a ver detalhes', async () => {
+  test('aceite só pela callable; prestador escolhido passa a ver detalhes', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => {
       const db = ctx.firestore();
       await setDoc(doc(db, 'resolveRequests/r1'), base);
@@ -204,28 +204,23 @@ describe('resolve', () => {
       await setDoc(doc(db, 'resolveProposals/r1_pro'), { requestId: 'r1', clientId: 'cli', providerId: 'pro', price: 100, accepted: false });
       await setDoc(doc(db, 'resolveProposals/r1_adv'), { requestId: 'r1', clientId: 'cli', providerId: 'adv', price: 90, accepted: false });
     });
-    // Terceiro não aceita.
+    // Nem terceiro nem o próprio cliente aceitam direto pelo app (Fase 4).
     const advDb = as('adv');
     const bad = writeBatch(advDb);
     bad.update(doc(advDb, 'resolveProposals/r1_adv'), { accepted: true, acceptedAt: serverTimestamp() });
     bad.update(doc(advDb, 'resolveRequests/r1'), { status: 'matched', matchedProviderId: 'adv', matchedProposalId: 'r1_adv', matchedAt: serverTimestamp() });
     await assertFails(bad.commit());
-    // Inconsistente (prestador != proposta) falha.
     const cliDb = as('cli');
-    const wrong = writeBatch(cliDb);
-    wrong.update(doc(cliDb, 'resolveProposals/r1_pro'), { accepted: true, acceptedAt: serverTimestamp() });
-    wrong.update(doc(cliDb, 'resolveRequests/r1'), { status: 'matched', matchedProviderId: 'adv', matchedProposalId: 'r1_pro', matchedAt: serverTimestamp() });
-    await assertFails(wrong.commit());
-    // Cliente aceita corretamente.
-    const ok = writeBatch(cliDb);
-    ok.update(doc(cliDb, 'resolveProposals/r1_pro'), { accepted: true, acceptedAt: serverTimestamp() });
-    ok.update(doc(cliDb, 'resolveRequests/r1'), { status: 'matched', matchedProviderId: 'pro', matchedProposalId: 'r1_pro', matchedAt: serverTimestamp() });
-    await assertSucceeds(ok.commit());
-    // Segundo aceite (concorrente/repetição) é recusado.
-    const again = writeBatch(cliDb);
-    again.update(doc(cliDb, 'resolveProposals/r1_adv'), { accepted: true, acceptedAt: serverTimestamp() });
-    again.update(doc(cliDb, 'resolveRequests/r1'), { status: 'matched', matchedProviderId: 'adv', matchedProposalId: 'r1_adv', matchedAt: serverTimestamp() });
-    await assertFails(again.commit());
+    const direct = writeBatch(cliDb);
+    direct.update(doc(cliDb, 'resolveProposals/r1_pro'), { accepted: true, acceptedAt: serverTimestamp() });
+    direct.update(doc(cliDb, 'resolveRequests/r1'), { status: 'matched', matchedProviderId: 'pro', matchedProposalId: 'r1_pro', matchedAt: serverTimestamp() });
+    await assertFails(direct.commit());
+    // Cliente ainda pode cancelar a própria solicitação aberta.
+    await assertSucceeds(updateDoc(doc(cliDb, 'resolveRequests/r1'), { status: 'cancelled', cancelledAt: serverTimestamp() }));
+    // Servidor registra o aceite.
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      await setDoc(doc(ctx.firestore(), 'resolveRequests/r1'), { ...base, status: 'matched', matchedProviderId: 'pro', matchedProposalId: 'r1_pro' });
+    });
     await assertSucceeds(getDoc(doc(as('pro'), 'resolveRequests/r1')));
     await assertSucceeds(getDoc(doc(as('pro'), 'resolveRequests/r1/private/details')));
     await assertFails(getDoc(doc(as('adv'), 'resolveRequests/r1/private/details')));

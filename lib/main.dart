@@ -221,7 +221,9 @@ class ServicoConectaApp extends StatelessWidget {
               case Routes.servicesHub:
                 return _route(const ServicesHubScreen());
               case Routes.resolve:
-                return _route(const ResolveScreen());
+                final ra2 = settings.arguments as Map<String, dynamic>?;
+                return _route(ResolveScreen(
+                    initialCatalogId: ra2?['catalogId'] as String?));
               case Routes.resolveDetail:
                 final a = settings.arguments as Map<String, dynamic>?;
                 final rid = a?['id'] as String? ?? '';

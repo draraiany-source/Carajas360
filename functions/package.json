@@ -2,7 +2,7 @@
   "name": "servicoconecta-functions",
   "description": "Cloud Functions - ServiçoConecta",
   "scripts": {
-    "test": "node --test orderPolicy.test.js security.test.js catalogCore.test.js financeCore.test.js gateway.test.js",
+    "test": "node --test orderPolicy.test.js security.test.js catalogCore.test.js financeCore.test.js gateway.test.js resolveCore.test.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "deploy": "firebase deploy --only functions",

@@ -684,151 +684,8 @@ async function recomputeProviderRating(providerId) {
   return { rating, totalReviews };
 }
 
-// ── Resolve Carajás: matching e propostas (servidor) ──────────────
-
-async function loadProvider(uid) {
-  const snap = await db.collection('providers').doc(uid).get();
-  return snap.exists ? { id: snap.id, ...snap.data() } : null;
-}
-
-/**
- * Oportunidades para o prestador logado: só se aprovado e ativo, só
- * dos serviços que ele atende e da região dele. Sem endereço/contato.
- */
-exports.listResolveOpportunities = functions.region(REGION).https.onCall(async (data, context) => {
-  const auth = requireAuth(context);
-  await enforceRateLimit(auth.uid, 'resolve_list', 120, 60 * 60 * 1000);
-  const provider = await loadProvider(auth.uid);
-  if (!provider) return { eligible: false, reason: 'not_provider', items: [] };
-  if (provider.verified !== true) return { eligible: false, reason: 'not_verified', items: [] };
-  if (provider.active !== true) return { eligible: false, reason: 'inactive', items: [] };
-  const cats = (Array.isArray(provider.categories) ? provider.categories : []).filter(Boolean);
-  if (cats.length === 0) return { eligible: false, reason: 'no_services', items: [] };
-
-  const results = [];
-  for (const part of sec.chunk(cats, sec.IN_QUERY_LIMIT)) {
-    const snap = await db.collection('resolveRequests')
-      .where('status', '==', 'open')
-      .where('category', 'in', part)
-      .orderBy('createdAt', 'desc')
-      .limit(40)
-      .get();
-    for (const d of snap.docs) {
-      const r = d.data();
-      if (sec.providerEligibility(provider, r, auth.uid).ok) {
-        results.push(sec.opportunityView(d.id, r));
-      }
-    }
-  }
-  results.sort((a, b) => (b.createdAtMs || 0) - (a.createdAtMs || 0));
-  const items = results.slice(0, 40);
-
-  // Marca as que o prestador já respondeu (id determinístico).
-  if (items.length) {
-    const refs = items.map((i) => db.collection('resolveProposals').doc(`${i.id}_${auth.uid}`));
-    const got = await db.getAll(...refs);
-    got.forEach((s, idx) => { items[idx].alreadyProposed = s.exists; });
-  }
-  return { eligible: true, reason: null, items };
-});
-
-/**
- * Envio de proposta: transação valida solicitação aberta, prestador
- * aprovado/ativo/compatível e impede proposta duplicada. Dados do
- * prestador (nome, foto, nota) vêm do servidor, não do cliente.
- */
-exports.submitResolveProposal = functions.region(REGION).https.onCall(async (data, context) => {
-  const auth = requireAuth(context);
-  await enforceRateLimit(auth.uid, 'resolve_propose', 60, 60 * 60 * 1000);
-  const requestId = String(data?.requestId || '');
-  if (!requestId) throw httpsError('invalid-argument', 'requestId obrigatório');
-  const input = sec.validateProposalInput(data || {});
-  if (!input.ok) throw httpsError('invalid-argument', 'Proposta inválida: ' + input.reason);
-
-  const proposalId = `${requestId}_${auth.uid}`;
-  const result = await db.runTransaction(async (tx) => {
-    const reqRef = db.collection('resolveRequests').doc(requestId);
-    const provRef = db.collection('providers').doc(auth.uid);
-    const propRef = db.collection('resolveProposals').doc(proposalId);
-    const [reqSnap, provSnap, propSnap] = await Promise.all([
-      tx.get(reqRef), tx.get(provRef), tx.get(propRef),
-    ]);
-    if (!reqSnap.exists) throw httpsError('not-found', 'Solicitação não encontrada');
-    const req = reqSnap.data();
-    if (req.status !== 'open') throw httpsError('failed-precondition', 'Solicitação não está mais aberta');
-    const provider = provSnap.exists ? { id: provSnap.id, ...provSnap.data() } : null;
-    const elig = sec.providerEligibility(provider, req, auth.uid);
-    if (!elig.ok) throw httpsError('permission-denied', 'Prestador não elegível: ' + elig.reason);
-    if (propSnap.exists) throw httpsError('already-exists', 'Você já enviou proposta para esta solicitação');
-
-    tx.set(propRef, {
-      requestId,
-      clientId: req.clientId,
-      providerId: auth.uid,
-      providerName: provider.name || 'Profissional',
-      providerPhoto: provider.photoUrl || null,
-      rating: Number(provider.rating || 0),
-      totalServices: Number(provider.totalReviews || 0),
-      category: req.category,
-      price: input.value.price,
-      deadlineDays: input.value.deadlineDays,
-      message: input.value.message,
-      available: true,
-      accepted: false,
-      createdAt: FieldValue.serverTimestamp(),
-    });
-    tx.update(reqRef, { proposalCount: FieldValue.increment(1) });
-    return { clientId: req.clientId, providerName: provider.name || 'Profissional' };
-  });
-
-  await notifySafe(result.clientId, '💬 Nova proposta Resolve',
-    `${result.providerName} enviou uma proposta para seu pedido.`, 'resolve');
-  return { ok: true, id: proposalId };
-});
-
-/**
- * Notificação por evento: ao salvar uma solicitação, avisa prestadores
- * aprovados, ativos, do serviço e da região. Falha de push não afeta
- * a solicitação (já persistida).
- */
-exports.onResolveRequestCreated = functions.firestore
-  .document('resolveRequests/{id}')
-  .onCreate(async (snap) => {
-    const r = snap.data() || {};
-    if (!r.category || r.status !== 'open') return null;
-    const providers = await db.collection('providers')
-      .where('verified', '==', true)
-      .where('active', '==', true)
-      .where('categories', 'array-contains', r.category)
-      .limit(100)
-      .get();
-    const text = String(r.description || '');
-    const body = text.length > 80 ? `${text.slice(0, 80)}…` : text;
-    let sent = 0;
-    for (const p of providers.docs) {
-      const prov = { id: p.id, ...p.data() };
-      const uid = prov.userId || p.id;
-      if (!sec.providerEligibility(prov, r, uid).ok) continue;
-      await notifySafe(uid, '⚡ Nova oportunidade Resolve', body, 'resolve');
-      sent += 1;
-      if (sent >= 50) break;
-    }
-    return null;
-  });
-
-/** Ao aceitar uma proposta (status -> matched), avisa o prestador escolhido. */
-exports.onResolveRequestMatched = functions.firestore
-  .document('resolveRequests/{id}')
-  .onUpdate(async (change) => {
-    const before = change.before.data() || {};
-    const after = change.after.data() || {};
-    if (before.status === 'matched' || after.status !== 'matched' || !after.matchedProviderId) {
-      return null;
-    }
-    await notifySafe(after.matchedProviderId, '✅ Proposta aceita!',
-      'Sua proposta Resolve foi aceita. Fale com o cliente no chat.', 'resolve');
-    return null;
-  });
+// ── Resolve Carajás: ver resolve.js (Fase 4: questionário, matching,
+// propostas e aceite transacional). ──────────────────────────────────
 
 // ── Migração segura (homologação primeiro) ────────────────────────
 
@@ -999,3 +856,10 @@ const payments = require('./payments')({
 });
 delete payments.__internals;
 Object.assign(exports, payments);
+
+// ── Resolve Carajás (Fase 4) ──
+const resolve = require('./resolve')({
+  functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, notifySafe,
+});
+delete resolve.__internals;
+Object.assign(exports, resolve);

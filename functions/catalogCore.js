@@ -230,14 +230,15 @@ function serviceSnapshot(id, nodes) {
   const svc = by('service');
   return {
     id,
-    name: p[p.length - 1].name,
+    name: p[p.length - 1].name || id,
     level: p[p.length - 1].level,
     categoryId: cat ? cat.id : null,
-    categoryName: cat ? cat.name : null,
+    categoryName: cat ? cat.name || null : null,
     groupId: grp ? grp.id : null,
-    groupName: grp ? grp.name : null,
+    groupName: grp ? grp.name || null : null,
     serviceId: svc ? svc.id : null,
-    vertical: cat ? cat.vertical : null,
+    // Campos ausentes viram null (Firestore recusa undefined).
+    vertical: cat && cat.vertical != null ? cat.vertical : null,
   };
 }
 
