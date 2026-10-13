@@ -1184,7 +1184,9 @@ class BookingModel {
         end: (m['end'] as Timestamp?)?.toDate() ?? DateTime.now(),
         period: m['period'] ?? 'diária',
         quantity: m['quantity'] ?? 1,
-        total: (m['total'] as num?)?.toDouble() ?? 0,
+        total: (m['totalCents'] as num?) != null
+            ? (m['totalCents'] as num) / 100
+            : (m['total'] as num?)?.toDouble() ?? 0,
         status: BookingStatus.values.firstWhere(
             (s) => s.name == (m['status'] ?? 'pending'),
             orElse: () => BookingStatus.pending),

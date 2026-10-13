@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'health_booking.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/constants/app_assets.dart';
 import '../../core/utils/chat_nav.dart';
 import '../../core/catalog/catalog.dart';
 import '../../core/catalog/catalog_service.dart';
@@ -172,14 +172,28 @@ class _HealthState extends State<HealthScreen> {
               child: Padding(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Row(children: [
-                    _action('🚨', 'Urgente', 'Agora', AppColors.error,
-                        () => _schedule('Consulta Urgente', 0)),
+                    // Emergência não é agendável: orienta o serviço público.
+                    _action('🚨', 'Emergência', 'SAMU 192', AppColors.error,
+                        () => showDialog(
+                            context: context,
+                            builder: (d) => AlertDialog(
+                                  title: const Text('Emergência'),
+                                  content: const Text(
+                                      'Em caso de emergência, ligue 192 (SAMU) ou procure o pronto-socorro mais próximo. O app não faz atendimento de urgência.'),
+                                  actions: [
+                                    TextButton(
+                                        onPressed: () => Navigator.pop(d),
+                                        child: const Text('Entendi'))
+                                  ],
+                                ))),
                     const SizedBox(width: 8),
-                    _action('📅', 'Agendar', 'Escolha data', AppColors.health,
-                        () => _schedule('Consulta', 150)),
+                    _action('📅', 'Agendar', 'Escolha abaixo', AppColors.health,
+                        () => snack(context,
+                            'Escolha um profissional na lista para ver os horários livres.',
+                            bg: AppColors.health)),
                     const SizedBox(width: 8),
                     _action('🏡', 'Home Care', 'Domiciliar', AppColors.teal,
-                        () => _schedule('Home Care', 200)),
+                        () => setState(() => _mode = 3)),
                   ]))),
           const SliverToBoxAdapter(
               child: Padding(
@@ -231,8 +245,7 @@ class _HealthState extends State<HealthScreen> {
                         photo: p.photoUrl,
                         avatarBg: AppColors.health,
                         providerId: p.id,
-                        onTap: () => _schedule(
-                            spName, p.minPrice?.toInt() ?? 150),
+                        onTap: () => _schedule(p.id, p.name, spId, spName),
                         onChat: () => ChatNav.open(context,
                             otherUserId:
                                 p.userId.isNotEmpty ? p.userId : p.id,
@@ -342,275 +355,16 @@ class _HealthState extends State<HealthScreen> {
                 ]),
               )));
 
-  void _schedule(String type, int price) => showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _ScheduleSheet(type: type, price: price));
-}
-
-class _ScheduleSheet extends StatefulWidget {
-  final String type;
-  final int price;
-  const _ScheduleSheet({required this.type, required this.price});
-  @override
-  State<_ScheduleSheet> createState() => _ScheduleSheetState();
-}
-
-class _ScheduleSheetState extends State<_ScheduleSheet> {
-  int _step = 0;
-  String? _time, _mode;
-  bool _loading = false;
-  final _times = [
-    '08:00',
-    '09:00',
-    '10:00',
-    '11:00',
-    '14:00',
-    '15:00',
-    '16:00',
-    '17:00'
-  ];
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(height: 8),
-          const SheetHandle(),
-          const SizedBox(height: 16),
-          Text('Agendar ${widget.type}',
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 20),
-          if (_step == 0) ...[
-            const Text('Modalidade do atendimento:',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            Row(children: [
-              for (final m in ['📹 Online', '🏠 Presencial', '🏡 Domiciliar'])
-                Expanded(
-                    child: GestureDetector(
-                        onTap: () => setState(() {
-                              _mode = m;
-                              _step = 1;
-                            }),
-                        child: Container(
-                            margin: EdgeInsets.only(
-                                right: m == '🏡 Domiciliar' ? 0 : 8),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            decoration: AppDecorations.gradient(
-                                AppGradients.health,
-                                r: 14),
-                            child: Text(m,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 11)))))
-            ]),
-          ] else if (_step == 1) ...[
-            Text('Modo: $_mode',
-                style: const TextStyle(
-                    color: AppColors.health, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 10),
-            const Text('Escolha o horário:',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            GridView.count(
-                shrinkWrap: true,
-                crossAxisCount: 4,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 2.2,
-                children: _times
-                    .map((t) => GestureDetector(
-                        onTap: () => setState(() {
-                              _time = t;
-                              _step = 2;
-                            }),
-                        child: Container(
-                            decoration: AppDecorations.outlined(
-                                r: 10,
-                                color: _time == t ? AppColors.health : null),
-                            alignment: Alignment.center,
-                            child: Text(t,
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: _time == t
-                                        ? AppColors.health
-                                        : AppColors.textDark)))))
-                    .toList()),
-          ] else ...[
-            Text('Modalidade: $_mode — Horário: $_time',
-                style: const TextStyle(
-                    color: AppColors.health, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 14),
-            Container(
-                decoration: AppDecorations.card(r: 16),
-                padding: const EdgeInsets.all(16),
-                child: Column(children: [
-                  _row('Serviço', widget.type),
-                  _row('Modo', _mode ?? ''),
-                  _row('Horário', _time ?? ''),
-                  _row('Valor', PaySvc.fmt(widget.price.toDouble())),
-                  const Divider(),
-                  _row('Total', PaySvc.fmt(widget.price.toDouble()),
-                      bold: true),
-                ])),
-            const SizedBox(height: 14),
-            SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _loading
-                      ? null
-                      : () async {
-                          setState(() => _loading = true);
-                          await FS.createAppointment({
-                            'type': widget.type,
-                            'mode': _mode,
-                            'time': _time,
-                            'price': widget.price
-                          });
-                          final uid = AuthService.uid;
-                          if (uid != null)
-                            await FS.pushNotif(uid, '🏥 Consulta agendada!',
-                                '${widget.type} às $_time', 'health');
-                          if (mounted) {
-                            Navigator.pop(context);
-                            snack(context, '✅ Consulta agendada com sucesso!',
-                                bg: AppColors.health);
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.health,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14))),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
-                      : const Text('✓ Confirmar agendamento',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                              color: Colors.white)),
-                )),
-          ],
-        ]),
-      );
-
-  Widget _row(String label, String value, {bool bold = false}) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label,
-            style: const TextStyle(fontSize: 13, color: AppColors.textLight)),
-        Text(value,
-            style: TextStyle(
-                fontSize: 13,
-                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-                color: AppColors.textDark))
-      ]));
-}
-
-// ─────────────────────────────────────────────────────────────
-// MEUS AGENDAMENTOS (Vol.14: Saúde/Home Care — Agenda)
-// Lista os agendamentos criados pelo usuário e permite cancelar.
-// ─────────────────────────────────────────────────────────────
-class AppointmentsScreen extends StatelessWidget {
-  const AppointmentsScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-            title: const Text('Meus agendamentos'),
-            backgroundColor: AppColors.health,
-            foregroundColor: Colors.white),
-        body: StreamBuilder<List<Map<String, dynamic>>>(
-          stream: FS.appointmentsStream(),
-          builder: (_, snap) {
-            if (snap.connectionState == ConnectionState.waiting)
-              return const Center(child: CircularProgressIndicator());
-            final items = snap.data ?? [];
-            if (items.isEmpty)
-              return const EmptyState(
-                  emoji: '📅',
-                  title: 'Nenhum agendamento',
-                  subtitle: 'Seus agendamentos de saúde aparecerão aqui',
-                  asset: AppAssets.ilListaVazia);
-            return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: items.length,
-                itemBuilder: (_, i) {
-                  final a = items[i];
-                  final status = a['status'] as String? ?? 'scheduled';
-                  final cancelled = status == 'cancelled';
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: AppDecorations.card(r: 16),
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                    color: AppColors.health.withOpacity(0.12),
-                                    borderRadius: BorderRadius.circular(12)),
-                                alignment: Alignment.center,
-                                child: const Text('🏥',
-                                    style: TextStyle(fontSize: 20))),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                  Text(a['type']?.toString() ?? 'Consulta',
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14)),
-                                  if (a['time'] != null)
-                                    Text('Horário: ${a['time']}',
-                                        style: const TextStyle(
-                                            fontSize: 12,
-                                            color: AppColors.textLight)),
-                                ])),
-                            AppTag(cancelled ? '❌ Cancelado' : '✅ Agendado',
-                                bg: AppColors.background,
-                                fg: cancelled
-                                    ? AppColors.error
-                                    : AppColors.health),
-                          ]),
-                          if (!cancelled)
-                            Padding(
-                                padding: const EdgeInsets.only(top: 8),
-                                child: Align(
-                                    alignment: Alignment.centerRight,
-                                    child: TextButton(
-                                      onPressed: () async {
-                                        await FS.cancelAppointment(
-                                            a['id'] as String);
-                                        if (context.mounted)
-                                          snack(
-                                              context, 'Agendamento cancelado',
-                                              bg: AppColors.error);
-                                      },
-                                      child: const Text('Cancelar',
-                                          style: TextStyle(
-                                              fontSize: 12,
-                                              color: AppColors.error)),
-                                    ))),
-                        ]),
-                  );
-                });
-          },
-        ),
-      );
+  /// Agendamento real: profissional + especialidade + horário da agenda.
+  void _schedule(String providerId, String name, String catalogId, String service) {
+    if (!AuthService.isAuth) {
+      snack(context, 'Faça login para agendar.');
+      return;
+    }
+    Navigator.push(
+        context,
+        MaterialPageRoute(
+            builder: (_) => HealthBookingScreen(
+                providerId: providerId, providerName: name, catalogId: catalogId, serviceName: service)));
+  }
 }

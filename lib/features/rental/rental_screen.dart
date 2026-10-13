@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
+import '../../core/security/order_policy.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
@@ -916,6 +917,41 @@ class _BookingSheetState extends State<_BookingSheet> {
   DateTime _start = DateTime.now().add(const Duration(days: 1));
   final _note = TextEditingController();
   bool _saving = false;
+  // Mesmo id em repetições: o servidor não duplica a reserva.
+  final _requestId = 'bk${DateTime.now().microsecondsSinceEpoch}';
+  static const _keys = {'hora': 'hour', 'diária': 'day', 'semana': 'week', 'mês': 'month'};
+  Map<String, dynamic>? _quote;
+  String? _quoteError;
+  List<({DateTime start, DateTime end, bool pending})> _busy = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshQuote();
+    FS.rentalBusy(widget.rental.id).then((b) {
+      if (mounted) setState(() => _busy = b);
+    }).catchError((_) {});
+  }
+
+  /// Início às 08:00 do dia escolhido (diária/semana/mês) ou no próximo
+  /// horário cheio (por hora).
+  int get _startMs => DateTime(_start.year, _start.month, _start.day, 8).millisecondsSinceEpoch;
+
+  Future<void> _refreshQuote() async {
+    setState(() {
+      _quote = null;
+      _quoteError = null;
+    });
+    try {
+      final q = await FS.quoteRentalBooking(
+          rentalId: widget.rental.id, period: _keys[_period] ?? 'day', quantity: _qty, startMs: _startMs);
+      if (mounted) setState(() => _quote = q);
+    } on CloudCallException catch (e) {
+      if (mounted) setState(() => _quoteError = e.message);
+    } catch (_) {
+      if (mounted) setState(() => _quoteError = 'Não foi possível calcular o valor.');
+    }
+  }
 
   @override
   void dispose() {
@@ -923,16 +959,8 @@ class _BookingSheetState extends State<_BookingSheet> {
     super.dispose();
   }
 
-  double get _unit => _prices[_period] ?? 0;
-  double get _total => _unit * _qty;
-
-  /// Data final calculada a partir do período e da quantidade.
-  DateTime get _end => switch (_period) {
-        'hora' => _start.add(Duration(hours: _qty)),
-        'semana' => _start.add(Duration(days: 7 * _qty)),
-        'mês' => DateTime(_start.year, _start.month + _qty, _start.day),
-        _ => _start.add(Duration(days: _qty)),
-      };
+  double get _unit => ((_quote?['unitCents'] as num?) ?? 0) / 100;
+  double get _total => ((_quote?['totalCents'] as num?) ?? 0) / 100;
 
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
@@ -945,40 +973,37 @@ class _BookingSheetState extends State<_BookingSheet> {
       firstDate: now,
       lastDate: now.add(const Duration(days: 365)),
     );
-    if (picked != null) setState(() => _start = picked);
+    if (picked != null) {
+      setState(() => _start = picked);
+      _refreshQuote();
+    }
   }
 
   Future<void> _confirm() async {
-    if (_unit <= 0) {
-      snack(context, 'Este período não tem valor definido.',
-          bg: AppColors.error);
+    if (_quote == null) {
+      snack(context, _quoteError ?? 'Aguarde o cálculo do valor.', bg: AppColors.error);
       return;
     }
     setState(() => _saving = true);
-    final id = await FS.createBooking(BookingModel(
-      id: '',
-      rentalId: widget.rental.id,
-      rentalTitle: widget.rental.title,
-      ownerId: widget.rental.ownerId,
-      clientId: '',
-      clientName: 'Cliente',
-      start: _start,
-      end: _end,
-      period: _period,
-      quantity: _qty,
-      total: _total,
-      note: _note.text.trim(),
-      createdAt: DateTime.now(),
-    ));
-    if (!mounted) return;
-    setState(() => _saving = false);
-    Navigator.pop(context);
-    snack(
-        context,
-        id != null
-            ? '✅ Reserva solicitada! O anunciante vai confirmar.'
-            : 'Falha ao solicitar a reserva.',
-        bg: id != null ? AppColors.secondary : AppColors.error);
+    try {
+      await FS.createRentalBooking(
+        requestId: _requestId,
+        rentalId: widget.rental.id,
+        period: _keys[_period] ?? 'day',
+        quantity: _qty,
+        startMs: _startMs,
+        note: _note.text,
+      );
+      if (!mounted) return;
+      Navigator.pop(context);
+      snack(context, '✅ Reserva solicitada! O anunciante vai confirmar.', bg: AppColors.secondary);
+    } on CloudCallException catch (e) {
+      if (mounted) snack(context, e.message, bg: AppColors.error);
+    } catch (_) {
+      if (mounted) snack(context, 'Sem resposta do servidor. Tente de novo — a reserva não será duplicada.', bg: AppColors.error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
   }
 
   @override
@@ -1006,7 +1031,10 @@ class _BookingSheetState extends State<_BookingSheet> {
                 .map((e) => ChoiceChip(
                       label: Text('${e.key} · ${PaySvc.fmt(e.value!)}'),
                       selected: _period == e.key,
-                      onSelected: (_) => setState(() => _period = e.key),
+                      onSelected: (_) {
+                        setState(() => _period = e.key);
+                        _refreshQuote();
+                      },
                     ))
                 .toList()),
         const SizedBox(height: 16),
@@ -1039,12 +1067,20 @@ class _BookingSheetState extends State<_BookingSheet> {
             child: Row(children: [
               IconButton(
                   icon: const Icon(Icons.remove_rounded, size: 18),
-                  onPressed: _qty > 1 ? () => setState(() => _qty--) : null),
+                  onPressed: _qty > 1
+                      ? () {
+                          setState(() => _qty--);
+                          _refreshQuote();
+                        }
+                      : null),
               Text('$_qty',
                   style: const TextStyle(fontWeight: FontWeight.w800)),
               IconButton(
                   icon: const Icon(Icons.add_rounded, size: 18),
-                  onPressed: () => setState(() => _qty++)),
+                  onPressed: () {
+                    setState(() => _qty++);
+                    _refreshQuote();
+                  }),
             ]),
           ),
         ]),
@@ -1052,10 +1088,20 @@ class _BookingSheetState extends State<_BookingSheet> {
         Align(
             alignment: Alignment.centerLeft,
             child: Text(
-              'De ${_fmtDate(_start)} até ${_fmtDate(_end)}',
+              _quote == null
+                  ? (_quoteError ?? 'Calculando…')
+                  : 'De ${_fmtDate(DateTime.fromMillisecondsSinceEpoch((_quote!['startMs'] as num).toInt()))} até ${_fmtDate(DateTime.fromMillisecondsSinceEpoch((_quote!['endMs'] as num).toInt()))} · valor calculado pelo servidor',
               style:
                   const TextStyle(fontSize: 11.5, color: AppColors.textLight),
             )),
+        if (_busy.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                  'Já reservado: ${_busy.take(4).map((b) => '${_fmtDate(b.start)}–${_fmtDate(b.end)}${b.pending ? ' (pendente)' : ''}').join(', ')}',
+                  style: const TextStyle(fontSize: 11.5, color: AppColors.warning))),
+        ],
         const SizedBox(height: 14),
         TextField(
             controller: _note,
@@ -1128,6 +1174,32 @@ class MyBookingsScreen extends StatelessWidget {
         ),
       );
 
+  /// Transições pelo servidor (papéis e prazos validados lá).
+  Future<void> _act(BuildContext context, String id, String action, {bool askReason = false}) async {
+    String? reason;
+    if (askReason) {
+      final c = TextEditingController();
+      final ok = await showDialog<bool>(
+          context: context,
+          builder: (d) => AlertDialog(
+                title: const Text('Motivo do cancelamento'),
+                content: TextField(controller: c, decoration: const InputDecoration(hintText: 'Será enviado ao locatário')),
+                actions: [
+                  TextButton(onPressed: () => Navigator.pop(d, false), child: const Text('Voltar')),
+                  ElevatedButton(onPressed: () => Navigator.pop(d, true), child: const Text('Cancelar reserva')),
+                ],
+              ));
+      reason = c.text;
+      c.dispose();
+      if (ok != true) return;
+    }
+    try {
+      await FS.transitionRentalBooking(id, action, reason: reason);
+    } on CloudCallException catch (e) {
+      if (context.mounted) snack(context, e.message, bg: AppColors.error);
+    }
+  }
+
   Widget _list(Stream<List<BookingModel>> stream, {required bool owner}) =>
       StreamBuilder<List<BookingModel>>(
         stream: stream,
@@ -1189,8 +1261,7 @@ class MyBookingsScreen extends StatelessWidget {
                           child: Row(children: [
                             Expanded(
                                 child: OutlinedButton(
-                              onPressed: () => FS.updateBookingStatus(
-                                  b.id, BookingStatus.cancelled),
+                              onPressed: () => _act(context, b.id, 'reject'),
                               style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.error,
                                   side:
@@ -1200,22 +1271,29 @@ class MyBookingsScreen extends StatelessWidget {
                             const SizedBox(width: 10),
                             Expanded(
                                 child: ElevatedButton(
-                              onPressed: () => FS.updateBookingStatus(
-                                  b.id, BookingStatus.confirmed),
+                              onPressed: () => _act(context, b.id, 'confirm'),
                               style: ElevatedButton.styleFrom(
                                   backgroundColor: AppColors.secondary),
                               child: const Text('Confirmar'),
                             )),
                           ]),
                         ),
-                      if (!owner && b.status == BookingStatus.pending)
+                      if (owner && b.status == BookingStatus.confirmed)
+                        Wrap(spacing: 6, children: [
+                          TextButton(onPressed: () => _act(context, b.id, 'start'), child: const Text('Iniciar locação')),
+                          TextButton(
+                              onPressed: () => _act(context, b.id, 'cancel', askReason: true),
+                              child: const Text('Cancelar', style: TextStyle(color: AppColors.error))),
+                        ]),
+                      if (owner && b.status == BookingStatus.active)
+                        TextButton(onPressed: () => _act(context, b.id, 'complete'), child: const Text('Concluir locação')),
+                      if (!owner && (b.status == BookingStatus.pending || b.status == BookingStatus.confirmed))
                         Padding(
                           padding: const EdgeInsets.only(top: 8),
                           child: Align(
                               alignment: Alignment.centerRight,
                               child: TextButton(
-                                onPressed: () => FS.updateBookingStatus(
-                                    b.id, BookingStatus.cancelled),
+                                onPressed: () => _act(context, b.id, 'cancel'),
                                 child: const Text('Cancelar',
                                     style: TextStyle(
                                         color: AppColors.error, fontSize: 12)),

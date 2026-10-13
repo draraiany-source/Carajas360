@@ -863,3 +863,10 @@ const resolve = require('./resolve')({
 });
 delete resolve.__internals;
 Object.assign(exports, resolve);
+
+// ── Saúde e Locação (Fase 5) ──
+const schedule = require('./schedule')({
+  functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, notifySafe,
+});
+delete schedule.__internals;
+Object.assign(exports, schedule);

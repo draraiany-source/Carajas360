@@ -103,6 +103,12 @@ module.exports = function resolveFunctions(deps) {
       throw httpsError('failed-precondition', 'Este serviço não está disponível para novas solicitações');
     }
     if (node.level === 'category') throw httpsError('invalid-argument', 'Escolha o grupo ou o serviço');
+    // Saúde é vertical especializada: dados de saúde não entram em
+    // oportunidades públicas de serviços (Fase 5).
+    const root = catalogCore.rootOf(req.category, ns);
+    if (root && root.vertical === 'health') {
+      throw httpsError('failed-precondition', 'Para saúde, use o agendamento em Saúde (dados de saúde não são publicados como oportunidade).');
+    }
     if (!(await userActive(auth.uid))) throw httpsError('permission-denied', 'Conta bloqueada');
     const questionnaire = await loadQuestionnaire(req.category);
     const ans = core.validateAnswers(questionnaire, data?.answers, { attachmentPrefix: `resolveUploads/${auth.uid}/` });

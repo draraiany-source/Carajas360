@@ -1019,30 +1019,69 @@ class FS {
   static Stream<Map<String, dynamic>?> gpsStream(String id) =>
       _db.collection(Col.deliveries).doc(id).snapshots().map((s) => s.data());
 
-  static Future<String> createAppointment(Map<String, dynamic> data) async {
-    final doc = await _db.collection(Col.appointments).add({
-      ...data,
-      'clientId': _uid,
-      'status': 'scheduled',
-      'createdAt': FieldValue.serverTimestamp()
+  // ── Saúde (Fase 5): agenda real no servidor ────────────────────
+  /// Versão do termo de consentimento para dados de saúde (LGPD art. 11).
+  static const healthConsentVersion = '2026-10';
+
+  static Future<Map<String, dynamic>> healthSlots(
+          {required String providerId, required String catalogId, required String date}) =>
+      CloudFn.call('listHealthSlots', {'providerId': providerId, 'catalogId': catalogId, 'date': date});
+
+  /// Agenda pelo servidor (profissional, especialidade, horário real e
+  /// consentimento). Idempotente por [requestId].
+  static Future<String> bookHealthAppointment({
+    required String requestId,
+    required String providerId,
+    required String catalogId,
+    required int startMs,
+    required String modality,
+    String? reason,
+  }) async {
+    final r = await CloudFn.call('bookHealthAppointment', {
+      'requestId': requestId,
+      'providerId': providerId,
+      'catalogId': catalogId,
+      'startMs': startMs,
+      'modality': modality,
+      'consentVersion': healthConsentVersion,
+      if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
     });
-    return doc.id;
+    return (r['id'] ?? '').toString();
   }
 
-  // Agenda do usuário (Vol.14: Saúde/Home Care — agendamentos). Lista
-  // os agendamentos do cliente, mais recentes primeiro.
-  static Stream<List<Map<String, dynamic>>> appointmentsStream() {
+  static Future<void> healthAppointmentAction(String id, String action,
+          {String? reason, int? newStartMs}) =>
+      CloudFn.call('healthAppointmentAction', {
+        'appointmentId': id,
+        'action': action,
+        if (reason != null) 'reason': reason,
+        if (newStartMs != null) 'newStartMs': newStartMs,
+      });
+
+  /// Agendamentos do usuário como paciente ([asProvider] = como profissional).
+  static Stream<List<Map<String, dynamic>>> appointmentsStream({bool asProvider = false}) {
     if (_uid == null) return const Stream.empty();
     return _db
         .collection(Col.appointments)
-        .where('clientId', isEqualTo: _uid)
-        .orderBy('createdAt', descending: true)
+        .where(asProvider ? 'providerId' : 'clientId', isEqualTo: _uid)
+        .orderBy('startMs', descending: true)
+        .limit(100)
         .snapshots()
         .map((s) => s.docs.map((d) => {'id': d.id, ...d.data()}).toList());
   }
 
-  static Future<void> cancelAppointment(String id) =>
-      _db.collection(Col.appointments).doc(id).update({'status': 'cancelled'});
+  static Future<Map<String, dynamic>?> appointmentClinical(String id) async {
+    final s = await _db.collection(Col.appointments).doc(id).collection('private').doc('clinical').get();
+    return s.data();
+  }
+
+  static Future<Map<String, dynamic>?> myHealthSchedule() async {
+    if (_uid == null) return null;
+    return (await _db.collection('healthSchedules').doc(_uid).get()).data();
+  }
+
+  static Future<void> saveHealthSchedule(Map<String, dynamic> data) =>
+      _db.collection('healthSchedules').doc(_uid).set({...data, 'updatedAt': FieldValue.serverTimestamp()});
 
   static Future<void> createSupportTicket(String subject, String message) =>
       _db.collection(Col.support).add({
@@ -1258,28 +1297,49 @@ class FS {
             s.docs.map((d) => RentalModel.fromMap(d.id, d.data())).toList());
   }
 
-  // ── Reservas de locação ────────────────────────────────────────
-  /// Cria uma reserva para um anúncio. Notifica o anunciante.
-  static Future<String?> createBooking(BookingModel b) async {
-    if (_uid == null) return null;
-    final doc = await _db.collection(Col.bookings).add({
-      ...b.toMap(),
-      'clientId': _uid,
-      'createdAt': FieldValue.serverTimestamp(),
+  // ── Reservas de locação (Fase 5: servidor) ─────────────────────
+  static Future<Map<String, dynamic>> quoteRentalBooking(
+          {required String rentalId, required String period, required int quantity, required int startMs}) =>
+      CloudFn.call('quoteRentalBooking',
+          {'rentalId': rentalId, 'period': period, 'quantity': quantity, 'startMs': startMs});
+
+  /// Cria a reserva no servidor (preço, total, fim e sobreposição
+  /// calculados lá). O anunciante é notificado por evento.
+  static Future<String> createRentalBooking({
+    required String requestId,
+    required String rentalId,
+    required String period,
+    required int quantity,
+    required int startMs,
+    String? note,
+  }) async {
+    final r = await CloudFn.call('createRentalBooking', {
+      'requestId': requestId,
+      'rentalId': rentalId,
+      'period': period,
+      'quantity': quantity,
+      'startMs': startMs,
+      if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
     });
-    await _db.collection(Col.notifications).add({
-      'userId': b.ownerId,
-      'title': 'Nova solicitação de reserva',
-      'body': '${b.clientName} quer alugar ${b.rentalTitle}',
-      'icon': '🔑',
-      'read': false,
-      'createdAt': FieldValue.serverTimestamp(),
-    });
-    return doc.id;
+    return (r['id'] ?? '').toString();
   }
 
-  static Future<void> updateBookingStatus(String id, BookingStatus status) =>
-      _db.collection(Col.bookings).doc(id).update({'status': status.name});
+  static Future<void> transitionRentalBooking(String id, String action, {String? reason}) =>
+      CloudFn.call('transitionRentalBooking',
+          {'bookingId': id, 'action': action, if (reason != null) 'reason': reason});
+
+  /// Períodos ocupados do anúncio (sem dados de quem reservou).
+  static Future<List<({DateTime start, DateTime end, bool pending})>> rentalBusy(String rentalId) async {
+    final r = await CloudFn.call('rentalAvailability', {'rentalId': rentalId});
+    return ((r['busy'] as List?) ?? const [])
+        .whereType<Map>()
+        .map((m) => (
+              start: DateTime.fromMillisecondsSinceEpoch((m['startMs'] as num).toInt()),
+              end: DateTime.fromMillisecondsSinceEpoch((m['endMs'] as num).toInt()),
+              pending: m['status'] == 'pending',
+            ))
+        .toList();
+  }
 
   /// Reservas feitas pelo usuário (como locatário).
   static Stream<List<BookingModel>> myBookingsStream() {
@@ -1302,16 +1362,6 @@ class FS {
         .map((s) =>
             s.docs.map((d) => BookingModel.fromMap(d.id, d.data())).toList());
   }
-
-  /// Períodos já reservados de um anúncio, para bloquear conflito de datas.
-  static Stream<List<BookingModel>> rentalBookingsStream(String rentalId) => _db
-      .collection(Col.bookings)
-      .where('rentalId', isEqualTo: rentalId)
-      .snapshots()
-      .map((s) => s.docs
-          .map((d) => BookingModel.fromMap(d.id, d.data()))
-          .where((b) => b.isOpen)
-          .toList());
 
   /// Envia uma foto do anúncio e devolve a URL.
   static Future<String?> uploadRentalPhoto(

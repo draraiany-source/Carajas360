@@ -15,6 +15,7 @@ import '../../core/catalog/catalog_service.dart';
 import '../../core/catalog/catalog_widgets.dart';
 import 'provider_services_screen.dart';
 import 'provider_attendance_screen.dart';
+import '../health/health_schedule_editor.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PROVIDER HOME SCREEN (Vol.3: Perfil do Profissional — Serviços,
@@ -203,6 +204,10 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                           icon: const Icon(Icons.place_outlined, size: 18),
                           label: const Text('Meu atendimento (raio, dias, modalidade)'),
                         ),
+                      ),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: HealthScheduleTile(),
                       ),
                       // ── Ganhos do dia, no padrão dos apps de motorista/entregador.
                       StreamBuilder<List<OrderModel>>(

@@ -217,15 +217,14 @@ service cloud.firestore {
       allow delete: if isAuth() && (resource.data.ownerId == uid() || isAdmin());
     }
 
+    // Reservas de locação (Fase 5): criação e transições SOMENTE pelas
+    // callables createRentalBooking/transitionRentalBooking (preço, total,
+    // sobreposição e papéis validados no servidor).
     match /bookings/{bookingId} {
       allow read: if isAuth() &&
         (resource.data.clientId == uid() ||
          resource.data.ownerId == uid() || isAdmin());
-      allow create: if isAuth() && request.resource.data.clientId == uid();
-      allow update: if isAuth() &&
-        (resource.data.ownerId == uid() ||
-         resource.data.clientId == uid() || isAdmin()) &&
-        !changed().hasAny(['price', 'total', 'clientId', 'ownerId', 'rentalId']);
+      allow write: if false;
     }
 
     match /contracts/{contractId} {
@@ -430,19 +429,39 @@ service cloud.firestore {
       ) && !changed().hasAny(['clientId', 'driverId', 'delivererId', 'price', 'total']);
     }
 
+    // Saúde (Fase 5): agendamento só pelas callables (profissional, data,
+    // horário real, consentimento). Dados clínicos em private/clinical:
+    // só paciente e profissional (nem admin lê pelo app).
     match /appointments/{appointmentId} {
       allow read: if isAuth() && (
         resource.data.clientId == request.auth.uid ||
         resource.data.providerId == request.auth.uid ||
         isAdmin()
       );
-      allow create: if isAuth() &&
-        request.resource.data.clientId == request.auth.uid;
-      allow update: if isAuth() && (
-        resource.data.clientId == request.auth.uid ||
-        resource.data.providerId == request.auth.uid ||
-        isAdmin()
-      ) && !changed().hasAny(['clientId', 'providerId', 'price']);
+      allow write: if false;
+      match /private/{docId} {
+        allow read: if isAuth() && (
+          resource.data.clientId == uid() || resource.data.providerId == uid());
+        allow write: if false;
+      }
+    }
+    // Agenda pública do profissional de saúde (só horários e preços).
+    match /healthSchedules/{providerId} {
+      allow read: if isAuth();
+      allow write: if isOwner(providerId) &&
+        exists(/databases/$(database)/documents/providers/$(providerId)) &&
+        incoming().keys().hasOnly(['weekly', 'slotMinutes', 'minLeadHours', 'blockedDates', 'services', 'updatedAt']) &&
+        (!('weekly' in incoming()) || incoming().weekly is map) &&
+        (!('services' in incoming()) || (incoming().services is list && incoming().services.size() <= 30)) &&
+        (!('blockedDates' in incoming()) || (incoming().blockedDates is list && incoming().blockedDates.size() <= 366)) &&
+        (!('slotMinutes' in incoming()) || incoming().slotMinutes in [15, 20, 30, 45, 60]);
+    }
+    match /healthCalendars/{providerId} {
+      allow read, write: if false;
+    }
+    match /healthConsents/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
     }
 
     match /favorites/{favId} {
