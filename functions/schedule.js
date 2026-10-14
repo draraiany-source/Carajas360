@@ -197,14 +197,14 @@ module.exports = function scheduleFunctions(deps) {
     const b = change.before.exists ? change.before.data() : null;
     if (!a.providerId || !a.startMs) return null; // registros antigos sem profissional
     if (!b) {
-      await notifySafe(a.providerId, '📅 Nova consulta agendada', `Consulta em ${fmt(a.startMs)}.`, 'health');
-      await notifySafe(a.clientId, '📅 Consulta agendada', `Sua consulta está marcada para ${fmt(a.startMs)}.`, 'health');
+      await notifySafe(a.providerId, '📅 Nova consulta agendada', `Consulta em ${fmt(a.startMs)}.`, 'health', { route: 'appointments' });
+      await notifySafe(a.clientId, '📅 Consulta agendada', `Sua consulta está marcada para ${fmt(a.startMs)}.`, 'health', { route: 'appointments' });
     } else if (b.status !== a.status && a.status.startsWith('cancelled')) {
       const other = a.status === 'cancelled_by_client' ? a.providerId : a.clientId;
-      await notifySafe(other, 'Consulta cancelada', `A consulta de ${fmt(a.startMs)} foi cancelada.`, 'health');
+      await notifySafe(other, 'Consulta cancelada', `A consulta de ${fmt(a.startMs)} foi cancelada.`, 'health', { route: 'appointments' });
     } else if (b.startMs !== a.startMs) {
       const other = a.lastRescheduledBy === 'client' ? a.providerId : a.clientId;
-      await notifySafe(other, 'Consulta reagendada', `Nova data: ${fmt(a.startMs)}.`, 'health');
+      await notifySafe(other, 'Consulta reagendada', `Nova data: ${fmt(a.startMs)}.`, 'health', { route: 'appointments' });
     }
     return null;
   });
@@ -315,7 +315,7 @@ module.exports = function scheduleFunctions(deps) {
     const a = change.after.data();
     const b = change.before.exists ? change.before.data() : null;
     if (!b) {
-      await notifySafe(a.ownerId, '🔑 Nova solicitação de reserva', `${a.clientName || 'Um cliente'} quer alugar ${a.rentalTitle}.`, 'rental');
+      await notifySafe(a.ownerId, '🔑 Nova solicitação de reserva', `${a.clientName || 'Um cliente'} quer alugar ${a.rentalTitle}.`, 'rental', { route: 'bookings' });
       return null;
     }
     if (b.status === a.status) return null;
@@ -325,7 +325,7 @@ module.exports = function scheduleFunctions(deps) {
       active: [a.clientId, 'Locação iniciada', `${a.rentalTitle}: locação em andamento.`],
       completed: [a.clientId, 'Locação concluída', `${a.rentalTitle}: obrigado por alugar!`],
     }[a.status];
-    if (msgs) await notifySafe(msgs[0], msgs[1], msgs[2], 'rental');
+    if (msgs) await notifySafe(msgs[0], msgs[1], msgs[2], 'rental', { route: 'bookings' });
     return null;
   });
 

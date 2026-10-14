@@ -168,7 +168,7 @@ class _HealthBookingScreenState extends State<HealthBookingScreen> {
     final ready = _startMs != null && _modality != null && _consent && !_saving;
     return Scaffold(
       appBar: AppBar(title: const Text('Agendar consulta'), backgroundColor: AppColors.health, foregroundColor: Colors.white),
-      body: ListView(padding: const EdgeInsets.all(16), children: [
+      body: ListView(padding: pagePadding(context), children: [
         Text(widget.providerName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
         Text(widget.serviceName, style: const TextStyle(color: AppColors.textLight)),
         const SizedBox(height: 16),
@@ -335,7 +335,7 @@ class _ApptList extends StatelessWidget {
             return const EmptyState(emoji: '📅', title: 'Nenhum agendamento', subtitle: 'Seus agendamentos aparecerão aqui');
           }
           final now = DateTime.now().millisecondsSinceEpoch;
-          return ListView(padding: const EdgeInsets.all(16), children: [
+          return ListView(padding: pagePadding(context), children: [
             for (final a in items)
               Container(
                 margin: const EdgeInsets.only(bottom: 10),

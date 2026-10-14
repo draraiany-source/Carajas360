@@ -27,10 +27,11 @@ class FavoritesScreen extends StatelessWidget {
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return ListView.builder(
-                  padding: const EdgeInsets.all(16),
+                  padding: pagePadding(context),
                   itemCount: 3,
                   itemBuilder: (_, __) => const ShimCard());
             }
+            if (snap.hasError) return QueryErrorView(error: snap.error);
             final favs = snap.data ?? [];
             if (favs.isEmpty)
               return const EmptyState(
@@ -40,7 +41,7 @@ class FavoritesScreen extends StatelessWidget {
                       'Toque no ícone de estrela em um profissional para salvá-lo aqui',
                   asset: AppAssets.ilListaVazia);
             return ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: pagePadding(context),
               itemCount: favs.length,
               itemBuilder: (_, i) {
                 final p = favs[i];
@@ -73,9 +74,7 @@ class FavoritesScreen extends StatelessWidget {
                     isOnline: p.modalities.contains('online'),
                     photo: p.photoUrl,
                     providerId: p.id,
-                    onTap: () => Navigator.pushNamed(
-                            context, Routes.requestService,
-                            arguments: {
+                    onTap: () => Navigator.pushNamed(context, Routes.providerProfile, arguments: {
                           'providerId': p.id,
                           'providerName': p.name,
                           'category': p.categories.isNotEmpty
@@ -213,7 +212,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                     subtitle: 'Seus pedidos aparecerão aqui',
                     asset: AppAssets.ilListaVazia);
               return ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: pagePadding(context),
                 itemCount: orders.length,
                 itemBuilder: (_, i) {
                   final o = orders[i];
@@ -308,12 +307,29 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                                       }),
                                   child: const Text('Rastrear',
                                       style: TextStyle(fontSize: 12))),
+                            // Contratar novamente o mesmo profissional.
+                            if ((o.status == OrderStatus.completed ||
+                                    o.status == OrderStatus.cancelled) &&
+                                (o.providerId ?? '').isNotEmpty)
+                              TextButton(
+                                  key: Key('rehire-${o.id}'),
+                                  onPressed: () => Navigator.pushNamed(
+                                      context, Routes.providerProfile,
+                                      arguments: {
+                                        'providerId': o.providerId,
+                                        'category': o.category,
+                                      }),
+                                  child: const Text('Contratar novamente',
+                                      style: TextStyle(fontSize: 12))),
                             if (o.status == OrderStatus.completed &&
                                 !o.reviewed)
                               TextButton(
                                   onPressed: () => Navigator.pushNamed(
                                       context, Routes.reviews,
-                                      arguments: {'orderId': o.id}),
+                                      arguments: {
+                                        'orderId': o.id,
+                                        'providerId': o.providerId,
+                                      }),
                                   child: const Text('Avaliar',
                                       style: TextStyle(fontSize: 12))),
                           ]),

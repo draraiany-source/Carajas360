@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
+import '../../core/navigation/app_navigation.dart';
 import '../../core/security/order_policy.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -58,10 +59,10 @@ class _RentalScreenState extends State<RentalScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      GestureDetector(
-                          onTap: () => Navigator.pop(context),
+                      Semantics(button: true, label: 'Voltar', child: GestureDetector(
+                          onTap: () => safeBack(context),
                           child: const Icon(Icons.arrow_back_ios_new_rounded,
-                              color: Colors.white, size: 20)),
+                              color: Colors.white, size: 20))),
                       const SizedBox(width: 12),
                       const Text('🔑 Locação',
                           style: TextStyle(
@@ -110,7 +111,7 @@ class _RentalScreenState extends State<RentalScreen>
         builder: (_, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return ListView.builder(
-                padding: const EdgeInsets.all(16),
+                padding: pagePadding(context),
                 itemCount: 4,
                 itemBuilder: (_, __) => const SkeletonCard());
           }
@@ -135,7 +136,7 @@ class _RentalScreenState extends State<RentalScreen>
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: pagePadding(context),
             itemCount: items.length,
             itemBuilder: (_, i) =>
                 FadeSlideIn(index: i, child: _card(items[i])),
@@ -471,7 +472,7 @@ class MyRentalsScreen extends StatelessWidget {
                   subtitle: 'Toque no + para anunciar um veículo ou máquina');
             }
             return ListView.builder(
-              padding: const EdgeInsets.all(16),
+              padding: pagePadding(context),
               itemCount: items.length,
               itemBuilder: (_, i) {
                 final r = items[i];
@@ -1218,7 +1219,7 @@ class MyBookingsScreen extends StatelessWidget {
             );
           }
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            padding: pagePadding(context),
             itemCount: items.length,
             itemBuilder: (_, i) {
               final b = items[i];

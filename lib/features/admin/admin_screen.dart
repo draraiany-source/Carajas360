@@ -89,6 +89,11 @@ class _AdminState extends State<AdminScreen>
                           final k = snap.data;
                           final loading =
                               snap.connectionState == ConnectionState.waiting;
+                          if (snap.hasError) {
+                            return const Text(
+                                '⚠️ Indicadores indisponíveis (falha na consulta). Os números não são exibidos para não mostrar zeros falsos.',
+                                style: TextStyle(color: Colors.white, fontSize: 12));
+                          }
                           return Row(children: [
                             _kpi(loading ? '…' : '${k?['totalUsers'] ?? 0}',
                                 'Usuários'),
@@ -603,6 +608,7 @@ class _FinancialTab extends StatelessWidget {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snap.hasError) return QueryErrorView(error: snap.error);
           final r = snap.data ?? {};
           final rows = [
             [
@@ -613,7 +619,7 @@ class _FinancialTab extends StatelessWidget {
             ],
             [
               '📊',
-              'Comissão plataforma (15%)',
+              'Comissão da plataforma (taxa de cada pedido)',
               PaySvc.fmt((r['commission'] as double?) ?? 0),
               AppColors.primary
             ],
@@ -625,7 +631,7 @@ class _FinancialTab extends StatelessWidget {
             ],
             [
               '💳',
-              'Total processado (créditos)',
+              'Recargas de carteira confirmadas',
               PaySvc.fmt((r['pixProcessed'] as double?) ?? 0),
               AppColors.pix
             ],
@@ -720,7 +726,7 @@ class _FinancialTab extends StatelessWidget {
             XFile.fromData(Uint8List.fromList(bytes),
                 name: name, mimeType: 'text/csv'),
           ],
-          text: 'Relatório financeiro — ServiçoConecta',
+          text: 'Relatório financeiro — Carajás 360',
         ));
       } else {
         final doc = pw.Document();
@@ -732,7 +738,7 @@ class _FinancialTab extends StatelessWidget {
                     style: pw.TextStyle(
                         fontSize: 22, fontWeight: pw.FontWeight.bold)),
                 pw.Text(
-                    'ServiçoConecta — ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
+                    'Carajás 360 — ${DateTime.now().day}/${DateTime.now().month}/${DateTime.now().year}',
                     style: const pw.TextStyle(
                         fontSize: 11, color: PdfColors.grey700)),
                 pw.SizedBox(height: 20),
@@ -779,7 +785,7 @@ class _FinancialTab extends StatelessWidget {
           files: [
             XFile.fromData(pdfBytes, name: name, mimeType: 'application/pdf'),
           ],
-          text: 'Relatório financeiro — ServiçoConecta',
+          text: 'Relatório financeiro — Carajás 360',
         ));
       }
     } catch (e) {

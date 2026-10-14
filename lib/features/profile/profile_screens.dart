@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import '../../core/navigation/app_navigation.dart';
+import '../../core/auth/access_control.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
@@ -661,11 +663,29 @@ class NotificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final uid = AuthService.uid;
     return Scaffold(
-      appBar: AppBar(title: const Text('Notificações')),
-      body: StreamBuilder<List<NotifModel>>(
-        stream: uid != null ? FS.notifStream() : const Stream.empty(),
+      appBar: AppBar(title: const Text('Notificações'), actions: [
+        if (uid != null)
+          TextButton(
+              onPressed: () async {
+                final n = await FS.markAllNotifsRead();
+                if (context.mounted && n > 0) snack(context, '$n notificação(ões) marcada(s) como lida(s)');
+              },
+              child: const Text('Marcar todas como lidas')),
+      ]),
+      body: uid == null
+          ? EmptyState(
+              emoji: '🔔',
+              title: 'Entre para ver suas notificações',
+              subtitle: 'Avisos de pedidos, propostas, consultas e reservas aparecem aqui.',
+              actionLabel: 'Entrar',
+              onAction: () => loginAndResume(context))
+          : StreamBuilder<List<NotifModel>>(
+        stream: FS.notifStream(),
         builder: (_, snap) {
           if (snap.hasError) return QueryErrorView(error: snap.error);
+          if (!snap.hasData && snap.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final notifs = DemoData.orEmpty(snap.data, _demo);
           if (notifs.isEmpty)
             return const EmptyState(
@@ -673,14 +693,17 @@ class NotificationsScreen extends StatelessWidget {
                 title: 'Sem notificações',
                 subtitle: 'Você está em dia!');
           return ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: pagePadding(context),
               itemCount: notifs.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
                 final n = notifs[i];
                 return GestureDetector(
                     onTap: () {
-                      if (!n.read && uid != null) FS.markNotifRead(n.id);
+                      if (!n.read) FS.markNotifRead(n.id);
+                      // Abre a tela relacionada (pedido, proposta, consulta, reserva).
+                      final t = notificationTarget(n.type, n.link);
+                      if (t != null) Navigator.pushNamed(context, t.route, arguments: t.args);
                     },
                     child: Container(
                       decoration: AppDecorations.card(
@@ -795,7 +818,7 @@ class _ReviewState extends State<ReviewScreen> {
         body: LoadingOverlay(
             loading: _loading,
             child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
+                padding: pagePadding(context, vertical: 20),
                 child: Column(children: [
                   const Text('Como foi o serviço?',
                       style: TextStyle(

@@ -8,6 +8,7 @@ import '../../core/theme/span_ds.dart';
 import '../../core/constants/app_constants.dart';
 import '../checkout/cart_service.dart';
 import '../checkout/checkout_screen.dart';
+import '../../core/navigation/app_navigation.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/platform_info.dart';
@@ -439,12 +440,16 @@ class _LoginState extends State<LoginScreen>
       await PushSvc.saveToken(uid);
       // Volta à ação iniciada antes do login (ex.: finalizar a compra).
       final pendingStore = await CartService.takePendingCheckout();
+      final pendingRoute = pendingStore == null ? await AuthResume.take() : null;
       if (!mounted) return;
       final nav = Navigator.of(context);
-      nav.pushReplacementNamed(Routes.main);
+      // Pilha limpa (evita início duplicado) e retomada da ação.
+      nav.pushNamedAndRemoveUntil(Routes.main, (_) => false);
       if (pendingStore != null) {
         nav.push(MaterialPageRoute(
             builder: (_) => CheckoutScreen(storeId: pendingStore)));
+      } else if (pendingRoute != null && pendingRoute.route != Routes.main) {
+        nav.pushNamed(pendingRoute.route, arguments: pendingRoute.args);
       }
     }
   }
@@ -865,7 +870,7 @@ class _RegState extends State<RegisterScreen>
         await FS.addXp(50);
         await FS.pushNotif(
             uid,
-            'Bem-vindo ao ServicoConecta!',
+            'Bem-vindo ao Carajás 360!',
             _type == UserType.provider
                 ? 'Sua conta foi criada. Seu cadastro de prestador esta em analise.'
                 : 'Sua conta foi criada. Explore os servicos.',
@@ -1185,7 +1190,7 @@ class _RegState extends State<RegisterScreen>
                                         size: 15, weight: FontWeight.w700)),
                                 const SizedBox(height: 6),
                                 Text(
-                                    'Escolha como você vai usar o ServiçoConecta',
+                                    'Escolha como você vai usar o Carajás 360',
                                     style: SpanDs.poppins(
                                         size: 12, color: SpanDs.textSecondary)),
                                 const SizedBox(height: 14),

@@ -126,7 +126,7 @@ class _EditorState extends State<HealthScheduleEditorScreen> {
                 child: ElevatedButton(onPressed: _loading || _saving ? null : _save, child: Text(_saving ? 'Salvando…' : 'Publicar agenda')))),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
-            : ListView(padding: const EdgeInsets.all(16), children: [
+            : ListView(padding: pagePadding(context), children: [
                 const Text('Especialidades atendidas pela agenda', style: TextStyle(fontWeight: FontWeight.w800)),
                 if (_services.isEmpty)
                   const Text('Cadastre especialidades de Saúde em "Minhas especialidades" primeiro.',

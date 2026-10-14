@@ -35,7 +35,7 @@ class _AiState extends State<AiAssistantScreen> {
     'diarista':
         '🧹 As diaristas mais bem avaliadas na sua cidade cobram entre **R\$ 100 e R\$ 180/dia**. Ana Oliveira (4.9⭐) e Maria Silva (4.8⭐) têm disponibilidade hoje!',
     'pagamento':
-        '💳 No ServiçoConecta você pode pagar via **PIX** (confirmação imediata), **cartão de crédito** (até 12x) ou **carteira digital**. O valor só é liberado após conclusão do serviço.',
+        '💳 No Carajás 360 você pode pagar via **PIX** (confirmação imediata), **cartão de crédito** (até 12x) ou **carteira digital**. O valor só é liberado após conclusão do serviço.',
     'vazamento':
         '🚨 Situação urgente! Encontrei **3 encanadores disponíveis agora** na sua área. Carlos (4.9⭐) pode chegar em ~20 min. Deseja que eu acione imediatamente?',
     'default':
@@ -47,7 +47,7 @@ class _AiState extends State<AiAssistantScreen> {
     super.initState();
     _msgs.add(_AiMsg(
         text:
-            '👋 Olá! Sou o assistente inteligente do **ServiçoConecta**.\n\nPosso ajudar com:\n• Encontrar profissionais\n• Sugerir preços justos\n• Agendar serviços\n• Responder dúvidas\n\nComo posso te ajudar hoje?',
+            '👋 Olá! Sou o assistente inteligente do **Carajás 360**.\n\nPosso ajudar com:\n• Encontrar profissionais\n• Sugerir preços justos\n• Agendar serviços\n• Responder dúvidas\n\nComo posso te ajudar hoje?',
         isAi: true,
         time: DateTime.now()));
   }

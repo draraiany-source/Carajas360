@@ -413,6 +413,10 @@ class OrderModel {
   /// unpaid | pending | paid (servidor). Origem 'resolve' = contratado por proposta.
   final String paymentStatus;
   final String? source;
+  /// Conclusão registrada pelo servidor (ganhos são contados nesta data).
+  final DateTime? completedAt;
+  /// Comissão congelada no pedido (`financeTerms.commissionBps`).
+  final int? commissionBps;
 
   const OrderModel({
     required this.id,
@@ -430,7 +434,19 @@ class OrderModel {
     required this.createdAt,
     this.paymentStatus = 'unpaid',
     this.source,
+    this.completedAt,
+    this.commissionBps,
   });
+
+  /// Data em que o ganho conta: conclusão; pedidos antigos sem o campo usam a criação.
+  DateTime get earnedAt => completedAt ?? createdAt;
+
+  /// Repasse estimado ao prestador com a comissão do próprio pedido
+  /// (mesma regra do servidor; pedidos legados sem snapshot: 15%).
+  double get providerNet {
+    final rate = commissionBps != null ? commissionBps! / 10000 : 0.15;
+    return (price ?? 0) * (1 - rate);
+  }
 
   bool get isPaid => paymentStatus == 'paid';
 
@@ -469,6 +485,8 @@ class OrderModel {
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         paymentStatus: (m['paymentStatus'] ?? 'unpaid').toString(),
         source: m['source'] as String?,
+        completedAt: (m['completedAt'] as Timestamp?)?.toDate(),
+        commissionBps: ((m['financeTerms'] as Map?)?['commissionBps'] as num?)?.toInt(),
       );
 }
 
@@ -595,6 +613,8 @@ class NotifModel {
   final String id, userId, title, body, type;
   final bool read;
   final DateTime createdAt;
+  /// Destino ao tocar ({route, id?}), gravado pelo servidor.
+  final Map<String, dynamic>? link;
 
   const NotifModel(
       {required this.id,
@@ -603,7 +623,8 @@ class NotifModel {
       required this.body,
       required this.type,
       this.read = false,
-      required this.createdAt});
+      required this.createdAt,
+      this.link});
 
   String get icon {
     switch (type) {
@@ -619,6 +640,12 @@ class NotifModel {
         return '🎁';
       case 'health':
         return '🏥';
+      case 'resolve':
+        return '⚡';
+      case 'rental':
+        return '🔑';
+      case 'market':
+        return '🛒';
       case 'delivery':
         return '📦';
       default:
@@ -634,6 +661,7 @@ class NotifModel {
         type: m['type'] ?? 'general',
         read: m['read'] ?? false,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        link: (m['link'] as Map?)?.cast<String, dynamic>(),
       );
 }
 

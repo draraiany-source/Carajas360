@@ -73,7 +73,7 @@ class SupportScreen extends StatelessWidget {
                           '📧',
                           'E-mail',
                           () => _launch(
-                              'mailto:suporte@servicoconecta.com.br?subject=Ajuda%20ServiçoConecta'))),
+                              'mailto:suporte@servicoconecta.com.br?subject=Ajuda%20Caraj%C3%A1s%20360'))),
                   const SizedBox(width: 8),
                   Expanded(
                       child: _contactBtn(
@@ -832,10 +832,10 @@ class LegalScreen extends StatelessWidget {
 
   static const _terms = '''
 1. ACEITAÇÃO DOS TERMOS
-Ao utilizar o ServiçoConecta, você concorda com estes Termos de Uso. Caso não concorde, não utilize a plataforma.
+Ao utilizar o Carajás 360, você concorda com estes Termos de Uso. Caso não concorde, não utilize a plataforma.
 
 2. DESCRIÇÃO DO SERVIÇO
-O ServiçoConecta é uma plataforma de intermediação entre clientes e prestadores de serviços, incluindo módulos de saúde, entregas, mercado e aluguel.
+O Carajás 360 é uma plataforma de intermediação entre clientes e prestadores de serviços, incluindo módulos de saúde, entregas, mercado e aluguel.
 
 3. CADASTRO
 O usuário deve fornecer informações verdadeiras e atualizadas. Contas falsas ou fraudulentas serão suspensas.
@@ -847,7 +847,7 @@ Os valores são retidos em custódia até a conclusão do serviço. A comissão 
 Cancelamentos podem estar sujeitos a taxas, conforme o status do pedido no momento do cancelamento.
 
 6. RESPONSABILIDADES
-O ServiçoConecta atua como intermediário e não se responsabiliza pela execução técnica dos serviços prestados por terceiros.
+O Carajás 360 atua como intermediário e não se responsabiliza pela execução técnica dos serviços prestados por terceiros.
 
 7. CONDUTA
 É proibido o uso da plataforma para fins ilícitos, discriminatórios ou que violem direitos de terceiros.
@@ -954,7 +954,7 @@ class ReferralScreen extends StatelessWidget {
   }
 
   String get _shareMessage =>
-      'Baixe o ServiçoConecta e use meu código $_code no cadastro. '
+      'Baixe o Carajás 360 e use meu código $_code no cadastro. '
       'Você ganha R\$ 10 no primeiro serviço e eu também! 🎉';
 
   @override

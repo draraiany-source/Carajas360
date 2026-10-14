@@ -3,6 +3,14 @@ import 'package:flutter/material.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../core/constants/app_constants.dart';
+import '../navigation/app_navigation.dart';
+
+/// Leva ao login guardando a rota atual para voltar a ela depois.
+Future<void> loginAndResume(BuildContext context) async {
+  final s = ModalRoute.of(context)?.settings;
+  if (s?.name != null) await AuthResume.set(s!.name!, s.arguments);
+  if (context.mounted) await Navigator.pushNamed(context, Routes.login);
+}
 
 /// Autorização de rotas/telas sensíveis (claims + perfil).
 abstract final class AccessControl {
@@ -31,9 +39,7 @@ class AdminGate extends StatelessWidget {
   Widget build(BuildContext context) {
     if (!AuthService.isAuth) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (context.mounted) {
-          Navigator.pushReplacementNamed(context, Routes.login);
-        }
+        if (context.mounted) loginAndResume(context);
       });
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
@@ -87,7 +93,7 @@ class RequireAuth extends StatelessWidget {
             const Text('Faça login para continuar.', textAlign: TextAlign.center),
             const SizedBox(height: 16),
             ElevatedButton(
-              onPressed: () => Navigator.pushReplacementNamed(context, Routes.login),
+              onPressed: () => loginAndResume(context),
               child: const Text('Entrar'),
             ),
           ]),

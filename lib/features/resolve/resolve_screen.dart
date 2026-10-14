@@ -193,7 +193,7 @@ class _ResolveScreenState extends State<ResolveScreen> {
         ],
       ),
       body: ListView(
-        padding: const EdgeInsets.all(16),
+        padding: pagePadding(context),
         children: [
           Container(
             padding: const EdgeInsets.all(16),
@@ -619,7 +619,7 @@ class MyResolveScreen extends StatelessWidget {
             );
           }
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: pagePadding(context),
             itemCount: list.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (_, i) {
@@ -794,7 +794,7 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
           return RefreshIndicator(
             onRefresh: _refresh,
             child: ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: pagePadding(context),
               itemCount: data.items.length,
               separatorBuilder: (_, __) => const SizedBox(height: 10),
               itemBuilder: (_, i) {

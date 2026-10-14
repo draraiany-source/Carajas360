@@ -199,7 +199,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
           backgroundColor: _isPix ? AppColors.pix : AppColors.primary,
           foregroundColor: Colors.white),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: pagePadding(context, vertical: 20),
         child: Column(children: [
           _summary(a),
           const SizedBox(height: 16),

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../../core/navigation/app_navigation.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -339,7 +340,7 @@ class _MarketState extends State<MarketplaceScreen> {
                           const Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('🛒 MercadoConecta',
+                                Text('🛒 Mercado Carajás 360',
                                     style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w900,
@@ -366,7 +367,7 @@ class _MarketState extends State<MarketplaceScreen> {
                                         child: const Icon(
                                             Icons.storefront_rounded,
                                             color: Colors.white))),
-                                GestureDetector(
+                                Semantics(button: true, label: 'Abrir carrinho', child: GestureDetector(
                                     onTap: _checkout,
                                     child: Container(
                                         width: 42,
@@ -377,7 +378,7 @@ class _MarketState extends State<MarketplaceScreen> {
                                                 BorderRadius.circular(12)),
                                         child: const Icon(
                                             Icons.shopping_cart_rounded,
-                                            color: AppColors.secondary))),
+                                            color: AppColors.secondary)))),
                                 Positioned(
                                     top: 0,
                                     right: 0,
@@ -395,8 +396,8 @@ class _MarketState extends State<MarketplaceScreen> {
                                                 fontWeight: FontWeight.w800)))),
                               ]),
                             if (_totalItems > 0) const SizedBox(width: 8),
-                            GestureDetector(
-                                onTap: () => Navigator.pop(context),
+                            Semantics(button: true, label: 'Voltar', child: GestureDetector(
+                                onTap: () => safeBack(context),
                                 child: Container(
                                     width: 38,
                                     height: 38,
@@ -407,7 +408,7 @@ class _MarketState extends State<MarketplaceScreen> {
                                     child: const Icon(
                                         Icons.arrow_back_ios_new_rounded,
                                         color: Colors.white,
-                                        size: 18))),
+                                        size: 18)))),
                           ]),
                         ]),
                     const SizedBox(height: 14),
@@ -615,11 +616,14 @@ class _MarketState extends State<MarketplaceScreen> {
                                   ]),
                           ]));
                 }, childCount: _filtered.length),
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
+                // Colunas pela largura (2 no celular, mais em tablet/desktop)
+                // e altura fixa do card: proporção estável em qualquer tela.
+                gridDelegate: SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: 240,
                     mainAxisSpacing: 12,
                     crossAxisSpacing: 12,
-                    childAspectRatio: 0.65),
+                    mainAxisExtent:
+                        250 * MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 1.6)),
               )),
         ]),
         bottomNavigationBar: _totalItems > 0

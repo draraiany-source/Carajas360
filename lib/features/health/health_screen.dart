@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import '../../core/navigation/app_navigation.dart';
 import 'health_booking.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -63,7 +64,7 @@ class _HealthState extends State<HealthScreen> {
                           const Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('🏥 SaúdeConecta',
+                                Text('🏥 Saúde Carajás 360',
                                     style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w900,
@@ -73,7 +74,7 @@ class _HealthState extends State<HealthScreen> {
                                         color: Colors.white70, fontSize: 12))
                               ]),
                           Row(children: [
-                            GestureDetector(
+                            Semantics(button: true, label: 'Meus agendamentos', child: GestureDetector(
                                 onTap: () => Navigator.push(
                                     context,
                                     MaterialPageRoute(
@@ -87,10 +88,10 @@ class _HealthState extends State<HealthScreen> {
                                         borderRadius:
                                             BorderRadius.circular(11)),
                                     child: const Icon(Icons.event_note_rounded,
-                                        color: Colors.white, size: 18))),
+                                        color: Colors.white, size: 18)))),
                             const SizedBox(width: 8),
-                            GestureDetector(
-                                onTap: () => Navigator.pop(context),
+                            Semantics(button: true, label: 'Voltar', child: GestureDetector(
+                                onTap: () => safeBack(context),
                                 child: Container(
                                     width: 38,
                                     height: 38,
@@ -101,7 +102,7 @@ class _HealthState extends State<HealthScreen> {
                                     child: const Icon(
                                         Icons.arrow_back_ios_new_rounded,
                                         color: Colors.white,
-                                        size: 18))),
+                                        size: 18)))),
                           ]),
                         ]),
                     const SizedBox(height: 16),

@@ -224,7 +224,7 @@ class _WalletState extends State<WalletScreen>
               subtitle: 'Suas movimentações aparecerão aqui',
               asset: AppAssets.walletExtrato);
         return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: pagePadding(context),
             itemCount: txs.length,
             separatorBuilder: (_, __) => const SizedBox(height: 8),
             itemBuilder: (_, i) {
@@ -270,7 +270,7 @@ class _WalletState extends State<WalletScreen>
             });
       });
 
-  Widget _pixTab() => ListView(padding: const EdgeInsets.all(16), children: [
+  Widget _pixTab() => ListView(padding: pagePadding(context), children: [
         Container(
             decoration: AppDecorations.card(),
             padding: const EdgeInsets.all(18),
@@ -303,7 +303,7 @@ class _WalletState extends State<WalletScreen>
         stream: _uid.isNotEmpty ? FS.userStream(_uid) : const Stream.empty(),
         builder: (_, snap) {
           final currentPlan = snap.data?.plan ?? PlanTier.free;
-          return ListView(padding: const EdgeInsets.all(16), children: [
+          return ListView(padding: pagePadding(context), children: [
             const Text('Escolha seu plano',
                 style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
             const SizedBox(height: 4),
@@ -438,7 +438,7 @@ class _WalletState extends State<WalletScreen>
         userId: 'u',
         type: 'debit',
         amount: 87.40,
-        description: 'MercadoConecta',
+        description: 'Mercado Carajás 360',
         icon: '🛒',
         status: 'done',
         createdAt: DateTime.now().subtract(const Duration(days: 3))),

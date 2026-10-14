@@ -266,6 +266,13 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // Perfil público mínimo (Fase 6): nome de exibição, foto e tipo.
+    // Mantido só pelo servidor; usado no chat no lugar do perfil privado.
+    match /publicProfiles/{userId} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
     // ── Chat ──────────────────────────────────────────────────────
     // Sala 1:1 com id canônico "{uidMenor}_{uidMaior}". Participantes e
     // vínculos (orderId/requestId) são definidos na criação e nunca

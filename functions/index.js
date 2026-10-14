@@ -71,13 +71,22 @@ async function enforceRateLimit(uid, key, max, windowMs) {
   });
 }
 
-async function notify(userId, title, body, type) {
+/**
+ * Notificação no app. `link` (opcional) leva a tela certa ao tocar:
+ * { route: 'resolveDetail' | 'resolveOpportunities' | 'appointments' |
+ *   'bookings' | 'marketOrder' | 'myOrders', id?: string }.
+ */
+const NOTIF_ROUTES = ['resolveDetail', 'resolveOpportunities', 'appointments', 'bookings', 'marketOrder', 'myOrders', 'storeOrders'];
+async function notify(userId, title, body, type, link) {
   if (!userId) return;
+  const safeLink = link && NOTIF_ROUTES.includes(link.route)
+    ? { route: link.route, ...(link.id ? { id: String(link.id).slice(0, 120) } : {}) } : null;
   await db.collection('notifications').add({
     userId,
     title: String(title).slice(0, 120),
     body: String(body).slice(0, 500),
     type: type || 'info',
+    ...(safeLink ? { link: safeLink } : {}),
     read: false,
     createdAt: FieldValue.serverTimestamp(),
   });
@@ -118,9 +127,9 @@ async function canNotifyTarget(callerUid, targetUid) {
 }
 
 /** Notificação nunca derruba a operação principal já persistida. */
-async function notifySafe(userId, title, body, type) {
+async function notifySafe(userId, title, body, type, link) {
   try {
-    await notify(userId, title, body, type);
+    await notify(userId, title, body, type, link);
   } catch (e) {
     console.error('notifySafe', userId, e);
   }
@@ -870,3 +879,8 @@ const schedule = require('./schedule')({
 });
 delete schedule.__internals;
 Object.assign(exports, schedule);
+
+// ── Perfil público mínimo (Fase 6: chat e identificação) ──
+Object.assign(exports, require('./profiles')({
+  functions, db, FieldValue, requireAuth, isAdmin, httpsError, REGION,
+}));

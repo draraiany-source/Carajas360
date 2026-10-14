@@ -31,7 +31,7 @@ class CartScreen extends StatelessWidget {
                   emoji: '🛒',
                   title: 'Seu carrinho está vazio',
                   subtitle: 'Adicione produtos para continuar')
-              : ListView(padding: const EdgeInsets.all(16), children: [
+              : ListView(padding: pagePadding(context), children: [
                   if (groups.length > 1)
                     const Padding(
                         padding: EdgeInsets.only(bottom: 12),
@@ -224,7 +224,7 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
       appBar: AppBar(title: const Text('Finalizar pedido')),
       body: LoadingOverlay(
         loading: _creating,
-        child: ListView(padding: const EdgeInsets.all(16), children: [
+        child: ListView(padding: pagePadding(context), children: [
           if (_lines.isEmpty)
             const Text('Não há itens desta loja no carrinho.'),
           SegmentedButton<String>(

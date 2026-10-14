@@ -214,17 +214,24 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                         stream: FS.providerOrdersStream(
                             statuses: const [OrderStatus.completed]),
                         builder: (_, snap) {
+                          if (snap.hasError) {
+                            return const Text('Não foi possível carregar seus ganhos agora.',
+                                style: TextStyle(color: Colors.white, fontSize: 12));
+                          }
+                          if (!snap.hasData) {
+                            return const LinearProgressIndicator(minHeight: 2);
+                          }
                           final now = DateTime.now();
-                          final today = (snap.data ?? const <OrderModel>[])
+                          final today = snap.data!
                               .where((o) =>
-                                  o.createdAt.year == now.year &&
-                                  o.createdAt.month == now.month &&
-                                  o.createdAt.day == now.day)
+                                  o.earnedAt.year == now.year &&
+                                  o.earnedAt.month == now.month &&
+                                  o.earnedAt.day == now.day)
                               .toList();
                           final total = today.fold<double>(
                               0, (s, o) => s + (o.price ?? 0));
-                          // Repasse: valor menos a comissão da plataforma.
-                          final net = total * (1 - AppConst.commission);
+                          // Repasse estimado: comissão registrada em cada pedido.
+                          final net = today.fold<double>(0, (s, o) => s + o.providerNet);
                           return Row(children: [
                             _kpi('Hoje', PaySvc.fmt(net)),
                             const SizedBox(width: 8),
@@ -294,6 +301,7 @@ class _OrderList extends StatelessWidget {
         stream: FS.providerOrdersStream(statuses: statuses),
         builder: (_, snap) {
           if (snap.hasError) return QueryErrorView(error: snap.error);
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
           final orders = DemoData.orEmpty(
               snap.data,
               statuses.contains(OrderStatus.pending) ? demo : <OrderModel>[]);
@@ -850,17 +858,25 @@ class WeeklyEarnings extends StatelessWidget {
         stream:
             FS.providerOrdersStream(statuses: const [OrderStatus.completed]),
         builder: (_, snap) {
+          if (snap.hasError) {
+            return const Padding(
+                padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Text('Não foi possível carregar os ganhos da semana.',
+                    style: TextStyle(color: AppColors.textLight, fontSize: 12)));
+          }
+          if (!snap.hasData) {
+            return const Padding(padding: EdgeInsets.all(16), child: LinearProgressIndicator());
+          }
           final now = DateTime.now();
           final days = List.generate(
               7, (i) => DateTime(now.year, now.month, now.day - 6 + i));
           final totals = days
-              .map((d) => (snap.data ?? const <OrderModel>[])
+              .map((d) => snap.data!
                   .where((o) =>
-                      o.createdAt.year == d.year &&
-                      o.createdAt.month == d.month &&
-                      o.createdAt.day == d.day)
-                  .fold<double>(0,
-                      (s, o) => s + (o.price ?? 0) * (1 - AppConst.commission)))
+                      o.earnedAt.year == d.year &&
+                      o.earnedAt.month == d.month &&
+                      o.earnedAt.day == d.day)
+                  .fold<double>(0, (s, o) => s + o.providerNet))
               .toList();
           final max = totals.fold<double>(0, (a, b) => a > b ? a : b);
           final week = totals.fold<double>(0, (a, b) => a + b);
@@ -873,7 +889,7 @@ class WeeklyEarnings extends StatelessWidget {
             child:
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                const Text('Ganhos da semana',
+                const Text('Ganhos da semana (estimativa)',
                     style:
                         TextStyle(fontWeight: FontWeight.w800, fontSize: 13)),
                 Text(PaySvc.fmt(week),

@@ -37,6 +37,10 @@ import 'package:servico_conecta/features/orders/orders_screen.dart';
 import 'package:servico_conecta/features/provider/provider_home_screen.dart';
 import 'package:servico_conecta/core/auth/access_control.dart';
 import 'package:servico_conecta/features/checkout/cart_service.dart';
+import 'package:servico_conecta/core/navigation/app_navigation.dart';
+import 'package:servico_conecta/shared/widgets/adaptive_nav.dart';
+import 'package:servico_conecta/features/health/health_booking.dart';
+import 'package:servico_conecta/features/provider/provider_profile_screen.dart';
 import 'package:servico_conecta/features/checkout/checkout_screen.dart';
 import 'package:servico_conecta/features/checkout/market_order_screen.dart';
 
@@ -92,8 +96,11 @@ Future<void> main() async {
   }
   // Carrinho persistente (aparelho + conta); não bloqueia a abertura.
   CartService.instance.start();
+  SessionGuard.instance.start();
   runApp(const ServicoConectaApp(firebaseOk: true));
 }
+
+RouteSettings? _routeSettings;
 
 class ServicoConectaApp extends StatelessWidget {
   final bool firebaseOk;
@@ -105,17 +112,19 @@ class ServicoConectaApp extends StatelessWidget {
         builder: (context, themeMode, _) => MaterialApp(
           title: AppInfo.name,
           debugShowCheckedModeBanner: false,
+          navigatorKey: rootNavigatorKey,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,
           themeMode: themeMode,
           // Faixa de ambiente fora de produção (evita confundir dados).
+          // Aviso de conexão em todas as telas.
           builder: (context, child) => AppEnv.isProd
-              ? child!
+              ? OfflineBanner(child: child!)
               : Banner(
                   message: AppEnv.isHml ? 'HML' : 'DEV',
                   location: BannerLocation.topEnd,
                   color: AppEnv.isHml ? Colors.deepOrange : Colors.purple,
-                  child: child!),
+                  child: OfflineBanner(child: child!)),
           navigatorObservers: firebaseOk
               ? [
                   FirebaseAnalyticsObserver(
@@ -124,6 +133,8 @@ class ServicoConectaApp extends StatelessWidget {
               : const <NavigatorObserver>[],
           initialRoute: Routes.splash,
           onGenerateRoute: (settings) {
+            // Nome/argumentos ficam na rota (retomada após login e sessão expirada).
+            _routeSettings = settings;
             switch (settings.name) {
               case Routes.splash:
                 return _route(SplashScreen(firebaseReady: firebaseOk));
@@ -200,6 +211,19 @@ class ServicoConectaApp extends StatelessWidget {
                 return _route(const MyOrdersScreen());
               case Routes.cart:
                 return _route(const CartScreen());
+              case Routes.appointments:
+                return _route(const RequireAuth(
+                    title: 'Agendamentos', child: AppointmentsScreen()));
+              case Routes.marketOrder:
+                final mo = settings.arguments as Map<String, dynamic>?;
+                return _route(RequireAuth(
+                    title: 'Pedido',
+                    child: MarketOrderScreen(orderId: '${mo?['id'] ?? ''}')));
+              case Routes.providerProfile:
+                final pp = settings.arguments as Map<String, dynamic>?;
+                return _route(ProviderProfileScreen(
+                    providerId: '${pp?['providerId'] ?? ''}',
+                    category: pp?['category'] as String?));
               case Routes.marketOrders:
                 return _route(const RequireAuth(
                     title: 'Pedidos', child: MyMarketOrdersScreen()));
@@ -245,7 +269,8 @@ class ServicoConectaApp extends StatelessWidget {
         ),
       );
 
-  PageRoute _route(Widget page) => FadeSlidePageRoute(page: page);
+  PageRoute _route(Widget page) =>
+      FadeSlidePageRoute(page: page, settings: _routeSettings);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -272,9 +297,18 @@ class _MainNavState extends State<MainNav> {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
+    return AdaptiveNavScaffold(
+      destinations: const [
+        NavDest(Icons.home_rounded, 'Início'),
+        NavDest(Icons.explore_rounded, 'Explorar'),
+        NavDest(Icons.receipt_long_rounded, 'Pedidos'),
+        NavDest(Icons.chat_bubble_outline_rounded, 'Mensagens'),
+        NavDest(Icons.person_outline_rounded, 'Perfil'),
+      ],
+      index: _idx,
+      onSelect: (i) => setState(() => _idx = i),
       body: IndexedStack(index: _idx, children: _screens),
-      bottomNavigationBar: Semantics(
+      bottomBar: (context) => Semantics(
         container: true,
         label: 'Navegação principal',
         child: Container(

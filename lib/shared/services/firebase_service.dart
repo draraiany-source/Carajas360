@@ -17,6 +17,7 @@ import '../../core/utils/firebase_bootstrap.dart';
 import '../../firebase_options.dart';
 import '../../core/utils/platform_info.dart';
 import '../../core/security/order_policy.dart';
+import '../../core/navigation/app_navigation.dart';
 import 'apple_sign_in.dart';
 import 'local_notifications.dart';
 
@@ -228,6 +229,7 @@ class AuthService {
   }
 
   static Future<void> signOut() async {
+    SessionGuard.instance.markExplicitSignOut();
     try {
       if (_googleInitialized) await _google.signOut();
     } catch (e) {
@@ -992,6 +994,24 @@ class FS {
     }
   }
 
+  /// Marca todas as não lidas como lidas (lotes de até 400).
+  static Future<int> markAllNotifsRead() async {
+    if (_uid == null) return 0;
+    final q = await _db
+        .collection(Col.notifications)
+        .where('userId', isEqualTo: _uid)
+        .where('read', isEqualTo: false)
+        .limit(400)
+        .get();
+    if (q.docs.isEmpty) return 0;
+    final b = _db.batch();
+    for (final d in q.docs) {
+      b.update(d.reference, {'read': true});
+    }
+    await b.commit();
+    return q.size;
+  }
+
   static Stream<List<NotifModel>> notifStream() => _db
       .collection(Col.notifications)
       .where('userId', isEqualTo: _uid)
@@ -1522,14 +1542,9 @@ class FS {
         'newUsersThisWeek': newUsers.count ?? 0,
       };
     } catch (e) {
+      // Sem zeros falsos: a tela mostra que os números não carregaram.
       debugPrint('Erro ao buscar KPIs do dashboard: $e');
-      return {
-        'totalUsers': 0,
-        'totalProviders': 0,
-        'revenue': 0.0,
-        'completedOrders': 0,
-        'newUsersThisWeek': 0
-      };
+      rethrow;
     }
   }
 
@@ -1544,7 +1559,15 @@ class FS {
           .get();
       final grossRevenue = completed.docs.fold<double>(
           0, (sum, d) => sum + ((d.data()['price'] as num?)?.toDouble() ?? 0));
-      final commission = grossRevenue * AppConst.commission;
+      // Comissão de cada pedido: a registrada no repasse; senão a taxa
+      // gravada no pedido (financeTerms); pedidos antigos sem registro: 15%.
+      final commission = completed.docs.fold<double>(0, (sum, d) {
+        final m = d.data();
+        final price = (m['price'] as num?)?.toDouble() ?? 0;
+        final recorded = (m['commission'] as num?)?.toDouble();
+        final bps = (m['financeTerms'] as Map?)?['commissionBps'] as num?;
+        return sum + (recorded ?? (bps != null ? price * bps / 10000 : price * AppConst.commission));
+      });
       final netToProviders = grossRevenue - commission;
 
       final cancelled = await _db
@@ -1557,12 +1580,16 @@ class FS {
           (sum, d) =>
               sum + ((d.data()['refundAmount'] as num?)?.toDouble() ?? 0));
 
+      // Recargas confirmadas (Fase 3: tipo 'recharge', em centavos).
       final pixTx = await _db
           .collection(Col.transactions)
-          .where('type', isEqualTo: 'credit')
+          .where('type', isEqualTo: 'recharge')
           .get();
-      final pixTotal = pixTx.docs.fold<double>(
-          0, (sum, d) => sum + ((d.data()['amount'] as num?)?.toDouble() ?? 0));
+      final pixTotal = pixTx.docs.fold<double>(0, (sum, d) {
+        final m = d.data();
+        final c = (m['amountCents'] as num?)?.toDouble();
+        return sum + (c != null ? c / 100 : ((m['amount'] as num?)?.toDouble() ?? 0));
+      });
 
       return {
         'grossRevenue': grossRevenue,
@@ -1574,14 +1601,7 @@ class FS {
       };
     } catch (e) {
       debugPrint('Erro ao buscar relatório financeiro: $e');
-      return {
-        'grossRevenue': 0.0,
-        'commission': 0.0,
-        'netToProviders': 0.0,
-        'pixProcessed': 0.0,
-        'refunds': 0.0,
-        'completedCount': 0
-      };
+      rethrow;
     }
   }
 
@@ -2010,6 +2030,25 @@ class FS {
       CloudFn.call('acceptResolveProposal',
           {'requestId': requestId, 'proposalId': proposalId});
 
+  static final Map<String, ({String name, String? photoUrl, String kind})> _pubCache = {};
+
+  /// Nome/foto públicos de outra pessoa (publicProfiles, mantido pelo
+  /// servidor). Nunca lê o perfil privado de terceiros.
+  static Future<({String name, String? photoUrl, String kind})?> publicProfile(String uid) async {
+    final cached = _pubCache[uid];
+    if (cached != null) return cached;
+    try {
+      final s = await _db.collection('publicProfiles').doc(uid).get();
+      final d = s.data();
+      if (d == null) return null;
+      final v = (name: (d['name'] as String?) ?? 'Usuário', photoUrl: d['photoUrl'] as String?, kind: (d['kind'] as String?) ?? 'client');
+      _pubCache[uid] = v;
+      return v;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// Lista salas do usuário autenticado (inbox unificado).
   static Stream<List<ChatRoomPreview>> chatRoomsStream() {
     if (_uid == null) return const Stream.empty();
@@ -2027,16 +2066,15 @@ class FS {
         final data = d.data();
         final parts = List<String>.from(data['participants'] ?? []);
         final otherId = parts.firstWhere((p) => p != me, orElse: () => '');
-        String otherName = 'Contato';
+        // Perfil público mínimo (o perfil em users/ é privado).
+        String otherName = 'Usuário';
         String? otherPhoto;
         if (otherId.isNotEmpty) {
-          try {
-            final u = await getUser(otherId);
-            if (u != null) {
-              otherName = u.name.isNotEmpty ? u.name : otherName;
-              otherPhoto = u.photoUrl;
-            }
-          } catch (_) {}
+          final p = await publicProfile(otherId);
+          if (p != null) {
+            otherName = p.name;
+            otherPhoto = p.photoUrl;
+          }
         }
         out.add(ChatRoomPreview(
           id: d.id,
@@ -2077,6 +2115,10 @@ abstract final class CloudFn {
       }
       return {'data': raw};
     } on FirebaseFunctionsException catch (e) {
+      // Sessão inválida no servidor com usuário "logado" no app: expirou.
+      if (e.code == 'unauthenticated' && AuthService.isAuth) {
+        SessionGuard.instance.expired();
+      }
       throw CloudCallException(e.message ?? 'Falha na operação',
           code: e.code);
     }

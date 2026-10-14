@@ -329,9 +329,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         isOnline: p.modalities.contains('online'),
                         photo: p.photoUrl,
                         providerId: p.id,
-                        onTap: () => Navigator.pushNamed(
-                            context, Routes.requestService,
-                            arguments: {
+                        onTap: () => Navigator.pushNamed(context, Routes.providerProfile, arguments: {
                               'providerId': p.id,
                               'providerName': p.name,
                               'category': p.categories.isNotEmpty

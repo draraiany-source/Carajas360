@@ -628,3 +628,23 @@ class QueryErrorView extends StatelessWidget {
       actionLabel: onRetry != null ? 'Tentar novamente' : null,
       onAction: onRetry);
 }
+
+/// Limita a largura do conteúdo em telas largas (tablet/desktop), mantendo
+/// o conteúdo centralizado; no celular não muda nada.
+class MaxWidth extends StatelessWidget {
+  final Widget child;
+  final double maxWidth;
+  const MaxWidth({super.key, required this.child, this.maxWidth = 920});
+  @override
+  Widget build(BuildContext context) => Align(
+      alignment: Alignment.topCenter,
+      child: ConstrainedBox(constraints: BoxConstraints(maxWidth: maxWidth), child: child));
+}
+
+/// Espaçamento de página responsivo: 16 px no celular; em telas largas
+/// centraliza o conteúdo em até [maxWidth] (cards proporcionais).
+EdgeInsets pagePadding(BuildContext context, {double maxWidth = 920, double vertical = 16}) {
+  final w = MediaQuery.sizeOf(context).width;
+  final side = w > maxWidth + 32 ? (w - maxWidth) / 2 : 16.0;
+  return EdgeInsets.symmetric(horizontal: side, vertical: vertical);
+}

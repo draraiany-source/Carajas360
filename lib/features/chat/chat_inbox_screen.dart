@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/auth/access_control.dart';
 import '../../core/constants/app_constants.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
@@ -21,11 +22,12 @@ class ChatInboxScreen extends StatelessWidget {
               title: 'Faça login',
               subtitle: 'Entre na conta para ver suas conversas',
               actionLabel: 'Entrar',
-              onAction: () => Navigator.pushNamed(context, Routes.login),
+              onAction: () => loginAndResume(context),
             )
           : StreamBuilder<List<ChatRoomPreview>>(
               stream: FS.chatRoomsStream(),
               builder: (_, snap) {
+                if (snap.hasError) return QueryErrorView(error: snap.error);
                 if (snap.connectionState == ConnectionState.waiting &&
                     !snap.hasData) {
                   return const Center(child: CircularProgressIndicator());

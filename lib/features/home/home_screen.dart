@@ -170,7 +170,7 @@ class _ServicesHubState extends State<ServicesHubScreen> {
               Expanded(
                   child: _banner(
                       '🏥',
-                      'SaúdeConecta',
+                      'Saúde Carajás 360',
                       'Médico · Psicólogo · Fisio',
                       AppGradients.health,
                       Routes.health)),
@@ -419,9 +419,8 @@ class ProviderResultCard extends StatelessWidget {
       isOnline: p.modalities.contains('online'),
       photo: p.photoUrl,
       providerId: p.id,
-      onTap: () => Navigator.pushNamed(context, Routes.requestService, arguments: {
+      onTap: () => Navigator.pushNamed(context, Routes.providerProfile, arguments: {
         'providerId': p.id,
-        'providerName': p.name,
         'category': specialty,
       }),
       onChat: () => ChatNav.open(context,

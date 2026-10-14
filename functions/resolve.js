@@ -228,7 +228,7 @@ module.exports = function resolveFunctions(deps) {
       return { clientId: req.clientId, providerName: provider.name || 'Profissional' };
     });
     await notifySafe(result.clientId, '💬 Nova proposta Resolve',
-      `${result.providerName} enviou uma proposta para seu pedido.`, 'resolve');
+      `${result.providerName} enviou uma proposta para seu pedido.`, 'resolve', { route: 'resolveDetail', id: requestId });
     return { ok: true, id: proposalId };
   });
 
@@ -341,7 +341,7 @@ module.exports = function resolveFunctions(deps) {
     });
     if (n) await batch.commit();
     await notifySafe(after.matchedProviderId, '✅ Proposta aceita!',
-      'Sua proposta Resolve foi aceita. O pedido e o chat já estão disponíveis.', 'resolve');
+      'Sua proposta Resolve foi aceita. O pedido e o chat já estão disponíveis.', 'resolve', { route: 'myOrders' });
     for (const d of others.docs) {
       if (d.id !== after.matchedProposalId) {
         await notifySafe(d.data().providerId, 'Resolve', 'O cliente escolheu outra proposta para o pedido.', 'resolve');
@@ -370,7 +370,7 @@ module.exports = function resolveFunctions(deps) {
         const prov = { id: p.id, ...p.data() };
         const uid = prov.userId || p.id;
         if (!core.providerMatch(prov, r, { uid, nodes: ns, userActive: await userActive(uid), nowMs: Date.now() }).ok) continue;
-        await notifySafe(uid, '⚡ Nova oportunidade Resolve', String(r.description || '').slice(0, 80), 'resolve');
+        await notifySafe(uid, '⚡ Nova oportunidade Resolve', String(r.description || '').slice(0, 80), 'resolve', { route: 'resolveOpportunities' });
         sent += 1;
         if (sent >= 50) break;
       }

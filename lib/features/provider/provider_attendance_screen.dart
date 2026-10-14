@@ -112,7 +112,7 @@ class _ProviderAttendanceState extends State<ProviderAttendanceScreen> {
         body: !_loaded
             ? const EmptyState(
                 emoji: '👷', title: 'Perfil de prestador não encontrado', subtitle: 'Cadastre-se como profissional.')
-            : ListView(padding: const EdgeInsets.all(16), children: [
+            : ListView(padding: pagePadding(context), children: [
                 SwitchListTile(
                     contentPadding: EdgeInsets.zero,
                     title: const Text('Recebendo novas oportunidades'),

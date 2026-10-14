@@ -102,7 +102,7 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
 
   Widget _body(MarketOrder o) {
     final expired = o.awaitingPayment && o.reservationExpired(DateTime.now());
-    return ListView(padding: const EdgeInsets.all(16), children: [
+    return ListView(padding: pagePadding(context), children: [
       Container(
         decoration: AppDecorations.card(r: 16),
         padding: const EdgeInsets.all(14),
