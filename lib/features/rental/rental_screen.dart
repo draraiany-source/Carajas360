@@ -665,34 +665,45 @@ class _RentalFormState extends State<_RentalForm> {
       return;
     }
     setState(() => _saving = true);
-    final id = await FS.saveRental(RentalModel(
-      id: widget.edit?.id ?? '',
-      ownerId: '',
-      ownerName: 'Anunciante',
-      title: _title.text.trim(),
-      category: _cat,
-      kind: _kind,
-      brand: _brand.text.trim(),
-      model: _model.text.trim(),
-      description: _desc.text.trim(),
-      city: _city.text.trim(),
-      state: _state.text.trim().toUpperCase(),
-      power: _power.text.trim(),
-      specs: _specs.text.trim(),
-      year: int.tryParse(_year.text),
-      km: int.tryParse(_km.text),
-      photos: _photos,
-      pricePerHour: _num(_hour),
-      pricePerDay: _num(_day),
-      pricePerWeek: _num(_week),
-      pricePerMonth: _num(_month),
-      createdAt: DateTime.now(),
-    ));
+    String? id;
+    try {
+      id = await FS.saveRental(RentalModel(
+        id: widget.edit?.id ?? '',
+        ownerId: '',
+        ownerName: 'Anunciante',
+        title: _title.text.trim(),
+        category: _cat,
+        kind: _kind,
+        brand: _brand.text.trim(),
+        model: _model.text.trim(),
+        description: _desc.text.trim(),
+        city: _city.text.trim(),
+        state: _state.text.trim().toUpperCase(),
+        power: _power.text.trim(),
+        specs: _specs.text.trim(),
+        year: int.tryParse(_year.text),
+        km: int.tryParse(_km.text),
+        photos: _photos,
+        pricePerHour: _num(_hour),
+        pricePerDay: _num(_day),
+        pricePerWeek: _num(_week),
+        pricePerMonth: _num(_month),
+        createdAt: DateTime.now(),
+      ));
+    } catch (e) {
+      debugPrint('saveRental: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
     if (!mounted) return;
-    setState(() => _saving = false);
+    // Em caso de falha mantém o formulário aberto para tentar de novo.
+    if (id == null) {
+      snack(context, 'Falha ao publicar. Tente novamente.',
+          bg: AppColors.error);
+      return;
+    }
     Navigator.pop(context);
-    snack(context, id != null ? '✅ Anúncio publicado!' : 'Falha ao publicar.',
-        bg: id != null ? AppColors.secondary : AppColors.error);
+    snack(context, '✅ Anúncio publicado!', bg: AppColors.secondary);
   }
 
   @override

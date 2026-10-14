@@ -41,6 +41,7 @@ class _EditorState extends State<HealthScheduleEditorScreen> {
   final List<String> _blocked = [];
   final List<_Svc> _services = [];
   bool _loading = true, _saving = false;
+  Object? _loadError;
 
   @override
   void initState() {
@@ -49,8 +50,20 @@ class _EditorState extends State<HealthScheduleEditorScreen> {
   }
 
   Future<void> _load() async {
-    final provider = await FS.myProviderStream().first;
-    final cur = await FS.myHealthSchedule() ?? const {};
+    final ProviderModel? provider;
+    final Map<String, dynamic> cur;
+    try {
+      provider = await FS.myProviderStream().first;
+      cur = await FS.myHealthSchedule() ?? const {};
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loadError = e;
+          _loading = false;
+        });
+      }
+      return;
+    }
     final catalog = CatalogService.instance.catalog;
     final healthIds = (provider?.categories ?? const <String>[])
         .where((c) => catalog.rootOf(c)?.vertical == CatalogVertical.health)
@@ -123,9 +136,19 @@ class _EditorState extends State<HealthScheduleEditorScreen> {
         bottomNavigationBar: SafeArea(
             child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: ElevatedButton(onPressed: _loading || _saving ? null : _save, child: Text(_saving ? 'Salvando…' : 'Publicar agenda')))),
+                child: ElevatedButton(onPressed: _loading || _saving || _loadError != null ? null : _save, child: Text(_saving ? 'Salvando…' : 'Publicar agenda')))),
         body: _loading
             ? const Center(child: CircularProgressIndicator())
+            : _loadError != null
+            ? QueryErrorView(
+                error: _loadError,
+                onRetry: () {
+                  setState(() {
+                    _loadError = null;
+                    _loading = true;
+                  });
+                  _load();
+                })
             : ListView(padding: pagePadding(context), children: [
                 const Text('Especialidades atendidas pela agenda', style: TextStyle(fontWeight: FontWeight.w800)),
                 if (_services.isEmpty)

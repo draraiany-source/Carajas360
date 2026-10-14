@@ -94,13 +94,23 @@ class _RegisterCompanyFormState extends State<_RegisterCompanyForm> {
       categories: _selectedCats.toList(),
       plan: PlanTier.free,
       verified: false,
-      active: true,
+      // Regras: empresa nasce inativa; o admin ativa na aprovação.
+      active: false,
       createdAt: DateTime.now(),
     );
-    await FS.saveCompany(company);
-    await FS.switchProfileType('company');
+    try {
+      await FS.saveCompany(company);
+      await FS.switchProfileType('company');
+    } catch (e) {
+      if (mounted) {
+        snack(context, 'Não foi possível cadastrar a empresa: $e',
+            bg: AppColors.error);
+      }
+      return;
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
     if (mounted) {
-      setState(() => _loading = false);
       snack(context, '✅ Empresa cadastrada! Aguarde aprovação.',
           bg: AppColors.secondary);
       Navigator.pop(context);
@@ -302,10 +312,6 @@ class _CompanyDashboard extends StatelessWidget {
                       value: '${company.teamSize}',
                       label: 'Equipe',
                       color: AppColors.primary),
-                  const StatCard(
-                      value: '0',
-                      label: 'Leads no mês',
-                      color: AppColors.secondary),
                   StatCard(
                       value: '${company.categories.length}',
                       label: 'Categorias',

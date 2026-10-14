@@ -72,20 +72,26 @@ class _StoreFormState extends State<_StoreForm> {
       return;
     }
     setState(() => _saving = true);
-    final id = await FS.saveStore(StoreModel(
-      id: '',
-      ownerId: '',
-      name: _name.text.trim(),
-      cnpj: _cnpj.text.trim(),
-      description: _desc.text.trim(),
-      phone: _phone.text.trim(),
-      city: _city.text.trim(),
-      state: _state.text.trim().toUpperCase(),
-      categories: _selectedCats.toList(),
-      createdAt: DateTime.now(),
-    ));
+    String? id;
+    try {
+      id = await FS.saveStore(StoreModel(
+        id: '',
+        ownerId: '',
+        name: _name.text.trim(),
+        cnpj: _cnpj.text.trim(),
+        description: _desc.text.trim(),
+        phone: _phone.text.trim(),
+        city: _city.text.trim(),
+        state: _state.text.trim().toUpperCase(),
+        categories: _selectedCats.toList(),
+        createdAt: DateTime.now(),
+      ));
+    } catch (e) {
+      debugPrint('saveStore: $e');
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
     if (!mounted) return;
-    setState(() => _saving = false);
     snack(context, id != null ? '✅ Loja criada!' : 'Falha ao criar a loja.',
         bg: id != null ? AppColors.secondary : AppColors.error);
   }
@@ -566,22 +572,30 @@ class _CatalogScreen extends StatelessWidget {
                         }
                         final pr =
                             double.tryParse(promo.text.replaceAll(',', '.'));
-                        await FS.saveProduct(ProductModel(
-                          id: edit?.id ?? '',
-                          storeId: store.id,
-                          storeName: store.name,
-                          name: name.text.trim(),
-                          category: cat,
-                          description: desc.text.trim(),
-                          emoji: emoji.text.trim().isEmpty
-                              ? '📦'
-                              : emoji.text.trim(),
-                          price: v,
-                          promoPrice:
-                              (pr != null && pr > 0 && pr < v) ? pr : null,
-                          stock: int.tryParse(stock.text) ?? 0,
-                          createdAt: DateTime.now(),
-                        ));
+                        try {
+                          await FS.saveProduct(ProductModel(
+                            id: edit?.id ?? '',
+                            storeId: store.id,
+                            storeName: store.name,
+                            name: name.text.trim(),
+                            category: cat,
+                            description: desc.text.trim(),
+                            emoji: emoji.text.trim().isEmpty
+                                ? '📦'
+                                : emoji.text.trim(),
+                            price: v,
+                            promoPrice:
+                                (pr != null && pr > 0 && pr < v) ? pr : null,
+                            stock: int.tryParse(stock.text) ?? 0,
+                            createdAt: DateTime.now(),
+                          ));
+                        } catch (e) {
+                          if (ctx.mounted) {
+                            snack(ctx, 'Não foi possível salvar o produto: $e',
+                                bg: AppColors.error);
+                          }
+                          return;
+                        }
                         if (ctx.mounted) Navigator.pop(ctx);
                       },
                       style: ElevatedButton.styleFrom(

@@ -176,7 +176,7 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                       Routes.health)),
               const SizedBox(width: 10),
               Expanded(
-                  child: _banner('📦', 'EntregaConecta', 'GPS em tempo real',
+                  child: _banner('📦', 'Entregas', 'Em breve no Carajás 360',
                       AppGradients.delivery, Routes.delivery)),
             ]),
           )),

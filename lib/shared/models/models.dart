@@ -417,6 +417,8 @@ class OrderModel {
   final DateTime? completedAt;
   /// Comissão congelada no pedido (`financeTerms.commissionBps`).
   final int? commissionBps;
+  /// Prestador marcou como concluído; falta o cliente confirmar.
+  final bool awaitingClientConfirmation;
 
   const OrderModel({
     required this.id,
@@ -436,6 +438,7 @@ class OrderModel {
     this.source,
     this.completedAt,
     this.commissionBps,
+    this.awaitingClientConfirmation = false,
   });
 
   /// Data em que o ganho conta: conclusão; pedidos antigos sem o campo usam a criação.
@@ -487,6 +490,7 @@ class OrderModel {
         source: m['source'] as String?,
         completedAt: (m['completedAt'] as Timestamp?)?.toDate(),
         commissionBps: ((m['financeTerms'] as Map?)?['commissionBps'] as num?)?.toInt(),
+        awaitingClientConfirmation: m['awaitingClientConfirmation'] == true,
       );
 }
 

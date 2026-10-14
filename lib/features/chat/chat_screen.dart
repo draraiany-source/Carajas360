@@ -37,11 +37,30 @@ class _ChatState extends State<ChatScreen> {
   MessageModel? _replyTo; // mensagem sendo respondida
   String _searchQuery = ''; // filtro de busca na conversa
   bool _searching = false;
+  // Nome real gravado nas mensagens (o outro lado não pode ver "Você").
+  String _myName = 'Usuário';
+  late final Stream<List<MessageModel>> _messages =
+      FS.messagesStream(widget.roomId);
+  bool _marking = false;
 
   @override
   void initState() {
     super.initState();
-    FS.markMessagesRead(widget.roomId);
+    FS.myDisplayName().then((n) {
+      if (mounted) _myName = n;
+    }).catchError((_) {});
+  }
+
+  /// Marca como lidas só quando há mensagens recebidas não lidas.
+  void _markReadIfNeeded(List<MessageModel> msgs) {
+    if (_marking ||
+        !msgs.any((m) => m.senderId != _uid && !m.read && !m.deleted)) {
+      return;
+    }
+    _marking = true;
+    FS.markMessagesRead(widget.roomId).catchError((e) {
+      debugPrint('markMessagesRead: $e');
+    }).whenComplete(() => _marking = false);
   }
 
   @override
@@ -57,16 +76,24 @@ class _ChatState extends State<ChatScreen> {
     _msgCtrl.clear();
     final reply = _replyTo;
     setState(() => _replyTo = null);
-    await FS.sendMessage(
-      roomId: widget.roomId,
-      senderName: 'Você',
-      text: text,
-      replyToText: reply?.text,
-      replyToSender: reply == null
-          ? null
-          : (reply.senderId == _uid ? 'Você' : widget.otherName),
-    );
-    _scrollBottom();
+    try {
+      await FS.sendMessage(
+        roomId: widget.roomId,
+        senderName: _myName,
+        text: text,
+        replyToText: reply?.text,
+        replyToSender: reply == null
+            ? null
+            : (reply.senderId == _uid ? _myName : widget.otherName),
+      );
+      _scrollBottom();
+    } catch (e) {
+      // Devolve o texto para o usuário tentar de novo.
+      if (!mounted) return;
+      if (override == null && _msgCtrl.text.isEmpty) _msgCtrl.text = text;
+      setState(() => _replyTo = reply);
+      snack(context, 'Mensagem não enviada: $e', bg: AppColors.error);
+    }
   }
 
   void _onMessageLongPress(MessageModel msg) {
@@ -181,7 +208,7 @@ class _ChatState extends State<ChatScreen> {
       if (url != null) {
         await FS.sendMessage(
             roomId: widget.roomId,
-            senderName: 'Você',
+            senderName: _myName,
             text: '📷 Foto',
             mediaUrl: url);
         _scrollBottom();
@@ -205,7 +232,8 @@ class _ChatState extends State<ChatScreen> {
         type: FileType.custom,
         allowMultiple: false,
         withData: true,
-        allowedExtensions: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'txt'],
+        // Storage aceita só PDF, imagens e áudio no chat.
+        allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'webp', 'gif', 'heic'],
       );
       if (result == null || result.files.isEmpty) return;
       final picked = result.files.single;
@@ -224,7 +252,7 @@ class _ChatState extends State<ChatScreen> {
       if (url != null) {
         await FS.sendMessage(
             roomId: widget.roomId,
-            senderName: 'Você',
+            senderName: _myName,
             text: '📄 $fileName',
             mediaUrl: url);
         _scrollBottom();
@@ -262,7 +290,7 @@ class _ChatState extends State<ChatScreen> {
           'https://maps.google.com/?q=${pos.latitude},${pos.longitude}';
       await FS.sendMessage(
           roomId: widget.roomId,
-          senderName: 'Você',
+          senderName: _myName,
           text: '📍 Localização compartilhada\n$mapsUrl');
       _scrollBottom();
     } catch (e) {
@@ -330,7 +358,7 @@ class _ChatState extends State<ChatScreen> {
     if (url != null) {
       await FS.sendMessage(
           roomId: widget.roomId,
-          senderName: 'Você',
+          senderName: _myName,
           text: '🎤 Mensagem de voz',
           mediaUrl: url);
       _scrollBottom();
@@ -355,7 +383,7 @@ class _ChatState extends State<ChatScreen> {
                     Navigator.pop(context);
                     await FS.sendMessage(
                         roomId: widget.roomId,
-                        senderName: 'Você',
+                        senderName: _myName,
                         text: isVideo
                             ? '📹 Solicitou uma videochamada'
                             : '📞 Solicitou uma ligação');
@@ -554,14 +582,14 @@ class _ChatState extends State<ChatScreen> {
               fg: AppColors.secondary),
           Expanded(
               child: StreamBuilder<List<MessageModel>>(
-            stream: FS.messagesStream(widget.roomId),
+            stream: _messages,
             builder: (_, snap) {
               if (snap.hasError) {
                 return QueryErrorView(
                     error: snap.error, title: 'Conversa indisponível');
               }
               final allMsgs = DemoData.orEmpty(snap.data, _demo);
-              if (snap.hasData) FS.markMessagesRead(widget.roomId);
+              if (snap.hasData) _markReadIfNeeded(snap.data!);
               if (snap.hasData && allMsgs.isEmpty) {
                 return Center(
                     child: Padding(

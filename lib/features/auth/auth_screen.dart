@@ -347,7 +347,16 @@ class _LoginState extends State<LoginScreen>
               _otpSent = true;
               _loading = false;
             }),
-        onError: _err);
+        onAutoVerified: (cred) {
+          if (!mounted || cred.user == null) return;
+          setState(() => _loading = true);
+          _afterLogin(cred.user!.uid,
+                  cred.additionalUserInfo?.isNewUser ?? false)
+              .catchError((_) => _err('Não foi possível entrar.'));
+        },
+        onError: (m) {
+          if (mounted) _err(m);
+        });
   }
 
   Future<void> _confirmOtp() async {
@@ -856,6 +865,13 @@ class _RegState extends State<RegisterScreen>
           termsAccepted: true,
           createdAt: DateTime.now());
       await FS.saveUser(u);
+      // Login social/telefone já criou o perfil como cliente e saveUser
+      // não altera 'type' em perfil existente: troca pela callable.
+      if (_type != UserType.client &&
+          !await FS.switchProfileType(_type.name)) {
+        throw const AuthFailure(
+            'Não foi possível definir o tipo de conta. Tente novamente.');
+      }
 
       if (_type == UserType.provider) {
         await FS.createProviderProfile(
@@ -1218,7 +1234,8 @@ class _RegState extends State<RegisterScreen>
                                 _premiumField(_email, 'E-mail',
                                     Icons.email_outlined,
                                     kt: TextInputType.emailAddress,
-                                    readOnly: !_needsPassword,
+                                    readOnly: !_needsPassword &&
+                                        (AuthService.current?.email ?? '').isNotEmpty,
                                     val: (v) => AuthValidators.emailError(v)),
                                 if (_needsPassword) ...[
                                   _premiumField(_pass, 'Senha', Icons.lock_outline,

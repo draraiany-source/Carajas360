@@ -16,7 +16,6 @@ abstract class AppAssets {
   static const _wallet = 'assets/wallet';
   static const _chat = 'assets/chat';
   static const _gps = 'assets/gps';
-  static const _lottie = 'assets/lottie';
 
   // ── Logos ──────────────────────────────────────────────────
   static const logoHorizontalLight = '$_logos/logo_horizontal_light.svg';
@@ -91,15 +90,6 @@ abstract class AppAssets {
   static const gpsVeiculoCarro = '$_gps/gps_veiculo_carro.svg';
   static const gpsVeiculoMoto = '$_gps/gps_veiculo_moto.svg';
   static const gpsVeiculoBicicleta = '$_gps/gps_veiculo_bicicleta.svg';
-
-  // ── Lottie (animações) ─────────────────────────────────────
-  static const lottieSucesso = '$_lottie/sucesso.json';
-  static const lottieErro = '$_lottie/erro.json';
-  static const lottieLoading = '$_lottie/loading.json';
-  static const lottiePagamentoAprovado = '$_lottie/pagamento_aprovado.json';
-  static const lottiePedidoEnviado = '$_lottie/pedido_enviado.json';
-  static const lottieServicoConcluido = '$_lottie/servico_concluido.json';
-  static const lottieUploadConcluido = '$_lottie/upload_concluido.json';
 
   // ── Banners da Home ────────────────────────────────────────
   // Mapa slug -> caminho. A Home referencia pelo slug.

@@ -106,6 +106,10 @@ function transitionAllowed(action, b, uid, nowMs, reason) {
   const start = Number(b.startMs);
   switch (action) {
     case 'confirm':
+      // Auditoria: pendente cujo início passou deixa de bloquear a agenda;
+      // confirmar depois disso permitia duas reservas sobrepostas.
+      if (!isOwner) return { ok: false, reason: 'owner_only' };
+      return nowMs < start ? { ok: true, to: f.to } : { ok: false, reason: 'start_passed' };
     case 'reject':
     case 'complete':
       return isOwner ? { ok: true, to: f.to } : { ok: false, reason: 'owner_only' };

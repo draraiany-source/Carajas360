@@ -142,6 +142,9 @@ module.exports = function paymentFunctions(deps) {
   async function quote(data, tx) {
     const storeId = String(data?.storeId || '');
     const items = Array.isArray(data?.items) ? data.items.map((i) => ({ productId: String(i?.productId || ''), qty: Number(i?.qty) })) : [];
+    // Auditoria: limite ANTES de ler produtos (milhares de itens = milhares de leituras).
+    if (items.length > 50) throw httpsError('invalid-argument', 'Máximo de 50 itens por pedido');
+    if (items.some((i) => !/^[A-Za-z0-9_-]{1,128}$/.test(i.productId))) throw httpsError('invalid-argument', 'Produto inválido');
     const storeSnap = storeId ? (tx ? await tx.get(C.stores.doc(storeId)) : await C.stores.doc(storeId).get()) : null;
     const productSnaps = items.length ? (tx ? await tx.getAll(...items.map((i) => C.products.doc(i.productId || '_'))) : await db.getAll(...items.map((i) => C.products.doc(i.productId || '_')))) : [];
     const products = {};
@@ -294,7 +297,7 @@ module.exports = function paymentFunctions(deps) {
     const targetId = String(data?.targetId || '');
     const method = String(data?.method || '');
     const requestId = String(data?.requestId || '');
-    if (!targetId || !['pix', 'card', 'wallet'].includes(method)) throw httpsError('invalid-argument', 'Dados de pagamento inválidos');
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(targetId) || !['pix', 'card', 'wallet'].includes(method)) throw httpsError('invalid-argument', 'Dados de pagamento inválidos');
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(requestId)) throw httpsError('invalid-argument', 'requestId obrigatório');
     if (kind === 'recharge' && method === 'wallet') throw httpsError('invalid-argument', 'Recarga não pode ser paga com a própria carteira');
     const g = gateway();
@@ -466,10 +469,24 @@ module.exports = function paymentFunctions(deps) {
         issue(tx, { type: 'late_approval', targetKind: 'market', targetId: tRef.id, attemptId: a.id, amountCents: a.amountCents, detail: `Pagamento aprovado com pedido ${t.status}; reembolso automático solicitado.` });
       }
     } else if (a.targetKind === 'service') {
-      tx.update(tRef, { paymentStatus: 'paid', transactionId: a.id, paidAt: FieldValue.serverTimestamp() });
+      if (!t || t.status === 'cancelled' || t.status === 'completed' || t.paymentStatus === 'paid') {
+        // Auditoria: aprovação depois de cancelar ou de já pago (cobrança
+        // dupla) nunca é silenciosa: reembolso automático + pendência.
+        tx.set(C.refunds.doc(`rf_late_${a.id}`), refundDoc({ kind: 'service', targetId: a.targetId, attempt: a, amountCents: a.amountCents, reason: 'late_or_duplicate_approval', by: 'system' }));
+        issue(tx, { type: 'late_approval', targetKind: 'service', targetId: a.targetId, attemptId: a.id, amountCents: a.amountCents, detail: `Pagamento aprovado com pedido ${t ? t.status : 'inexistente'}/${t ? t.paymentStatus : ''}; reembolso automático solicitado.` });
+        return;
+      }
+      tx.update(tRef, { paymentStatus: 'paid', transactionId: a.id, paidAttemptId: a.id, totalCents: a.amountCents, paidAt: FieldValue.serverTimestamp() });
       // Espelho legado usado pelo repasse (canPayout).
       tx.set(db.collection('payments').doc(a.id), { orderId: a.targetId, userId: a.userId, purpose: 'order', amount: fin.fromCents(a.amountCents), amountCents: a.amountCents, method: a.method, status: 'approved', walletCredited: false, externalId: a.gatewayPaymentId || a.id, createdAt: FieldValue.serverTimestamp(), paidAt: FieldValue.serverTimestamp() });
     } else if (a.targetKind === 'recharge') {
+      if (t && t.paymentStatus === 'approved') {
+        // Auditoria: segunda cobrança aprovada da mesma recarga (o razão
+        // credita uma vez só): devolve a segunda.
+        tx.set(C.refunds.doc(`rf_late_${a.id}`), refundDoc({ kind: 'recharge', targetId: a.targetId, attempt: a, amountCents: a.amountCents, reason: 'duplicate_approval', by: 'system' }));
+        issue(tx, { type: 'late_approval', targetKind: 'recharge', targetId: a.targetId, attemptId: a.id, amountCents: a.amountCents, detail: 'Recarga paga duas vezes; reembolso automático solicitado.' });
+        return;
+      }
       tx.update(tRef, { status: 'paid', paymentStatus: 'approved', paidAt: FieldValue.serverTimestamp() });
       if (walletForRecharge) {
         postLedger(tx, walletForRecharge, { type: 'recharge', amountCents: a.amountCents, description: 'Recarga via Pix/cartão', refKind: 'recharge', refId: a.targetId, extra: { attemptId: a.id } });
@@ -500,7 +517,10 @@ module.exports = function paymentFunctions(deps) {
       const tRef = targetRef(a.targetKind, a.targetId);
       const tSnap = await tx.get(tRef);
       const t = tSnap.data();
-      const becomingApproved = norm.status === 'approved' && a.status !== 'approved';
+      // Auditoria: se o primeiro estado visto já é posterior à aprovação
+      // (reembolso parcial, disputa, chargeback), o dinheiro foi capturado.
+      const CAPTURED = ['approved', 'partially_refunded', 'in_dispute', 'charged_back'];
+      const becomingApproved = CAPTURED.includes(norm.status) && !CAPTURED.includes(a.status) && a.status !== 'refunded';
       const wallet = becomingApproved && a.targetKind === 'recharge'
         ? await readWallet(tx, db, a.userId, `recharge_${a.targetId}`) : null;
       // Validações de autenticidade do pagamento.
@@ -532,8 +552,11 @@ module.exports = function paymentFunctions(deps) {
           tx.update(tRef, { activeAttemptId: null, paymentStatus: 'unpaid', updatedAt: FieldValue.serverTimestamp() });
         }
         if (a.targetKind === 'market') tx.set(...event(tRef, 'payment_failed', { attemptId, status: norm.status }));
-      } else if (['charged_back', 'in_dispute'].includes(norm.status)) {
+      }
+      if (['charged_back', 'in_dispute'].includes(norm.status)) {
         issue(tx, { type: norm.status, targetKind: a.targetKind, targetId: a.targetId, attemptId, detail: 'Contestação no gateway' });
+      } else if (norm.status === 'refunded' && a.status !== 'refunded') {
+        issue(tx, { type: 'gateway_refund', targetKind: a.targetKind, targetId: a.targetId, attemptId, detail: 'Reembolso total no gateway: conferir se houve pedido de reembolso no app.' });
       }
       return { applied: norm.status, refundedCents: norm.refundedCents || 0, kind: a.targetKind, targetId: a.targetId };
     });
@@ -596,9 +619,24 @@ module.exports = function paymentFunctions(deps) {
         if (after.status === 'approved') throw httpsError('failed-precondition', 'Pagamento já confirmado; não é possível cancelar a cobrança.');
         throw httpsError('failed-precondition', `Não foi possível cancelar agora: ${fin.redact(e.message)}`);
       }
+    } else if (a.method === 'wallet') {
+      // Auditoria: reconciliar uma tentativa de carteira "creating" PAGAVA.
+      await failAttempt(id, 'cancelado pelo cliente', 'cancelled');
     } else if (!a.gatewayPaymentId) {
       const after = await reconcileAttempt(id);
-      if (fin.ACTIVE_ATTEMPT.includes(after.status)) await failAttempt(id, 'cancelado pelo cliente', 'cancelled');
+      if (after && after.gatewayPaymentId && fin.ACTIVE_ATTEMPT.includes(after.status) && g) {
+        // Auditoria: a cobrança existia no gateway (timeout na criação);
+        // cancelar só localmente deixava o QR pagável.
+        try {
+          await applyUpdate(id, await g.cancel(after.gatewayPaymentId), 'cancel');
+        } catch (e) {
+          const again = await reconcileAttempt(id);
+          if (again.status === 'approved') throw httpsError('failed-precondition', 'Pagamento já confirmado; não é possível cancelar a cobrança.');
+          throw httpsError('failed-precondition', `Não foi possível cancelar agora: ${fin.redact(e.message)}`);
+        }
+      } else if (after && fin.ACTIVE_ATTEMPT.includes(after.status)) {
+        await failAttempt(id, 'cancelado pelo cliente', 'cancelled');
+      }
     }
     return attemptView(id, (await C.attempts.doc(id).get()).data());
   });
@@ -651,10 +689,12 @@ module.exports = function paymentFunctions(deps) {
     await db.runTransaction(async (tx) => {
       const t = (await tx.get(tRef)).data();
       if (!t) throw httpsError('not-found', 'Pedido não encontrado');
-      if (!t.paidAttemptId) throw httpsError('failed-precondition', 'Pedido sem pagamento confirmado');
-      const a = { id: t.paidAttemptId, ...(await tx.get(C.attempts.doc(t.paidAttemptId))).data() };
-      const amount = amountCents == null ? t.totalCents - (t.refundedCents || 0) - (t.refundPendingCents || 0) : Number(amountCents);
-      const err = fin.refundError(t.totalCents, t.refundedCents || 0, t.refundPendingCents || 0, amount);
+      const paidId = t.paidAttemptId || (kind === 'service' && String(t.transactionId || '').startsWith('pa_') ? t.transactionId : null);
+      if (!paidId) throw httpsError('failed-precondition', 'Pedido sem pagamento confirmado');
+      const a = { id: paidId, ...(await tx.get(C.attempts.doc(paidId))).data() };
+      const total = Number.isInteger(t.totalCents) ? t.totalCents : (kind === 'service' ? fin.toCents(t.price) : a.amountCents);
+      const amount = amountCents == null ? total - (t.refundedCents || 0) - (t.refundPendingCents || 0) : Number(amountCents);
+      const err = fin.refundError(total, t.refundedCents || 0, t.refundPendingCents || 0, amount);
       if (err) throw httpsError('failed-precondition', err);
       tx.set(C.refunds.doc(refundId), refundDoc({ kind, targetId, attempt: a, amountCents: amount, reason, by }));
       tx.update(tRef, { refundPendingCents: FieldValue.increment(amount), paymentStatus: 'refund_requested', updatedAt: FieldValue.serverTimestamp() });
@@ -696,7 +736,12 @@ module.exports = function paymentFunctions(deps) {
           if (cur.status !== 'requested') return;
           const tRef = targetRef(cur.targetKind, cur.targetId);
           tx.update(ref, { status: 'failed', error: fin.redact(e.message), updatedAt: FieldValue.serverTimestamp() });
-          tx.update(tRef, { refundPendingCents: FieldValue.increment(-cur.amountCents), updatedAt: FieldValue.serverTimestamp() });
+          const t = (await tx.get(tRef)).data() || {};
+          const back = { refundPendingCents: FieldValue.increment(-cur.amountCents), updatedAt: FieldValue.serverTimestamp() };
+          // Auditoria: sem isso o pedido ficava preso em "cancelamento solicitado".
+          if (cur.targetKind === 'market' && t.status === 'cancellation_requested') back.status = t.statusBeforeCancel || 'paid';
+          if (['refund_requested'].includes(t.paymentStatus)) back.paymentStatus = cur.targetKind === 'service' ? 'paid' : 'approved';
+          tx.update(tRef, back);
           issue(tx, { type: 'refund_failed', refundId, targetId: cur.targetId, detail: fin.redact(e.message) });
         });
       } else {
@@ -730,9 +775,16 @@ module.exports = function paymentFunctions(deps) {
       const r = (await tx.get(ref)).data();
       if (!r || r.status !== 'pending_confirmation') return;
       const tRef = targetRef(r.targetKind, r.targetId);
-      const t = (await tx.get(tRef)).data();
+      const t = (await tx.get(tRef)).data() || {};
+      // Devolução de cobrança duplicada/tardia de serviço ou recarga: o
+      // pedido (pago uma vez, corretamente) não muda.
+      if (r.targetKind !== 'market' && ['late_or_duplicate_approval', 'duplicate_approval'].includes(r.reason)) {
+        tx.update(ref, { status: 'approved', confirmedAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp() });
+        return;
+      }
+      const total = Number.isInteger(t.totalCents) ? t.totalCents : (r.targetKind === 'service' ? fin.toCents(t.price) : r.amountCents);
       const refundedAfter = (t.refundedCents || 0) + r.amountCents;
-      const full = refundedAfter >= t.totalCents;
+      const full = refundedAfter >= total;
       // Leituras antes das escritas.
       let productSnaps = null;
       let earningsSnap = null;
@@ -832,7 +884,7 @@ module.exports = function paymentFunctions(deps) {
       return { ok: true, status: 'cancelled' };
     }
     if (['paid', 'preparing'].includes(o.status) || (adm && ['shipped', 'ready', 'delivered'].includes(o.status))) {
-      await ref.update({ status: 'cancellation_requested', cancelReason: reason, cancelledBy: auth.uid, updatedAt: FieldValue.serverTimestamp() });
+      await ref.update({ status: 'cancellation_requested', statusBeforeCancel: o.status, cancelReason: reason, cancelledBy: auth.uid, updatedAt: FieldValue.serverTimestamp() });
       await ref.collection('events').add({ type: 'cancellation_requested', by: auth.uid, reason, at: FieldValue.serverTimestamp() });
       const refundId = await requestRefundInternal({ kind: 'market', targetId: orderId, amountCents: null, reason, by: auth.uid });
       return { ok: true, status: 'cancellation_requested', refundId };
@@ -851,9 +903,14 @@ module.exports = function paymentFunctions(deps) {
 
   // ── Acompanhamento pela loja + liberação de repasse interno ───────
   const FLOW = { paid: ['preparing'], preparing: ['shipped', 'ready'], shipped: ['delivered'], ready: ['delivered'] };
+  // Auditoria: a loja marcava "entregue" e recebia na hora, sem o cliente
+  // confirmar. Agora o repasse sai na confirmação do cliente
+  // (confirmMarketReceipt) ou 7 dias após "entregue" (marketReleaseDue).
+  const RELEASE_AFTER_MS = 7 * 24 * 60 * 60 * 1000;
   ex.marketOrderUpdateStatus = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
     const orderId = String(data?.orderId || '');
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(orderId)) throw httpsError('invalid-argument', 'orderId inválido');
     const to = String(data?.status || '');
     const ref = C.orders.doc(orderId);
     const adm = await isAdmin(auth);
@@ -863,25 +920,8 @@ module.exports = function paymentFunctions(deps) {
       if (o.storeOwnerId !== auth.uid && !adm) throw httpsError('permission-denied', 'Somente a loja');
       if (!(FLOW[o.status] || []).includes(to)) throw httpsError('failed-precondition', `Transição inválida (${o.status} → ${to})`);
       if (to === 'ready' && o.deliveryMode !== 'pickup') throw httpsError('failed-precondition', 'Pedido com entrega: use "enviado"');
-      let earnSnap = null;
-      let sellerW = null;
-      let clientW = null;
-      if (to === 'delivered') {
-        earnSnap = await tx.get(C.earnings.doc(orderId));
-        if (earnSnap.exists && earnSnap.data().status === 'pending_release') sellerW = await readWallet(tx, db, earnSnap.data().sellerId, `sale_${orderId}`);
-        if (!o.cashbackCredited && o.financeTerms.cashbackCents > 0 && o.paymentStatus === 'approved') clientW = await readWallet(tx, db, o.clientId, `cashback_${orderId}`);
-      }
       const upd = { status: to, updatedAt: FieldValue.serverTimestamp(), [`${to}At`]: FieldValue.serverTimestamp() };
-      if (sellerW) {
-        // Saldo INTERNO disponível do vendedor — não é transferência bancária.
-        const e = earnSnap.data();
-        if (e.netCents > 0) postLedger(tx, sellerW, { type: 'sale_release', amountCents: e.netCents, description: `Venda liberada (pedido ${orderId.slice(-6)})`, refKind: 'market', refId: orderId });
-        tx.update(earnSnap.ref, { status: 'released', releasedAt: FieldValue.serverTimestamp() });
-      }
-      if (clientW) {
-        postLedger(tx, clientW, { type: 'cashback', amountCents: o.financeTerms.cashbackCents, description: 'Cashback de compra', refKind: 'market', refId: orderId });
-        upd.cashbackCredited = true;
-      }
+      if (to === 'delivered') upd.releaseAfter = ts(now() + RELEASE_AFTER_MS);
       tx.update(ref, upd);
       tx.set(...event(ref, to, { by: auth.uid }));
     });
@@ -994,7 +1034,91 @@ module.exports = function paymentFunctions(deps) {
     return result;
   });
 
+  /** Libera o repasse da venda e o cashback (uma vez), em transação. */
+  async function releaseMarketOrder(orderId, by) {
+    const ref = C.orders.doc(orderId);
+    return db.runTransaction(async (tx) => {
+      const o = (await tx.get(ref)).data();
+      if (!o) throw httpsError('not-found', 'Pedido não encontrado');
+      if (o.status !== 'delivered') throw httpsError('failed-precondition', 'O pedido ainda não foi entregue');
+      if (o.released) return { ok: true, already: true };
+      const earnSnap = await tx.get(C.earnings.doc(orderId));
+      const sellerW = earnSnap.exists && earnSnap.data().status === 'pending_release'
+        ? await readWallet(tx, db, earnSnap.data().sellerId, `sale_${orderId}`) : null;
+      const clientW = !o.cashbackCredited && o.financeTerms.cashbackCents > 0 && o.paymentStatus === 'approved'
+        ? await readWallet(tx, db, o.clientId, `cashback_${orderId}`) : null;
+      const upd = { released: true, releasedAt: FieldValue.serverTimestamp(), releasedBy: by, updatedAt: FieldValue.serverTimestamp() };
+      if (sellerW) {
+        const e = earnSnap.data();
+        if (e.netCents > 0) postLedger(tx, sellerW, { type: 'sale_release', amountCents: e.netCents, description: `Venda liberada (pedido ${orderId.slice(-6)})`, refKind: 'market', refId: orderId });
+        tx.update(earnSnap.ref, { status: 'released', releasedAt: FieldValue.serverTimestamp() });
+      }
+      if (clientW) {
+        postLedger(tx, clientW, { type: 'cashback', amountCents: o.financeTerms.cashbackCents, description: 'Cashback de compra', refKind: 'market', refId: orderId });
+        upd.cashbackCredited = true;
+      }
+      tx.update(ref, upd);
+      tx.set(...event(ref, 'released', { by }));
+      return { ok: true };
+    });
+  }
+
+  /** Cliente confirma que recebeu: libera o repasse da loja. */
+  ex.confirmMarketReceipt = functions.region(REGION).https.onCall(async (data, context) => {
+    const auth = requireAuth(context);
+    const orderId = String(data?.orderId || '');
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(orderId)) throw httpsError('invalid-argument', 'orderId inválido');
+    const o = (await C.orders.doc(orderId).get()).data();
+    if (!o) throw httpsError('not-found', 'Pedido não encontrado');
+    if (o.clientId !== auth.uid) throw httpsError('permission-denied', 'Somente o cliente');
+    return releaseMarketOrder(orderId, auth.uid);
+  });
+
+  /** Repasses vencidos (7 dias após a entrega sem reclamação). */
+  ex.marketReleaseDue = functions.pubsub.schedule('every 60 minutes').onRun(async () => {
+    const s = await C.orders.where('status', '==', 'delivered').where('releaseAfter', '<=', ts(now())).limit(200).get();
+    for (const d of s.docs) {
+      if (d.data().released) continue;
+      try { await releaseMarketOrder(d.id, 'system'); } catch (e) { console.error('marketReleaseDue', d.id, e && e.message); }
+    }
+    return null;
+  });
+
+  /** Auditoria: cupom validado no servidor (a coleção não é mais pública). */
+  ex.checkCoupon = functions.region(REGION).https.onCall(async (data, context) => {
+    const auth = requireAuth(context);
+    await enforceRateLimit(auth.uid, 'check_coupon', 30, 60 * 60 * 1000);
+    const code = String(data?.code || '').toUpperCase().trim();
+    if (!/^[A-Z0-9_-]{2,40}$/.test(code)) return { valid: false };
+    const c = await loadCoupon(code);
+    if (!c || c.invalid || c.active === false) return { valid: false };
+    const exp = c.expiresAt && typeof c.expiresAt.toMillis === 'function' ? c.expiresAt.toMillis() : null;
+    if (exp && exp <= now()) return { valid: false };
+    const pct = c.isPercentage === true;
+    const discount = Number(c.discount);
+    if (!(discount > 0) || (pct && discount > 100)) return { valid: false };
+    return { valid: true, code, description: String(c.description || '').slice(0, 200), discount, isPercentage: pct, minValue: Number(c.minValue) || 0, expiresAtMs: exp };
+  });
+
+  /** Reembolso de pedido de serviço cancelado (tentativa paga ou carteira legada). */
+  async function refundService(orderId, reason, by) {
+    const ref = db.collection('orders').doc(orderId);
+    const o = (await ref.get()).data();
+    if (!o) return null;
+    const paidId = o.paidAttemptId || (String(o.transactionId || '').startsWith('pa_') ? o.transactionId : null);
+    if (paidId) return requestRefundInternal({ kind: 'service', targetId: orderId, amountCents: null, reason, by });
+    // Pagamento legado pela carteira (payOrderWithWallet): estorno interno.
+    await db.runTransaction(async (tx) => {
+      const cur = (await tx.get(ref)).data();
+      if (!cur || cur.paymentStatus === 'refunded') return;
+      const w = await readWallet(tx, db, cur.clientId, `refund_service_${orderId}`);
+      postLedger(tx, w, { type: 'refund', amountCents: fin.toCents(cur.price), description: 'Estorno de pedido cancelado', refKind: 'service', refId: orderId });
+      tx.update(ref, { paymentStatus: 'refunded', refundedAt: FieldValue.serverTimestamp() });
+    });
+    return `refund_service_${orderId}`;
+  }
+
   // Exposto para reaproveitar nos fluxos legados (index.js).
-  ex.__internals = { applyUpdate, reconcileAttempt, payability };
+  ex.__internals = { applyUpdate, reconcileAttempt, payability, refundService };
   return ex;
 };

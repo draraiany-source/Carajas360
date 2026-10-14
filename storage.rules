@@ -7,12 +7,13 @@ service firebase.storage {
   match /b/{bucket}/o {
 
     function isAuth() { return request.auth != null; }
+    // Auditoria: sem SVG (script em caminho público); só formatos raster.
     function isImage() {
-      return request.resource.contentType.matches('image/.*') &&
+      return request.resource.contentType.matches('image/(jpeg|png|webp|gif|heic)') &&
              request.resource.size < 8 * 1024 * 1024;
     }
     function isDocOrImage() {
-      return (request.resource.contentType.matches('image/.*') ||
+      return (request.resource.contentType.matches('image/(jpeg|png|webp|gif|heic)') ||
               request.resource.contentType.matches('application/pdf') ||
               request.resource.contentType.matches('audio/.*')) &&
              request.resource.size < 15 * 1024 * 1024;
@@ -32,24 +33,30 @@ service firebase.storage {
     // Foto de perfil do usuário: pública. Demais arquivos do usuário: privados.
     match /users/{userId}/photo/{allPaths=**} {
       allow read: if true;
-      allow write: if isAuth() && request.auth.uid == userId && isImage();
+      allow create, update: if isAuth() && request.auth.uid == userId && isImage();
+      allow delete: if isAuth() && request.auth.uid == userId;
     }
     match /users/{userId}/{allPaths=**} {
       allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAuth() && request.auth.uid == userId && isImage();
+      allow create, update: if isAuth() && request.auth.uid == userId && isImage();
+      allow delete: if isAuth() && request.auth.uid == userId;
     }
 
     // Foto pública do prestador.
     match /providers/{userId}/photo/{allPaths=**} {
       allow read: if true;
-      allow write: if isAuth() && request.auth.uid == userId && isImage();
+      allow create, update: if isAuth() && request.auth.uid == userId && isImage();
+      allow delete: if isAuth() && request.auth.uid == userId;
     }
 
     // Documento, selfie e certificados: somente dono e admin.
     match /providers/{userId}/{docType}/{allPaths=**} {
       allow read: if isAuth() && (request.auth.uid == userId || isAdmin());
-      allow write: if isAuth() && request.auth.uid == userId &&
+      // Auditoria: documento enviado não é substituído (troca pós-aprovação);
+      // novo envio vai com outro nome. Dono pode apagar (LGPD).
+      allow create: if isAuth() && request.auth.uid == userId && resource == null &&
         docType in ['document', 'selfie', 'certificate'] && isDocOrImage();
+      allow delete: if isAuth() && (request.auth.uid == userId || isAdmin());
     }
 
     // Anexos do questionário Resolve (Fase 4): o cliente envia para a
@@ -72,7 +79,8 @@ service firebase.storage {
           == request.auth.uid ||
         isAdmin()
       );
-      allow write: if isAuth() && isDocOrImage() && (
+      // Auditoria: sem sobrescrever arquivo da outra parte.
+      allow create: if isAuth() && resource == null && isDocOrImage() && (
         firestore.get(/databases/(default)/documents/orders/$(orderId)).data.clientId
           == request.auth.uid ||
         firestore.get(/databases/(default)/documents/orders/$(orderId)).data.providerId
@@ -83,19 +91,32 @@ service firebase.storage {
 
     match /stores/{storeId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isAuth() && isImage() &&
+      allow create, update: if isAuth() && isImage() &&
+        firestore.get(/databases/(default)/documents/stores/$(storeId)).data.ownerId == request.auth.uid;
+      allow delete: if isAuth() &&
         firestore.get(/databases/(default)/documents/stores/$(storeId)).data.ownerId == request.auth.uid;
     }
 
+    // Fotos de anúncios antigos (somente leitura e remoção pelo dono).
     match /rentals/{rentalId}/{allPaths=**} {
       allow read: if true;
-      allow write: if isAuth() && isImage() &&
+      allow create, update: if isAuth() && isImage() &&
         firestore.get(/databases/(default)/documents/rentals/$(rentalId)).data.ownerId == request.auth.uid;
+      allow delete: if isAuth() &&
+        firestore.get(/databases/(default)/documents/rentals/$(rentalId)).data.ownerId == request.auth.uid;
+    }
+
+    // Fotos de anúncio de locação: pasta do dono (o anúncio novo ainda
+    // não existe quando a foto é enviada).
+    match /rentalPhotos/{userId}/{allPaths=**} {
+      allow read: if true;
+      allow create: if isAuth() && request.auth.uid == userId && resource == null && isImage();
+      allow delete: if isAuth() && request.auth.uid == userId;
     }
 
     match /chat_media/{roomId}/{allPaths=**} {
       allow read: if isParticipant(roomId);
-      allow write: if isParticipant(roomId) && isDocOrImage();
+      allow create: if isParticipant(roomId) && resource == null && isDocOrImage();
     }
 
     match /{allPaths=**} {

@@ -136,7 +136,7 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '🔔',
                                   'Notificações',
-                                  '3 não lidas',
+                                  'Avisos e atualizações',
                                   () => Navigator.pushNamed(
                                       context, Routes.notifications)),
                               _item(context, '🔐', 'Segurança', 'Alterar senha',
@@ -175,7 +175,7 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '🎟️',
                                   'Cupons',
-                                  'PROMO30 disponível',
+                                  'Aplicar cupom de desconto',
                                   () => Navigator.pushNamed(
                                       context, Routes.coupons)),
                             ]),
@@ -198,7 +198,7 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '🏥',
                                   'Saúde',
-                                  '1 consulta agendada',
+                                  'Consultas e agendamentos',
                                   () => Navigator.pushNamed(
                                       context, Routes.health)),
                               _item(
@@ -208,7 +208,7 @@ class ProfileScreen extends StatelessWidget {
                                   'Rastrear pedidos',
                                   () => Navigator.pushNamed(
                                       context, Routes.delivery)),
-                              _item(context, '🏆', 'Conquistas', '8 medalhas',
+                              _item(context, '🏆', 'Conquistas', 'Suas medalhas',
                                   () => _showBadges(context)),
                               _item(
                                   context,
@@ -255,8 +255,7 @@ class ProfileScreen extends StatelessWidget {
                                     () => Navigator.pushNamed(
                                         context, Routes.companyProfile)),
                               ]),
-                            if (user?.type == UserType.admin ||
-                                user?.adminRole != null)
+                            if (user?.type == UserType.admin)
                               _section('Administração', [
                                 _item(
                                     context,
@@ -381,14 +380,42 @@ class ProfileScreen extends StatelessWidget {
     );
     if (ok != true || !context.mounted) return;
     try {
-      await FS.deleteMyAccountData();
+      // Exclui o Auth primeiro: se exigir login recente, nada é apagado.
+      // Perfil (users/) e demais dados são removidos pelo servidor/admin.
+      SessionGuard.instance.markExplicitSignOut();
       await AuthService.deleteAccount();
       if (context.mounted) {
         snack(context, 'Conta excluída.', bg: AppColors.secondary);
-        Navigator.pushReplacementNamed(context, Routes.login);
+        Navigator.pushNamedAndRemoveUntil(context, Routes.login, (_) => false);
       }
     } on AuthFailure catch (e) {
-      if (context.mounted) snack(context, e.message, bg: AppColors.error);
+      if (!context.mounted) return;
+      if (e.code == 'requires-recent-login') {
+        final relogin = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Entre novamente'),
+            content: Text(e.message),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Agora não')),
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Entrar novamente')),
+            ],
+          ),
+        );
+        if (relogin == true) {
+          await AuthService.signOut();
+          if (context.mounted) {
+            Navigator.pushNamedAndRemoveUntil(
+                context, Routes.login, (_) => false);
+          }
+        }
+      } else {
+        snack(context, e.message, bg: AppColors.error);
+      }
     } catch (e) {
       if (context.mounted) {
         snack(context, 'Erro ao excluir: $e', bg: AppColors.error);
@@ -918,22 +945,32 @@ class _ReviewState extends State<ReviewScreen> {
 
   Future<void> _submit() async {
     setState(() => _loading = true);
-    final user = await FS.getUser();
-    final review = ReviewModel(
-        id: '',
-        orderId: widget.orderId,
-        clientId: AuthService.uid ?? '',
-        clientName: user?.name ?? 'Anônimo',
-        clientPhoto: user?.photoUrl,
-        providerId: widget.providerId,
-        stars: _stars,
-        comment: _ctrl.text,
-        tags: _tags.toList(),
-        createdAt: DateTime.now());
-    await FS.saveReview(review);
-    if (mounted) {
-      Navigator.pop(context);
-      snack(context, '✅ Avaliação enviada! Obrigado!', bg: AppColors.secondary);
+    try {
+      final user = await FS.getUser();
+      final review = ReviewModel(
+          id: '',
+          orderId: widget.orderId,
+          clientId: AuthService.uid ?? '',
+          clientName: user?.name ?? 'Anônimo',
+          clientPhoto: user?.photoUrl,
+          providerId: widget.providerId,
+          stars: _stars,
+          comment: _ctrl.text,
+          tags: _tags.toList(),
+          createdAt: DateTime.now());
+      await FS.saveReview(review);
+      if (mounted) {
+        Navigator.pop(context);
+        snack(context, '✅ Avaliação enviada! Obrigado!',
+            bg: AppColors.secondary);
+      }
+    } catch (e) {
+      if (mounted) {
+        snack(context, 'Não foi possível enviar a avaliação: $e',
+            bg: AppColors.error);
+      }
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 

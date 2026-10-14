@@ -406,6 +406,12 @@ describe('Comissão, repasse interno e cashback', () => {
     await rejects(call('marketOrderUpdateStatus', u, { orderId: old.orderId, status: 'preparing' }), /PERMISSION_DENIED/);
     await rejects(call('marketOrderUpdateStatus', seller, { orderId: old.orderId, status: 'delivered' }), /Transição inválida/);
     for (const st of ['preparing', 'shipped', 'delivered']) await call('marketOrderUpdateStatus', seller, { orderId: old.orderId, status: st });
+    // Auditoria: "entregue" pela loja não libera; o cliente confirma o recebimento.
+    assert.strictEqual((await wallet(seller.uid)).balanceCents || 0, before, 'sem repasse antes da confirmação');
+    assert.strictEqual((await db.doc(`earnings/${old.orderId}`).get()).data().status, 'pending_release');
+    await rejects(call('confirmMarketReceipt', seller, { orderId: old.orderId }), /PERMISSION_DENIED/);
+    await call('confirmMarketReceipt', u, { orderId: old.orderId });
+    await call('confirmMarketReceipt', u, { orderId: old.orderId }); // idempotente
     const after = (await wallet(seller.uid)).balanceCents;
     assert.strictEqual(after - before, 5000 - 750 + 500, 'líquido = mercadorias − comissão + frete');
     assert.strictEqual((await db.doc(`earnings/${old.orderId}`).get()).data().status, 'released');

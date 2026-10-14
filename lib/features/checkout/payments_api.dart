@@ -86,6 +86,8 @@ class MarketOrder {
   final int refundedCents, refundPendingCents;
   final DateTime? reservedUntil, createdAt;
   final Map<String, dynamic> address;
+  /// Repasse ao vendedor liberado (confirmação do cliente ou 7 dias).
+  final bool released;
 
   const MarketOrder({
     required this.id,
@@ -109,6 +111,7 @@ class MarketOrder {
     this.reservedUntil,
     this.createdAt,
     this.address = const {},
+    this.released = false,
   });
 
   factory MarketOrder.fromMap(String id, Map<String, dynamic> m) => MarketOrder(
@@ -141,9 +144,11 @@ class MarketOrder {
         reservedUntil: _date(m['reservedUntil']),
         createdAt: _date(m['createdAt']),
         address: Map<String, dynamic>.from((m['address'] as Map?) ?? const {}),
+        released: m['released'] == true,
       );
 
   bool get awaitingPayment => status == 'pending_payment';
+  bool get awaitingReceipt => status == 'delivered' && !released;
   bool get isPaid => const [
         'approved',
         'refund_requested',
@@ -259,6 +264,10 @@ abstract final class PaymentsApi {
   static Future<Map<String, dynamic>> cancelOrder(String orderId,
           {String reason = 'Cancelado pelo cliente'}) =>
       CloudFn.call('cancelMarketOrder', {'orderId': orderId, 'reason': reason});
+
+  /// Cliente confirma o recebimento: libera o repasse à loja.
+  static Future<void> confirmReceipt(String orderId) =>
+      CloudFn.call('confirmMarketReceipt', {'orderId': orderId});
 
   static Future<void> updateStatus(String orderId, String status) =>
       CloudFn.call('marketOrderUpdateStatus', {'orderId': orderId, 'status': status});

@@ -151,7 +151,9 @@ module.exports = function resolveFunctions(deps) {
 
   ex.cancelResolveRequest = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
-    const ref = REQ.doc(String(data?.requestId || ''));
+    const reqId = String(data?.requestId || '');
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(reqId)) throw httpsError('invalid-argument', 'requestId inválido');
+    const ref = REQ.doc(reqId);
     await db.runTransaction(async (tx) => {
       const s = await tx.get(ref);
       if (!s.exists) throw httpsError('not-found', 'Solicitação não encontrada');
@@ -197,7 +199,7 @@ module.exports = function resolveFunctions(deps) {
     const auth = requireAuth(context);
     await enforceRateLimit(auth.uid, 'resolve_propose', 60, 60 * 60 * 1000);
     const requestId = String(data?.requestId || '');
-    if (!requestId) throw httpsError('invalid-argument', 'requestId obrigatório');
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId)) throw httpsError('invalid-argument', 'requestId obrigatório');
     const input = require('./security').validateProposalInput(data || {});
     if (!input.ok) throw httpsError('invalid-argument', 'Proposta inválida: ' + input.reason);
     const proposalId = `${requestId}_${auth.uid}`;
@@ -245,7 +247,7 @@ module.exports = function resolveFunctions(deps) {
     await enforceRateLimit(auth.uid, 'resolve_accept', 30, 60 * 60 * 1000);
     const requestId = String(data?.requestId || '');
     const proposalId = String(data?.proposalId || '');
-    if (!requestId || !proposalId) throw httpsError('invalid-argument', 'requestId e proposalId obrigatórios');
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId) || !/^[A-Za-z0-9_-]{1,200}$/.test(proposalId)) throw httpsError('invalid-argument', 'requestId e proposalId obrigatórios');
     const ns = await nodes();
     const orderId = `rs_${requestId}`;
     const reqRef = REQ.doc(requestId);
@@ -287,6 +289,11 @@ module.exports = function resolveFunctions(deps) {
       const cfgV = fin.validateFinanceConfig(cfgSnap.exists ? cfgSnap.data() : {});
       const cfg = cfgV.ok ? cfgV.value : fin.DEFAULT_FINANCE_CONFIG;
       const priceCents = Number.isInteger(prop.priceCents) ? prop.priceCents : fin.toCents(prop.price);
+      // Auditoria: o cliente aceita o valor que viu; se a proposta mudou
+      // depois disso, o aceite é recusado e a tela recarrega.
+      if (data?.expectedPriceCents != null && Number(data.expectedPriceCents) !== priceCents) {
+        throw httpsError('failed-precondition', 'O valor da proposta mudou. Confira o novo valor antes de aceitar.');
+      }
       const terms = {
         priceCents, price: fin.fromCents(priceCents), deadlineDays: prop.deadlineDays,
         message: prop.message || null, proposalId, acceptedBy: auth.uid,

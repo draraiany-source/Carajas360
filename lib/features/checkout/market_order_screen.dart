@@ -84,6 +84,20 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
     }
   }
 
+  Future<void> _confirmReceipt(MarketOrder o) async {
+    setState(() => _busy = true);
+    try {
+      await PaymentsApi.confirmReceipt(o.id);
+      if (mounted) {
+        snack(context, 'Recebimento confirmado', bg: AppColors.secondary);
+      }
+    } catch (e) {
+      if (mounted) snack(context, '$e', bg: AppColors.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Pedido')),
@@ -166,6 +180,15 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
             title: const Text('Saldo da carteira'),
             onTap: () => _pay(o, 'wallet')),
       ],
+      if (o.awaitingReceipt && o.clientId == AuthService.uid)
+        ElevatedButton(
+            key: const Key('confirm-receipt'),
+            onPressed: _busy ? null : () => _confirmReceipt(o),
+            child: const Text('Confirmar recebimento'))
+      else if (o.status == 'delivered' && o.released)
+        const Text('Recebimento confirmado',
+            style: TextStyle(
+                color: AppColors.secondary, fontWeight: FontWeight.w700)),
       if (o.canCancel)
         TextButton(
             key: const Key('cancel-order'),
@@ -267,6 +290,8 @@ class MyMarketOrdersScreen extends StatelessWidget {
 /// A entrega libera o valor líquido como SALDO INTERNO da loja.
 class StoreOrdersScreen extends StatelessWidget {
   const StoreOrdersScreen({super.key});
+  static const _payoutNote =
+      'O repasse é liberado quando o cliente confirmar o recebimento (ou em 7 dias).';
   static const _next = {
     'paid': [('preparing', 'Iniciar preparo')],
     'preparing': [('shipped', 'Enviado'), ('ready', 'Pronto p/ retirada')],
@@ -299,6 +324,7 @@ class StoreOrdersScreen extends StatelessWidget {
                                   style: const TextStyle(fontWeight: FontWeight.w700)),
                               Text('${orderStatusLabel[o.status] ?? o.status} · ${paymentStatusLabel[o.paymentStatus] ?? o.paymentStatus}',
                                   style: const TextStyle(fontSize: 12)),
+                              if (o.awaitingReceipt) const Text(_payoutNote, style: TextStyle(fontSize: 12, color: AppColors.textLight)),
                               Wrap(spacing: 8, children: [
                                 for (final (to, label) in _next[o.status] ?? const <(String, String)>[])
                                   if (to != 'ready' || o.deliveryMode == 'pickup')
@@ -307,6 +333,7 @@ class StoreOrdersScreen extends StatelessWidget {
                                           onPressed: () async {
                                             try {
                                               await PaymentsApi.updateStatus(o.id, to);
+                                              if (to == 'delivered' && context.mounted) snack(context, _payoutNote);
                                             } on CloudCallException catch (e) {
                                               if (context.mounted) snack(context, e.message, bg: AppColors.error);
                                             }

@@ -49,6 +49,11 @@ module.exports = function scheduleFunctions(deps) {
     if (!root || root.vertical !== 'health' || !catalogCore.effectiveActive(catalogId, ns)) {
       throw httpsError('invalid-argument', 'Especialidade de saúde inválida');
     }
+    // Auditoria: só especialidades do perfil aprovado (a agenda é editada
+    // pelo prestador e não pode incluir especialidade não verificada).
+    if (!(prov.categories || []).includes(catalogId)) {
+      throw httpsError('failed-precondition', 'O profissional não atende esta especialidade');
+    }
     if (!schedSnap.exists) throw httpsError('failed-precondition', 'Este profissional ainda não publicou a agenda');
     const sched = hc.validateSchedule(schedSnap.data()).value;
     const service = sched.services.find((s) => s.catalogId === catalogId);
@@ -142,7 +147,9 @@ module.exports = function scheduleFunctions(deps) {
   ex.healthAppointmentAction = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
     const action = String(data?.action || '');
-    const ref = APPTS.doc(String(data?.appointmentId || ''));
+    const apptId = String(data?.appointmentId || '');
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(apptId)) throw httpsError('invalid-argument', 'appointmentId inválido');
+    const ref = APPTS.doc(apptId);
     const pre = await ref.get();
     if (!pre.exists) throw httpsError('not-found', 'Agendamento não encontrado');
     const ap0 = pre.data();
@@ -283,7 +290,9 @@ module.exports = function scheduleFunctions(deps) {
   ex.transitionRentalBooking = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
     const action = String(data?.action || '');
-    const ref = BOOKINGS.doc(String(data?.bookingId || ''));
+    const bookingId = String(data?.bookingId || '');
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(bookingId)) throw httpsError('invalid-argument', 'bookingId inválido');
+    const ref = BOOKINGS.doc(bookingId);
     const reason = String(data?.reason || '').trim().slice(0, 300);
     const pre = await ref.get();
     if (!pre.exists) throw httpsError('not-found', 'Reserva não encontrada');
@@ -294,7 +303,7 @@ module.exports = function scheduleFunctions(deps) {
       const b = { ...snap.data(), startMs: snap.data().startMs || (snap.data().start && snap.data().start.toMillis()) };
       const ok = rc.transitionAllowed(action, b, auth.uid, Date.now(), reason);
       if (!ok.ok) {
-        const msg = { too_late: `O locatário só cancela uma reserva confirmada até ${rc.CLIENT_CANCEL_MIN_HOURS} h antes do início`, reason_required: 'Informe o motivo do cancelamento', owner_only: 'Somente o anunciante', not_participant: 'Sem permissão', invalid_transition: 'Ação não permitida no status atual', not_started: 'A locação ainda não começou' }[ok.reason] || ok.reason;
+        const msg = { too_late: `O locatário só cancela uma reserva confirmada até ${rc.CLIENT_CANCEL_MIN_HOURS} h antes do início`, reason_required: 'Informe o motivo do cancelamento', owner_only: 'Somente o anunciante', not_participant: 'Sem permissão', invalid_transition: 'Ação não permitida no status atual', not_started: 'A locação ainda não começou', start_passed: 'O início da reserva já passou; ela não pode mais ser confirmada' }[ok.reason] || ok.reason;
         throw httpsError(ok.reason === 'not_participant' ? 'permission-denied' : 'failed-precondition', msg);
       }
       const now = Timestamp.now();
@@ -321,7 +330,8 @@ module.exports = function scheduleFunctions(deps) {
     if (b.status === a.status) return null;
     const msgs = {
       confirmed: [a.clientId, 'Reserva confirmada', `${a.rentalTitle}: reserva confirmada pelo anunciante.`],
-      cancelled: [a.cancelledBy === 'owner' ? a.clientId : a.ownerId, 'Reserva cancelada', `${a.rentalTitle}: reserva cancelada${a.cancelReason ? ` (${a.cancelReason})` : ''}.`],
+      // Cancelada pelo anunciante ou pelo sistema: avisa o locatário.
+      cancelled: [a.cancelledBy === 'client' ? a.ownerId : a.clientId, 'Reserva cancelada', `${a.rentalTitle}: reserva cancelada${a.cancelReason ? ` (${a.cancelReason})` : ''}.`],
       active: [a.clientId, 'Locação iniciada', `${a.rentalTitle}: locação em andamento.`],
       completed: [a.clientId, 'Locação concluída', `${a.rentalTitle}: obrigado por alugar!`],
     }[a.status];
@@ -333,7 +343,13 @@ module.exports = function scheduleFunctions(deps) {
   ex.rentalMaintenance = functions.pubsub.schedule('every 60 minutes').onRun(async () => {
     const s = await BOOKINGS.where('status', '==', 'pending').where('startMs', '<=', Date.now()).limit(200).get();
     for (const d of s.docs) {
-      await d.ref.update({ status: 'cancelled', cancelReason: 'Não confirmada até o início', cancelledBy: 'system', updatedAt: FieldValue.serverTimestamp(), history: FieldValue.arrayUnion({ to: 'cancelled', by: 'system', at: Timestamp.now() }) });
+      // Auditoria: em transação e só se continuar pendente (o anunciante
+      // pode ter confirmado entre a consulta e a atualização).
+      await db.runTransaction(async (tx) => {
+        const cur = await tx.get(d.ref);
+        if (!cur.exists || cur.data().status !== 'pending') return;
+        tx.update(d.ref, { status: 'cancelled', cancelReason: 'Não confirmada até o início', cancelledBy: 'system', updatedAt: FieldValue.serverTimestamp(), history: FieldValue.arrayUnion({ to: 'cancelled', by: 'system', at: Timestamp.now() }) });
+      });
     }
     return null;
   });

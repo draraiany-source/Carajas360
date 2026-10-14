@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flavor dev: HTTP só para os emuladores (10.0.2.2/localhost).
+         A config de rede tem precedência sobre usesCleartextTraffic. -->
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>

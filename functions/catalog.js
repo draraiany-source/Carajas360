@@ -26,13 +26,19 @@ module.exports = function catalogFunctions(deps) {
     return out;
   }
 
-  // Cache curto para gatilhos (o catálogo é pequeno).
+  // Cache para gatilhos, invalidado pela versão em catalogMeta/current.
+  // Auditoria: o cache só por tempo (30 s) fazia outras instâncias
+  // indexarem prestadores com o catálogo antigo logo após uma mudança.
   let cache = null;
   let cacheAt = 0;
+  let cacheV = null;
   async function cachedNodes() {
-    if (!cache || Date.now() - cacheAt > 30000) {
+    const meta = await META.get();
+    const v = meta.exists ? `${meta.data().version || 0}` : '0';
+    if (!cache || cacheV !== v || Date.now() - cacheAt > 10 * 60000) {
       cache = await loadNodes();
       cacheAt = Date.now();
+      cacheV = v;
     }
     return cache;
   }

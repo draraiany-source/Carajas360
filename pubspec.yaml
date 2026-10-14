@@ -37,7 +37,6 @@ dependencies:
   url_launcher: ^6.3.1
   shared_preferences: ^2.3.2
   flutter_svg: ^2.0.10+1
-  lottie: ^3.1.2
 
 dev_dependencies:
   flutter_test:
@@ -60,7 +59,6 @@ flutter:
     - assets/categories/
     - assets/categories/outline/
     - assets/avatars/
-    - assets/lottie/
     - assets/animations/
     - assets/backgrounds/
     - assets/mascot/

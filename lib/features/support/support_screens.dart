@@ -63,22 +63,34 @@ class SupportScreen extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         fontSize: 18)),
                 const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(
-                      child: _contactBtn(
-                          '💬', 'Chat', () => _openTicket(context))),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: _contactBtn(
-                          '📧',
-                          'E-mail',
-                          () => _launch(
-                              'mailto:suporte@servicoconecta.com.br?subject=Ajuda%20Caraj%C3%A1s%20360'))),
-                  const SizedBox(width: 8),
-                  Expanded(
-                      child: _contactBtn(
-                          '📞', 'Ligar', () => _launch('tel:+551140000000')))
-                ]),
+                FutureBuilder<({String email, String phone})>(
+                  future: FS.supportContact(),
+                  builder: (_, snap) {
+                    // Contato do config/platform (admin); padrão enquanto carrega.
+                    final email =
+                        snap.data?.email ?? 'suporte@servicoconecta.com.br';
+                    final digits =
+                        (snap.data?.phone ?? '(11) 4000-0000')
+                            .replaceAll(RegExp(r'[^0-9+]'), '');
+                    final tel = digits.startsWith('+') ? digits : '+55$digits';
+                    return Row(children: [
+                      Expanded(
+                          child: _contactBtn(
+                              '💬', 'Chat', () => _openTicket(context))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: _contactBtn(
+                              '📧',
+                              'E-mail',
+                              () => _launch(
+                                  'mailto:$email?subject=Ajuda%20Caraj%C3%A1s%20360'))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                          child: _contactBtn(
+                              '📞', 'Ligar', () => _launch('tel:$tel')))
+                    ]);
+                  },
+                ),
               ])),
           const SizedBox(height: 20),
           const SecHeader(title: 'Perguntas frequentes'),
@@ -427,8 +439,13 @@ class _CouponCard extends StatelessWidget {
                             fontWeight: FontWeight.w600)),
                   ])),
               GestureDetector(
-                  onTap: () => snack(context, '✅ Código copiado!',
-                      bg: AppColors.secondary),
+                  onTap: () async {
+                    await Clipboard.setData(ClipboardData(text: coupon.code));
+                    if (context.mounted) {
+                      snack(context, '✅ Código copiado!',
+                          bg: AppColors.secondary);
+                    }
+                  },
                   child: const Icon(Icons.content_copy_rounded,
                       color: AppColors.primary, size: 20)),
             ])),
@@ -447,8 +464,20 @@ class _DelivState extends State<DeliveryScreen> {
   // reais dependem da integração de entregas (fase própria).
   bool _offerAvailable = DemoData.allow;
 
+  // Entregas ainda sem backend: fora do modo demo mostra "Em breve".
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => DemoData.allow
+      ? _demoBuild(context)
+      : Scaffold(
+          appBar: AppBar(title: const Text('Entregas')),
+          body: const EmptyState(
+              emoji: '📦',
+              title: 'Em breve',
+              subtitle:
+                  'Entregas e rastreamento estarão disponíveis em breve no Carajás 360.'),
+        );
+
+  Widget _demoBuild(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
         body: CustomScrollView(slivers: [
           SliverToBoxAdapter(
@@ -461,7 +490,7 @@ class _DelivState extends State<DeliveryScreen> {
                           const Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('📦 EntregaConecta',
+                                Text('📦 Entregas',
                                     style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w900,
@@ -693,7 +722,6 @@ class _DelivState extends State<DeliveryScreen> {
                                         'description':
                                             'Entrega aceita pelo entregador',
                                         'address': 'Bela Vista',
-                                        'price': 8.50
                                       });
                                       setState(() => _offerAvailable = false);
                                       if (mounted) {
@@ -946,19 +974,30 @@ Dúvidas sobre privacidade podem ser enviadas para privacidade@servicoconecta.co
 class ReferralScreen extends StatelessWidget {
   const ReferralScreen({super.key});
 
-  String get _code {
-    final uid = AuthService.uid ?? '';
-    if (uid.isEmpty) return 'CONECTA';
-    // Código curto, legível e determinístico a partir do uid.
-    return 'SC${uid.substring(0, uid.length >= 6 ? 6 : uid.length).toUpperCase()}';
-  }
+  // Sem backend de indicação: código fictício só no modo demo
+  // (nunca derivado do uid).
+  String get _code => 'DEMO10';
 
   String get _shareMessage =>
       'Baixe o Carajás 360 e use meu código $_code no cadastro. '
       'Você ganha R\$ 10 no primeiro serviço e eu também! 🎉';
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => DemoData.allow
+      ? _demoBuild(context)
+      : Scaffold(
+          appBar: AppBar(title: const Text('Indique amigos')),
+          body: EmptyState(
+              emoji: '🎁',
+              title: 'Programa de indicação em breve',
+              subtitle:
+                  'Enquanto isso, você pode compartilhar o Carajás 360 com seus amigos.',
+              actionLabel: 'Compartilhar app',
+              onAction: () => Share.share(
+                  'Conheça o Carajás 360: serviços, saúde, mercado e locação em um só app.')),
+        );
+
+  Widget _demoBuild(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Indique e ganhe')),
         body: SingleChildScrollView(
             padding: const EdgeInsets.all(24),

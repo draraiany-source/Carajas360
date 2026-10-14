@@ -61,7 +61,8 @@ class FavoritesScreen extends StatelessWidget {
                     child:
                         const Icon(Icons.delete_outline, color: Colors.white),
                   ),
-                  onDismissed: (_) => FS.toggleFavorite(p.id),
+                  onDismissed: (_) => toggleFavoriteSafe(
+                      context, () => FS.toggleFavorite(p.id)),
                   child: ProvCard(
                     name: p.name,
                     role: catName,
@@ -274,8 +275,9 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                             if (o.status == OrderStatus.pending ||
                                 o.status == OrderStatus.accepted)
                               TextButton(
-                                  onPressed: () =>
-                                      _confirmCancel(context, o.id),
+                                  onPressed: () => _confirmCancel(
+                                      context, o.id,
+                                      paid: o.isPaid),
                                   child: const Text('Cancelar',
                                       style: TextStyle(
                                           fontSize: 12,
@@ -298,15 +300,6 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                                           fontSize: 11,
                                           color: AppColors.secondary,
                                           fontWeight: FontWeight.w700))),
-                            if (o.status == OrderStatus.inProgress)
-                              TextButton(
-                                  onPressed: () => Navigator.pushNamed(
-                                          context, Routes.gps, arguments: {
-                                        'ctx': 'servico',
-                                        'orderId': o.id
-                                      }),
-                                  child: const Text('Rastrear',
-                                      style: TextStyle(fontSize: 12))),
                             // Contratar novamente o mesmo profissional.
                             if ((o.status == OrderStatus.completed ||
                                     o.status == OrderStatus.cancelled) &&
@@ -333,6 +326,10 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                                   child: const Text('Avaliar',
                                       style: TextStyle(fontSize: 12))),
                           ]),
+                          // Cliente confirma a conclusão (libera o repasse).
+                          if (o.status == OrderStatus.inProgress &&
+                              o.clientId == AuthService.uid)
+                            _ConfirmDone(order: o),
                         ]),
                   );
                 },
@@ -419,7 +416,9 @@ class _MyOrdersState extends State<MyOrdersScreen> {
     }
   }
 
-  void _confirmCancel(BuildContext context, String orderId) => showDialog(
+  void _confirmCancel(BuildContext context, String orderId,
+          {bool paid = false}) =>
+      showDialog(
       context: context,
       builder: (_) => AlertDialog(
             title: const Text('Cancelar pedido'),
@@ -435,11 +434,16 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                     try {
                       await FS.cancelOrder(orderId);
                       if (context.mounted) {
-                        snack(context, 'Pedido cancelado', bg: AppColors.error);
+                        snack(
+                            context,
+                            paid
+                                ? 'Pedido cancelado. O reembolso foi solicitado.'
+                                : 'Pedido cancelado',
+                            bg: AppColors.error);
                       }
                     } catch (e) {
                       if (context.mounted) {
-                        snack(context, 'Não foi possível cancelar.',
+                        snack(context, 'Não foi possível cancelar: $e',
                             bg: AppColors.error);
                       }
                     }
@@ -448,6 +452,76 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                       style: TextStyle(color: AppColors.error))),
             ],
           ));
+}
+
+/// Botão "Confirmar conclusão" (destaque quando o prestador já marcou).
+class _ConfirmDone extends StatefulWidget {
+  final OrderModel order;
+  const _ConfirmDone({required this.order});
+  @override
+  State<_ConfirmDone> createState() => _ConfirmDoneState();
+}
+
+class _ConfirmDoneState extends State<_ConfirmDone> {
+  bool _busy = false;
+
+  Future<void> _confirm() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirmar conclusão'),
+        content: const Text(
+            'Confirme apenas se o serviço foi realizado. O pagamento será liberado ao profissional.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Voltar')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirmar')),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      await FS.completeOrder(widget.order.id);
+      if (mounted) {
+        snack(context, '✅ Serviço concluído!', bg: AppColors.secondary);
+      }
+    } catch (e) {
+      if (mounted) snack(context, '$e', bg: AppColors.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final awaiting = widget.order.awaitingClientConfirmation;
+    const label = Text('Confirmar conclusão',
+        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700));
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        if (awaiting)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 6),
+            child: Text(
+                'O profissional marcou o serviço como concluído. Confirme se está tudo certo.',
+                style: TextStyle(fontSize: 12, color: AppColors.textLight)),
+          ),
+        awaiting
+            ? ElevatedButton(
+                onPressed: _busy ? null : _confirm,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.secondary),
+                child: label)
+            : OutlinedButton(
+                onPressed: _busy ? null : _confirm, child: label),
+      ]),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -564,20 +638,32 @@ class _RequestServiceState extends State<RequestServiceScreen> {
       return;
     }
 
-    final roomId = await FS.getOrCreateRoom(widget.providerId);
-    await FS.sendMessage(
-        roomId: roomId,
-        senderName: 'Você',
-        text:
-            '📋 Nova solicitação: ${_title.text.trim()}\n${_description.text.trim()}');
-    await FS.pushNotif(widget.providerId, '📋 Nova solicitação de serviço',
-        _title.text.trim(), 'order');
+    // Pedido já criado: falha no chat/aviso não desfaz a solicitação.
+    String? roomId;
+    try {
+      roomId = await FS.getOrCreateRoom(widget.providerId);
+      await FS.sendMessage(
+          roomId: roomId,
+          senderName: await FS.myDisplayName(),
+          text:
+              '📋 Nova solicitação: ${_title.text.trim()}\n${_description.text.trim()}');
+      await FS.pushNotif(widget.providerId, '📋 Nova solicitação de serviço',
+          _title.text.trim(), 'order');
+    } catch (e) {
+      debugPrint('Solicitação: chat/aviso falhou: $e');
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
 
     if (!mounted) return;
-    setState(() => _loading = false);
-    snack(context, '✅ Solicitação enviada! Acompanhe pelo chat.',
+    snack(
+        context,
+        roomId != null
+            ? '✅ Solicitação enviada! Acompanhe pelo chat.'
+            : '✅ Solicitação enviada! Acompanhe em Meus Pedidos.',
         bg: AppColors.secondary);
     Navigator.pop(context);
+    if (roomId == null) return;
     Navigator.pushNamed(context, Routes.chat, arguments: {
       'roomId': roomId,
       'id': widget.providerId,

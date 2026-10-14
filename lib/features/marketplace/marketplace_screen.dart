@@ -517,7 +517,10 @@ class _MarketState extends State<MarketplaceScreen> {
                                       final isFav = snap.data ?? false;
                                       return GestureDetector(
                                         onTap: () async {
-                                          await FS.toggleProductFavorite(p.id);
+                                          await toggleFavoriteSafe(
+                                              context,
+                                              () => FS.toggleProductFavorite(
+                                                  p.id));
                                         },
                                         child: Icon(
                                             isFav

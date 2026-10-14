@@ -473,7 +473,9 @@ class ResolveDetailScreen extends StatelessWidget {
                             if (ok != true) return;
                             try {
                               await FS.acceptResolveProposal(
-                                  requestId: requestId, proposalId: p.id);
+                                  requestId: requestId,
+                                  proposalId: p.id,
+                                  expectedPriceCents: (p.price * 100).round());
                             } on CloudCallException catch (e) {
                               if (context.mounted) snack(context, e.message, bg: AppColors.error);
                               return;
@@ -606,6 +608,7 @@ class MyResolveScreen extends StatelessWidget {
       body: StreamBuilder<List<ResolveRequest>>(
         stream: FS.myResolveRequestsStream(),
         builder: (_, snap) {
+          if (snap.hasError) return QueryErrorView(error: snap.error);
           final list = snap.data ?? [];
           if (snap.connectionState == ConnectionState.waiting &&
               list.isEmpty) {

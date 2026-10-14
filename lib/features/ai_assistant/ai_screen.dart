@@ -3,6 +3,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../core/utils/demo_data.dart';
 
 // ─────────────────────────────────────────────────────────────
 // AI ASSISTANT SCREEN (Vol.28 – IA e Automações)
@@ -81,9 +82,11 @@ class _AiState extends State<AiAssistantScreen> {
     String response;
     if (aiReply != null && aiReply.trim().isNotEmpty) {
       response = aiReply;
+    } else if (!DemoData.allow) {
+      response =
+          'Assistente indisponível no momento. Tente novamente mais tarde.';
     } else {
-      // Fallback local por palavra-chave — usado quando a Cloud Function
-      // ainda não foi configurada/implantada ou está indisponível.
+      // Respostas prontas só no modo demo (dev com DEMO_DATA).
       await Future.delayed(const Duration(milliseconds: 400));
       final lower = text.toLowerCase();
       response = _responses['default']!;

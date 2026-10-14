@@ -40,13 +40,21 @@ class AuthService {
     required String phone,
     required void Function(String verId, int? token) onSent,
     required void Function(String error) onError,
+    // Android: verificação automática do SMS já faz login.
+    void Function(UserCredential cred)? onAutoVerified,
   }) async {
     try {
       await _a.verifyPhoneNumber(
         phoneNumber: '+55${phone.replaceAll(RegExp(r'\D'), '')}',
         timeout: const Duration(seconds: AppConst.otpTimeoutSeconds),
-        verificationCompleted: (cred) async =>
-            await _a.signInWithCredential(cred),
+        verificationCompleted: (cred) async {
+          try {
+            final uc = await _a.signInWithCredential(cred);
+            onAutoVerified?.call(uc);
+          } on FirebaseAuthException catch (e) {
+            onError(_mapAuthError(e));
+          }
+        },
         verificationFailed: (e) =>
             onError(e.message ?? 'Erro ao verificar telefone'),
         codeSent: (id, token) => onSent(id, token),
@@ -249,7 +257,8 @@ class AuthService {
     } on FirebaseAuthException catch (e) {
       if (e.code == 'requires-recent-login') {
         throw const AuthFailure(
-            'Por segurança, saia e entre novamente antes de excluir a conta.');
+            'Por segurança, entre novamente na sua conta e repita a exclusão.',
+            code: 'requires-recent-login');
       }
       throw AuthFailure(_mapAuthError(e), code: e.code);
     }
@@ -276,7 +285,8 @@ class FS {
       }
     }
     // Campos privilegiados só na criação; updates não elevam privilégios.
-    final data = u.toMap();
+    // Nulos são omitidos para não apagar dados existentes (ex.: foto do Google).
+    final data = u.toMap()..removeWhere((_, v) => v == null);
     if (!isNew) {
       data.remove('type');
       data.remove('adminRole');
@@ -365,28 +375,6 @@ class FS {
     };
   }
 
-  /// Apaga dados pessoais principais do Firestore antes da exclusão Auth.
-  static Future<void> deleteMyAccountData() async {
-    if (_uid == null) return;
-    final uid = _uid!;
-    try {
-      final favs = await _db
-          .collection(Col.favorites)
-          .where('userId', isEqualTo: uid)
-          .get();
-      for (final d in favs.docs) {
-        await d.reference.delete();
-      }
-    } catch (e) {
-      debugPrint('deleteMyAccountData favorites: $e');
-    }
-    try {
-      await _db.collection(Col.users).doc(uid).delete();
-    } catch (e) {
-      debugPrint('deleteMyAccountData user: $e');
-    }
-  }
-
   // Upload de foto de perfil do usuário (Vol.3: Cadastro de
   // Clientes). Usa bytes (putData) para funcionar no Web e no mobile.
   static Future<String?> uploadUserPhoto(Uint8List bytes, String fileName) async {
@@ -417,6 +405,7 @@ class FS {
       'png' => 'image/png',
       'webp' => 'image/webp',
       'gif' => 'image/gif',
+      'heic' => 'image/heic',
       'pdf' => 'application/pdf',
       'm4a' || 'aac' || 'mp4' => 'audio/mp4',
       'mp3' => 'audio/mpeg',
@@ -581,7 +570,7 @@ class FS {
   static Future<void> approveProvider(String id) => _db
       .collection(Col.providers)
       .doc(id)
-      .update({'verified': true, 'active': true});
+      .update({'verified': true, 'active': true, 'verificationStatus': 'approved', 'reviewReason': FieldValue.delete()});
 
   // Atualiza os dados enviados no onboarding do prestador. A foto e as
   // áreas atendidas são públicas; documento, selfie e certificados vão
@@ -632,8 +621,9 @@ class FS {
 
   static Future<String> createOrder(Map<String, dynamic> data) async {
     final sanitized = Map<String, dynamic>.from(data);
+    // Preço/total não vão na criação (regras negam): o prestador orça no aceite.
     for (final k in OrderPolicy.sensitiveFields) {
-      if (k != 'providerId' && k != 'price') sanitized.remove(k);
+      if (k != 'providerId') sanitized.remove(k);
     }
     sanitized.remove('commission');
     sanitized.remove('platformFee');
@@ -667,6 +657,13 @@ class FS {
     });
   }
 
+  /// Prestador marca como concluído: o pedido fica aguardando a
+  /// confirmação do cliente (o servidor confirma sozinho após 72h).
+  static Future<void> markOrderDoneByProvider(String orderId) async {
+    await _transition(orderId, 'complete');
+  }
+
+  /// Cliente confirma a conclusão: conclui e libera o repasse.
   static Future<void> completeOrder(String orderId) async {
     await _transition(orderId, 'complete');
     try {
@@ -867,6 +864,7 @@ class FS {
       .doc(roomId)
       .collection(Col.messages)
       .orderBy('createdAt')
+      .limitToLast(200)
       .snapshots()
       .map((s) =>
           s.docs.map((d) => MessageModel.fromMap(d.id, d.data())).toList());
@@ -912,16 +910,6 @@ class FS {
     debugPrint(
         'FS.credit bloqueado no client ($amount / $desc). Use gateway/Functions.');
     return false;
-  }
-
-  static Future<bool> payOrderWithWallet(String orderId) async {
-    try {
-      await CloudFn.call('payOrderWithWallet', {'orderId': orderId});
-      return true;
-    } catch (e) {
-      debugPrint('payOrderWithWallet: $e');
-      return false;
-    }
   }
 
   static Future<bool> switchProfileType(String type) async {
@@ -1024,16 +1012,35 @@ class FS {
   static Future<void> markNotifRead(String id) =>
       _db.collection(Col.notifications).doc(id).update({'read': true});
 
+  /// Cupons não são legíveis pelo client: validação via callable.
   static Future<CouponModel?> validateCoupon(String code) async {
-    final q = await _db
-        .collection(Col.coupons)
-        .where('code', isEqualTo: code.toUpperCase())
-        .where('active', isEqualTo: true)
-        .limit(1)
-        .get();
-    if (q.docs.isEmpty) return null;
-    final c = CouponModel.fromMap(q.docs.first.id, q.docs.first.data());
-    return c.isValid ? c : null;
+    try {
+      final r = await CloudFn.call(
+          'checkCoupon', {'code': code.trim().toUpperCase()});
+      return couponFromCheck(r);
+    } catch (e) {
+      debugPrint('checkCoupon: $e');
+      return null;
+    }
+  }
+
+  /// Converte a resposta de `checkCoupon` (null se inválido).
+  static CouponModel? couponFromCheck(Map<String, dynamic> r) {
+    if (r['valid'] != true) return null;
+    final ms = (r['expiresAtMs'] as num?)?.toInt();
+    final minValue = (r['minValue'] as num?)?.toDouble();
+    return CouponModel(
+      id: (r['code'] ?? '').toString(),
+      code: (r['code'] ?? '').toString(),
+      description: (r['description'] ?? '').toString(),
+      discount: (r['discount'] as num?)?.toDouble() ?? 0,
+      isPercentage: r['isPercentage'] != false,
+      minValue: minValue != null && minValue > 0 ? minValue : null,
+      // Sem validade definida: trata como vigente.
+      expiresAt: ms != null
+          ? DateTime.fromMillisecondsSinceEpoch(ms)
+          : DateTime.now().add(const Duration(days: 3650)),
+    );
   }
 
   static Stream<Map<String, dynamic>?> gpsStream(String id) =>
@@ -1201,9 +1208,17 @@ class FS {
   // cupons, favoritos e avaliações já existentes são reaproveitados.
 
   /// Cria ou atualiza a loja do usuário logado. Retorna o id da loja.
+  /// Campos de reputação/comissão: só o servidor altera.
+  static Map<String, dynamic> stripServerFields(Map<String, dynamic> m) =>
+      Map<String, dynamic>.from(m)
+        ..remove('rating')
+        ..remove('totalReviews')
+        ..remove('verified')
+        ..remove('commissionRate');
+
   static Future<String?> saveStore(StoreModel store) async {
     if (_uid == null) return null;
-    final data = {...store.toMap(), 'ownerId': _uid};
+    final data = stripServerFields({...store.toMap(), 'ownerId': _uid});
     if (store.id.isEmpty) {
       final doc = await _db
           .collection(Col.stores)
@@ -1273,7 +1288,7 @@ class FS {
   /// Cria ou atualiza um anúncio de locação do usuário logado.
   static Future<String?> saveRental(RentalModel r) async {
     if (_uid == null) return null;
-    final data = {...r.toMap(), 'ownerId': _uid};
+    final data = stripServerFields({...r.toMap(), 'ownerId': _uid});
     if (r.id.isEmpty) {
       final doc = await _db
           .collection(Col.rentals)
@@ -1389,8 +1404,10 @@ class FS {
     if (_uid == null) return null;
     try {
       final ext = _extOf(fileName);
+      // Pasta do dono: o anúncio novo ainda não existe no Firestore, então
+      // a regra não consegue checar rentals/{id} (upload era sempre negado).
       final ref = FirebaseStorage.instance.ref().child(
-          'rentals/$rentalId/${DateTime.now().millisecondsSinceEpoch}.$ext');
+          'rentalPhotos/$_uid/${DateTime.now().millisecondsSinceEpoch}.$ext');
       await ref.putData(bytes, _metaFor(fileName));
       return await ref.getDownloadURL();
     } catch (e) {
@@ -1409,10 +1426,11 @@ class FS {
 
   static Future<String?> saveProduct(ProductModel p) async {
     if (_uid == null) return null;
+    final data = stripServerFields(p.toMap());
     if (p.id.isEmpty) {
       final doc = await _db
           .collection(Col.products)
-          .add({...p.toMap(), 'createdAt': FieldValue.serverTimestamp()});
+          .add({...data, 'createdAt': FieldValue.serverTimestamp()});
       await _db
           .collection(Col.stores)
           .doc(p.storeId)
@@ -1422,7 +1440,7 @@ class FS {
     await _db
         .collection(Col.products)
         .doc(p.id)
-        .set(p.toMap(), SetOptions(merge: true));
+        .set(data, SetOptions(merge: true));
     return p.id;
   }
 
@@ -1605,14 +1623,15 @@ class FS {
     }
   }
 
+  // Suspensão no servidor: desativa o Auth, revoga tokens e grava status.
   static Future<void> suspendUser(String uid, {String? adminName}) async {
-    await _db.collection(Col.users).doc(uid).update({'status': 'suspended'});
+    await CloudFn.call('setUserSuspended', {'userId': uid, 'suspended': true});
     await logAdminAction('Suspendeu usuário',
         target: uid, adminName: adminName);
   }
 
   static Future<void> reactivateUser(String uid, {String? adminName}) async {
-    await _db.collection(Col.users).doc(uid).update({'status': 'active'});
+    await CloudFn.call('setUserSuspended', {'userId': uid, 'suspended': false});
     await logAdminAction('Reativou usuário', target: uid, adminName: adminName);
   }
 
@@ -1770,6 +1789,24 @@ class FS {
             'supportPhone': '(11) 4000-0000'
           });
 
+  /// Contato do suporte (config/platform), com padrão se ausente/offline.
+  static Future<({String email, String phone})> supportContact() async {
+    const fallback =
+        (email: 'suporte@servicoconecta.com.br', phone: '(11) 4000-0000');
+    try {
+      final d = (await _db.collection('config').doc('platform').get()).data();
+      final email = (d?['supportEmail'] as String?)?.trim() ?? '';
+      final phone = (d?['supportPhone'] as String?)?.trim() ?? '';
+      return (
+        email: email.isNotEmpty ? email : fallback.email,
+        phone: phone.isNotEmpty ? phone : fallback.phone,
+      );
+    } catch (e) {
+      debugPrint('supportContact: $e');
+      return fallback;
+    }
+  }
+
   static Future<void> updatePlatformConfig(Map<String, dynamic> data,
       {String? adminName}) async {
     await _db.collection('config').doc('platform').set(
@@ -1811,6 +1848,15 @@ class FS {
       .snapshots()
       .map((s) => s.exists);
 
+  /// Favoritos de produto não têm providerId: ignora esses documentos.
+  static List<String> favoriteProviderIds(
+          Iterable<Map<String, dynamic>> docs) =>
+      docs
+          .map((m) => m['providerId'])
+          .whereType<String>()
+          .where((id) => id.isNotEmpty)
+          .toList();
+
   static Stream<List<ProviderModel>> favoritesStream() {
     if (_uid == null) return const Stream.empty();
     return _db
@@ -1818,8 +1864,7 @@ class FS {
         .where('userId', isEqualTo: _uid)
         .snapshots()
         .asyncMap((favSnap) async {
-      final providerIds =
-          favSnap.docs.map((d) => d.data()['providerId'] as String).toList();
+      final providerIds = favoriteProviderIds(favSnap.docs.map((d) => d.data()));
       if (providerIds.isEmpty) return <ProviderModel>[];
       final providers = <ProviderModel>[];
       for (final id in providerIds) {
@@ -1868,8 +1913,8 @@ class FS {
         .where('userId', isEqualTo: _uid)
         .snapshots()
         .map((s) => s.docs
-            .where((d) => d.data().containsKey('productId'))
-            .map((d) => d.data()['productId'] as String)
+            .map((d) => d.data()['productId'])
+            .whereType<String>()
             .toSet());
   }
 
@@ -2026,9 +2071,15 @@ class FS {
   static Future<Map<String, dynamic>> acceptResolveProposal({
     required String requestId,
     required String proposalId,
+    // Valor exibido ao cliente: o servidor recusa se a proposta mudou.
+    int? expectedPriceCents,
   }) =>
-      CloudFn.call('acceptResolveProposal',
-          {'requestId': requestId, 'proposalId': proposalId});
+      CloudFn.call('acceptResolveProposal', {
+        'requestId': requestId,
+        'proposalId': proposalId,
+        if (expectedPriceCents != null)
+          'expectedPriceCents': expectedPriceCents,
+      });
 
   static final Map<String, ({String name, String? photoUrl, String kind})> _pubCache = {};
 
@@ -2049,15 +2100,26 @@ class FS {
     }
   }
 
+  /// Nome do usuário logado para gravar em mensagens (nunca "Você").
+  static Future<String> myDisplayName() async {
+    final me = _uid;
+    if (me == null) return 'Usuário';
+    final p = await publicProfile(me);
+    if (p != null && p.name.trim().isNotEmpty) return p.name;
+    final n = AuthService.current?.displayName;
+    return (n != null && n.trim().isNotEmpty) ? n : 'Usuário';
+  }
+
   /// Lista salas do usuário autenticado (inbox unificado).
   static Stream<List<ChatRoomPreview>> chatRoomsStream() {
     if (_uid == null) return const Stream.empty();
     final me = _uid!;
-    // Sem orderBy no Firestore para evitar exclusão de salas antigas
-    // sem lastMsgTime; ordenação feita no client.
+    // Índice participants+lastMsgTime: as 50 conversas mais recentes.
+    // Salas sem nenhuma mensagem (sem lastMsgTime) ficam de fora.
     return _db
         .collection(Col.chatRooms)
         .where('participants', arrayContains: me)
+        .orderBy('lastMsgTime', descending: true)
         .limit(50)
         .snapshots()
         .asyncMap((snap) async {

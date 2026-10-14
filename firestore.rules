@@ -33,6 +33,11 @@ service cloud.firestore {
           exists(/databases/$(database)/documents/users/$(uid())) &&
           get(/databases/$(database)/documents/users/$(uid())).data.type == 'admin');
     }
+    // Admin "master": claim do Auth ou adminRole master no próprio perfil.
+    function isMasterAdmin() {
+      return isAdminClaim() ||
+        (isAdmin() && get(/databases/$(database)/documents/users/$(uid())).data.get('adminRole', '') == 'master');
+    }
     function incoming() { return request.resource.data; }
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
@@ -77,10 +82,16 @@ service cloud.firestore {
         incoming().get('status', 'active') == 'active' &&
         incoming().get('plan', 'free') == 'free' &&
         (!('roles' in incoming()) || incoming().roles.hasOnly(profileTypes()));
-      allow update: if isAdmin() || (
+      // Auditoria: admin comum não muda papéis (type/adminRole) e ninguém
+      // muda o próprio papel; só admin master/claim, em outro usuário.
+      allow update: if (isAdmin() &&
+          (!changed().hasAny(['type', 'adminRole', 'admin', 'role', 'roles']) ||
+           (isMasterAdmin() && !isOwner(userId)))) || (
         isOwner(userId) && !changed().hasAny(userProtectedKeys())
       );
-      allow delete: if isOwner(userId) || isAdmin();
+      // Auditoria: apagar o próprio doc burlava a suspensão (recriado
+      // como 'active'). Exclusão de conta só pelo admin/servidor.
+      allow delete: if isAdmin();
     }
 
     // ── Prestadores: perfil PÚBLICO ───────────────────────────────
@@ -156,6 +167,8 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuth() &&
         incoming().ownerId == uid() &&
+        companyId == uid() &&
+        incoming().get('active', false) == false &&
         incoming().get('verified', false) == false &&
         incoming().get('plan', 'free') == 'free' &&
         !incoming().keys().hasAny(['rating', 'totalReviews', 'commissionRate', 'searchTokens', 'cityKey']);
@@ -172,21 +185,29 @@ service cloud.firestore {
         (isAuth() && resource.data.get('userId', '') == uid()) ||
         (isAuth() && ownsCompany(resource.data.companyId));
       allow create: if ownsCompany(request.resource.data.companyId);
-      allow update: if ownsCompany(resource.data.companyId);
+      allow update: if ownsCompany(resource.data.companyId) &&
+        incoming().companyId == resource.data.companyId;
       allow delete: if ownsCompany(resource.data.companyId);
     }
 
     match /branches/{branchId} {
       allow read: if true;
       allow create: if ownsCompany(request.resource.data.companyId);
-      allow update: if ownsCompany(resource.data.companyId);
+      allow update: if ownsCompany(resource.data.companyId) &&
+        incoming().companyId == resource.data.companyId;
       allow delete: if ownsCompany(resource.data.companyId);
+    }
+
+    // Contadores públicos nascem zerados (o servidor os mantém).
+    function zeroCounters() {
+      return incoming().get('rating', 0) == 0 && incoming().get('totalReviews', 0) == 0;
     }
 
     match /stores/{storeId} {
       allow read: if true;
       allow create: if isAuth() && incoming().ownerId == uid() &&
-        !incoming().keys().hasAny(['rating', 'totalReviews', 'verified', 'commissionRate']);
+        zeroCounters() && incoming().get('verified', false) == false &&
+        !incoming().keys().hasAny(['commissionRate']);
       allow update: if isAdmin() || (isAuth() &&
         resource.data.ownerId == uid() &&
         !changed().hasAny(['ownerId', 'rating', 'totalReviews', 'verified', 'commissionRate']));
@@ -195,14 +216,17 @@ service cloud.firestore {
 
     match /products/{productId} {
       allow read: if true;
-      allow create: if isAuth() &&
-        !incoming().keys().hasAny(['rating', 'totalReviews']) &&
-        (ownsCompany(request.resource.data.get('companyId', '')) ||
-         get(/databases/$(database)/documents/stores/$(request.resource.data.storeId)).data.ownerId == uid() ||
-         isAdmin());
+      // Auditoria: com storeId, a loja TEM de ser do autor (antes, possuir
+      // qualquer empresa permitia inserir produto na loja de outra pessoa).
+      allow create: if isAuth() && zeroCounters() && (
+        isAdmin() ||
+        ('storeId' in incoming() && incoming().storeId is string &&
+          exists(/databases/$(database)/documents/stores/$(incoming().storeId)) &&
+          get(/databases/$(database)/documents/stores/$(incoming().storeId)).data.ownerId == uid()) ||
+        (!('storeId' in incoming()) && ownsCompany(incoming().get('companyId', ''))));
       allow update: if isAdmin() || (isAuth() &&
         get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == uid() &&
-        !changed().hasAny(['storeId', 'rating', 'totalReviews']));
+        !changed().hasAny(['storeId', 'companyId', 'rating', 'totalReviews']));
       allow delete: if isAuth() &&
         (get(/databases/$(database)/documents/stores/$(resource.data.storeId)).data.ownerId == uid() || isAdmin());
     }
@@ -210,7 +234,7 @@ service cloud.firestore {
     match /rentals/{rentalId} {
       allow read: if true;
       allow create: if isAuth() && incoming().ownerId == uid() &&
-        !incoming().keys().hasAny(['rating', 'totalReviews', 'verified']);
+        zeroCounters() && incoming().get('verified', false) == false;
       allow update: if isAdmin() || (isAuth() &&
         resource.data.ownerId == uid() &&
         !changed().hasAny(['ownerId', 'rating', 'totalReviews', 'verified']));
@@ -229,7 +253,9 @@ service cloud.firestore {
 
     match /contracts/{contractId} {
       allow read: if isAdmin() || ownsCompany(resource.data.companyId);
-      allow create, update: if ownsCompany(request.resource.data.companyId) || isAdmin();
+      allow create: if ownsCompany(request.resource.data.companyId) || isAdmin();
+      allow update: if isAdmin() || (ownsCompany(resource.data.companyId) &&
+        incoming().companyId == resource.data.companyId);
       allow delete: if isAdmin();
     }
 
@@ -243,9 +269,12 @@ service cloud.firestore {
         && incoming().clientId == uid()
         && incoming().status == 'pending'
         && incoming().get('payoutProcessed', false) == false
+        && incoming().get('payoutStatus', 'none') == 'none'
         && incoming().get('paymentStatus', 'unpaid') in ['unpaid', 'pending']
         && !incoming().keys().hasAny([
-          'commission', 'platformFee', 'providerAmount', 'payoutStatus',
+          // Auditoria: preço vem do orçamento do prestador (accept).
+          'price', 'total',
+          'commission', 'platformFee', 'providerAmount',
           'transactionId', 'cashbackGranted', 'paidAt', 'payoutAt',
           'reviewed', 'refunded', 'refundAmount', 'serviceSnapshot',
           'financeTerms', 'paidAttemptId'
@@ -258,8 +287,9 @@ service cloud.firestore {
       // Cliente/prestador só marcam review. Status/preço/repasse: Cloud Functions.
       allow update: if isAdmin() || (
         isAuth() &&
-        (resource.data.clientId == uid() || resource.data.providerId == uid()) &&
+        resource.data.clientId == uid() &&
         changed().hasOnly(['reviewed']) &&
+        exists(/databases/$(database)/documents/reviews/$(orderId + '_' + uid())) &&
         resource.data.status == 'completed' &&
         incoming().reviewed == true
       );
@@ -313,6 +343,7 @@ service cloud.firestore {
             'replyToText', 'replyToSender', 'createdAt'
           ]) &&
           incoming().read == false &&
+          incoming().createdAt == request.time &&
           incoming().text is string && incoming().text.size() <= 4000;
         allow update: if isAuth() && uid() in roomParticipants() && (
           // Destinatário marca como lida.
@@ -426,14 +457,9 @@ service cloud.firestore {
         resource.data.delivererId == request.auth.uid ||
         isAdmin()
       );
-      allow create: if isAuth() &&
-        request.resource.data.clientId == request.auth.uid;
-      allow update: if isAuth() && (
-        resource.data.clientId == request.auth.uid ||
-        resource.data.driverId == request.auth.uid ||
-        resource.data.delivererId == request.auth.uid ||
-        isAdmin()
-      ) && !changed().hasAny(['clientId', 'driverId', 'delivererId', 'price', 'total']);
+      // Auditoria: sem fluxo de entrega no servidor, o cliente podia criar
+      // entrega com qualquer entregador e posição. Congelado até existir callable.
+      allow write: if false;
     }
 
     // Saúde (Fase 5): agendamento só pelas callables (profissional, data,
@@ -472,7 +498,11 @@ service cloud.firestore {
     }
 
     match /favorites/{favId} {
-      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      // Auditoria: get de favorito ainda inexistente era negado (resource
+      // nulo) e quebrava "favoritar". Liberado só no id do próprio usuário.
+      allow get: if isAuth() && (resource == null ? favId.matches(uid() + '_.+')
+                                                  : resource.data.userId == uid());
+      allow list: if isAuth() && resource.data.userId == uid();
       allow create: if isAuth() &&
         incoming().userId == uid() &&
         favId.matches(uid() + '_.+');
@@ -525,8 +555,10 @@ service cloud.firestore {
       allow read, update: if isAdmin();
     }
 
+    // Auditoria: a lista pública expunha todos os códigos. Validação de
+    // cupom pelo servidor (checkCoupon / quoteMarketOrder).
     match /coupons/{couponId} {
-      allow read: if true;
+      allow read: if isAdmin();
       allow write: if isAdmin();
     }
 
@@ -544,13 +576,17 @@ service cloud.firestore {
 
     match /support/{ticketId} {
       allow read: if isAdmin() || (isAuth() && resource.data.userId == uid());
-      allow create: if isAuth() && request.resource.data.userId == uid();
+      allow create: if isAuth() && request.resource.data.userId == uid() &&
+        incoming().keys().hasOnly(['userId', 'userName', 'subject', 'message', 'status', 'priority', 'createdAt']) &&
+        incoming().status == 'open' && incoming().priority == 'normal' &&
+        incoming().subject is string && incoming().subject.size() <= 200 &&
+        incoming().message is string && incoming().message.size() <= 5000;
       allow update: if isAdmin();
     }
 
     match /auditLogs/{logId} {
       allow read: if isAdmin();
-      allow create: if isAdmin();
+      allow create: if isAdmin() && incoming().adminId == uid();
       allow update, delete: if false;
     }
 
@@ -627,8 +663,9 @@ service cloud.firestore {
         resource.data.providerId == uid() &&
         resource.data.accepted == false &&
         resource.data.get('status', 'sent') == 'sent' &&
-        changed().hasOnly(['price', 'deadlineDays', 'message', 'available', 'updatedAt']) &&
-        incoming().price is number && incoming().price > 0
+        // Auditoria: preço só pela callable (price e priceCents juntos);
+        // editar price aqui descasava o valor exibido do valor aceito.
+        changed().hasOnly(['deadlineDays', 'message', 'available', 'updatedAt'])
       );
       allow delete: if isAdmin();
     }

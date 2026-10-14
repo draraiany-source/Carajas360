@@ -386,7 +386,9 @@ class _FavToggle extends StatelessWidget {
           final isFav = snap.data ?? false;
           return GestureDetector(
             onTap: () async {
-              final nowFav = await FS.toggleFavorite(providerId);
+              final nowFav = await toggleFavoriteSafe(
+                  context, () => FS.toggleFavorite(providerId));
+              if (nowFav == null) return;
               if (context.mounted)
                 snack(
                     context,
@@ -405,6 +407,20 @@ class _FavToggle extends StatelessWidget {
           );
         },
       );
+}
+
+/// Alterna favorito mostrando erro em snack (null se falhou).
+Future<bool?> toggleFavoriteSafe(
+    BuildContext context, Future<bool> Function() toggle) async {
+  try {
+    return await toggle();
+  } catch (e) {
+    if (context.mounted) {
+      snack(context, 'Não foi possível atualizar os favoritos.',
+          bg: AppColors.error);
+    }
+    return null;
+  }
 }
 
 class ShimCard extends StatelessWidget {

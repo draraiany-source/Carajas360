@@ -73,7 +73,8 @@ class ProviderProfileScreen extends StatelessWidget {
             builder: (_, s) => IconButton(
               tooltip: s.data == true ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
               icon: Icon(s.data == true ? Icons.favorite : Icons.favorite_border, color: AppColors.error),
-              onPressed: () => FS.toggleFavorite(p.id),
+              onPressed: () =>
+                  toggleFavoriteSafe(context, () => FS.toggleFavorite(p.id)),
             ),
           ),
       ]),

@@ -233,7 +233,9 @@ describe('resolve', () => {
     await assertSucceeds(getDocs(query(collection(as('cli'), 'resolveProposals'), where('requestId', '==', 'r1'))));
     await assertFails(getDocs(query(collection(as('adv'), 'resolveProposals'), where('requestId', '==', 'r1'))));
     await assertFails(updateDoc(doc(as('pro'), 'resolveProposals/r1_pro'), { accepted: true }));
-    await assertSucceeds(updateDoc(doc(as('pro'), 'resolveProposals/r1_pro'), { price: 120 }));
+    // Auditoria: preço só pela callable (price e priceCents juntos).
+    await assertFails(updateDoc(doc(as('pro'), 'resolveProposals/r1_pro'), { price: 120 }));
+    await assertSucceeds(updateDoc(doc(as('pro'), 'resolveProposals/r1_pro'), { message: 'Posso ir amanhã' }));
   });
 });
 

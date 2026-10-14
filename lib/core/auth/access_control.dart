@@ -27,7 +27,8 @@ abstract final class AccessControl {
       return false;
     }
     final profile = await FS.getUser();
-    return profile?.type == UserType.admin || profile?.adminRole != null;
+    // Mesmo critério das regras: claim ou users.type == 'admin'.
+    return profile?.type == UserType.admin;
   }
 }
 

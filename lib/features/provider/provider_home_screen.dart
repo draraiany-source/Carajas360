@@ -9,7 +9,6 @@ import '../../core/utils/chat_nav.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
-import '../../core/security/order_policy.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../core/catalog/catalog_service.dart';
 import '../../core/catalog/catalog_widgets.dart';
@@ -127,7 +126,9 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                         stream: FS.myProviderStream(),
                         builder: (_, snap) {
                           final prov = snap.data;
-                          final online = prov?.active ?? true;
+                          // Só prestador verificado pode ficar online.
+                          final verified = prov?.verified ?? false;
+                          final online = verified && (prov?.active ?? true);
                           return Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 10),
@@ -145,22 +146,43 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                                       shape: BoxShape.circle)),
                               const SizedBox(width: 8),
                               Expanded(
-                                  child: Text(
-                                      online
-                                          ? 'Você está online'
-                                          : 'Você está offline',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13))),
+                                  child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                    Text(
+                                        online
+                                            ? 'Você está online'
+                                            : 'Você está offline',
+                                        style: const TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.w700,
+                                            fontSize: 13)),
+                                    if (prov != null && !verified)
+                                      const Text(
+                                          'Disponível após a verificação do seu cadastro.',
+                                          style: TextStyle(
+                                              color: Colors.white70,
+                                              fontSize: 11)),
+                                  ])),
                               Switch(
                                 value: online,
                                 activeColor: const Color(0xFF69F0AE),
                                 inactiveThumbColor: Colors.white70,
-                                onChanged: prov == null
+                                onChanged: prov == null || !verified
                                     ? null
                                     : (v) async {
-                                        await FS.setProviderOnline(prov.id, v);
+                                        try {
+                                          await FS.setProviderOnline(
+                                              prov.id, v);
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            snack(context,
+                                                'Não foi possível alterar o status: $e',
+                                                bg: AppColors.error);
+                                          }
+                                          return;
+                                        }
                                         if (context.mounted)
                                           snack(
                                               context,
@@ -401,13 +423,17 @@ class _OrderList extends StatelessWidget {
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               onPressed: () async {
-                                await FS.startOrder(o.id);
-                                if (context.mounted)
-                                  Navigator.pushNamed(context, Routes.gps,
-                                      arguments: {
-                                        'ctx': 'servico',
-                                        'orderId': o.id
-                                      });
+                                try {
+                                  await FS.startOrder(o.id);
+                                  if (context.mounted) {
+                                    snack(context, 'Atendimento iniciado.',
+                                        bg: AppColors.secondary);
+                                  }
+                                } catch (e) {
+                                  if (context.mounted) {
+                                    snack(context, '$e', bg: AppColors.error);
+                                  }
+                                }
                               },
                               icon: const Icon(Icons.play_arrow_rounded,
                                   size: 18),
@@ -434,29 +460,40 @@ class _OrderList extends StatelessWidget {
                                       style: TextStyle(fontSize: 12)))),
                           const SizedBox(width: 8),
                           Expanded(
-                              child: ElevatedButton(
-                                  onPressed: () async {
-                                    try {
-                                      await FS.completeOrder(o.id);
-                                      if (context.mounted) {
-                                        snack(context, '✅ Serviço concluído!',
-                                            bg: AppColors.secondary);
-                                      }
-                                    } on CloudCallException catch (e) {
-                                      if (context.mounted) {
-                                        snack(context, e.message,
-                                            bg: AppColors.error);
-                                      }
-                                    }
-                                  },
-                                  style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.secondary,
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 10)),
-                                  child: const Text('Concluir',
+                              child: o.awaitingClientConfirmation
+                                  ? const Text(
+                                      'Aguardando confirmação do cliente',
+                                      textAlign: TextAlign.center,
                                       style: TextStyle(
                                           fontSize: 12,
-                                          fontWeight: FontWeight.w700)))),
+                                          fontWeight: FontWeight.w700,
+                                          color: AppColors.textLight))
+                                  : ElevatedButton(
+                                      onPressed: () async {
+                                        try {
+                                          await FS.markOrderDoneByProvider(
+                                              o.id);
+                                          if (context.mounted) {
+                                            snack(context,
+                                                'Marcado como concluído. Aguardando confirmação do cliente.',
+                                                bg: AppColors.secondary);
+                                          }
+                                        } catch (e) {
+                                          if (context.mounted) {
+                                            snack(context, '$e',
+                                                bg: AppColors.error);
+                                          }
+                                        }
+                                      },
+                                      style: ElevatedButton.styleFrom(
+                                          backgroundColor: AppColors.secondary,
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 10)),
+                                      child: const Text('Marcar como concluído',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                              fontSize: 12,
+                                              fontWeight: FontWeight.w700)))),
                         ]),
                     ]),
               );
@@ -816,7 +853,13 @@ class _PendingActionsState extends State<_PendingActions> {
                 onPressed: expired
                     ? null
                     : () async {
-                        await FS.declineOrder(widget.order.id);
+                        try {
+                          await FS.declineOrder(widget.order.id);
+                        } catch (e) {
+                          if (context.mounted) {
+                            snack(context, '$e', bg: AppColors.error);
+                          }
+                        }
                       },
                 style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 10),
@@ -833,10 +876,23 @@ class _PendingActionsState extends State<_PendingActions> {
                 onPressed: expired
                     ? null
                     : () async {
-                        await FS.acceptOrder(widget.order.id);
-                        if (context.mounted)
-                          snack(context, '✅ Pedido aceito!',
-                              bg: AppColors.secondary);
+                        // Pedido sem preço: o prestador informa o orçamento.
+                        double? price;
+                        if ((widget.order.price ?? 0) <= 0) {
+                          price = await askQuote(context);
+                          if (price == null) return;
+                        }
+                        try {
+                          await FS.acceptOrder(widget.order.id, price: price);
+                          if (context.mounted) {
+                            snack(context, '✅ Pedido aceito!',
+                                bg: AppColors.secondary);
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            snack(context, '$e', bg: AppColors.error);
+                          }
+                        }
                       },
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.secondary,
@@ -940,4 +996,52 @@ class WeeklyEarnings extends StatelessWidget {
           );
         },
       );
+}
+
+/// Diálogo de orçamento (R\$ 1 a 1.000.000). Retorna null se cancelado.
+Future<double?> askQuote(BuildContext context) {
+  final ctrl = TextEditingController();
+  String? error;
+  return showDialog<double>(
+    context: context,
+    builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setD) => AlertDialog(
+        title: const Text('Informe o orçamento'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(r'[0-9.,]'))
+          ],
+          decoration: InputDecoration(
+              prefixText: 'R\$ ', hintText: '0,00', errorText: error),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancelar')),
+          TextButton(
+              onPressed: () {
+                final v = parseQuote(ctrl.text);
+                if (v == null) {
+                  setD(() => error = 'Valor entre R\$ 1 e R\$ 1.000.000');
+                  return;
+                }
+                Navigator.pop(ctx, v);
+              },
+              child: const Text('Aceitar')),
+        ],
+      ),
+    ),
+  );
+}
+
+/// "1.234,56" / "1234.5" → valor; null fora de 1..1.000.000.
+double? parseQuote(String raw) {
+  var t = raw.trim();
+  if (t.contains(',')) t = t.replaceAll('.', '').replaceAll(',', '.');
+  final v = double.tryParse(t);
+  if (v == null || v < 1 || v > 1000000) return null;
+  return (v * 100).roundToDouble() / 100;
 }

@@ -3,7 +3,7 @@ const { test, before, after } = require('node:test');
 const fs = require('node:fs');
 const path = require('node:path');
 const { initializeTestEnvironment, assertFails, assertSucceeds } = require('@firebase/rules-unit-testing');
-const { ref, uploadString, getBytes } = require('firebase/storage');
+const { ref, uploadString, getBytes, deleteObject } = require('firebase/storage');
 const { doc, setDoc } = require('firebase/firestore');
 
 let env;
@@ -56,4 +56,25 @@ test('prestador só envia documento na própria pasta e em tipos permitidos', as
 test('arquivos do usuário fora de /photo não são públicos', async () => {
   await assertFails(getBytes(ref(st('outro'), 'users/u1/private/a.jpg')));
   await assertSucceeds(getBytes(ref(st('u1'), 'users/u1/private/a.jpg')));
+});
+
+// ── Auditoria completa ──────────────────────────────────────────────
+test('auditoria: SVG não entra em caminho público', async () => {
+  await assertFails(uploadString(ref(st('u1'), 'users/u1/photo/x.svg'), '<svg onload="alert(1)"/>', 'raw', { contentType: 'image/svg+xml' }));
+  await assertSucceeds(uploadString(ref(st('u1'), 'users/u1/photo/x.png'), 'x', 'raw', { contentType: 'image/png' }));
+});
+
+test('auditoria: dono apaga a própria foto (antes negado)', async () => {
+  await assertSucceeds(deleteObject(ref(st('u1'), 'users/u1/photo/x.png')));
+});
+
+test('auditoria: documento de verificação não é substituído depois de enviado', async () => {
+  await assertFails(uploadString(ref(st('pro'), 'providers/pro/document/rg.jpg'), 'y', 'raw', { contentType: 'image/jpeg' }));
+  await assertSucceeds(uploadString(ref(st('pro'), 'providers/pro/document/rg2.jpg'), 'y', 'raw', { contentType: 'image/jpeg' }));
+});
+
+test('auditoria: foto de anúncio novo vai para a pasta do dono', async () => {
+  await assertSucceeds(uploadString(ref(st('dono'), 'rentalPhotos/dono/1.jpg'), 'x', 'raw', { contentType: 'image/jpeg' }));
+  await assertFails(uploadString(ref(st('outro'), 'rentalPhotos/dono/2.jpg'), 'x', 'raw', { contentType: 'image/jpeg' }));
+  await assertSucceeds(getBytes(ref(st(null), 'rentalPhotos/dono/1.jpg')), 'foto de anúncio é pública');
 });

@@ -154,8 +154,11 @@ class ServicoConectaApp extends StatelessWidget {
                         (sa?['catalogId'] ?? sa?['category']) as String?));
               case Routes.chat:
                 final a = settings.arguments as Map<String, dynamic>?;
+                final roomId = (a?['roomId'] ?? a?['id'] ?? '').toString();
+                // Sem sala definida: abre a caixa de conversas.
+                if (roomId.isEmpty) return _route(const ChatInboxScreen());
                 return _route(ChatScreen(
-                  roomId: a?['roomId'] ?? a?['id'] ?? 'demo',
+                  roomId: roomId,
                   otherName: a?['name'] ?? 'Profissional',
                   otherPhoto: a?['photo'],
                 ));
@@ -193,8 +196,13 @@ class ServicoConectaApp extends StatelessWidget {
                 return _route(const NotificationsScreen());
               case Routes.reviews:
                 final a = settings.arguments as Map<String, dynamic>?;
+                final reviewOrderId = (a?['orderId'] ?? '').toString();
+                // Avaliação exige pedido real.
+                if (reviewOrderId.isEmpty) {
+                  return _route(const MyOrdersScreen());
+                }
                 return _route(ReviewScreen(
-                    orderId: a?['orderId'] ?? 'demo',
+                    orderId: reviewOrderId,
                     providerId: a?['providerId'],
                     providerName: a?['providerName']));
               case Routes.support:
@@ -216,13 +224,19 @@ class ServicoConectaApp extends StatelessWidget {
                     title: 'Agendamentos', child: AppointmentsScreen()));
               case Routes.marketOrder:
                 final mo = settings.arguments as Map<String, dynamic>?;
+                final moId = '${mo?['id'] ?? ''}';
+                if (moId.isEmpty) {
+                  return _route(const RequireAuth(
+                      title: 'Pedidos', child: MyMarketOrdersScreen()));
+                }
                 return _route(RequireAuth(
-                    title: 'Pedido',
-                    child: MarketOrderScreen(orderId: '${mo?['id'] ?? ''}')));
+                    title: 'Pedido', child: MarketOrderScreen(orderId: moId)));
               case Routes.providerProfile:
                 final pp = settings.arguments as Map<String, dynamic>?;
+                final ppId = '${pp?['providerId'] ?? ''}';
+                if (ppId.isEmpty) return _route(const MainNav());
                 return _route(ProviderProfileScreen(
-                    providerId: '${pp?['providerId'] ?? ''}',
+                    providerId: ppId,
                     category: pp?['category'] as String?));
               case Routes.marketOrders:
                 return _route(const RequireAuth(
@@ -345,16 +359,20 @@ class _MainNavState extends State<MainNav> {
   Widget _navItem(int i, IconData icon, String label, ColorScheme scheme) {
     final sel = _idx == i;
     final isDark = scheme.brightness == Brightness.dark;
-    return Semantics(
+    // Expanded: 5 itens cabem em telas de 320px sem overflow.
+    return Expanded(
+        child: Semantics(
       button: true,
       selected: sel,
       label: label,
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: () => setState(() => _idx = i),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 220),
           curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
           decoration: BoxDecoration(
               color: sel
                   ? (isDark
@@ -370,6 +388,8 @@ class _MainNavState extends State<MainNav> {
                     : (isDark ? AppColors.darkTextLow : AppColors.textLight)),
             const SizedBox(height: 3),
             Text(label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                     fontSize: 10,
                     fontWeight: sel ? FontWeight.w800 : FontWeight.w500,
@@ -381,7 +401,7 @@ class _MainNavState extends State<MainNav> {
           ]),
         ),
       ),
-    );
+    ));
   }
 }
 

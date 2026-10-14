@@ -318,11 +318,18 @@ class _UsersTabState extends State<_UsersTab> {
                             color: AppColors.error),
                         title: const Text('Suspender conta'),
                         onTap: () async {
-                          await FS.suspendUser(uid);
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            snack(context, 'Conta suspensa',
-                                bg: AppColors.error);
+                          try {
+                            await FS.suspendUser(uid);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              snack(context, 'Conta suspensa',
+                                  bg: AppColors.error);
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              snack(context, 'Falha ao suspender: $e',
+                                  bg: AppColors.error);
+                            }
                           }
                         })
                   else
@@ -331,18 +338,20 @@ class _UsersTabState extends State<_UsersTab> {
                             color: AppColors.secondary),
                         title: const Text('Reativar conta'),
                         onTap: () async {
-                          await FS.reactivateUser(uid);
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            snack(context, 'Conta reativada',
-                                bg: AppColors.secondary);
+                          try {
+                            await FS.reactivateUser(uid);
+                            if (context.mounted) {
+                              Navigator.pop(context);
+                              snack(context, 'Conta reativada',
+                                  bg: AppColors.secondary);
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              snack(context, 'Falha ao reativar: $e',
+                                  bg: AppColors.error);
+                            }
                           }
                         }),
-                  ListTile(
-                      leading: const Icon(Icons.history_rounded,
-                          color: AppColors.primary),
-                      title: const Text('Ver histórico'),
-                      onTap: () => Navigator.pop(context)),
                 ]),
               ));
 }
@@ -373,6 +382,10 @@ class _ValidationTab extends StatelessWidget {
       StreamBuilder<QuerySnapshot>(
         stream: FS.pendingProvidersStream(),
         builder: (_, s) {
+          if (s.hasError) return QueryErrorView(error: s.error);
+          if (!s.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final docs = s.data?.docs ?? [];
           if (docs.isEmpty)
             return const EmptyState(
@@ -408,7 +421,7 @@ class _ValidationTab extends StatelessWidget {
                                           fontWeight: FontWeight.w700,
                                           fontSize: 14)),
                                   const Text(
-                                      '⏳ Aguardando aprovação · Documentos enviados',
+                                      '⏳ Aguardando aprovação · Verifique os documentos antes de aprovar',
                                       style: TextStyle(
                                           fontSize: 11,
                                           color: AppColors.warning,
@@ -453,6 +466,10 @@ class _ValidationTab extends StatelessWidget {
       StreamBuilder<QuerySnapshot>(
         stream: FS.pendingCompaniesStream(),
         builder: (_, s) {
+          if (s.hasError) return QueryErrorView(error: s.error);
+          if (!s.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final docs = s.data?.docs ?? [];
           if (docs.isEmpty)
             return const EmptyState(
@@ -1322,14 +1339,21 @@ class _SettingsTabState extends State<_SettingsTab> {
   Future<void> _save() async {
     setState(() => _saving = true);
     // Comissão/cashback: aba "Pagamentos" (config/finance, só servidor).
-    await FS.updatePlatformConfig({
-      'supportEmail': _emailCtrl.text.trim(),
-      'supportPhone': _phoneCtrl.text.trim(),
-      'maintenanceMode': _maintenanceMode,
-    });
-    if (mounted) {
-      setState(() => _saving = false);
-      snack(context, '✅ Configurações salvas!', bg: AppColors.secondary);
+    try {
+      await FS.updatePlatformConfig({
+        'supportEmail': _emailCtrl.text.trim(),
+        'supportPhone': _phoneCtrl.text.trim(),
+        'maintenanceMode': _maintenanceMode,
+      });
+      if (mounted) {
+        snack(context, '✅ Configurações salvas!', bg: AppColors.secondary);
+      }
+    } catch (e) {
+      if (mounted) {
+        snack(context, 'Não foi possível salvar: $e', bg: AppColors.error);
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
     }
   }
 
