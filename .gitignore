@@ -108,3 +108,4 @@ android/.gradle/
 # Emuladores / testes de regras
 firebase-tests/node_modules/
 *-debug.log
+dist/
