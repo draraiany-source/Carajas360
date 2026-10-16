@@ -130,12 +130,14 @@ Nada desta entrega está validado em **HML** nem em **DISP**: o projeto de homol
 
 | Suíte | Resultado | Onde |
 |---|---|---|
-| Regras + functions (emulador) | ver relatório final | EMU |
+| Regras + functions (emulador) | 152 testes; última suíte completa 151/152. A falha intermitente (prazo do gatilho de aviso do Resolve sob carga) foi corrigida em `ab41baa` e passa 2/2 isolada. Suíte completa anterior: 152/152 | EMU |
 | Unitários das functions | 65/65 | local |
-| Flutter (`flutter test`) | 124 + 1 pulado | local |
-| E2E web (7 fluxos) | ver relatório final | EMU |
-| Índices × consultas | 45, 0 faltando | estático |
-| Builds Android / iOS / web | ver relatório final | CI |
+| Flutter (`flutter test`) | 124 + 1 pulado; `flutter analyze` sem erros | local |
+| E2E web (7 fluxos, Playwright) | 91/91: schedule 16, hml 10, app 3, catalog 16, checkout 17, resolve 13, phase6 16 | EMU |
+| Índices × consultas | 46 consultas compostas, 0 faltando | estático |
+| Build iOS (`--no-codesign`, macOS) | ✅ run 5 (`086f708`) | CI |
+| Build web hml | ✅ run 5 (`086f708`) | CI |
+| Build APK hml + AAB prod (assinatura de teste) | run 4: os dois compilaram, a verificação de manifesto passou e o APK foi publicado como artefato (só a leitura de metadados falhou, já corrigida). Run 5: ver resumo da entrega | CI |
 
 ## 3. Bloqueios reais (precisam de você)
 
