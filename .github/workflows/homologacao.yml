@@ -153,9 +153,12 @@ jobs:
           "$AAPT2" dump badging "$APK" > dist/badging-hml-apk.txt
           BADGING="$(sed -n 1p dist/badging-hml-apk.txt)"
           echo "$BADGING"
-          APK_ID="$(echo "$BADGING" | sed -E "s/.*name='([^']+)'.*/\1/")"
-          APK_VC="$(echo "$BADGING" | sed -E "s/.*versionCode='([^']+)'.*/\1/")"
-          APK_VN="$(echo "$BADGING" | sed -E "s/.*versionName='([^']+)'.*/\1/")"
+          # Primeira ocorrência de cada campo na linha "package:" (a linha
+          # também tem platformBuildVersionName=..., que a regex gulosa pegava).
+          field() { echo "$BADGING" | grep -oE " $1='[^']*'" | head -1 | cut -d"'" -f2; }
+          APK_ID="$(field name)"
+          APK_VC="$(field versionCode)"
+          APK_VN="$(field versionName)"
           AAB_ID="$(grep -oE 'package="[^"]+"' dist/manifest-prod-aab.xml | head -1 | cut -d'"' -f2)"
           AAB_VC="$(grep -oE 'android:versionCode="[^"]+"' dist/manifest-prod-aab.xml | head -1 | cut -d'"' -f2)"
           AAB_VN="$(grep -oE 'android:versionName="[^"]+"' dist/manifest-prod-aab.xml | head -1 | cut -d'"' -f2)"
