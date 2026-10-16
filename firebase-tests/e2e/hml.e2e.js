@@ -85,7 +85,10 @@ async function waitDoc(ref, pred, ms = 20000) {
     const page = await browser.newPage({ viewport: { width: w, height: h } });
     global.__page = page;
     await page.route(/https:\/\/www\.gstatic\.com\/firebasejs\/[^/]+\/(firebase-[a-z-]+\.js)$/, (r) => { const f = path.join(SDK, r.request().url().split('/').pop()); fs.existsSync(f) ? r.fulfill({ status: 200, contentType: 'text/javascript', body: fs.readFileSync(f) }) : r.abort(); });
-    await page.goto(`http://localhost:8100/?${qs}`); await sleep(14000); return page;
+    await page.goto(`http://localhost:8100/?${qs}`); await sleep(14000);
+    // O aviso "Running in emulator mode" do SDK cobre a barra inferior (campo de resposta).
+    await page.addStyleTag({ content: '.firebase-emulator-warning{display:none!important}' }).catch(() => {});
+    return page;
   };
   const shot = (page, n) => page.screenshot({ path: path.join(OUT, `${n}.png`) });
   const login = (e) => `email=${encodeURIComponent(e)}&pass=Senha123!`;
