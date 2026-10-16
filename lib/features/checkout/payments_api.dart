@@ -207,8 +207,15 @@ class PaymentAttempt {
       const ['rejected', 'cancelled', 'expired', 'failed'].contains(status);
 }
 
+/// Horário-limite de uma reserva aguardando pagamento ("HH:MM", hora do
+/// aparelho).
+String holdTimeLabel(int ms) {
+  final d = DateTime.fromMillisecondsSinceEpoch(ms);
+  return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+}
+
 class PayTarget {
-  final String kind; // market | recharge | service
+  final String kind; // market | recharge | service | health | rental
   final String id;
   final int amountCents;
   final String description;

@@ -71,6 +71,11 @@ abstract final class AuthResume {
       return (route: Routes.storeOrders, args: null);
     case 'myOrders':
       return (route: Routes.myOrders, args: null);
+    case 'supportTickets':
+      return (route: Routes.supportTickets, args: null);
+    case 'providerOrders':
+      // Pedidos recebidos ficam no painel do prestador.
+      return (route: Routes.providerHome, args: null);
   }
   return switch (type) {
     'order' => (route: Routes.myOrders, args: null),

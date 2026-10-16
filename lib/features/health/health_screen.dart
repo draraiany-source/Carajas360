@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import '../../core/navigation/app_navigation.dart';
+import '../../core/auth/access_control.dart';
 import 'health_booking.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -360,6 +361,7 @@ class _HealthState extends State<HealthScreen> {
   void _schedule(String providerId, String name, String catalogId, String service) {
     if (!AuthService.isAuth) {
       snack(context, 'Faça login para agendar.');
+      loginAndResume(context);
       return;
     }
     Navigator.push(

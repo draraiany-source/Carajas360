@@ -8,6 +8,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/utils/chat_nav.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
+import '../../core/security/order_policy.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../core/catalog/catalog_service.dart';
@@ -129,7 +130,10 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                           // Só prestador verificado pode ficar online.
                           final verified = prov?.verified ?? false;
                           final online = verified && (prov?.active ?? true);
-                          return Container(
+                          return Column(children: [
+                            if (prov != null && !verified)
+                              ProviderReviewBanner(provider: prov),
+                            Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 14, vertical: 10),
                             decoration: BoxDecoration(
@@ -195,7 +199,8 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                                       },
                               ),
                             ]),
-                          );
+                          ),
+                          ]);
                         },
                       ),
                       const SizedBox(height: 8),
@@ -508,7 +513,7 @@ class _OrderList extends StatelessWidget {
 // foto, documento, selfie, certificados, áreas atendidas).
 // Aberta logo após o cadastro básico, quando o tipo é provider.
 // Todos os arquivos são opcionais aqui para não travar o fluxo,
-// mas o admin só aprova (FS.approveProvider) quem enviou os
+// mas o admin só aprova (FS.reviewProvider) quem enviou os
 // documentos — a UI deixa isso claro para o prestador.
 // ─────────────────────────────────────────────────────────────
 class ProviderOnboardingScreen extends StatefulWidget {
@@ -1044,4 +1049,75 @@ double? parseQuote(String raw) {
   final v = double.tryParse(t);
   if (v == null || v < 1 || v > 1000000) return null;
   return (v * 100).roundToDouble() / 100;
+}
+
+/// Situação da análise do cadastro: recusado (com motivo e "Pedir nova
+/// análise") ou em análise.
+class ProviderReviewBanner extends StatefulWidget {
+  final ProviderModel provider;
+  const ProviderReviewBanner({super.key, required this.provider});
+  @override
+  State<ProviderReviewBanner> createState() => _ProviderReviewBannerState();
+}
+
+class _ProviderReviewBannerState extends State<ProviderReviewBanner> {
+  bool _sending = false;
+
+  Future<void> _requestReview() async {
+    setState(() => _sending = true);
+    try {
+      await FS.requestProviderReview();
+      if (mounted) snack(context, 'Pedido enviado. Seu cadastro voltou para análise.', bg: AppColors.secondary);
+    } on CloudCallException catch (e) {
+      if (mounted) snack(context, e.message, bg: AppColors.error);
+    } finally {
+      if (mounted) setState(() => _sending = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final p = widget.provider;
+    final reason = (p.rejectionReason ?? '').trim();
+    final review = (p.reviewReason ?? '').trim();
+    final String title;
+    final String? detail;
+    if (p.rejected) {
+      title = 'Cadastro não aprovado: ${reason.isEmpty ? 'confira seus dados e documentos' : reason}';
+      detail = 'Corrija o que foi apontado (dados, especialidades ou documentos) e peça nova análise.';
+    } else if (p.inReview) {
+      title = 'Seu cadastro está em análise';
+      detail = review.isNotEmpty
+          ? 'Em nova análise: $review'
+          : (reason.isNotEmpty ? 'Em nova análise (recusa anterior: $reason)' : null);
+    } else {
+      title = 'Seu cadastro está em análise';
+      detail = 'Você recebe um aviso assim que for aprovado.';
+    }
+    return Container(
+      key: const Key('provider-review-banner'),
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+          color: p.rejected ? AppColors.error.withValues(alpha: 0.9) : Colors.white.withValues(alpha: 0.18),
+          borderRadius: BorderRadius.circular(14)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(title, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 13)),
+        if (detail != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Text(detail, style: const TextStyle(color: Colors.white, fontSize: 11.5)),
+          ),
+        if (p.rejected)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: ElevatedButton(
+                onPressed: _sending ? null : _requestReview,
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: AppColors.error),
+                child: Text(_sending ? 'Enviando…' : 'Pedir nova análise')),
+          ),
+      ]),
+    );
+  }
 }

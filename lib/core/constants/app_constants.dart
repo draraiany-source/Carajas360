@@ -91,6 +91,7 @@ abstract class Routes {
   static const resolveOpportunities = '/resolve-opportunities';
   static const chatInbox = '/chat-inbox';
   static const myResolve = '/my-resolve';
+  static const supportTickets = '/support-tickets';
 }
 
 // Catálogo de categorias/serviços: fonte única administrável em

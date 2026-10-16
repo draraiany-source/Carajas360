@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import '../../core/security/order_policy.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../checkout/payment_screens.dart';
 import '../checkout/payments_api.dart';
 
 /// Datas e horários exibidos no fuso do serviço (America/Belem, UTC−3).
@@ -141,7 +143,7 @@ class _HealthBookingScreenState extends State<HealthBookingScreen> {
     if (_startMs == null || _modality == null) return;
     setState(() => _saving = true);
     try {
-      await FS.bookHealthAppointment(
+      final r = await FS.bookHealthAppointment(
           requestId: _requestId,
           providerId: widget.providerId,
           catalogId: widget.catalogId,
@@ -149,6 +151,22 @@ class _HealthBookingScreenState extends State<HealthBookingScreen> {
           modality: _modality!,
           reason: _reason.text);
       if (!mounted) return;
+      final appt = AppointmentModel.fromMap('${r['id'] ?? ''}', r);
+      if (appt.pendingPayment && appt.holdUntilMs != null) {
+        // Consulta com valor: horário retido até o pagamento (B15).
+        final paid = await payReservation(
+            context, PayTarget('health', appt.id, appt.totalCents, 'Consulta — ${widget.serviceName}'),
+            holdUntilMs: appt.holdUntilMs);
+        if (!mounted) return;
+        snack(
+            context,
+            paid
+                ? '✅ Pagamento recebido. A confirmação da consulta aparece em Agendamentos.'
+                : 'Horário reservado. Pague até ${holdTimeLabel(appt.holdUntilMs!)} em Agendamentos para garantir.',
+            bg: paid ? AppColors.health : AppColors.warning);
+        Navigator.pop(context, true);
+        return;
+      }
       snack(context, '✅ Consulta agendada para ${HealthTime.label(_startMs!)}', bg: AppColors.health);
       Navigator.pop(context, true);
     } on CloudCallException catch (e) {
@@ -166,6 +184,7 @@ class _HealthBookingScreenState extends State<HealthBookingScreen> {
   Widget build(BuildContext context) {
     final mods = ((_info?['modalities'] as List?) ?? const []).map((e) => '$e').toList();
     final ready = _startMs != null && _modality != null && _consent && !_saving;
+    final priceCents = (_info?['priceCents'] as num?)?.toInt() ?? 0;
     return Scaffold(
       appBar: AppBar(title: const Text('Agendar consulta'), backgroundColor: AppColors.health, foregroundColor: Colors.white),
       body: ListView(padding: pagePadding(context), children: [
@@ -206,9 +225,12 @@ class _HealthBookingScreenState extends State<HealthBookingScreen> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               _row('Data e horário', HealthTime.label(_startMs!)),
               _row('Duração', '${_info?['durationMin']} min'),
-              _row('Valor', brl((_info?['priceCents'] as num?)?.toInt() ?? 0)),
-              const Text('Pagamento combinado com o profissional (não cobrado pelo app nesta versão).',
-                  style: TextStyle(fontSize: 11, color: AppColors.textLight)),
+              _row('Valor', brl(priceCents)),
+              Text(
+                  priceCents > 0
+                      ? 'Pagamento pelo app: o horário fica reservado por alguns minutos até o pagamento ser confirmado.'
+                      : 'Consulta sem custo pelo app.',
+                  style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
             ]),
           ),
           CheckboxListTile(
@@ -226,7 +248,9 @@ class _HealthBookingScreenState extends State<HealthBookingScreen> {
           key: const Key('health-confirm'),
           onPressed: ready ? _confirm : null,
           style: ElevatedButton.styleFrom(backgroundColor: AppColors.health, foregroundColor: Colors.white),
-          child: Text(_saving ? 'Agendando…' : 'Confirmar agendamento'),
+          child: Text(_saving
+              ? 'Agendando…'
+              : (_startMs != null && priceCents > 0 ? 'Reservar e pagar' : 'Confirmar agendamento')),
         ),
         if (_startMs == null)
           const Padding(
@@ -245,6 +269,8 @@ class _HealthBookingScreenState extends State<HealthBookingScreen> {
 }
 
 const _statusLabels = {
+  'pending_payment': '⏳ Aguardando pagamento',
+  'expired': '⌛ Reserva expirada — horário liberado',
   'scheduled': '✅ Agendada',
   'cancelled_by_client': '❌ Cancelada por você/paciente',
   'cancelled_by_provider': '❌ Cancelada pelo profissional',
@@ -279,7 +305,7 @@ class _ApptList extends StatelessWidget {
   final bool asProvider;
   const _ApptList({required this.asProvider});
 
-  Future<void> _act(BuildContext context, Map<String, dynamic> a, String action) async {
+  Future<void> _act(BuildContext context, AppointmentModel a, String action) async {
     String? reason;
     int? newStart;
     if (action == 'cancel' && asProvider) {
@@ -309,20 +335,25 @@ class _ApptList extends StatelessWidget {
                   const Text('Novo horário', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
                   const SizedBox(height: 8),
                   HealthSlotPicker(
-                      providerId: '${a['providerId']}',
-                      catalogId: '${a['catalogId']}',
+                      providerId: a.providerId,
+                      catalogId: a.catalogId,
                       onPicked: (v) => Navigator.pop(s, v.startMs)),
                 ]),
               ));
       if (newStart == null) return;
     }
     try {
-      await FS.healthAppointmentAction('${a['id']}', action, reason: reason, newStartMs: newStart);
+      await FS.healthAppointmentAction(a.id, action, reason: reason, newStartMs: newStart);
       if (context.mounted) snack(context, 'Agendamento atualizado', bg: AppColors.health);
     } on CloudCallException catch (e) {
       if (context.mounted) snack(context, e.message, bg: AppColors.error);
     }
   }
+
+  Future<void> _pay(BuildContext context, AppointmentModel a) => payReservation(
+      context,
+      PayTarget('health', a.id, a.totalCents, 'Consulta — ${a.serviceName.isEmpty ? 'Saúde' : a.serviceName}'),
+      holdUntilMs: a.holdUntilMs);
 
   @override
   Widget build(BuildContext context) => StreamBuilder<List<Map<String, dynamic>>>(
@@ -330,11 +361,14 @@ class _ApptList extends StatelessWidget {
         builder: (context, snap) {
           if (snap.hasError) return QueryErrorView(error: snap.error);
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-          final items = snap.data!.where((a) => a['startMs'] is num).toList();
+          final items = snap.data!
+              .where((m) => m['startMs'] is num)
+              .map((m) => AppointmentModel.fromMap('${m['id']}', m))
+              .toList();
           if (items.isEmpty) {
             return const EmptyState(emoji: '📅', title: 'Nenhum agendamento', subtitle: 'Seus agendamentos aparecerão aqui');
           }
-          final now = DateTime.now().millisecondsSinceEpoch;
+          final now = DateTime.now();
           return ListView(padding: pagePadding(context), children: [
             for (final a in items)
               Container(
@@ -342,18 +376,33 @@ class _ApptList extends StatelessWidget {
                 decoration: AppDecorations.card(r: 16),
                 padding: const EdgeInsets.all(14),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${a['serviceName'] ?? 'Consulta'} — ${asProvider ? 'paciente' : a['providerName'] ?? 'profissional'}',
+                  Text(
+                      '${a.serviceName.isEmpty ? 'Consulta' : a.serviceName} — ${asProvider ? 'paciente' : (a.providerName.isEmpty ? 'profissional' : a.providerName)}',
                       style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Text('${HealthTime.label((a['startMs'] as num).toInt())} · ${_modalityLabels[a['modality']] ?? ''}',
+                  Text('${HealthTime.label(a.startMs)} · ${_modalityLabels[a.modality] ?? ''}',
                       style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
-                  Text(_statusLabels[a['status']] ?? '${a['status']}', style: const TextStyle(fontSize: 12)),
-                  if (a['status'] == 'scheduled')
+                  Text(appointmentStatusText(a, asProvider: asProvider, now: now),
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: a.canPay(now) ? AppColors.warning : null,
+                          fontWeight: a.pendingPayment ? FontWeight.w700 : null)),
+                  if (!asProvider && a.canPay(now))
+                    Wrap(spacing: 6, children: [
+                      ElevatedButton(
+                          onPressed: () => _pay(context, a),
+                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.health, foregroundColor: Colors.white),
+                          child: Text('Pagar ${brl(a.totalCents)}')),
+                      TextButton(
+                          onPressed: () => _act(context, a, 'cancel'),
+                          child: const Text('Cancelar', style: TextStyle(color: AppColors.error))),
+                    ]),
+                  if (a.status == 'scheduled')
                     Wrap(spacing: 6, children: [
                       TextButton(onPressed: () => _act(context, a, 'reschedule'), child: const Text('Reagendar')),
                       TextButton(
                           onPressed: () => _act(context, a, 'cancel'),
                           child: const Text('Cancelar', style: TextStyle(color: AppColors.error))),
-                      if (asProvider && (a['startMs'] as num) <= now) ...[
+                      if (asProvider && a.startMs <= now.millisecondsSinceEpoch) ...[
                         TextButton(onPressed: () => _act(context, a, 'complete'), child: const Text('Realizada')),
                         TextButton(onPressed: () => _act(context, a, 'no_show'), child: const Text('Falta')),
                       ],
@@ -365,4 +414,16 @@ class _ApptList extends StatelessWidget {
           ]);
         },
       );
+}
+
+/// Situação exibida na lista (inclui retenção aguardando pagamento).
+String appointmentStatusText(AppointmentModel a, {bool asProvider = false, DateTime? now}) {
+  if (a.pendingPayment) {
+    // Prazo vencido: o horário já está livre (a tarefa grava 'expired' depois).
+    if (!a.canPay(now)) return _statusLabels['expired']!;
+    if (asProvider) return '⏳ Aguardando pagamento do paciente';
+    return '⏳ Aguardando pagamento até ${holdTimeLabel(a.holdUntilMs!)}';
+  }
+  if (a.expired && a.lateRefund) return '↩️ Valor devolvido — o horário não estava mais disponível';
+  return _statusLabels[a.status] ?? a.status;
 }

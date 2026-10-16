@@ -291,6 +291,15 @@ class _OnboardState extends State<OnboardingScreen> {
                       child: Text('Pular',
                           style:
                               TextStyle(color: Colors.white.withOpacity(0.7)))),
+                // Catálogo público: visitante navega sem conta; ações
+                // protegidas pedem login (loginAndResume).
+                TextButton(
+                    key: const Key('explore-guest'),
+                    onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                        context, Routes.main, (_) => false),
+                    child: const Text('Explorar sem entrar',
+                        style: TextStyle(
+                            color: Colors.white, fontWeight: FontWeight.w700))),
               ])),
         ]),
       );
@@ -539,7 +548,7 @@ class _LoginState extends State<LoginScreen>
                                         LengthLimitingTextInputFormatter(11)
                                       ],
                                       decoration: const InputDecoration(
-                                          hintText: '(11) 99999-9999',
+                                          hintText: '(DDD) 9XXXX-XXXX',
                                           prefixText: '+55  ')),
                                   const SizedBox(height: 16),
                                   SizedBox(
@@ -751,7 +760,23 @@ class _LoginState extends State<LoginScreen>
                         ],
                       ]),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 12),
+                    TextButton(
+                        key: const Key('login-explore-guest'),
+                        onPressed: () {
+                          // Aberto por uma ação protegida: volta para onde estava.
+                          final nav = Navigator.of(context);
+                          if (nav.canPop()) {
+                            nav.pop();
+                          } else {
+                            nav.pushNamedAndRemoveUntil(Routes.main, (_) => false);
+                          }
+                        },
+                        child: const Text('Explorar sem entrar',
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700))),
+                    const SizedBox(height: 8),
                     Text(
                         'Ao continuar você concorda com os Termos de Uso e Política de Privacidade.',
                         textAlign: TextAlign.center,

@@ -13,6 +13,7 @@ import 'core/constants/app_constants.dart';
 import 'core/config/app_env.dart';
 import 'core/utils/firebase_bootstrap.dart';
 import 'core/widgets/config_unavailable.dart';
+import 'core/widgets/maintenance_gate.dart';
 import 'shared/services/firebase_service.dart';
 
 import 'package:servico_conecta/features/auth/auth_screen.dart';
@@ -30,6 +31,7 @@ import 'package:servico_conecta/features/marketplace/store_screen.dart';
 import 'package:servico_conecta/features/rental/rental_screen.dart';
 import 'package:servico_conecta/features/profile/profile_screens.dart';
 import 'package:servico_conecta/features/support/support_screens.dart';
+import 'package:servico_conecta/features/support/tickets_screens.dart';
 import 'package:servico_conecta/features/ai_assistant/ai_screen.dart';
 import 'package:servico_conecta/features/admin/admin_screen.dart';
 import 'package:servico_conecta/features/company/company_screen.dart';
@@ -145,7 +147,8 @@ class ServicoConectaApp extends StatelessWidget {
               case Routes.register:
                 return _route(const RegisterScreen());
               case Routes.main:
-                return _route(const MainNav());
+                // Modo manutenção: bloqueia o app (exceto admin); login fica livre.
+                return _route(const MaintenanceGate(child: MainNav()));
               case Routes.search:
                 final sa = settings.arguments as Map<String, dynamic>?;
                 // 'category' mantido por compatibilidade (IDs antigos).
@@ -185,7 +188,7 @@ class ServicoConectaApp extends StatelessWidget {
                 return _route(
                     RentalScreen(initialTab: (ra?['tab'] as int?) ?? 0));
               case Routes.bookings:
-                return _route(const MyBookingsScreen());
+                return _route(const RequireAuth(title: 'Reservas', child: MyBookingsScreen()));
               case Routes.stores:
                 return _route(const StoresListScreen());
               case Routes.delivery:
@@ -207,6 +210,8 @@ class ServicoConectaApp extends StatelessWidget {
                     providerName: a?['providerName']));
               case Routes.support:
                 return _route(const RequireAuth(title: 'Suporte', child: SupportScreen()));
+              case Routes.supportTickets:
+                return _route(const RequireAuth(title: 'Meus chamados', child: MyTicketsScreen()));
               case Routes.coupons:
                 return _route(const CouponsScreen());
               case Routes.aiAssistant:
@@ -277,7 +282,7 @@ class ServicoConectaApp extends StatelessWidget {
                 return _route(const ChatInboxScreen());
               default:
                 // Rota desconhecida: volta ao app principal (evita splash “presa”).
-                return _route(const MainNav());
+                return _route(const MaintenanceGate(child: MainNav()));
             }
           },
         ),

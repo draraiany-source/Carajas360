@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/auth/access_control.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
@@ -154,7 +155,15 @@ class _MyOrdersState extends State<MyOrdersScreen> {
             ),
           ],
         ),
-        body: Column(children: [
+        // Visitante: pedidos exigem conta (sem consulta que falharia).
+        body: AuthService.uid == null
+            ? EmptyState(
+                emoji: '📋',
+                title: 'Entre para ver seus pedidos',
+                subtitle: 'Você pode explorar serviços, lojas e locações sem conta.',
+                actionLabel: 'Entrar',
+                onAction: () => loginAndResume(context))
+            : Column(children: [
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
             child: Material(
@@ -638,7 +647,7 @@ class _RequestServiceState extends State<RequestServiceScreen> {
       return;
     }
 
-    // Pedido já criado: falha no chat/aviso não desfaz a solicitação.
+    // Pedido já criado: falha no chat não desfaz a solicitação.
     String? roomId;
     try {
       roomId = await FS.getOrCreateRoom(widget.providerId);
@@ -646,9 +655,10 @@ class _RequestServiceState extends State<RequestServiceScreen> {
           roomId: roomId,
           senderName: await FS.myDisplayName(),
           text:
-              '📋 Nova solicitação: ${_title.text.trim()}\n${_description.text.trim()}');
-      await FS.pushNotif(widget.providerId, '📋 Nova solicitação de serviço',
-          _title.text.trim(), 'order');
+              '📋 Nova solicitação: ${_title.text.trim()}\n${_description.text.trim()}',
+          // Com orderId o servidor não avisa pelo chat: o aviso do pedido
+          // é enviado uma única vez (onServiceOrderCreated).
+          orderId: orderId);
     } catch (e) {
       debugPrint('Solicitação: chat/aviso falhou: $e');
     } finally {

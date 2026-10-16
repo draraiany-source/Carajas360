@@ -1,11 +1,11 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
+import '../../core/auth/access_control.dart';
 import '../../core/navigation/app_navigation.dart';
 import '../../core/security/order_policy.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
-import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/chat_nav.dart';
 import '../../shared/models/models.dart';
@@ -14,6 +14,8 @@ import '../../shared/widgets/widgets.dart';
 import '../../shared/widgets/micro_interactions.dart';
 import '../../core/catalog/catalog.dart';
 import '../../core/catalog/catalog_service.dart';
+import '../checkout/payment_screens.dart';
+import '../checkout/payments_api.dart';
 
 // ─────────────────────────────────────────────────────────────
 // LOCAÇÃO (Vol.13) — vitrine de veículos e máquinas para aluguel.
@@ -403,11 +405,19 @@ class RentalDetailScreen extends StatelessWidget {
         ]),
       );
 
-  void _openBooking(BuildContext context) => showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => _BookingSheet(rental: rental),
-      );
+  void _openBooking(BuildContext context) {
+    // Cotação e reserva exigem login (callables autenticadas).
+    if (!AuthService.isAuth) {
+      snack(context, 'Entre para reservar.');
+      loginAndResume(context);
+      return;
+    }
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _BookingSheet(rental: rental),
+    );
+  }
 
   Widget _price(String label, double v) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -998,7 +1008,7 @@ class _BookingSheetState extends State<_BookingSheet> {
     }
     setState(() => _saving = true);
     try {
-      await FS.createRentalBooking(
+      final r = await FS.createRentalBooking(
         requestId: _requestId,
         rentalId: widget.rental.id,
         period: _keys[_period] ?? 'day',
@@ -1007,8 +1017,26 @@ class _BookingSheetState extends State<_BookingSheet> {
         note: _note.text,
       );
       if (!mounted) return;
+      final until = (r['holdUntilMs'] as num?)?.toInt();
+      final cents = (r['totalCents'] as num?)?.toInt() ?? 0;
+      var paid = false;
+      if (r['status'] == 'pending_payment' && until != null && cents > 0) {
+        // B15: o período fica retido até o pagamento; o anunciante só
+        // confirma depois de pago.
+        paid = await payReservation(
+            context, PayTarget('rental', '${r['id']}', cents, 'Locação ${widget.rental.title}'),
+            holdUntilMs: until);
+        if (!mounted) return;
+      }
+      final messenger = ScaffoldMessenger.of(context);
       Navigator.pop(context);
-      snack(context, '✅ Reserva solicitada! O anunciante vai confirmar.', bg: AppColors.secondary);
+      messenger.showSnackBar(SnackBar(
+          backgroundColor: paid || until == null ? AppColors.secondary : AppColors.warning,
+          content: Text(paid
+              ? '✅ Pagamento recebido. O anunciante vai confirmar a reserva.'
+              : until != null
+                  ? 'Período reservado. Pague até ${holdTimeLabel(until)} em Reservas para garantir.'
+                  : '✅ Reserva solicitada! O anunciante vai confirmar.')));
     } on CloudCallException catch (e) {
       if (mounted) snack(context, e.message, bg: AppColors.error);
     } catch (_) {
@@ -1151,9 +1179,14 @@ class _BookingSheetState extends State<_BookingSheet> {
                       height: 20,
                       child: CircularProgressIndicator(
                           color: Colors.white, strokeWidth: 2))
-                  : const Text('Solicitar reserva',
+                  : const Text('Reservar e pagar',
                       style: TextStyle(fontWeight: FontWeight.w800)),
             )),
+        const SizedBox(height: 6),
+        const Text(
+            'O período fica reservado por alguns minutos até o pagamento. Depois de pago, o anunciante confirma; se recusar, o valor é devolvido.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11, color: AppColors.textLight)),
       ])),
     );
   }
@@ -1212,14 +1245,21 @@ class MyBookingsScreen extends StatelessWidget {
     }
   }
 
+  Future<void> _pay(BuildContext context, BookingModel b) => payReservation(
+      context, PayTarget('rental', b.id, b.totalCents, 'Locação ${b.rentalTitle}'),
+      holdUntilMs: b.holdUntilMs);
+
   Widget _list(Stream<List<BookingModel>> stream, {required bool owner}) =>
       StreamBuilder<List<BookingModel>>(
         stream: stream,
         builder: (context, snap) {
+          if (snap.hasError) return QueryErrorView(error: snap.error);
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          final items = snap.data ?? [];
+          final items = [...?snap.data]
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+          final now = DateTime.now();
           if (items.isEmpty) {
             return EmptyState(
               emoji: '🔑',
@@ -1234,6 +1274,8 @@ class MyBookingsScreen extends StatelessWidget {
             itemCount: items.length,
             itemBuilder: (_, i) {
               final b = items[i];
+              // Prazo vencido sem pagamento: o período já está livre.
+              final holdLapsed = b.status == BookingStatus.pendingPayment && !b.canPay(now);
               return Container(
                 margin: const EdgeInsets.only(bottom: 10),
                 decoration: AppDecorations.card(r: 16),
@@ -1249,14 +1291,20 @@ class MyBookingsScreen extends StatelessWidget {
                                 style: const TextStyle(
                                     fontWeight: FontWeight.w800,
                                     fontSize: 14))),
-                        AppTag(b.statusLabel,
-                            bg: switch (b.status) {
-                              BookingStatus.confirmed => AppColors.secondary,
-                              BookingStatus.active => AppColors.primary,
-                              BookingStatus.cancelled => AppColors.error,
-                              BookingStatus.completed => AppColors.textLight,
-                              _ => AppColors.warning,
-                            }),
+                        AppTag(
+                            holdLapsed
+                                ? 'Reserva expirada'
+                                : (owner ? b.ownerStatusLabel : b.statusLabel),
+                            bg: holdLapsed
+                                ? AppColors.textLight
+                                : switch (b.status) {
+                                    BookingStatus.confirmed => AppColors.secondary,
+                                    BookingStatus.active => AppColors.primary,
+                                    BookingStatus.cancelled => AppColors.error,
+                                    BookingStatus.completed => AppColors.textLight,
+                                    BookingStatus.expired => AppColors.textLight,
+                                    _ => AppColors.warning,
+                                  }),
                       ]),
                       const SizedBox(height: 6),
                       Text(
@@ -1267,12 +1315,49 @@ class MyBookingsScreen extends StatelessWidget {
                         Text('Cliente: ${b.clientName}',
                             style: const TextStyle(
                                 fontSize: 12, color: AppColors.textLight)),
+                      if (!owner && b.canPay(now))
+                        Text('Aguardando pagamento até ${holdTimeLabel(b.holdUntilMs!)}',
+                            style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.warning,
+                                fontWeight: FontWeight.w700)),
+                      if (holdLapsed || (b.status == BookingStatus.expired && !b.lateRefund))
+                        const Text('Reserva expirada — horário liberado',
+                            style: TextStyle(fontSize: 12, color: AppColors.textLight)),
+                      if (b.status == BookingStatus.expired && b.lateRefund)
+                        const Text('Valor devolvido — o período não estava mais disponível',
+                            style: TextStyle(fontSize: 12, color: AppColors.textLight)),
+                      if (b.status == BookingStatus.cancelled && b.paymentStatus != null &&
+                          b.paymentStatus != 'unpaid' && b.paymentStatus != 'pending')
+                        Text('Pagamento: ${paymentStatusLabel[b.paymentStatus] ?? b.paymentStatus}',
+                            style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
+                      if (!owner && b.canPay(now))
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Row(children: [
+                            Expanded(
+                                child: OutlinedButton(
+                              onPressed: () => _act(context, b.id, 'cancel'),
+                              style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.error,
+                                  side: const BorderSide(color: AppColors.error)),
+                              child: const Text('Cancelar'),
+                            )),
+                            const SizedBox(width: 10),
+                            Expanded(
+                                child: ElevatedButton(
+                              onPressed: () => _pay(context, b),
+                              child: Text('Pagar ${PaySvc.fmt(b.total)}'),
+                            )),
+                          ]),
+                        ),
                       if (owner && b.status == BookingStatus.pending)
                         Padding(
                           padding: const EdgeInsets.only(top: 10),
                           child: Row(children: [
                             Expanded(
                                 child: OutlinedButton(
+                              // Já pago: recusar devolve o valor automaticamente.
                               onPressed: () => _act(context, b.id, 'reject'),
                               style: OutlinedButton.styleFrom(
                                   foregroundColor: AppColors.error,
