@@ -6,7 +6,9 @@
  * + segredo do webhook, fora do projeto de produção (ver financeCore
  * gatewayMode). No emulador, PAYMENTS_GATEWAY=fake usa o simulador.
  */
-const functions = require('firebase-functions');
+// v1 explícito: firebase-functions 7 exporta v2 por padrão; os gatilhos
+// continuam 1ª geração (sem migração para v2 nesta etapa).
+const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
 const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const axios = require('axios');
