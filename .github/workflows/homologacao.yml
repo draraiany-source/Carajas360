@@ -1,0 +1,294 @@
+name: Homologação — builds mobile/web
+
+# Valida a geração dos artefatos de homologação. NADA é publicado:
+# - APK hml assinado com keystore DESCARTÁVEL de teste (gerado no job).
+# - AAB prod assinado com o mesmo keystore de teste (só valida o build;
+#   NÃO é a upload key da Play Store e não pode ser enviado à loja).
+# - iOS sem assinatura (--no-codesign), sem IPA.
+# - Web hml.
+
+on:
+  push:
+    branches:
+      - homologacao-ci
+      - fase1-seguranca-ambientes-filtros
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: homologacao-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: '3.47.7'
+
+jobs:
+  android:
+    name: Android (APK hml + AAB prod, assinatura de TESTE)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Sem Firebase real no CI: não enviar mapping do Crashlytics.
+      ORG_GRADLE_PROJECT_carajasSkipCrashlyticsUpload: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: flutter pub get
+        run: |
+          flutter --version
+          flutter pub get
+
+      - name: Keystore DESCARTÁVEL de teste (NÃO é a upload key da Play)
+        run: |
+          set -euo pipefail
+          KS="$RUNNER_TEMP/ci-test-only.jks"
+          PASS="$(openssl rand -hex 24)"
+          echo "::add-mask::$PASS"
+          keytool -genkeypair -noprompt \
+            -keystore "$KS" -storetype PKCS12 \
+            -alias ci-test-only -keyalg RSA -keysize 2048 -validity 30 \
+            -storepass "$PASS" -keypass "$PASS" \
+            -dname "CN=Carajas360 CI TEST SIGNING ONLY, OU=NOT FOR PLAY STORE, O=Carajas360, C=BR"
+          {
+            echo "storePassword=$PASS"
+            echo "keyPassword=$PASS"
+            echo "keyAlias=ci-test-only"
+            echo "storeFile=$KS"
+          } > android/key.properties
+          echo "::warning title=Assinatura de TESTE::APK/AAB deste job usam keystore descartável gerado no CI (válido 30 dias, senha aleatória não armazenada). NÃO é a upload key da Play Store."
+          keytool -list -v -keystore "$KS" -storepass "$PASS" | grep -E "Owner|SHA256:" || true
+
+      - name: Build APK hml (release)
+        run: |
+          flutter build apk --release --flavor hml \
+            --dart-define=APP_ENV=hml \
+            --build-number=${{ github.run_number }}
+
+      - name: Build AAB prod (release, apenas validação — nunca publicado)
+        run: |
+          flutter build appbundle --release --flavor prod \
+            --dart-define=APP_ENV=prod \
+            --build-number=${{ github.run_number }}
+
+      - name: Verificar manifests de release + coletar metadados
+        id: verify
+        run: |
+          set -euo pipefail
+          APK=build/app/outputs/flutter-apk/app-hml-release.apk
+          AAB=build/app/outputs/bundle/prodRelease/app-prod-release.aab
+          ls -l "$APK" "$AAB"
+          BT_DIR="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          AAPT2="$BT_DIR/aapt2"
+          echo "aapt2: $AAPT2"
+
+          curl -fsSL -o "$RUNNER_TEMP/bundletool.jar" \
+            https://github.com/google/bundletool/releases/download/1.17.2/bundletool-all-1.17.2.jar
+
+          mkdir -p dist
+          "$AAPT2" dump xmltree --file AndroidManifest.xml "$APK" > dist/manifest-hml-apk.txt
+          java -jar "$RUNNER_TEMP/bundletool.jar" dump manifest --bundle="$AAB" > dist/manifest-prod-aab.xml
+
+          fail=0
+          check() {
+            local f="$1"
+            if grep -qi "networkSecurityConfig" "$f"; then
+              echo "::error::$f contém networkSecurityConfig (config de emulador do flavor dev vazou)"; fail=1
+            fi
+            if grep -Eiq "usesCleartextTraffic[^=]*=\"?(true|0xffffffff|-1)" "$f"; then
+              echo "::error::$f contém usesCleartextTraffic=true"; fail=1
+            fi
+          }
+          check dist/manifest-hml-apk.txt
+          check dist/manifest-prod-aab.xml
+          # Manifests mesclados intermediários (hml/prod release)
+          while IFS= read -r m; do
+            echo "merged: $m"; check "$m"
+          done < <(find build/app/intermediates -name AndroidManifest.xml \
+                     \( -path '*hmlRelease*' -o -path '*prodRelease*' \) -path '*merged_manifest*' 2>/dev/null)
+          if [ "$fail" != 0 ]; then echo "MANIFEST_CHECK=FALHOU" >> "$GITHUB_OUTPUT"; exit 1; fi
+          echo "Manifest OK: sem networkSecurityConfig e sem usesCleartextTraffic=true em hml/prod release."
+
+          "$AAPT2" dump badging "$APK" > dist/badging-hml-apk.txt
+          BADGING="$(sed -n 1p dist/badging-hml-apk.txt)"
+          echo "$BADGING"
+          APK_ID="$(echo "$BADGING" | sed -E "s/.*name='([^']+)'.*/\1/")"
+          APK_VC="$(echo "$BADGING" | sed -E "s/.*versionCode='([^']+)'.*/\1/")"
+          APK_VN="$(echo "$BADGING" | sed -E "s/.*versionName='([^']+)'.*/\1/")"
+          AAB_ID="$(grep -oE 'package="[^"]+"' dist/manifest-prod-aab.xml | head -1 | cut -d'"' -f2)"
+          AAB_VC="$(grep -oE 'android:versionCode="[^"]+"' dist/manifest-prod-aab.xml | head -1 | cut -d'"' -f2)"
+          AAB_VN="$(grep -oE 'android:versionName="[^"]+"' dist/manifest-prod-aab.xml | head -1 | cut -d'"' -f2)"
+          PUB_VERSION="$(grep -E '^version:' pubspec.yaml | awk '{print $2}')"
+          [ "$APK_ID" = "br.com.servicoconecta.hml" ] || { echo "::error::applicationId do APK hml inesperado: $APK_ID"; exit 1; }
+          [ "$AAB_ID" = "br.com.servicoconecta" ] || { echo "::error::applicationId do AAB prod inesperado: $AAB_ID"; exit 1; }
+          [ "$APK_VC" = "${{ github.run_number }}" ] || { echo "::error::versionCode $APK_VC != run_number"; exit 1; }
+
+          cp "$APK" dist/
+          cp "$AAB" dist/
+          APK_SHA="$(sha256sum "$APK" | awk '{print $1}')"
+          AAB_SHA="$(sha256sum "$AAB" | awk '{print $1}')"
+
+          cat > dist/build-info.txt <<EOF
+          Carajás 360 — build de homologação (CI)
+          ========================================
+          Versão (pubspec.yaml) : $PUB_VERSION
+          Build number (CI)     : ${{ github.run_number }}
+          Commit                : ${{ github.sha }}
+          Branch                : ${{ github.ref_name }}
+          Workflow run          : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          Flutter               : ${{ env.FLUTTER_VERSION }}
+
+          APK  (flavor hml, APP_ENV=hml, release)
+            arquivo        : app-hml-release.apk
+            applicationId  : $APK_ID
+            versionName    : $APK_VN
+            versionCode    : $APK_VC
+            sha256         : $APK_SHA
+
+          AAB  (flavor prod, APP_ENV=prod, release — apenas validação, NÃO publicar)
+            arquivo        : app-prod-release.aab
+            applicationId  : $AAB_ID
+            versionName    : $AAB_VN
+            versionCode    : $AAB_VC
+            sha256         : $AAB_SHA
+
+          Verificação de manifest: OK — sem networkSecurityConfig e sem
+          usesCleartextTraffic=true nos manifests de release hml/prod
+          (a config de rede de emulador existe só no flavor dev).
+
+          ASSINATURA: keystore DESCARTÁVEL gerado no CI (CN=Carajas360 CI TEST
+          SIGNING ONLY). NÃO é a upload key da Play Store. Para instalar por
+          cima, desinstale versões assinadas com outra chave.
+
+          FIREBASE HML: a configuração hml no repositório ainda é TEMPLATE
+          (android/app/src/hml/google-services.json e lib/firebase_options_hml.dart
+          com placeholders). O app abre e mostra "configuração indisponível"
+          até que os arquivos reais do projeto Firebase de homologação sejam
+          fornecidos. Ver docs/homologacao/BUILD_MOBILE.md.
+          EOF
+          sed -i 's/^          //' dist/build-info.txt
+          cat dist/build-info.txt
+          cat dist/build-info.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Remover keystore de teste
+        if: always()
+        run: rm -f android/key.properties "$RUNNER_TEMP/ci-test-only.jks"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carajas360-hml-apk
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            dist/app-hml-release.apk
+            dist/build-info.txt
+            dist/manifest-hml-apk.txt
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carajas360-prod-aab-test-signed
+          retention-days: 30
+          if-no-files-found: error
+          path: |
+            dist/app-prod-release.aab
+            dist/build-info.txt
+            dist/manifest-prod-aab.xml
+
+  ios:
+    name: iOS (release, sem assinatura)
+    runs-on: macos-latest
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: flutter pub get
+        run: |
+          xcodebuild -version
+          flutter --version
+          flutter pub get
+
+      - name: flutter build ios --no-codesign (hml)
+        run: |
+          set -o pipefail
+          mkdir -p dist
+          flutter build ios --release --no-codesign \
+            --dart-define=APP_ENV=hml \
+            --build-number=${{ github.run_number }} 2>&1 | tee dist/build-ios.log
+
+      - name: Resumo do build iOS
+        if: always()
+        run: |
+          mkdir -p dist
+          APP=build/ios/iphoneos/Runner.app
+          {
+            echo "Carajás 360 — iOS (sem assinatura, sem IPA)"
+            echo "Commit: ${{ github.sha }}  Build number: ${{ github.run_number }}"
+            xcodebuild -version
+            if [ -d "$APP" ]; then
+              echo "Runner.app: $(du -sh "$APP" | awk '{print $1}')"
+              for k in CFBundleIdentifier CFBundleDisplayName CFBundleShortVersionString CFBundleVersion MinimumOSVersion; do
+                echo "$k: $(/usr/libexec/PlistBuddy -c "Print :$k" "$APP/Info.plist" 2>/dev/null)"
+              done
+              echo "GMSApiKey vazio (esperado no CI): [$(/usr/libexec/PlistBuddy -c 'Print :GMSApiKey' "$APP/Info.plist" 2>/dev/null)]"
+              ls "$APP/GoogleService-Info.plist" >/dev/null 2>&1 && echo "GoogleService-Info.plist: presente (template)"
+            else
+              echo "Runner.app NÃO gerado."
+            fi
+            echo "--- avisos Carajas360 no log ---"
+            grep -i "carajas360" dist/build-ios.log || true
+          } > dist/ios-build-summary.txt
+          cat dist/ios-build-summary.txt
+          cat dist/ios-build-summary.txt >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: carajas360-ios-build-log
+          retention-days: 30
+          path: |
+            dist/ios-build-summary.txt
+            dist/build-ios.log
+
+  web:
+    name: Web (hml)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: flutter build web (hml)
+        run: |
+          flutter pub get
+          flutter build web --release --dart-define=APP_ENV=hml
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: carajas360-web-hml
+          retention-days: 30
+          if-no-files-found: error
+          path: build/web

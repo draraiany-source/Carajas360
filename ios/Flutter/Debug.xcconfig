@@ -1,0 +1,11 @@
+#include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
+#include "Generated.xcconfig"
+
+// Google Maps (iOS): a chave NAO e versionada. Crie ios/Flutter/MapsKey.xcconfig
+// (fora do controle de versao, ver ios/.gitignore) com a linha:
+//   MAPS_API_KEY = AIza...
+// Sem esse arquivo MAPS_API_KEY fica vazio e o AppDelegate nao inicializa
+// o Google Maps (mapas desabilitados, sem crash).
+// Ver docs/homologacao/BUILD_MOBILE.md.
+MAPS_API_KEY =
+#include? "MapsKey.xcconfig"
