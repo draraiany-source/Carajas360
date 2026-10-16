@@ -100,10 +100,10 @@ async function typeInto(page, label, text) {
   await click(p, '09:00', { exact: true });
   await click(p, 'Online');
   await shot(p, '1_saude_horario');
-  await click(p, 'Confirmar agendamento', { wait: 3000 });
+  await click(p, 'Reservar e pagar', { wait: 3000 });
   check('sem_consentimento_nao_agenda', (await db.collection('appointments').where('clientId', '==', pat.uid).get()).empty);
   await click(p, 'Autorizo o uso');
-  await click(p, 'Confirmar agendamento', { wait: 5000 });
+  await click(p, 'Reservar e pagar', { wait: 5000 });
   // B15: o horário fica retido e o pagamento abre em seguida.
   check('retencao_com_prazo', await waitText(p, 'Pague até'));
   await shot(p, '1b_saude_pagar_ate');
@@ -136,7 +136,7 @@ async function typeInto(page, label, text) {
   await click(r, 'Reservar', { exact: true });
   check('cotacao_do_servidor', await waitText(r, 'valor calculado pelo servidor'));
   await shot(r, '4_locacao_reserva');
-  await click(r, 'Solicitar reserva', { wait: 5000 });
+  await click(r, 'Reservar e pagar', { wait: 5000 });
   check('locacao_retida_com_prazo', await waitText(r, 'Pague até'));
   await click(r, 'Cartão de crédito', { wait: 4000 });
   await click(r, 'Pagar R$', { wait: 5000 });

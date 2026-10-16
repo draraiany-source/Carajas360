@@ -12,6 +12,13 @@ on:
     branches:
       - homologacao-ci
       - fase1-seguranca-ambientes-filtros
+    # Commits só de docs/testes de servidor/ferramentas não geram novo build
+    # (e não cancelam um build em andamento).
+    paths-ignore:
+      - 'docs/**'
+      - 'firebase-tests/**'
+      - 'tool/**'
+      - '**/*.md'
   workflow_dispatch:
 
 permissions:
