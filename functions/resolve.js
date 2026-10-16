@@ -13,7 +13,7 @@ const core = require('./resolveCore');
 const fin = require('./financeCore');
 
 module.exports = function resolveFunctions(deps) {
-  const { functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, notifySafe } = deps;
+  const { functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, notifySafe, maintenanceGuard } = deps;
   const sid = (...p) => crypto.createHash('sha256').update(p.join('|')).digest('hex').slice(0, 24);
   const REQ = db.collection('resolveRequests');
   const PROP = db.collection('resolveProposals');
@@ -86,6 +86,7 @@ module.exports = function resolveFunctions(deps) {
    */
   ex.createResolveRequest = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
+    if (maintenanceGuard) await maintenanceGuard(auth);
     await enforceRateLimit(auth.uid, 'resolve_create', 20, 60 * 60 * 1000);
     const requestId = String(data?.requestId || '');
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(requestId)) throw httpsError('invalid-argument', 'requestId obrigatório');
@@ -197,6 +198,7 @@ module.exports = function resolveFunctions(deps) {
 
   ex.submitResolveProposal = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
+    if (maintenanceGuard) await maintenanceGuard(auth);
     await enforceRateLimit(auth.uid, 'resolve_propose', 60, 60 * 60 * 1000);
     const requestId = String(data?.requestId || '');
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(requestId)) throw httpsError('invalid-argument', 'requestId obrigatório');
@@ -244,6 +246,7 @@ module.exports = function resolveFunctions(deps) {
    */
   ex.acceptResolveProposal = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
+    if (maintenanceGuard) await maintenanceGuard(auth);
     await enforceRateLimit(auth.uid, 'resolve_accept', 30, 60 * 60 * 1000);
     const requestId = String(data?.requestId || '');
     const proposalId = String(data?.proposalId || '');

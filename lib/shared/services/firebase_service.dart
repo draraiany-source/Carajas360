@@ -953,8 +953,7 @@ class FS {
       'orderId': r.orderId,
       'clientId': r.clientId,
       'providerId': r.providerId,
-      'clientName': r.clientName,
-      'clientPhoto': r.clientPhoto,
+      // Nome/foto do autor são preenchidos pelo servidor (perfil público).
       'stars': r.stars,
       'comment': r.comment,
       'tags': r.tags,

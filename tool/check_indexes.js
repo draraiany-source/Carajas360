@@ -114,6 +114,9 @@ const VARIANTS = [
   ['lib/shared/services/firebase_service.dart orderHistoryStream', 'orders', [eq('clientId'), eq('status')], [ob('createdAt', 'DESCENDING')]],
   ['lib/shared/services/firebase_service.dart adminTicketsStream', 'support', [eq('status')], [ob('createdAt', 'DESCENDING')]],
   ['lib/shared/services/firebase_service.dart reportsStream', 'reports', [eq('status')], [ob('createdAt', 'DESCENDING')]],
+  ['functions/schedule.js expireBookingHoldsJob (consultas)', 'appointments', [eq('status'), rng('holdUntilMs')], []],
+  ['functions/schedule.js expireBookingHoldsJob (locação)', 'bookings', [eq('status'), rng('holdUntilMs')], []],
+  ['functions/schedule.js dayBusyQuery', 'appointments', [eq('providerId'), eq('status'), rng('startMs')], []],
 ];
 for (const city of [false, true]) {
   for (const token of [false, true]) {

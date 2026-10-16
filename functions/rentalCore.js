@@ -76,6 +76,8 @@ function overlaps(aStart, aEnd, bStart, bEnd) {
 
 /** Reservas que bloqueiam o calendário (pendente com início vencido não bloqueia). */
 function blocking(b, nowMs) {
+  // Aguardando pagamento: ocupa só enquanto a retenção vale (ou já pago).
+  if (b.status === 'pending_payment') return require('./bookingCore').holdBlocks(b, nowMs) && Number(b.startMs) > nowMs;
   if (!BLOCKING.includes(b.status)) return false;
   if (b.status === 'pending' && Number(b.startMs) <= nowMs) return false;
   return true;
@@ -91,7 +93,7 @@ function blocking(b, nowMs) {
 const FLOW = {
   confirm: { from: ['pending'], to: 'confirmed' },
   reject: { from: ['pending'], to: 'cancelled' },
-  cancel: { from: ['pending', 'confirmed'], to: 'cancelled' },
+  cancel: { from: ['pending_payment', 'pending', 'confirmed'], to: 'cancelled' },
   start: { from: ['confirmed'], to: 'active' },
   complete: { from: ['active'], to: 'completed' },
 };
@@ -117,6 +119,7 @@ function transitionAllowed(action, b, uid, nowMs, reason) {
       if (!isOwner) return { ok: false, reason: 'owner_only' };
       return nowMs >= start - HOUR ? { ok: true, to: f.to } : { ok: false, reason: 'not_started' };
     case 'cancel':
+      if (b.status === 'pending_payment') return isClient ? { ok: true, to: f.to } : { ok: false, reason: 'invalid_transition' };
       if (isOwner) {
         if (b.status === 'confirmed' && !String(reason || '').trim()) return { ok: false, reason: 'reason_required' };
         return { ok: true, to: f.to };

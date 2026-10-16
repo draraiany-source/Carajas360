@@ -134,6 +134,10 @@ function actionAllowed(action, appt, uid, nowMs) {
   const isClient = uid === appt.clientId;
   const isPro = uid === appt.providerId;
   if (!isClient && !isPro) return { ok: false, reason: 'not_participant' };
+  // Aguardando pagamento: o paciente desiste a qualquer momento (libera o horário).
+  if (appt.status === 'pending_payment') {
+    return action === 'cancel' && isClient ? { ok: true, reason: null } : { ok: false, reason: 'not_active' };
+  }
   if (!ACTIVE.includes(appt.status)) return { ok: false, reason: 'not_active' };
   const startMs = Number(appt.startMs);
   const lead = startMs - nowMs;

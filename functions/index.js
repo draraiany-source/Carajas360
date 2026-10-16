@@ -14,6 +14,7 @@ const { FieldValue, Timestamp } = require('firebase-admin/firestore');
 const axios = require('axios');
 const crypto = require('crypto');
 const policy = require('./orderPolicy');
+const clock = require('./clock');
 const sec = require('./security');
 const fin = require('./financeCore');
 const { readWallet, postLedger } = require('./payments/wallet');
@@ -78,7 +79,7 @@ async function enforceRateLimit(uid, key, max, windowMs) {
  * { route: 'resolveDetail' | 'resolveOpportunities' | 'appointments' |
  *   'bookings' | 'marketOrder' | 'myOrders', id?: string }.
  */
-const NOTIF_ROUTES = ['resolveDetail', 'resolveOpportunities', 'appointments', 'bookings', 'marketOrder', 'myOrders', 'storeOrders'];
+const NOTIF_ROUTES = ['resolveDetail', 'resolveOpportunities', 'appointments', 'bookings', 'marketOrder', 'myOrders', 'storeOrders', 'supportTickets', 'providerOrders'];
 async function notify(userId, title, body, type, link) {
   if (!userId) return;
   const safeLink = link && NOTIF_ROUTES.includes(link.route)
@@ -173,6 +174,8 @@ function publicPaymentView(pay, id) {
   };
 }
 
+const maintenanceGuard = require('./maintenance')({ db, isAdmin: (a) => isAdmin(a), httpsError: (c, m) => httpsError(c, m) });
+
 /** Id de documento vindo do cliente (sem '/', tamanho limitado). */
 function cleanId(v, field = 'id') {
   const id = String(v || '');
@@ -245,6 +248,7 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
   const auth = requireAuth(context);
   const orderId = cleanId(data?.orderId, 'orderId');
   const action = String(data?.action || '');
+  await maintenanceGuard(auth);
   if (!policy.targetStatus(action)) {
     throw httpsError('invalid-argument', 'orderId e action obrigatórios');
   }
@@ -321,7 +325,7 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
       }
       updates.awaitingClientConfirmation = true;
       updates.providerDoneAt = FieldValue.serverTimestamp();
-      updates.autoConfirmAfter = Timestamp.fromMillis(Date.now() + CLIENT_CONFIRM_MS);
+      updates.autoConfirmAfter = Timestamp.fromMillis((await clock.nowMs(db)) + CLIENT_CONFIRM_MS);
     } else if (action === 'complete') {
       await completeInTx(tx, orderRef, order, orderId, auth.uid, updates);
     }
@@ -374,25 +378,33 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
 });
 
 /** Confirma automaticamente serviços finalizados pelo prestador há 72 h. */
-exports.autoConfirmServiceOrders = functions.pubsub.schedule('every 60 minutes').onRun(async () => {
+async function autoConfirmServiceOrdersJob() {
+  const nowMs = await clock.nowMs(db);
   const due = await db.collection('orders')
     .where('awaitingClientConfirmation', '==', true)
-    .where('autoConfirmAfter', '<=', Timestamp.now())
+    .where('autoConfirmAfter', '<=', Timestamp.fromMillis(nowMs))
     .limit(200).get();
+  let n = 0;
   for (const d of due.docs) {
     try {
       await db.runTransaction(async (tx) => {
         const snap = await tx.get(d.ref);
         const o = snap.data();
         if (!o || o.status !== 'inProgress' || o.awaitingClientConfirmation !== true) return;
+        if (o.autoConfirmAfter && o.autoConfirmAfter.toMillis() > nowMs) return;
         const updates = { updatedAt: FieldValue.serverTimestamp(), autoConfirmed: true };
         await completeInTx(tx, d.ref, o, d.id, 'system', updates);
         tx.update(d.ref, updates);
+        n += 1;
       });
     } catch (e) {
       console.error('autoConfirm', d.id, e && e.message);
     }
   }
+  return n;
+}
+exports.autoConfirmServiceOrders = functions.pubsub.schedule('every 60 minutes').onRun(async () => {
+  await autoConfirmServiceOrdersJob();
   return null;
 });
 
@@ -748,7 +760,10 @@ exports.onReviewCreated = functions.firestore
     const firstRun = await db.runTransaction(async (tx) => {
       const fresh = await tx.get(snap.ref);
       if (!fresh.exists || fresh.data().processedAt) return false;
-      tx.update(snap.ref, { processedAt: FieldValue.serverTimestamp() });
+      // R22: identidade do avaliador vem do servidor (perfil público mínimo
+      // do autor autenticado), nunca de texto enviado pelo app.
+      const author = await reviewAuthor(tx, review.clientId);
+      tx.update(snap.ref, { processedAt: FieldValue.serverTimestamp(), ...author });
       tx.update(orderSnap.ref, { reviewed: true });
       tx.set(db.collection('users').doc(review.clientId),
         { xp: FieldValue.increment(30) }, { merge: true });
@@ -759,6 +774,32 @@ exports.onReviewCreated = functions.firestore
     await recomputeProviderRating(review.providerId);
     return null;
   });
+
+/** Nome/foto públicos do autor (os mesmos do chat: "Maria S."). */
+async function reviewAuthor(tx, clientId) {
+  const ref = db.collection('publicProfiles').doc(String(clientId));
+  const pub = tx ? await tx.get(ref) : await ref.get();
+  const p = pub.exists ? pub.data() : {};
+  return { clientName: String(p.name || 'Cliente').slice(0, 80), clientPhoto: p.photoUrl || null, authorFromServer: true };
+}
+
+/** Admin: refaz o autor das avaliações antigas (nome digitado pelo app). */
+exports.migrateReviewAuthors = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  if (!(await isAdmin(auth))) throw httpsError('permission-denied', 'Somente admin');
+  const dryRun = data?.dryRun !== false;
+  const snap = await db.collection('reviews').get();
+  let changed = 0;
+  for (const d of snap.docs) {
+    const r = d.data();
+    if (r.authorFromServer || !r.clientId) continue;
+    const author = await reviewAuthor(null, r.clientId);
+    if (author.clientName === r.clientName && author.clientPhoto === (r.clientPhoto || null)) continue;
+    changed += 1;
+    if (!dryRun) await d.ref.update(author);
+  }
+  return { total: snap.size, changed, dryRun };
+});
 
 async function recomputeProviderRating(providerId) {
   const reviews = await db.collection('reviews').where('providerId', '==', providerId).get();
@@ -911,6 +952,8 @@ exports.onChatMessageCreated = functions.firestore
     const parts = (room.exists && room.data().participants) || [];
     const to = parts.find((p) => p !== m.senderId);
     if (!to || !parts.includes(m.senderId)) return null;
+    // Mensagem automática de uma solicitação: o aviso do pedido já foi enviado.
+    if (m.orderId) return null;
     const pub = await db.collection('publicProfiles').doc(String(m.senderId)).get();
     const name = (pub.exists && pub.data().name) || 'Nova mensagem';
     const text = m.mediaUrl && !m.text ? '📎 Anexo' : String(m.text || '').slice(0, 80);
@@ -1001,6 +1044,78 @@ exports.onAuthUserDeleted = functions.auth.user().onDelete(async (user) => {
   return null;
 });
 
+/** Aviso único ao prestador por nova solicitação direta (antes: app + chat = 2 avisos). */
+exports.onServiceOrderCreated = functions.firestore.document('orders/{orderId}').onCreate(async (snap) => {
+  const o = snap.data() || {};
+  if (o.status !== 'pending' || !o.providerId || o.providerId === o.clientId) return null;
+  await notifySafe(o.providerId, '📋 Nova solicitação de serviço', String(o.title || 'Você recebeu um pedido.').slice(0, 120), 'order', { route: 'providerOrders' });
+  return null;
+});
+
+/**
+ * "Meus chamados": cada resposta fica em support/{id}/messages. O
+ * servidor atualiza o chamado e avisa a outra parte (cliente ⇄ suporte).
+ */
+exports.onSupportMessageCreated = functions.firestore
+  .document('support/{ticketId}/messages/{msgId}')
+  .onCreate(async (snap, ctx) => {
+    const m = snap.data() || {};
+    const tRef = db.collection('support').doc(ctx.params.ticketId);
+    const t = (await tRef.get()).data();
+    if (!t) return null;
+    const fromSupport = m.authorRole === 'support';
+    await tRef.update({
+      lastMessageAt: FieldValue.serverTimestamp(),
+      lastMessageBy: fromSupport ? 'support' : 'user',
+      status: fromSupport ? 'answered' : (t.status === 'closed' ? 'open' : (t.status === 'answered' ? 'open' : t.status || 'open')),
+      unreadByUser: fromSupport,
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    if (fromSupport) {
+      await notifySafe(t.userId, '💬 Resposta do suporte', String(t.subject || 'Seu chamado').slice(0, 80), 'info', { route: 'supportTickets' });
+    }
+    return null;
+  });
+
+/**
+ * Admin: aprova ou recusa (com motivo) o cadastro de prestador. A recusa
+ * tira o perfil da busca; o prestador corrige e pede nova análise.
+ */
+exports.reviewProvider = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  if (!(await isAdmin(auth))) throw httpsError('permission-denied', 'Somente admin');
+  const providerId = cleanId(data?.providerId, 'providerId');
+  const decision = String(data?.decision || '');
+  const reason = String(data?.reason || '').trim().slice(0, 500);
+  if (!['approve', 'reject'].includes(decision)) throw httpsError('invalid-argument', 'Decisão inválida');
+  if (decision === 'reject' && reason.length < 5) throw httpsError('invalid-argument', 'Informe o motivo da recusa');
+  const ref = db.collection('providers').doc(providerId);
+  if (!(await ref.get()).exists) throw httpsError('not-found', 'Prestador não encontrado');
+  const upd = decision === 'approve'
+    ? { verified: true, active: true, verificationStatus: 'approved', reviewReason: FieldValue.delete(), rejectionReason: FieldValue.delete(), reviewedAt: FieldValue.serverTimestamp(), reviewedBy: auth.uid }
+    : { verified: false, active: false, verificationStatus: 'rejected', rejectionReason: reason, reviewedAt: FieldValue.serverTimestamp(), reviewedBy: auth.uid };
+  await ref.update(upd);
+  await db.collection('auditLogs').add({
+    adminId: auth.uid, adminName: 'Admin', action: decision === 'approve' ? 'Aprovou prestador' : 'Recusou prestador',
+    target: providerId, details: decision === 'reject' ? { reason } : {}, timestamp: FieldValue.serverTimestamp(),
+  });
+  await notifySafe(providerId, decision === 'approve' ? '✅ Cadastro aprovado' : 'Cadastro não aprovado',
+    decision === 'approve' ? 'Seu perfil de profissional está ativo na busca.' : `Motivo: ${reason}. Corrija e peça nova análise no app.`, 'info');
+  return { ok: true, status: upd.verificationStatus };
+});
+
+/** Prestador recusado (ou em reanálise) pede nova análise após corrigir os dados. */
+exports.requestProviderReview = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  await enforceRateLimit(auth.uid, 'provider_review', 5, 24 * 60 * 60 * 1000);
+  const ref = db.collection('providers').doc(auth.uid);
+  const p = await ref.get();
+  if (!p.exists) throw httpsError('not-found', 'Perfil de prestador não encontrado');
+  if (p.data().verified === true) return { ok: true, status: 'approved' };
+  await ref.update({ verificationStatus: 'pending_review', reviewRequestedAt: FieldValue.serverTimestamp() });
+  return { ok: true, status: 'pending_review' };
+});
+
 exports.cleanupOldOrders = functions.pubsub.schedule('every 24 hours').onRun(async () => {
   const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
   const oldOrders = await db.collection('orders')
@@ -1039,15 +1154,16 @@ Object.assign(exports, require('./catalog')({
 
 // ── Pedidos do Mercado, pagamentos e financeiro (Fase 3, sandbox) ──
 const payments = require('./payments')({
-  functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit,
+  functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, maintenanceGuard,
 });
 const paymentsInternals = payments.__internals;
 delete payments.__internals;
+const jobs = { autoConfirmServiceOrders: autoConfirmServiceOrdersJob, ...paymentsInternals.jobs };
 Object.assign(exports, payments);
 
 // ── Resolve Carajás (Fase 4) ──
 const resolve = require('./resolve')({
-  functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, notifySafe,
+  functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, notifySafe, maintenanceGuard,
 });
 delete resolve.__internals;
 Object.assign(exports, resolve);
@@ -1055,8 +1171,26 @@ Object.assign(exports, resolve);
 // ── Saúde e Locação (Fase 5) ──
 const schedule = require('./schedule')({
   functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, notifySafe,
+  payments: paymentsInternals, maintenanceGuard,
 });
+Object.assign(jobs, schedule.__internals.jobs);
 delete schedule.__internals;
+
+/**
+ * Admin: executa agora as tarefas agendadas (as mesmas do agendador).
+ * Útil na operação e nos testes com relógio controlado do emulador.
+ */
+exports.adminRunMaintenance = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  if (!(await isAdmin(auth))) throw httpsError('permission-denied', 'Somente admin');
+  const names = Array.isArray(data?.jobs) && data.jobs.length ? data.jobs.map(String) : Object.keys(jobs);
+  const out = {};
+  for (const n of names) {
+    if (!jobs[n]) throw httpsError('invalid-argument', `Tarefa desconhecida: ${n}`);
+    out[n] = await jobs[n]();
+  }
+  return out;
+});
 Object.assign(exports, schedule);
 
 // ── Perfil público mínimo (Fase 6: chat e identificação) ──

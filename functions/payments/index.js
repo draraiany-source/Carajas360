@@ -23,7 +23,7 @@ const { readWallet, postLedger, signedOf } = require('./wallet');
 const gw = require('./gateway');
 
 module.exports = function paymentFunctions(deps) {
-  const { functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit } = deps;
+  const { functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, maintenanceGuard } = deps;
   const { Timestamp } = require('firebase-admin/firestore');
   const C = {
     orders: db.collection('marketOrders'),
@@ -38,7 +38,9 @@ module.exports = function paymentFunctions(deps) {
     stores: db.collection('stores'),
   };
   const FINANCE_CFG = db.collection('config').doc('finance');
-  const now = () => Date.now();
+  // Relógio do servidor (deslocável só no emulador, para testes de prazos).
+  const clock = require('../clock');
+  const now = () => clock.nowSync();
   const ts = (msValue) => Timestamp.fromMillis(msValue);
   const millis = (v) => (v && typeof v.toMillis === 'function' ? v.toMillis() : Number(v || 0));
   const sid = (...parts) => crypto.createHash('sha256').update(parts.join('|')).digest('hex').slice(0, 28);
@@ -94,6 +96,9 @@ module.exports = function paymentFunctions(deps) {
     if (kind === 'market') return C.orders.doc(id);
     if (kind === 'service') return db.collection('orders').doc(id);
     if (kind === 'recharge') return C.recharges.doc(id);
+    // B15: consulta de Saúde e reserva de Locação aguardando pagamento.
+    if (kind === 'health') return db.collection('appointments').doc(id);
+    if (kind === 'rental') return db.collection('bookings').doc(id);
     throw httpsError('invalid-argument', 'Tipo de cobrança inválido');
   }
 
@@ -111,6 +116,12 @@ module.exports = function paymentFunctions(deps) {
     if (kind === 'recharge') {
       if (t.status !== 'pending_payment' || millis(t.expiresAt) <= nowMs) return { error: ['failed-precondition', 'Recarga expirada'] };
       return { amountCents: t.amountCents, description: 'Recarga de carteira Carajás 360' };
+    }
+    if (kind === 'health' || kind === 'rental') {
+      if (t.status !== 'pending_payment') return { error: ['failed-precondition', t.status === 'expired' ? 'O prazo para pagar esta reserva terminou. Faça uma nova reserva.' : 'Esta reserva não está aguardando pagamento'] };
+      if (Number(t.holdUntilMs) <= nowMs) return { error: ['failed-precondition', 'O prazo para pagar esta reserva terminou. Faça uma nova reserva.'] };
+      if (!(t.totalCents > 0)) return { error: ['failed-precondition', 'Reserva sem valor'] };
+      return { amountCents: t.totalCents, description: kind === 'health' ? 'Consulta Carajás 360' : `Locação ${t.rentalTitle || ''}`.trim() };
     }
     // service (orders legado)
     if (['cancelled', 'completed'].includes(t.status)) return { error: ['failed-precondition', 'Pedido cancelado ou concluído'] };
@@ -133,6 +144,33 @@ module.exports = function paymentFunctions(deps) {
   }
 
   // ── Pedido do Mercado ──────────────────────────────────────────────
+  // Limites de cupom: total (maxUses) e por cliente (perUserLimit). Sem o
+  // campo, sem limite (cupons antigos preservados). Contagem reservada na
+  // mesma transação do pedido e devolvida se o pedido não for pago.
+  const COUPON_USES = db.collection('couponRedemptions');
+  async function readCouponUsage(tx, couponId, uid) {
+    const cRef = db.collection('coupons').doc(couponId);
+    const uRef = COUPON_USES.doc(`${couponId}_${uid}`);
+    const [c, u] = await Promise.all([tx.get(cRef), tx.get(uRef)]);
+    return { cRef, uRef, coupon: c.exists ? c.data() : null, userCount: u.exists ? Number(u.data().count) || 0 : 0 };
+  }
+  function couponLimitError(usage) {
+    const c = usage.coupon || {};
+    if (Number.isInteger(c.maxUses) && (Number(c.usedCount) || 0) >= c.maxUses) return 'Este cupom atingiu o limite de usos';
+    if (Number.isInteger(c.perUserLimit) && usage.userCount >= c.perUserLimit) return 'Você já usou este cupom o máximo de vezes permitido';
+    return null;
+  }
+  function takeCoupon(tx, usage, uid, orderId) {
+    tx.update(usage.cRef, { usedCount: FieldValue.increment(1) });
+    tx.set(usage.uRef, { couponId: usage.cRef.id, userId: uid, count: FieldValue.increment(1), lastOrderId: orderId, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  }
+  function releaseCoupon(tx, order) {
+    if (!order.couponId || !order.couponCounted || order.couponReleased) return {};
+    tx.update(db.collection('coupons').doc(order.couponId), { usedCount: FieldValue.increment(-1) });
+    tx.set(COUPON_USES.doc(`${order.couponId}_${order.clientId}`), { count: FieldValue.increment(-1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    return { couponReleased: true };
+  }
+
   async function loadCoupon(code) {
     if (!code) return null;
     const q = await db.collection('coupons').where('code', '==', String(code).toUpperCase().trim()).limit(1).get();
@@ -189,6 +227,7 @@ module.exports = function paymentFunctions(deps) {
    */
   ex.createMarketOrder = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
+    if (maintenanceGuard) await maintenanceGuard(auth);
     await enforceRateLimit(auth.uid, 'market_order', 30, 60 * 60 * 1000);
     const requestId = String(data?.requestId || '');
     if (!/^[A-Za-z0-9_-]{8,64}$/.test(requestId)) throw httpsError('invalid-argument', 'requestId obrigatório');
@@ -205,6 +244,12 @@ module.exports = function paymentFunctions(deps) {
       if (again.exists) return { reused: true, order: again.data() };
       const { q, store, productSnaps, coupon, cfg, version } = await quote({ ...data, deliveryMode: mode }, tx);
       if (!q.ok) throw httpsError('failed-precondition', q.errors.join('; '));
+      const usesCoupon = coupon && !coupon.invalid && q.discountCents > 0;
+      const usage = usesCoupon ? await readCouponUsage(tx, coupon.id, auth.uid) : null;
+      if (usage) {
+        const err = couponLimitError(usage);
+        if (err) throw httpsError('failed-precondition', err);
+      }
       const terms = fin.financeTerms(q, cfg, version);
       const t = now();
       const order = {
@@ -216,6 +261,7 @@ module.exports = function paymentFunctions(deps) {
         subtotalCents: q.subtotalCents,
         discountCents: q.discountCents,
         couponId: coupon && !coupon.invalid ? coupon.id : null,
+        couponCounted: Boolean(usage),
         deliveryFeeCents: q.deliveryFeeCents,
         totalCents: q.totalCents,
         currency: 'BRL',
@@ -235,6 +281,7 @@ module.exports = function paymentFunctions(deps) {
       };
       // Reserva: baixa o estoque agora; devolve em cancelamento/expiração.
       q.lines.forEach((l, i) => tx.update(productSnaps[i].ref, { stock: FieldValue.increment(-l.qty) }));
+      if (usage) takeCoupon(tx, usage, auth.uid, orderId);
       tx.set(ref, order);
       tx.set(...event(ref, 'created', { by: auth.uid, totalCents: q.totalCents }));
       return { reused: false, order };
@@ -253,6 +300,7 @@ module.exports = function paymentFunctions(deps) {
   // ── Recarga de carteira ────────────────────────────────────────────
   ex.createWalletRecharge = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
+    if (maintenanceGuard) await maintenanceGuard(auth);
     await enforceRateLimit(auth.uid, 'recharge', 10, 60 * 60 * 1000);
     const { cfg } = await financeConfig();
     const amountCents = Number(data?.amountCents);
@@ -292,7 +340,9 @@ module.exports = function paymentFunctions(deps) {
    */
   ex.startPayment = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
+    if (maintenanceGuard) await maintenanceGuard(auth);
     await enforceRateLimit(auth.uid, 'start_payment', 40, 60 * 60 * 1000);
+    await clock.nowMs(db);
     const kind = String(data?.targetKind || '');
     const targetId = String(data?.targetId || '');
     const method = String(data?.method || '');
@@ -479,6 +529,15 @@ module.exports = function paymentFunctions(deps) {
       tx.update(tRef, { paymentStatus: 'paid', transactionId: a.id, paidAttemptId: a.id, totalCents: a.amountCents, paidAt: FieldValue.serverTimestamp() });
       // Espelho legado usado pelo repasse (canPayout).
       tx.set(db.collection('payments').doc(a.id), { orderId: a.targetId, userId: a.userId, purpose: 'order', amount: fin.fromCents(a.amountCents), amountCents: a.amountCents, method: a.method, status: 'approved', walletCredited: false, externalId: a.gatewayPaymentId || a.id, createdAt: FieldValue.serverTimestamp(), paidAt: FieldValue.serverTimestamp() });
+    } else if (a.targetKind === 'health' || a.targetKind === 'rental') {
+      // Só registra o pagamento; o gatilho da reserva confirma (ou devolve,
+      // se o prazo venceu e o horário foi ocupado). Cobrança duplicada é devolvida.
+      if (!t || t.paymentStatus === 'approved') {
+        tx.set(C.refunds.doc(`rf_late_${a.id}`), refundDoc({ kind: a.targetKind, targetId: a.targetId, attempt: a, amountCents: a.amountCents, reason: 'late_or_duplicate_approval', by: 'system' }));
+        issue(tx, { type: 'late_approval', targetKind: a.targetKind, targetId: a.targetId, attemptId: a.id, amountCents: a.amountCents, detail: 'Reserva já paga ou inexistente; reembolso automático solicitado.' });
+        return;
+      }
+      tx.update(tRef, { paymentStatus: 'approved', paidAttemptId: a.id, paidMethod: a.method, paidAt: FieldValue.serverTimestamp(), activeAttemptId: null, updatedAt: FieldValue.serverTimestamp() });
     } else if (a.targetKind === 'recharge') {
       if (t && t.paymentStatus === 'approved') {
         // Auditoria: segunda cobrança aprovada da mesma recarga (o razão
@@ -644,6 +703,7 @@ module.exports = function paymentFunctions(deps) {
   // ── Webhook (mecanismo oficial do Mercado Pago) ────────────────────
   ex.paymentsWebhook = functions.region(REGION).https.onRequest(async (req, res) => {
     if (req.method !== 'POST') return res.status(405).send('Method Not Allowed');
+    await clock.nowMs(db);
     const g = gateway();
     if (!g.gateway) return res.status(503).send('payments disabled');
     const dataId = String((req.query && (req.query['data.id'] || req.query.id)) || (req.body && req.body.data && req.body.data.id) || '').trim();
@@ -878,7 +938,8 @@ module.exports = function paymentFunctions(deps) {
         if (cur.status !== 'pending_payment') throw httpsError('failed-precondition', 'O pedido mudou de situação; atualize a tela.');
         const snaps = await readProducts(tx, cur.items);
         releaseStock(tx, cur, snaps);
-        tx.update(ref, { status: 'cancelled', paymentStatus: cur.paymentStatus === 'pending' ? 'cancelled' : cur.paymentStatus, stockReleased: true, cancelReason: reason, cancelledBy: auth.uid, activeAttemptId: null, updatedAt: FieldValue.serverTimestamp() });
+        const cp = releaseCoupon(tx, cur);
+        tx.update(ref, { status: 'cancelled', paymentStatus: cur.paymentStatus === 'pending' ? 'cancelled' : cur.paymentStatus, stockReleased: true, cancelReason: reason, cancelledBy: auth.uid, activeAttemptId: null, ...cp, updatedAt: FieldValue.serverTimestamp() });
         tx.set(...event(ref, 'cancelled', { by: auth.uid, reason }));
       });
       return { ok: true, status: 'cancelled' };
@@ -914,6 +975,7 @@ module.exports = function paymentFunctions(deps) {
     const to = String(data?.status || '');
     const ref = C.orders.doc(orderId);
     const adm = await isAdmin(auth);
+    await clock.nowMs(db);
     await db.runTransaction(async (tx) => {
       const o = (await tx.get(ref)).data();
       if (!o) throw httpsError('not-found', 'Pedido não encontrado');
@@ -952,7 +1014,8 @@ module.exports = function paymentFunctions(deps) {
         if (cur.status !== 'pending_payment' || millis(cur.reservedUntil) > now()) return false;
         const snaps = await readProducts(tx, cur.items);
         releaseStock(tx, cur, snaps);
-        tx.update(d.ref, { status: 'expired', paymentStatus: cur.paymentStatus === 'pending' ? 'expired' : cur.paymentStatus, stockReleased: true, activeAttemptId: null, updatedAt: FieldValue.serverTimestamp() });
+        const cp = releaseCoupon(tx, cur);
+        tx.update(d.ref, { status: 'expired', paymentStatus: cur.paymentStatus === 'pending' ? 'expired' : cur.paymentStatus, stockReleased: true, activeAttemptId: null, ...cp, updatedAt: FieldValue.serverTimestamp() });
         tx.set(...event(d.ref, 'expired', {}));
         return true;
       });
@@ -1075,14 +1138,17 @@ module.exports = function paymentFunctions(deps) {
   });
 
   /** Repasses vencidos (7 dias após a entrega sem reclamação). */
-  ex.marketReleaseDue = functions.pubsub.schedule('every 60 minutes').onRun(async () => {
+  async function marketReleaseDueJob() {
+    await clock.nowMs(db);
     const s = await C.orders.where('status', '==', 'delivered').where('releaseAfter', '<=', ts(now())).limit(200).get();
+    let n = 0;
     for (const d of s.docs) {
       if (d.data().released) continue;
-      try { await releaseMarketOrder(d.id, 'system'); } catch (e) { console.error('marketReleaseDue', d.id, e && e.message); }
+      try { await releaseMarketOrder(d.id, 'system'); n += 1; } catch (e) { console.error('marketReleaseDue', d.id, e && e.message); }
     }
-    return null;
-  });
+    return n;
+  }
+  ex.marketReleaseDue = functions.pubsub.schedule('every 60 minutes').onRun(async () => { await marketReleaseDueJob(); return null; });
 
   /** Auditoria: cupom validado no servidor (a coleção não é mais pública). */
   ex.checkCoupon = functions.region(REGION).https.onCall(async (data, context) => {
@@ -1093,7 +1159,11 @@ module.exports = function paymentFunctions(deps) {
     const c = await loadCoupon(code);
     if (!c || c.invalid || c.active === false) return { valid: false };
     const exp = c.expiresAt && typeof c.expiresAt.toMillis === 'function' ? c.expiresAt.toMillis() : null;
-    if (exp && exp <= now()) return { valid: false };
+    // Mesma regra do checkout (financeCore.couponDiscount): validade obrigatória.
+    if (!exp || exp <= now()) return { valid: false };
+    const u = await COUPON_USES.doc(`${c.id}_${auth.uid}`).get();
+    const limitErr = couponLimitError({ coupon: c, userCount: u.exists ? Number(u.data().count) || 0 : 0 });
+    if (limitErr) return { valid: false, reason: limitErr };
     const pct = c.isPercentage === true;
     const discount = Number(c.discount);
     if (!(discount > 0) || (pct && discount > 100)) return { valid: false };
@@ -1119,6 +1189,37 @@ module.exports = function paymentFunctions(deps) {
   }
 
   // Exposto para reaproveitar nos fluxos legados (index.js).
-  ex.__internals = { applyUpdate, reconcileAttempt, payability, refundService };
+  /** Reembolso total do que foi pago numa reserva (idempotente: sem saldo, não faz nada). */
+  async function refundTarget(kind, targetId, reason) {
+    try {
+      return await requestRefundInternal({ kind, targetId, amountCents: null, reason, by: 'system' });
+    } catch (e) {
+      // Já reembolsado/pendente (repetição do gatilho) não é erro.
+      if (/reembols|Valor|maior|sem pagamento/i.test(String(e && e.message))) return null;
+      await issue(null, { type: 'refund_request_failed', targetKind: kind, targetId, detail: fin.redact(e && e.message) });
+      return null;
+    }
+  }
+
+  /** Cancela uma cobrança aberta (Pix/cartão no gateway; carteira localmente), sem lançar erro. */
+  async function cancelAttemptQuiet(attemptId) {
+    try {
+      const a = (await C.attempts.doc(attemptId).get()).data();
+      if (!a || !fin.ACTIVE_ATTEMPT.includes(a.status)) return;
+      const { gateway: g } = gateway();
+      if (a.method !== 'wallet' && g) {
+        const cur = a.gatewayPaymentId ? a : await reconcileAttempt(attemptId);
+        if (cur && cur.gatewayPaymentId && fin.ACTIVE_ATTEMPT.includes(cur.status)) {
+          try { await applyUpdate(attemptId, await g.cancel(cur.gatewayPaymentId), 'hold_expired'); } catch (e) { await reconcileAttempt(attemptId); }
+          return;
+        }
+      }
+      await failAttempt(attemptId, 'reserva encerrada', 'cancelled');
+    } catch (e) {
+      console.error('cancelAttemptQuiet', attemptId, e && e.message);
+    }
+  }
+
+  ex.__internals = { applyUpdate, reconcileAttempt, payability, refundService, refundTarget, cancelAttemptQuiet, jobs: { marketReleaseDue: marketReleaseDueJob, expireOrders } };
   return ex;
 };

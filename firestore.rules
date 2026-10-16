@@ -38,6 +38,13 @@ service cloud.firestore {
       return isAdminClaim() ||
         (isAdmin() && get(/databases/$(database)/documents/users/$(uid())).data.get('adminRole', '') == 'master');
     }
+    // Modo manutenção (config/platform): usuários comuns não criam pedidos,
+    // mensagens, avaliações nem anúncios; administradores continuam.
+    function notInMaintenance() {
+      return !exists(/databases/$(database)/documents/config/platform) ||
+        get(/databases/$(database)/documents/config/platform).data.get('maintenanceMode', false) != true ||
+        isAdmin();
+    }
     function incoming() { return request.resource.data; }
     function changed() { return request.resource.data.diff(resource.data).affectedKeys(); }
 
@@ -283,7 +290,8 @@ service cloud.firestore {
         // com preço/frete/total calculados no servidor.
         && incoming().get('type', 'service') != 'marketplace'
         // Serviço contratado precisa estar ativo no catálogo.
-        && catalogActive(incoming().get('category', ''));
+        && catalogActive(incoming().get('category', ''))
+        && notInMaintenance();
       // Cliente/prestador só marcam review. Status/preço/repasse: Cloud Functions.
       allow update: if isAdmin() || (
         isAuth() &&
@@ -340,8 +348,9 @@ service cloud.firestore {
           incoming().senderId == uid() &&
           incoming().keys().hasOnly([
             'senderId', 'senderName', 'text', 'read', 'mediaUrl',
-            'replyToText', 'replyToSender', 'createdAt'
+            'replyToText', 'replyToSender', 'createdAt', 'orderId'
           ]) &&
+          notInMaintenance() &&
           incoming().read == false &&
           incoming().createdAt == request.time &&
           incoming().text is string && incoming().text.size() <= 4000;
@@ -518,9 +527,10 @@ service cloud.firestore {
       }
       allow read: if true;
       allow create: if isAuth()
+        // R22: nome/foto do autor NÃO vêm do app; o servidor preenche a
+        // partir do perfil público mínimo de quem está autenticado.
         && incoming().keys().hasOnly([
-          'orderId', 'clientId', 'providerId', 'clientName', 'clientPhoto',
-          'stars', 'comment', 'tags', 'createdAt'
+          'orderId', 'clientId', 'providerId', 'stars', 'comment', 'tags', 'createdAt'
         ])
         && incoming().clientId == uid()
         && incoming().orderId is string
@@ -534,6 +544,7 @@ service cloud.firestore {
         && (!('tags' in incoming()) || incoming().tags == null ||
             (incoming().tags is list && incoming().tags.size() <= 10))
         && incoming().createdAt == request.time
+        && notInMaintenance()
         && exists(/databases/$(database)/documents/orders/$(incoming().orderId))
         && reviewedOrder().clientId == uid()
         && reviewedOrder().status == 'completed'
@@ -582,6 +593,21 @@ service cloud.firestore {
         incoming().subject is string && incoming().subject.size() <= 200 &&
         incoming().message is string && incoming().message.size() <= 5000;
       allow update: if isAdmin();
+
+      // "Meus chamados": conversa do chamado. Só o autor do chamado e a
+      // equipe (admin) leem e escrevem; o papel é conferido.
+      match /messages/{msgId} {
+        function ticket() { return get(/databases/$(database)/documents/support/$(ticketId)).data; }
+        allow read: if isAuth() && (isAdmin() || ticket().userId == uid());
+        allow create: if isAuth() &&
+          incoming().keys().hasOnly(['authorId', 'authorRole', 'text', 'createdAt']) &&
+          incoming().authorId == uid() &&
+          incoming().createdAt == request.time &&
+          incoming().text is string && incoming().text.size() > 0 && incoming().text.size() <= 5000 &&
+          ((incoming().authorRole == 'user' && ticket().userId == uid()) ||
+           (incoming().authorRole == 'support' && isAdmin()));
+        allow update, delete: if false;
+      }
     }
 
     match /auditLogs/{logId} {
@@ -594,7 +620,10 @@ service cloud.firestore {
       allow read: if true;
       // config/finance (comissão, cashback, parcelas...) só pela callable
       // updateFinanceConfig, que valida limites e versiona.
-      allow write: if isAdmin() && doc != 'finance';
+      // config/booking (retenção/limite de reservas) só pela callable
+      // updateBookingConfig; config/platform (manutenção, contatos) só master.
+      allow write: if isAdmin() && !(doc in ['finance', 'booking']) &&
+        (doc != 'platform' || isMasterAdmin());
     }
     match /config/{doc}/history/{version} {
       allow read: if isAdmin();
