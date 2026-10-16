@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../auth/access_control.dart';
 import '../constants/app_constants.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -15,7 +16,7 @@ abstract final class ChatNav {
     if (otherUserId.isEmpty) return;
     // Sem login: leva ao login em vez de lançar exceção.
     if (!AuthService.isAuth) {
-      await Navigator.pushNamed(context, Routes.login);
+      await loginAndResume(context);
       return;
     }
     final String roomId;

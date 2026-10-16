@@ -9,6 +9,7 @@ import '../../core/constants/app_assets.dart';
 import '../services/firebase_service.dart';
 import 'micro_interactions.dart';
 import '../../core/utils/query_errors.dart';
+import '../../core/auth/access_control.dart';
 
 class GradHeader extends StatelessWidget {
   final Gradient gradient;
@@ -412,6 +413,12 @@ class _FavToggle extends StatelessWidget {
 /// Alterna favorito mostrando erro em snack (null se falhou).
 Future<bool?> toggleFavoriteSafe(
     BuildContext context, Future<bool> Function() toggle) async {
+  // Visitante: favoritos exigem conta.
+  if (!AuthService.isAuth) {
+    snack(context, 'Entre para salvar favoritos.');
+    await loginAndResume(context);
+    return null;
+  }
   try {
     return await toggle();
   } catch (e) {

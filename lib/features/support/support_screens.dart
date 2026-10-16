@@ -11,6 +11,7 @@ import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import 'tickets_screens.dart';
 
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
@@ -63,31 +64,53 @@ class SupportScreen extends StatelessWidget {
                         fontWeight: FontWeight.w800,
                         fontSize: 18)),
                 const SizedBox(height: 12),
-                FutureBuilder<({String email, String phone})>(
+                FutureBuilder<({String? email, String? phone})>(
                   future: FS.supportContact(),
                   builder: (_, snap) {
-                    // Contato do config/platform (admin); padrão enquanto carrega.
-                    final email =
-                        snap.data?.email ?? 'suporte@servicoconecta.com.br';
+                    // Só contatos configurados pelo admin (config/platform);
+                    // sem contato, o atendimento é pelo chamado no app.
+                    final email = snap.data?.email;
                     final digits =
-                        (snap.data?.phone ?? '(11) 4000-0000')
-                            .replaceAll(RegExp(r'[^0-9+]'), '');
-                    final tel = digits.startsWith('+') ? digits : '+55$digits';
-                    return Row(children: [
-                      Expanded(
-                          child: _contactBtn(
-                              '💬', 'Chat', () => _openTicket(context))),
-                      const SizedBox(width: 8),
-                      Expanded(
-                          child: _contactBtn(
-                              '📧',
-                              'E-mail',
-                              () => _launch(
-                                  'mailto:$email?subject=Ajuda%20Caraj%C3%A1s%20360'))),
-                      const SizedBox(width: 8),
-                      Expanded(
-                          child: _contactBtn(
-                              '📞', 'Ligar', () => _launch('tel:$tel')))
+                        snap.data?.phone?.replaceAll(RegExp(r'[^0-9+]'), '');
+                    final tel = digits == null || digits.isEmpty
+                        ? null
+                        : (digits.startsWith('+') ? digits : '+55$digits');
+                    return Column(children: [
+                      Row(children: [
+                        Expanded(
+                            child: _contactBtn(
+                                '💬', 'Abrir chamado', () => _openTicket(context))),
+                        const SizedBox(width: 8),
+                        Expanded(
+                            child: _contactBtn('🗂️', 'Meus chamados',
+                                () => _myTickets(context))),
+                        if (email != null) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: _contactBtn(
+                                  '📧',
+                                  'E-mail',
+                                  () => _launch(
+                                      'mailto:$email?subject=Ajuda%20Caraj%C3%A1s%20360'))),
+                        ],
+                        if (tel != null) ...[
+                          const SizedBox(width: 8),
+                          Expanded(
+                              child: _contactBtn(
+                                  '📞', 'Ligar', () => _launch('tel:$tel'))),
+                        ],
+                      ]),
+                      if (snap.connectionState == ConnectionState.done &&
+                          email == null &&
+                          tel == null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text('Atendimento pelo app: abra um chamado',
+                              key: const Key('support-app-only'),
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.9),
+                                  fontSize: 12)),
+                        ),
                     ]);
                   },
                 ),
@@ -115,6 +138,14 @@ class SupportScreen extends StatelessWidget {
                         icon: const Icon(Icons.support_agent_rounded),
                         label: const Text('Falar com suporte',
                             style: TextStyle(fontWeight: FontWeight.w700)))),
+                const SizedBox(height: 8),
+                SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                        key: const Key('my-tickets'),
+                        onPressed: () => _myTickets(context),
+                        icon: const Icon(Icons.forum_outlined),
+                        label: const Text('Meus chamados'))),
               ])),
           const SizedBox(height: 40),
         ]),
@@ -143,6 +174,9 @@ class SupportScreen extends StatelessWidget {
     if (await canLaunchUrl(uri))
       await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
+
+  void _myTickets(BuildContext ctx) =>
+      Navigator.pushNamed(ctx, Routes.supportTickets);
 
   void _openTicket(BuildContext ctx) {
     final subj = TextEditingController();
@@ -175,13 +209,43 @@ class SupportScreen extends StatelessWidget {
                     width: double.infinity,
                     child: ElevatedButton(
                         onPressed: () async {
-                          await FS.createSupportTicket(subj.text, msg.text);
-                          if (ctx.mounted) {
-                            Navigator.pop(ctx);
-                            snack(ctx,
-                                '✅ Chamado enviado! Em breve entraremos em contato.',
-                                bg: AppColors.secondary);
+                          final subject = subj.text.trim();
+                          final message = msg.text.trim();
+                          if (subject.isEmpty || message.isEmpty) {
+                            snack(ctx, 'Preencha o assunto e a descrição.',
+                                bg: AppColors.error);
+                            return;
                           }
+                          final String id;
+                          try {
+                            id = await FS.createSupportTicket(
+                                subject.length > 200
+                                    ? subject.substring(0, 200)
+                                    : subject,
+                                message.length > 5000
+                                    ? message.substring(0, 5000)
+                                    : message);
+                          } catch (e) {
+                            if (ctx.mounted) {
+                              snack(ctx, 'Não foi possível abrir o chamado. Tente novamente.',
+                                  bg: AppColors.error);
+                            }
+                            return;
+                          }
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                            backgroundColor: AppColors.secondary,
+                            content: const Text(
+                                '✅ Chamado enviado! A resposta chega em Meus chamados.'),
+                            action: SnackBarAction(
+                                label: 'Abrir',
+                                textColor: Colors.white,
+                                onPressed: () => Navigator.push(
+                                    ctx,
+                                    MaterialPageRoute(
+                                        builder: (_) => TicketDetailScreen(ticketId: id)))),
+                          ));
                         },
                         child: const Text('Enviar chamado'))),
               ]),
@@ -265,7 +329,8 @@ class _CouponsState extends State<CouponsScreen> {
       _found = null;
       _err = null;
     });
-    final coupon = await FS.validateCoupon(code);
+    final check = await FS.checkCoupon(code);
+    final coupon = check.coupon;
     if (!mounted) return;
     if (coupon != null) {
       setState(() {
@@ -294,10 +359,11 @@ class _CouponsState extends State<CouponsScreen> {
             bg: AppColors.secondary);
       } else {
         setState(() {
-          _err = 'Cupom inválido ou expirado';
+          // Motivo do servidor quando houver (ex.: limite de usos).
+          _err = check.reason ?? 'Cupom inválido ou expirado';
           _checking = false;
         });
-        snack(context, '❌ Cupom inválido', bg: AppColors.error);
+        snack(context, '❌ ${check.reason ?? 'Cupom inválido'}', bg: AppColors.error);
       }
     }
   }
@@ -913,7 +979,7 @@ Você pode solicitar acesso, correção, portabilidade ou exclusão dos seus dad
 Utilizamos identificadores para melhorar a experiência e segurança, sem venda de dados a terceiros para fins de marketing.
 
 9. CONTATO DO ENCARREGADO (DPO)
-Dúvidas sobre privacidade podem ser enviadas para privacidade@servicoconecta.com.br.
+Dúvidas sobre privacidade: abra um chamado em Central de Ajuda → Meus chamados.
 ''';
 
   @override

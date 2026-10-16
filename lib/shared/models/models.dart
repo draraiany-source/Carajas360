@@ -215,7 +215,7 @@ class BannerModel {
 }
 
 // ── Support Ticket (Vol.6: atendimento) ──────────────────────
-enum TicketStatus { open, inProgress, resolved, closed }
+enum TicketStatus { open, answered, inProgress, resolved, closed }
 
 class TicketModel {
   final String id, userId, userName, subject, message;
@@ -223,6 +223,10 @@ class TicketModel {
   final String priority;
   final DateTime createdAt;
   final List<String> attachments;
+  /// Mantidos pelo servidor (onSupportMessageCreated).
+  final DateTime? lastMessageAt;
+  final String? lastMessageBy; // 'user' | 'support'
+  final bool unreadByUser;
 
   const TicketModel({
     required this.id,
@@ -234,12 +238,17 @@ class TicketModel {
     this.priority = 'normal',
     required this.createdAt,
     this.attachments = const [],
+    this.lastMessageAt,
+    this.lastMessageBy,
+    this.unreadByUser = false,
   });
 
   String get statusLabel {
     switch (status) {
       case TicketStatus.open:
         return '🟡 Aberto';
+      case TicketStatus.answered:
+        return '💬 Respondido';
       case TicketStatus.inProgress:
         return '🔵 Em atendimento';
       case TicketStatus.resolved:
@@ -261,6 +270,32 @@ class TicketModel {
         priority: m['priority'] ?? 'normal',
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         attachments: List<String>.from(m['attachments'] ?? []),
+        lastMessageAt: (m['lastMessageAt'] as Timestamp?)?.toDate(),
+        lastMessageBy: m['lastMessageBy'] as String?,
+        unreadByUser: m['unreadByUser'] == true,
+      );
+}
+
+/// Mensagem da conversa de um chamado (support/{id}/messages).
+class TicketMessage {
+  final String id, authorId, authorRole, text;
+  final DateTime? createdAt;
+  const TicketMessage(
+      {required this.id,
+      required this.authorId,
+      required this.authorRole,
+      required this.text,
+      this.createdAt});
+
+  bool get fromSupport => authorRole == 'support';
+
+  factory TicketMessage.fromMap(String id, Map<String, dynamic> m) =>
+      TicketMessage(
+        id: id,
+        authorId: (m['authorId'] ?? '').toString(),
+        authorRole: (m['authorRole'] ?? 'user').toString(),
+        text: (m['text'] ?? '').toString(),
+        createdAt: (m['createdAt'] as Timestamp?)?.toDate(),
       );
 }
 
@@ -313,6 +348,8 @@ class ProviderModel {
   final bool active, verified;
   final double? minPrice;
   final DateTime createdAt;
+  /// Análise do cadastro: 'pending_review' | 'approved' | 'rejected'.
+  final String? verificationStatus, rejectionReason, reviewReason;
 
   const ProviderModel({
     required this.id,
@@ -332,7 +369,13 @@ class ProviderModel {
     this.verified = false,
     this.minPrice,
     required this.createdAt,
+    this.verificationStatus,
+    this.rejectionReason,
+    this.reviewReason,
   });
+
+  bool get rejected => !verified && verificationStatus == 'rejected';
+  bool get inReview => !verified && verificationStatus == 'pending_review';
 
   String get badge {
     if (totalReviews >= 500) return '💎 Diamante';
@@ -360,8 +403,16 @@ class ProviderModel {
         verified: m['verified'] ?? false,
         minPrice: (m['minPrice'] as num?)?.toDouble(),
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        verificationStatus: m['verificationStatus'] as String?,
+        rejectionReason: m['rejectionReason'] as String?,
+        reviewReason: m['reviewReason'] as String?,
       );
 }
+
+/// Fila de análise do admin: não aprovados, exceto os recusados que
+/// ainda não pediram nova análise.
+bool providerAwaitingReview(Map<String, dynamic> m) =>
+    m['verified'] != true && m['verificationStatus'] != 'rejected';
 
 /// Documentação privada de verificação do prestador. Guarda CAMINHOS do
 /// Storage (nunca download URLs públicas); visível só ao dono e ao admin.
@@ -1164,7 +1215,25 @@ class RentalModel {
 // RESERVA DE LOCAÇÃO — período contratado de um veículo/máquina
 // Liga o locatário ao anúncio, com período, valor e status.
 // ─────────────────────────────────────────────────────────────
-enum BookingStatus { pending, confirmed, active, completed, cancelled }
+enum BookingStatus {
+  pendingPayment,
+  pending,
+  confirmed,
+  active,
+  completed,
+  cancelled,
+  expired
+}
+
+BookingStatus bookingStatusOf(Object? raw) => switch (raw) {
+      'pending_payment' => BookingStatus.pendingPayment,
+      'confirmed' => BookingStatus.confirmed,
+      'active' => BookingStatus.active,
+      'completed' => BookingStatus.completed,
+      'cancelled' => BookingStatus.cancelled,
+      'expired' => BookingStatus.expired,
+      _ => BookingStatus.pending,
+    };
 
 class BookingModel {
   final String id, rentalId, rentalTitle, ownerId, clientId, clientName;
@@ -1175,6 +1244,11 @@ class BookingModel {
   final BookingStatus status;
   final String? note;
   final DateTime createdAt;
+  /// B15: reserva aguardando pagamento segura o período até [holdUntilMs].
+  final int? holdUntilMs;
+  final String? paymentStatus;
+  /// Pago depois do prazo (período perdido): valor devolvido.
+  final bool lateRefund;
 
   const BookingModel({
     required this.id,
@@ -1191,18 +1265,43 @@ class BookingModel {
     this.status = BookingStatus.pending,
     this.note,
     required this.createdAt,
+    this.holdUntilMs,
+    this.paymentStatus,
+    this.lateRefund = false,
   });
 
+  int get totalCents => (total * 100).round();
+
+  /// Ainda dá para pagar (prazo não venceu)?
+  bool canPay([DateTime? now]) =>
+      status == BookingStatus.pendingPayment &&
+      holdUntilMs != null &&
+      holdUntilMs! > (now ?? DateTime.now()).millisecondsSinceEpoch;
+
+  /// Rótulo para o locatário; o anunciante vê [ownerStatusLabel].
   String get statusLabel => switch (status) {
-        BookingStatus.pending => 'Aguardando confirmação',
+        BookingStatus.pendingPayment => 'Aguardando pagamento',
+        BookingStatus.pending => paymentStatus == 'approved'
+            ? 'Pago — aguardando confirmação do anunciante'
+            : 'Aguardando confirmação',
         BookingStatus.confirmed => 'Confirmada',
         BookingStatus.active => 'Em andamento',
         BookingStatus.completed => 'Concluída',
         BookingStatus.cancelled => 'Cancelada',
+        BookingStatus.expired =>
+          lateRefund ? 'Valor devolvido' : 'Reserva expirada',
+      };
+
+  String get ownerStatusLabel => switch (status) {
+        BookingStatus.pendingPayment => 'Aguardando pagamento do cliente',
+        BookingStatus.pending => 'Paga — confirme ou recuse',
+        _ => statusLabel,
       };
 
   bool get isOpen =>
-      status == BookingStatus.pending || status == BookingStatus.confirmed;
+      status == BookingStatus.pendingPayment ||
+      status == BookingStatus.pending ||
+      status == BookingStatus.confirmed;
 
   factory BookingModel.fromMap(String id, Map<String, dynamic> m) =>
       BookingModel(
@@ -1215,15 +1314,16 @@ class BookingModel {
         start: (m['start'] as Timestamp?)?.toDate() ?? DateTime.now(),
         end: (m['end'] as Timestamp?)?.toDate() ?? DateTime.now(),
         period: m['period'] ?? 'diária',
-        quantity: m['quantity'] ?? 1,
+        quantity: (m['quantity'] as num?)?.toInt() ?? 1,
         total: (m['totalCents'] as num?) != null
             ? (m['totalCents'] as num) / 100
             : (m['total'] as num?)?.toDouble() ?? 0,
-        status: BookingStatus.values.firstWhere(
-            (s) => s.name == (m['status'] ?? 'pending'),
-            orElse: () => BookingStatus.pending),
+        status: bookingStatusOf(m['status']),
         note: m['note'],
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        holdUntilMs: (m['holdUntilMs'] as num?)?.toInt(),
+        paymentStatus: m['paymentStatus'] as String?,
+        lateRefund: m['lateRefund'] == true,
       );
 
   Map<String, dynamic> toMap() => {
@@ -1237,7 +1337,9 @@ class BookingModel {
         'period': period,
         'quantity': quantity,
         'total': total,
-        'status': status.name,
+        'status': status == BookingStatus.pendingPayment
+            ? 'pending_payment'
+            : status.name,
         'note': note,
       };
 }
@@ -1491,3 +1593,59 @@ class ChatRoomPreview {
   });
 }
 
+
+// ── Consulta de Saúde (appointments/{id}) ─────────────────────
+/// Consulta agendada pelo servidor. Com valor, nasce `pending_payment`
+/// e segura o horário até [holdUntilMs]; paga, vira `scheduled`.
+class AppointmentModel {
+  final String id, clientId, providerId, providerName, catalogId, serviceName, modality, status;
+  final int startMs, totalCents;
+  final int? holdUntilMs;
+  final String? paymentStatus;
+  final bool lateRefund;
+
+  const AppointmentModel({
+    required this.id,
+    this.clientId = '',
+    this.providerId = '',
+    this.providerName = '',
+    this.catalogId = '',
+    this.serviceName = '',
+    this.modality = '',
+    required this.status,
+    required this.startMs,
+    this.totalCents = 0,
+    this.holdUntilMs,
+    this.paymentStatus,
+    this.lateRefund = false,
+  });
+
+  bool get pendingPayment => status == 'pending_payment';
+  bool get expired => status == 'expired';
+
+  /// Ainda dá para pagar (prazo não venceu)?
+  bool canPay([DateTime? now]) =>
+      pendingPayment &&
+      totalCents > 0 &&
+      holdUntilMs != null &&
+      holdUntilMs! > (now ?? DateTime.now()).millisecondsSinceEpoch;
+
+  factory AppointmentModel.fromMap(String id, Map<String, dynamic> m) {
+    int? i(Object? v) => v is num ? v.toInt() : null;
+    return AppointmentModel(
+      id: id,
+      clientId: (m['clientId'] ?? '').toString(),
+      providerId: (m['providerId'] ?? '').toString(),
+      providerName: (m['providerName'] ?? '').toString(),
+      catalogId: (m['catalogId'] ?? '').toString(),
+      serviceName: (m['serviceName'] ?? '').toString(),
+      modality: (m['modality'] ?? '').toString(),
+      status: (m['status'] ?? 'scheduled').toString(),
+      startMs: i(m['startMs']) ?? 0,
+      totalCents: i(m['totalCents']) ?? i(m['priceCents']) ?? 0,
+      holdUntilMs: i(m['holdUntilMs']),
+      paymentStatus: m['paymentStatus'] as String?,
+      lateRefund: m['lateRefund'] == true,
+    );
+  }
+}

@@ -567,10 +567,18 @@ class FS {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
-  static Future<void> approveProvider(String id) => _db
-      .collection(Col.providers)
-      .doc(id)
-      .update({'verified': true, 'active': true, 'verificationStatus': 'approved', 'reviewReason': FieldValue.delete()});
+  /// Admin aprova ou recusa (motivo obrigatório na recusa) pelo servidor.
+  static Future<void> reviewProvider(String providerId,
+          {required bool approve, String? reason}) =>
+      CloudFn.call('reviewProvider', {
+        'providerId': providerId,
+        'decision': approve ? 'approve' : 'reject',
+        if (reason != null) 'reason': reason.trim(),
+      });
+
+  /// Prestador recusado pede nova análise depois de corrigir os dados.
+  static Future<void> requestProviderReview() =>
+      CloudFn.call('requestProviderReview', {});
 
   // Atualiza os dados enviados no onboarding do prestador. A foto e as
   // áreas atendidas são públicas; documento, selfie e certificados vão
@@ -762,7 +770,8 @@ class FS {
       required String text,
       String? mediaUrl,
       String? replyToText,
-      String? replyToSender}) async {
+      String? replyToSender,
+      String? orderId}) async {
     if (_uid == null) return;
     final batch = _db.batch();
     batch.set(
@@ -779,6 +788,8 @@ class FS {
           if (mediaUrl != null) 'mediaUrl': mediaUrl,
           if (replyToText != null) 'replyToText': replyToText,
           if (replyToSender != null) 'replyToSender': replyToSender,
+          // Mensagem automática de pedido (o servidor não notifica de novo).
+          if (orderId != null) 'orderId': orderId,
           'createdAt': FieldValue.serverTimestamp(),
         });
     batch.set(
@@ -1023,6 +1034,28 @@ class FS {
     }
   }
 
+  /// Valida o cupom e devolve o motivo da recusa quando o servidor informa
+  /// (ex.: limite de usos atingido).
+  static Future<({CouponModel? coupon, String? reason})> checkCoupon(
+      String code) async {
+    try {
+      final r = await CloudFn.call(
+          'checkCoupon', {'code': code.trim().toUpperCase()});
+      return (coupon: couponFromCheck(r), reason: couponRejectReason(r));
+    } on CloudCallException catch (e) {
+      return (coupon: null, reason: e.message);
+    } catch (e) {
+      debugPrint('checkCoupon: $e');
+      return (coupon: null, reason: null);
+    }
+  }
+
+  static String? couponRejectReason(Map<String, dynamic> r) {
+    if (r['valid'] == true) return null;
+    final reason = (r['reason'] as String?)?.trim();
+    return reason == null || reason.isEmpty ? null : reason;
+  }
+
   /// Converte a resposta de `checkCoupon` (null se inválido).
   static CouponModel? couponFromCheck(Map<String, dynamic> r) {
     if (r['valid'] != true) return null;
@@ -1055,7 +1088,9 @@ class FS {
 
   /// Agenda pelo servidor (profissional, especialidade, horário real e
   /// consentimento). Idempotente por [requestId].
-  static Future<String> bookHealthAppointment({
+  /// Devolve {id, reused, startMs, status, holdUntilMs, totalCents}. Com
+  /// `status == 'pending_payment'` o horário fica retido até holdUntilMs.
+  static Future<Map<String, dynamic>> bookHealthAppointment({
     required String requestId,
     required String providerId,
     required String catalogId,
@@ -1072,7 +1107,7 @@ class FS {
       'consentVersion': healthConsentVersion,
       if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
     });
-    return (r['id'] ?? '').toString();
+    return r;
   }
 
   static Future<void> healthAppointmentAction(String id, String action,
@@ -1109,16 +1144,61 @@ class FS {
   static Future<void> saveHealthSchedule(Map<String, dynamic> data) =>
       _db.collection('healthSchedules').doc(_uid).set({...data, 'updatedAt': FieldValue.serverTimestamp()});
 
-  static Future<void> createSupportTicket(String subject, String message) =>
-      _db.collection(Col.support).add({
-        'userId': _uid,
-        'userName': '',
-        'subject': subject,
-        'message': message,
-        'status': 'open',
-        'priority': 'normal',
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+  /// Abre um chamado e devolve o id (para abrir a conversa em seguida).
+  static Future<String> createSupportTicket(String subject, String message) async {
+    final ref = await _db.collection(Col.support).add({
+      'userId': _uid,
+      'userName': '',
+      'subject': subject,
+      'message': message,
+      'status': 'open',
+      'priority': 'normal',
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+    return ref.id;
+  }
+
+  /// "Meus chamados" do usuário logado (mais recentes primeiro).
+  static Stream<List<TicketModel>> myTicketsStream() {
+    if (_uid == null) return Stream.value(const []);
+    return _db
+        .collection(Col.support)
+        .where('userId', isEqualTo: _uid)
+        .orderBy('createdAt', descending: true)
+        .limit(100)
+        .snapshots()
+        .map((s) => s.docs.map((d) => TicketModel.fromMap(d.id, d.data())).toList());
+  }
+
+  static Stream<TicketModel?> ticketStream(String id) => _db
+      .collection(Col.support)
+      .doc(id)
+      .snapshots()
+      .map((d) => d.exists ? TicketModel.fromMap(d.id, d.data()!) : null);
+
+  static Stream<List<TicketMessage>> ticketMessagesStream(String ticketId) => _db
+      .collection(Col.support)
+      .doc(ticketId)
+      .collection(Col.messages)
+      .orderBy('createdAt')
+      .limit(300)
+      .snapshots()
+      .map((s) => s.docs.map((d) => TicketMessage.fromMap(d.id, d.data())).toList());
+
+  /// Resposta no chamado. As regras exigem exatamente estes campos e
+  /// createdAt do servidor; o papel 'support' só vale para admin.
+  static Future<void> sendTicketMessage(String ticketId, String text,
+      {bool asSupport = false}) async {
+    if (_uid == null) {
+      throw const CloudCallException('Faça login para responder.', code: 'unauthenticated');
+    }
+    await _db.collection(Col.support).doc(ticketId).collection(Col.messages).add({
+      'authorId': _uid,
+      'authorRole': asSupport ? 'support' : 'user',
+      'text': text,
+      'createdAt': FieldValue.serverTimestamp(),
+    });
+  }
 
   // ── Companies (Vol.5: coleção companies) ──────────────────────
   static Future<void> saveCompany(CompanyModel c) => _db
@@ -1339,7 +1419,8 @@ class FS {
 
   /// Cria a reserva no servidor (preço, total, fim e sobreposição
   /// calculados lá). O anunciante é notificado por evento.
-  static Future<String> createRentalBooking({
+  /// Devolve {id, status: 'pending_payment', holdUntilMs, totalCents}.
+  static Future<Map<String, dynamic>> createRentalBooking({
     required String requestId,
     required String rentalId,
     required String period,
@@ -1355,7 +1436,7 @@ class FS {
       'startMs': startMs,
       if (note != null && note.trim().isNotEmpty) 'note': note.trim(),
     });
-    return (r['id'] ?? '').toString();
+    return r;
   }
 
   static Future<void> transitionRentalBooking(String id, String action, {String? reason}) =>
@@ -1370,7 +1451,7 @@ class FS {
         .map((m) => (
               start: DateTime.fromMillisecondsSinceEpoch((m['startMs'] as num).toInt()),
               end: DateTime.fromMillisecondsSinceEpoch((m['endMs'] as num).toInt()),
-              pending: m['status'] == 'pending',
+              pending: m['status'] == 'pending' || m['status'] == 'pending_payment',
             ))
         .toList();
   }
@@ -1784,27 +1865,38 @@ class FS {
           {
             'commissionRate': AppConst.commission,
             'maintenanceMode': false,
-            'supportEmail': 'suporte@servicoconecta.com.br',
-            'supportPhone': '(11) 4000-0000'
           });
 
-  /// Contato do suporte (config/platform), com padrão se ausente/offline.
-  static Future<({String email, String phone})> supportContact() async {
-    const fallback =
-        (email: 'suporte@servicoconecta.com.br', phone: '(11) 4000-0000');
+  /// Contato do suporte (config/platform). Sem contato configurado volta
+  /// vazio: a tela orienta a abrir um chamado (nada de contato inventado).
+  static Future<({String? email, String? phone})> supportContact() async {
     try {
       final d = (await _db.collection('config').doc('platform').get()).data();
       final email = (d?['supportEmail'] as String?)?.trim() ?? '';
       final phone = (d?['supportPhone'] as String?)?.trim() ?? '';
       return (
-        email: email.isNotEmpty ? email : fallback.email,
-        phone: phone.isNotEmpty ? phone : fallback.phone,
+        email: email.isNotEmpty ? email : null,
+        phone: phone.isNotEmpty ? phone : null,
       );
     } catch (e) {
       debugPrint('supportContact: $e');
-      return fallback;
+      return (email: null, phone: null);
     }
   }
+
+  /// Reservas (B15): prazo de retenção e limite de pendentes por cliente.
+  static Stream<Map<String, dynamic>> bookingConfigStream() => _db
+      .collection('config')
+      .doc('booking')
+      .snapshots()
+      .map((d) => d.data() ?? const {});
+
+  static Future<void> updateBookingConfig(
+          {required int holdMinutes, required int maxPendingPerClient}) =>
+      CloudFn.call('updateBookingConfig', {
+        'holdMinutes': holdMinutes,
+        'maxPendingPerClient': maxPendingPerClient,
+      });
 
   static Future<void> updatePlatformConfig(Map<String, dynamic> data,
       {String? adminName}) async {

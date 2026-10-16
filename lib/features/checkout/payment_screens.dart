@@ -26,13 +26,69 @@ abstract final class FakeCardTokens {
   };
 }
 
+/// Pagamento de reserva retida (Saúde / Locação): escolhe a forma de
+/// pagamento e abre a cobrança. O horário só fica garantido até
+/// [holdUntilMs]; quem confirma a reserva é o servidor, após o banco.
+Future<bool> payReservation(BuildContext context, PayTarget target,
+    {int? holdUntilMs}) async {
+  final method = await showModalBottomSheet<String>(
+      context: context,
+      builder: (c) => SafeArea(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 4),
+                child: Text(
+                    holdUntilMs != null
+                        ? 'Pague até ${holdTimeLabel(holdUntilMs)} para garantir o horário'
+                        : 'Escolha a forma de pagamento',
+                    key: const Key('hold-deadline'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              ),
+              Text('${target.description} · ${brl(target.amountCents)}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
+              for (final m in const [
+                ('pix', 'Pix', Icons.qr_code_rounded),
+                ('card', 'Cartão de crédito', Icons.credit_card_rounded),
+                ('wallet', 'Saldo da carteira', Icons.account_balance_wallet_outlined),
+              ])
+                ListTile(
+                    leading: Icon(m.$3),
+                    title: Text(m.$2),
+                    onTap: () => Navigator.pop(c, m.$1)),
+            ]),
+          ));
+  if (method == null || !context.mounted) return false;
+  if (method == 'wallet') {
+    try {
+      final a = await PaymentsApi.start(target: target, method: 'wallet', requestId: newRequestId());
+      if (!context.mounted) return false;
+      if (a != null && a.approved) {
+        snack(context, '✅ Pagamento confirmado', bg: AppColors.secondary);
+        return true;
+      }
+      snack(context, a?.statusDetail ?? 'Pagamento com carteira não concluído', bg: AppColors.error);
+    } on CloudCallException catch (e) {
+      if (context.mounted) snack(context, e.message, bg: AppColors.error);
+    }
+    return false;
+  }
+  final ok = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+          builder: (_) => PaymentScreen(target: target, method: method, deadlineMs: holdUntilMs)));
+  return ok == true;
+}
+
 /// Tela de pagamento de um alvo persistido (pedido ou recarga).
 /// O estado exibido vem SEMPRE de `paymentAttempts/{id}` no Firestore:
 /// a interface nunca marca um pagamento como aprovado por conta própria.
 class PaymentScreen extends StatefulWidget {
   final PayTarget target;
   final String method; // pix | card
-  const PaymentScreen({super.key, required this.target, required this.method});
+  /// Reserva retida: prazo para pagar e garantir o horário.
+  final int? deadlineMs;
+  const PaymentScreen({super.key, required this.target, required this.method, this.deadlineMs});
 
   @override
   State<PaymentScreen> createState() => _PaymentScreenState();
@@ -238,6 +294,11 @@ class _PaymentScreenState extends State<PaymentScreen> {
                 color: Colors.white, fontWeight: FontWeight.w900, fontSize: 28)),
         Text(widget.target.description,
             style: TextStyle(color: Colors.white.withOpacity(0.85), fontSize: 13)),
+        if (widget.deadlineMs != null && a?.approved != true) ...[
+          const SizedBox(height: 6),
+          Text('Pague até ${holdTimeLabel(widget.deadlineMs!)} para garantir o horário',
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700)),
+        ],
       ]));
 
   Widget _errorBox(String msg) => Container(

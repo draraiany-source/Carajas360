@@ -6,13 +6,16 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'admin_forms.dart';
 import 'catalog_admin_tab.dart';
 import 'finance_admin_tab.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/models.dart';
+import '../../core/security/order_policy.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../support/tickets_screens.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PAINEL ADMINISTRATIVO (Vol.6 – Painel Administrativo)
@@ -386,12 +389,15 @@ class _ValidationTab extends StatelessWidget {
           if (!s.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          final docs = s.data?.docs ?? [];
+          // Recusados saem da fila até pedirem nova análise.
+          final docs = (s.data?.docs ?? [])
+              .where((d) => providerAwaitingReview(d.data() as Map<String, dynamic>))
+              .toList();
           if (docs.isEmpty)
             return const EmptyState(
                 emoji: '✅',
                 title: 'Sem pendências',
-                subtitle: 'Todos os prestadores aprovados');
+                subtitle: 'Nenhum cadastro aguardando análise');
           return ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: docs.length,
@@ -420,9 +426,11 @@ class _ValidationTab extends StatelessWidget {
                                       style: const TextStyle(
                                           fontWeight: FontWeight.w700,
                                           fontSize: 14)),
-                                  const Text(
-                                      '⏳ Aguardando aprovação · Verifique os documentos antes de aprovar',
-                                      style: TextStyle(
+                                  Text(
+                                      d['verificationStatus'] == 'pending_review'
+                                          ? '🔁 Nova análise solicitada${(d['rejectionReason'] ?? '').toString().isNotEmpty ? ' · recusa anterior: ${d['rejectionReason']}' : ''}'
+                                          : '⏳ Aguardando aprovação · Verifique os documentos antes de aprovar',
+                                      style: const TextStyle(
                                           fontSize: 11,
                                           color: AppColors.warning,
                                           fontWeight: FontWeight.w600)),
@@ -441,12 +449,29 @@ class _ValidationTab extends StatelessWidget {
                                         style: TextStyle(fontSize: 12)))),
                             const SizedBox(width: 8),
                             Expanded(
+                                child: OutlinedButton(
+                                    onPressed: () =>
+                                        _reject(context, docs[i].id, d['name'] ?? ''),
+                                    style: OutlinedButton.styleFrom(
+                                        foregroundColor: AppColors.error,
+                                        side: const BorderSide(color: AppColors.error),
+                                        padding: const EdgeInsets.symmetric(
+                                            vertical: 10)),
+                                    child: const Text('Recusar',
+                                        style: TextStyle(fontSize: 12)))),
+                            const SizedBox(width: 8),
+                            Expanded(
                                 child: ElevatedButton(
                                     onPressed: () async {
-                                      await FS.approveProvider(docs[i].id);
-                                      if (context.mounted)
-                                        snack(context, '✅ Prestador aprovado!',
-                                            bg: AppColors.secondary);
+                                      try {
+                                        await FS.reviewProvider(docs[i].id, approve: true);
+                                        if (context.mounted)
+                                          snack(context, '✅ Prestador aprovado!',
+                                              bg: AppColors.secondary);
+                                      } on CloudCallException catch (e) {
+                                        if (context.mounted)
+                                          snack(context, e.message, bg: AppColors.error);
+                                      }
                                     },
                                     style: ElevatedButton.styleFrom(
                                         backgroundColor: AppColors.secondary,
@@ -461,6 +486,43 @@ class _ValidationTab extends StatelessWidget {
               });
         },
       );
+
+  /// Recusa com motivo (enviado ao prestador, que pode pedir nova análise).
+  Future<void> _reject(BuildContext context, String providerId, String name) async {
+    final c = TextEditingController();
+    final reason = await showDialog<String>(
+        context: context,
+        builder: (d) => AlertDialog(
+              title: Text('Recusar ${name.isEmpty ? 'cadastro' : name}?'),
+              content: TextField(
+                  key: const Key('reject-reason'),
+                  controller: c,
+                  maxLines: 3,
+                  maxLength: 500,
+                  decoration: const InputDecoration(
+                      hintText: 'Motivo (visível ao prestador, mín. 5 caracteres)')),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(d), child: const Text('Voltar')),
+                ElevatedButton(
+                    onPressed: () {
+                      if (c.text.trim().length < 5) {
+                        snack(d, 'Informe o motivo (mín. 5 caracteres)', bg: AppColors.error);
+                        return;
+                      }
+                      Navigator.pop(d, c.text.trim());
+                    },
+                    child: const Text('Recusar')),
+              ],
+            ));
+    c.dispose();
+    if (reason == null) return;
+    try {
+      await FS.reviewProvider(providerId, approve: false, reason: reason);
+      if (context.mounted) snack(context, 'Cadastro recusado. O prestador foi avisado.');
+    } on CloudCallException catch (e) {
+      if (context.mounted) snack(context, e.message, bg: AppColors.error);
+    }
+  }
 
   Widget _pendingCompanies(BuildContext context) =>
       StreamBuilder<QuerySnapshot>(
@@ -922,7 +984,12 @@ class _MarketingTab extends StatelessWidget {
                           title: Text(d['code'] ?? '—',
                               style: const TextStyle(
                                   fontWeight: FontWeight.w800, fontSize: 13)),
-                          subtitle: Text(d['description'] ?? '',
+                          subtitle: Text(
+                              [
+                                if ((d['description'] ?? '').toString().isNotEmpty) d['description'],
+                                if (d['maxUses'] is int) 'usos: ${d['usedCount'] ?? 0}/${d['maxUses']}',
+                                if (d['perUserLimit'] is int) 'por cliente: ${d['perUserLimit']}',
+                              ].join(' · '),
                               style: const TextStyle(fontSize: 11)),
                         ));
                   });
@@ -981,56 +1048,139 @@ class _MarketingTab extends StatelessWidget {
     final code = TextEditingController();
     final desc = TextEditingController();
     final discount = TextEditingController();
+    final maxUses = TextEditingController();
+    // Padrão: um uso por cliente.
+    final perUser = TextEditingController(text: '1');
+    var isPercentage = true;
+    String? error;
+    var saving = false;
     showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        builder: (_) => Padding(
-              padding: EdgeInsets.fromLTRB(
-                  20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 32),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(height: 8),
-                const SheetHandle(),
-                const SizedBox(height: 16),
-                const Text('Novo cupom',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 16),
-                TextFormField(
-                    controller: code,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(hintText: 'CÓDIGO')),
-                const SizedBox(height: 10),
-                TextFormField(
-                    controller: desc,
-                    decoration: const InputDecoration(hintText: 'Descrição')),
-                const SizedBox(height: 10),
-                TextFormField(
-                    controller: discount,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        const InputDecoration(hintText: 'Desconto (%)')),
-                const SizedBox(height: 14),
-                SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                        onPressed: () async {
-                          await FS.createCoupon({
-                            'code': code.text.toUpperCase(),
-                            'description': desc.text,
-                            'discount': double.tryParse(discount.text) ?? 0,
-                            'isPercentage': true,
-                            'expiresAt': Timestamp.fromDate(
-                                DateTime.now().add(const Duration(days: 30)))
-                          });
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            snack(context, '✅ Cupom criado!',
-                                bg: AppColors.secondary);
-                          }
-                        },
-                        child: const Text('Criar cupom'))),
-              ]),
-            ));
+        builder: (sheet) => StatefulBuilder(
+            builder: (sheet, setSheet) => Padding(
+                  padding: EdgeInsets.fromLTRB(
+                      20, 0, 20, MediaQuery.of(sheet).viewInsets.bottom + 32),
+                  child: SingleChildScrollView(
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      const SizedBox(height: 8),
+                      const SheetHandle(),
+                      const SizedBox(height: 16),
+                      const Text('Novo cupom',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                          controller: code,
+                          textCapitalization: TextCapitalization.characters,
+                          decoration: const InputDecoration(hintText: 'CÓDIGO')),
+                      const SizedBox(height: 10),
+                      TextFormField(
+                          controller: desc,
+                          decoration:
+                              const InputDecoration(hintText: 'Descrição')),
+                      const SizedBox(height: 10),
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: Text(isPercentage
+                            ? 'Desconto percentual (%)'
+                            : 'Desconto em valor (R\$)'),
+                        value: isPercentage,
+                        onChanged: (v) => setSheet(() => isPercentage = v),
+                      ),
+                      TextFormField(
+                          key: const Key('coupon-discount'),
+                          controller: discount,
+                          keyboardType:
+                              const TextInputType.numberWithOptions(decimal: true),
+                          decoration: InputDecoration(
+                              hintText: isPercentage
+                                  ? 'Desconto (%) — até 100'
+                                  : 'Desconto (R\$)')),
+                      const SizedBox(height: 10),
+                      Row(children: [
+                        Expanded(
+                            child: TextFormField(
+                                key: const Key('coupon-max-uses'),
+                                controller: maxUses,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                    labelText: 'Limite total de usos',
+                                    helperText: 'Vazio = sem limite'))),
+                        const SizedBox(width: 10),
+                        Expanded(
+                            child: TextFormField(
+                                key: const Key('coupon-per-user'),
+                                controller: perUser,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                    labelText: 'Limite por cliente',
+                                    helperText: 'Vazio = sem limite'))),
+                      ]),
+                      if (error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(error!,
+                              style: const TextStyle(
+                                  color: AppColors.error,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600)),
+                        ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                              onPressed: saving
+                                  ? null
+                                  : () async {
+                                      final err = validateCouponInput(
+                                          code: code.text,
+                                          discount: discount.text,
+                                          isPercentage: isPercentage,
+                                          maxUses: maxUses.text,
+                                          perUserLimit: perUser.text);
+                                      if (err != null) {
+                                        setSheet(() => error = err);
+                                        return;
+                                      }
+                                      setSheet(() {
+                                        error = null;
+                                        saving = true;
+                                      });
+                                      try {
+                                        await FS.createCoupon({
+                                          'code': code.text.trim().toUpperCase(),
+                                          'description': desc.text.trim(),
+                                          'discount': double.parse(discount.text
+                                              .trim()
+                                              .replaceAll(',', '.')),
+                                          'isPercentage': isPercentage,
+                                          if (maxUses.text.trim().isNotEmpty)
+                                            'maxUses': int.parse(maxUses.text.trim()),
+                                          if (perUser.text.trim().isNotEmpty)
+                                            'perUserLimit':
+                                                int.parse(perUser.text.trim()),
+                                          'usedCount': 0,
+                                          'expiresAt': Timestamp.fromDate(DateTime.now()
+                                              .add(const Duration(days: 30)))
+                                        });
+                                      } catch (e) {
+                                        setSheet(() {
+                                          saving = false;
+                                          error = 'Não foi possível salvar: $e';
+                                        });
+                                        return;
+                                      }
+                                      if (sheet.mounted) Navigator.pop(sheet);
+                                      if (context.mounted) {
+                                        snack(context, '✅ Cupom criado!',
+                                            bg: AppColors.secondary);
+                                      }
+                                    },
+                              child: Text(saving ? 'Salvando…' : 'Criar cupom'))),
+                    ]),
+                  ),
+                )));
   }
 }
 
@@ -1057,6 +1207,7 @@ class _SupportTabState extends State<_SupportTab> {
                   for (final f in [
                     [null, 'Todos'],
                     ['open', 'Abertos'],
+                    ['answered', 'Respondidos'],
                     ['inProgress', 'Em atendimento'],
                     ['resolved', 'Resolvidos']
                   ])
@@ -1101,7 +1252,14 @@ class _SupportTabState extends State<_SupportTab> {
                 itemCount: tickets.length,
                 itemBuilder: (_, i) {
                   final t = tickets[i];
-                  return Container(
+                  return InkWell(
+                      borderRadius: BorderRadius.circular(14),
+                      onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => TicketDetailScreen(
+                                  ticketId: t.id, initial: t, asSupport: true))),
+                      child: Container(
                       margin: const EdgeInsets.only(bottom: 8),
                       decoration: AppDecorations.card(r: 14),
                       padding: const EdgeInsets.all(14),
@@ -1152,7 +1310,17 @@ class _SupportTabState extends State<_SupportTab> {
                                               fontSize: 11,
                                               fontWeight: FontWeight.w700)))),
                             ]),
-                          ]));
+                            const SizedBox(height: 6),
+                            Text(
+                                t.lastMessageBy == 'user'
+                                    ? '💬 Nova mensagem do usuário · toque para responder'
+                                    : 'Toque para ver a conversa e responder',
+                                style: TextStyle(
+                                    fontSize: 11,
+                                    color: t.lastMessageBy == 'user'
+                                        ? AppColors.primary
+                                        : AppColors.textLight)),
+                          ])));
                 });
           },
         )),
@@ -1318,6 +1486,7 @@ class _SettingsTab extends StatefulWidget {
 class _SettingsTabState extends State<_SettingsTab> {
   final _emailCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
+  final _maintenanceMsgCtrl = TextEditingController();
   bool _maintenanceMode = false;
   bool _loaded = false, _saving = false;
 
@@ -1325,6 +1494,7 @@ class _SettingsTabState extends State<_SettingsTab> {
   void dispose() {
     _emailCtrl.dispose();
     _phoneCtrl.dispose();
+    _maintenanceMsgCtrl.dispose();
     super.dispose();
   }
 
@@ -1334,6 +1504,7 @@ class _SettingsTabState extends State<_SettingsTab> {
     _emailCtrl.text = config['supportEmail'] ?? '';
     _phoneCtrl.text = config['supportPhone'] ?? '';
     _maintenanceMode = config['maintenanceMode'] ?? false;
+    _maintenanceMsgCtrl.text = config['maintenanceMessage'] ?? '';
   }
 
   Future<void> _save() async {
@@ -1344,9 +1515,20 @@ class _SettingsTabState extends State<_SettingsTab> {
         'supportEmail': _emailCtrl.text.trim(),
         'supportPhone': _phoneCtrl.text.trim(),
         'maintenanceMode': _maintenanceMode,
+        'maintenanceMessage': _maintenanceMsgCtrl.text.trim(),
       });
       if (mounted) {
         snack(context, '✅ Configurações salvas!', bg: AppColors.secondary);
+      }
+    } on FirebaseException catch (e) {
+      // config/platform: só admin master grava (regras).
+      if (mounted) {
+        snack(
+            context,
+            e.code == 'permission-denied'
+                ? 'Sem permissão: somente o administrador master altera manutenção e contatos.'
+                : 'Não foi possível salvar: ${e.message ?? e.code}',
+            bg: AppColors.error);
       }
     } catch (e) {
       if (mounted) {
@@ -1382,13 +1564,17 @@ class _SettingsTabState extends State<_SettingsTab> {
                         controller: _emailCtrl,
                         decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.email_outlined),
-                            hintText: 'suporte@servicoconecta.com.br')),
+                            hintText: 'E-mail de atendimento (opcional)')),
                     const SizedBox(height: 10),
                     TextFormField(
                         controller: _phoneCtrl,
                         decoration: const InputDecoration(
                             prefixIcon: Icon(Icons.phone_outlined),
-                            hintText: '(11) 4000-0000')),
+                            hintText: 'Telefone de atendimento (opcional)')),
+                    const SizedBox(height: 4),
+                    const Text(
+                        'Em branco: o app orienta o usuário a abrir um chamado.',
+                        style: TextStyle(fontSize: 11, color: AppColors.textLight)),
                     const SizedBox(height: 20),
                     Container(
                         decoration: AppDecorations.card(r: 14),
@@ -1404,6 +1590,17 @@ class _SettingsTabState extends State<_SettingsTab> {
                           onChanged: (v) =>
                               setState(() => _maintenanceMode = v),
                         )),
+                    const SizedBox(height: 10),
+                    TextFormField(
+                        controller: _maintenanceMsgCtrl,
+                        maxLines: 2,
+                        maxLength: 300,
+                        decoration: const InputDecoration(
+                            prefixIcon: Icon(Icons.info_outline),
+                            hintText: 'Mensagem exibida durante a manutenção (opcional)')),
+                    const Text(
+                        'Manutenção e contatos: somente administrador master.',
+                        style: TextStyle(fontSize: 11, color: AppColors.textLight)),
                     const SizedBox(height: 24),
                     SizedBox(
                         width: double.infinity,
@@ -1424,7 +1621,105 @@ class _SettingsTabState extends State<_SettingsTab> {
                                       fontWeight: FontWeight.w800,
                                       fontSize: 15)),
                         )),
+                    const SizedBox(height: 24),
+                    const BookingConfigCard(),
                   ]));
+        },
+      );
+}
+
+/// Reservas de Saúde e Locação (config/booking): prazo para pagar e
+/// limite de reservas pendentes por cliente. Grava pela callable
+/// updateBookingConfig (validada e versionada no servidor).
+class BookingConfigCard extends StatefulWidget {
+  const BookingConfigCard({super.key});
+  @override
+  State<BookingConfigCard> createState() => _BookingConfigCardState();
+}
+
+class _BookingConfigCardState extends State<BookingConfigCard> {
+  final _hold = TextEditingController();
+  final _max = TextEditingController();
+  bool _loaded = false, _saving = false;
+
+  @override
+  void dispose() {
+    _hold.dispose();
+    _max.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final err = validateBookingConfigInput(_hold.text, _max.text);
+    if (err != null) {
+      snack(context, err, bg: AppColors.error);
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await FS.updateBookingConfig(
+          holdMinutes: int.parse(_hold.text.trim()),
+          maxPendingPerClient: int.parse(_max.text.trim()));
+      if (mounted) snack(context, '✅ Reservas atualizadas', bg: AppColors.secondary);
+    } on CloudCallException catch (e) {
+      if (mounted) snack(context, e.message, bg: AppColors.error);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => StreamBuilder<Map<String, dynamic>>(
+        stream: FS.bookingConfigStream(),
+        builder: (context, snap) {
+          final d = snap.data;
+          if (d != null && !_loaded) {
+            _loaded = true;
+            // Ausente: padrões do servidor (15 min, 3 pendentes).
+            _hold.text = '${(d['holdMinutes'] as num?)?.toInt() ?? 15}';
+            _max.text = '${(d['maxPendingPerClient'] as num?)?.toInt() ?? 3}';
+          }
+          return Container(
+            decoration: AppDecorations.card(r: 14),
+            padding: const EdgeInsets.all(14),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Reservas (Saúde e Locação)',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+              const SizedBox(height: 4),
+              Text(
+                  snap.hasError
+                      ? 'Não foi possível ler os valores atuais.'
+                      : d == null
+                          ? 'Carregando…'
+                          : 'Atual: ${(d['holdMinutes'] as num?)?.toInt() ?? 15} min para pagar · até ${(d['maxPendingPerClient'] as num?)?.toInt() ?? 3} reservas pendentes por cliente',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                    child: TextFormField(
+                        key: const Key('booking-hold'),
+                        controller: _hold,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Prazo para pagar (min)', helperText: '5 a 120'))),
+                const SizedBox(width: 10),
+                Expanded(
+                    child: TextFormField(
+                        key: const Key('booking-max'),
+                        controller: _max,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                            labelText: 'Pendentes por cliente', helperText: '1 a 10'))),
+              ]),
+              const SizedBox(height: 10),
+              Align(
+                alignment: Alignment.centerRight,
+                child: ElevatedButton(
+                    onPressed: _saving || d == null ? null : _save,
+                    child: Text(_saving ? 'Salvando…' : 'Salvar reservas')),
+              ),
+            ]),
+          );
         },
       );
 }
