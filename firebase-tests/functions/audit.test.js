@@ -161,8 +161,11 @@ test('prestador aprovado que muda nome ou inclui especialidade volta para análi
 
 test('cupom validado no servidor', async () => {
   const u = await signUp('cup');
-  await db.collection('coupons').add({ code: 'AUDIT10', discount: 10, isPercentage: true, active: true, description: '10% off' });
-  await db.collection('coupons').add({ code: 'QUEBRADO', discount: 150, isPercentage: true, active: true });
+  const exp = new Date(Date.now() + 7 * 24 * 3600 * 1000); // validade obrigatória (mesma regra do checkout)
+  await db.collection('coupons').add({ code: 'AUDIT10', discount: 10, isPercentage: true, active: true, description: '10% off', expiresAt: exp });
+  await db.collection('coupons').add({ code: 'QUEBRADO', discount: 150, isPercentage: true, active: true, expiresAt: exp });
+  await db.collection('coupons').add({ code: 'SEMVALIDADE', discount: 10, isPercentage: true, active: true });
+  assert.strictEqual((await call('checkCoupon', u, { code: 'SEMVALIDADE' })).valid, false, 'sem validade é recusado como no checkout');
   const ok = await call('checkCoupon', u, { code: 'audit10' });
   assert.strictEqual(ok.valid, true);
   assert.strictEqual(ok.discount, 10);

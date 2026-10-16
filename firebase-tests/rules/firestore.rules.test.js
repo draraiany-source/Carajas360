@@ -248,7 +248,7 @@ describe('avaliações', () => {
     });
   });
   const review = (o, extra = {}) => ({
-    orderId: o, clientId: 'cli', providerId: 'pro', clientName: 'C', stars: 5,
+    orderId: o, clientId: 'cli', providerId: 'pro', stars: 5,
     comment: 'Ótimo', tags: [], createdAt: serverTimestamp(), ...extra,
   });
   test('valida cliente, pedido concluído, prestador correspondente e nota', async () => {
@@ -258,6 +258,9 @@ describe('avaliações', () => {
     await assertFails(setDoc(doc(as('cli'), 'reviews/o1_cli'), review('o1', { stars: 6 })));
     await assertFails(setDoc(doc(as('cli'), 'reviews/qualquer'), review('o1')));
     await assertFails(setDoc(doc(as('cli'), 'reviews/o1_cli'), review('o1', { rating: 5 })));
+    // R22: autor (nome/foto) é preenchido pelo servidor, nunca pelo app.
+    await assertFails(setDoc(doc(as('cli'), 'reviews/o1_cli'), review('o1', { clientName: 'Equipe Oficial' })));
+    await assertFails(setDoc(doc(as('cli'), 'reviews/o1_cli'), review('o1', { clientPhoto: 'x.jpg' })));
     await assertSucceeds(setDoc(doc(as('cli'), 'reviews/o1_cli'), review('o1')));
   });
   test('uma avaliação por contratação (sem reescrever)', async () => {

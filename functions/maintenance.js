@@ -9,7 +9,7 @@
 module.exports = function maintenanceGuard({ db, isAdmin, httpsError }) {
   let cache = { at: 0, on: false, message: null };
   async function state() {
-    if (Date.now() - cache.at > 30000) {
+    if (Date.now() - cache.at > 10000) {
       const s = await db.collection('config').doc('platform').get();
       const d = s.exists ? s.data() : {};
       cache = { at: Date.now(), on: d.maintenanceMode === true, message: d.maintenanceMessage || null };

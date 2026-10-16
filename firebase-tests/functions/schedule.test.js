@@ -68,6 +68,15 @@ before(async () => {
   await b.commit();
 });
 
+/** B15: reserva com valor nasce aguardando pagamento; paga com o gateway simulado do emulador. */
+async function pay(u, kind, id) {
+  const r = await call('startPayment', u, { targetKind: kind, targetId: id, method: 'card', requestId: rid('pay'), card: { token: 'tok_approved', installments: 1 } });
+  assert.strictEqual(r.status, 'approved');
+  const col = kind === 'health' ? 'appointments' : 'bookings';
+  const want = kind === 'health' ? 'scheduled' : 'pending';
+  assert.ok(await waitFor(async () => ((await db.doc(`${col}/${id}`).get()).data().status === want) || null), `${kind} ${id} → ${want}`);
+}
+const bookPaid = async (u, start, extra = {}) => { const r = await book(u, start, extra); await pay(u, 'health', r.id); return r; };
 const book = (u, start, extra = {}) => call('bookHealthAppointment', u, {
   requestId: rid('ap'), providerId: doc.uid, catalogId: CARDIO, startMs: start, modality: 'online',
   consentVersion: CONSENT, reason: 'Dor no peito ao subir escadas', ...extra,
@@ -88,8 +97,12 @@ describe('Saúde: agenda real, conflito e privacidade', () => {
     await assert.rejects(book(pat, at('09:00'), { price: 1, providerId: '' }), /obrigatórios/);
     const requestId = rid('ap');
     const r = await book(pat, at('09:00'), { requestId, priceCents: 1 });
+    assert.strictEqual(r.status, 'pending_payment', 'B15: segura o horário até o pagamento');
+    assert.ok(r.holdUntilMs > Date.now() + 14 * 60000 && r.holdUntilMs <= Date.now() + 15 * 60000 + 5000, 'prazo padrão de 15 min');
+    assert.strictEqual(r.totalCents, 28000, 'valor do servidor (priceCents do app ignorado)');
     const again = await book(pat, at('09:00'), { requestId });
     assert.strictEqual(again.id, r.id);
+    await pay(pat, 'health', r.id);
     const ap = (await db.doc(`appointments/${r.id}`).get()).data();
     assert.deepStrictEqual([ap.providerId, ap.clientId, ap.date, ap.status, ap.priceCents, ap.timezone, ap.endMs - ap.startMs],
       [doc.uid, pat.uid, TOMORROW, 'scheduled', 28000, 'America/Belem', 60 * 60000]);
@@ -113,7 +126,7 @@ describe('Saúde: agenda real, conflito e privacidade', () => {
   });
 
   test('cancelar e reagendar: autorização, prazos, motivo e limite', async () => {
-    const r = await book(pat, at('10:30'));
+    const r = await bookPaid(pat, at('10:30'));
     await assert.rejects(call('healthAppointmentAction', pat2, { appointmentId: r.id, action: 'cancel' }), /PERMISSION_DENIED/);
     await assert.rejects(call('healthAppointmentAction', pat, { appointmentId: r.id, action: 'reschedule', newStartMs: at('15:00') }), /indisponível/, 'horário ocupado');
     await call('healthAppointmentAction', pat, { appointmentId: r.id, action: 'reschedule', newStartMs: at('16:00') });
@@ -149,10 +162,13 @@ describe('Locação: preço do servidor, disponibilidade e transições', () => 
     await assert.rejects(reserve(owner), /próprio anúncio/);
     await assert.rejects(reserve(renter, { period: 'week' }), /não tem preço/);
     const r = await reserve(renter, { total: 1, totalCents: 1, endMs: start() + 1 });
-    const b = (await db.doc(`bookings/${r.id}`).get()).data();
-    assert.deepStrictEqual([b.totalCents, b.unitCents, b.status, b.endMs - b.startMs, b.ownerId], [70000, 35000, 'pending', 48 * H, owner.uid]);
-    // Notificação do anunciante por evento (antes o app tentava gravar e falhava).
-    assert.ok(await waitFor(async () => (await notifs(owner.uid, 'rental')).some((x) => x.title.includes('Nova solicitação'))));
+    let b = (await db.doc(`bookings/${r.id}`).get()).data();
+    assert.deepStrictEqual([b.totalCents, b.unitCents, b.status, b.endMs - b.startMs, b.ownerId], [70000, 35000, 'pending_payment', 48 * H, owner.uid]);
+    await pay(renter, 'rental', r.id);
+    b = (await db.doc(`bookings/${r.id}`).get()).data();
+    assert.strictEqual(b.paymentStatus, 'approved');
+    // Notificação do anunciante por evento, só depois de paga.
+    assert.ok(await waitFor(async () => (await notifs(owner.uid, 'rental')).some((x) => x.title.includes('Nova reserva paga'))));
     await assert.rejects(reserve(renter2, { startMs: start() + 24 * H, quantity: 1 }), /já está reservado/, 'sobreposição');
     const adj = await reserve(renter2, { startMs: start() + 48 * H, quantity: 1 });
     assert.ok(adj.id, 'período encostado é permitido');
@@ -168,6 +184,8 @@ describe('Locação: preço do servidor, disponibilidade e transições', () => 
 
   test('transições autorizadas, prazos de cancelamento e motivo do anunciante', async () => {
     const r = await reserve(renter, { startMs: start() + 20 * 24 * H, quantity: 1 });
+    await assert.rejects(call('transitionRentalBooking', owner, { bookingId: r.id, action: 'confirm' }), /status atual/, 'não confirma antes do pagamento');
+    await pay(renter, 'rental', r.id);
     await assert.rejects(call('transitionRentalBooking', renter, { bookingId: r.id, action: 'confirm' }), /Somente o anunciante/);
     await assert.rejects(call('transitionRentalBooking', renter2, { bookingId: r.id, action: 'cancel' }), /PERMISSION_DENIED/);
     await call('transitionRentalBooking', owner, { bookingId: r.id, action: 'confirm' });
@@ -177,7 +195,7 @@ describe('Locação: preço do servidor, disponibilidade e transições', () => 
     await call('transitionRentalBooking', renter, { bookingId: r.id, action: 'cancel' });
     const b = (await db.doc(`bookings/${r.id}`).get()).data();
     assert.deepStrictEqual([b.status, b.cancelledBy], ['cancelled', 'client']);
-    assert.deepStrictEqual(b.history.map((h) => h.to), ['pending', 'confirmed', 'cancelled']);
+    assert.deepStrictEqual(b.history.map((h) => h.to), ['pending_payment', 'pending', 'confirmed', 'cancelled']);
     // Confirmada a menos de 24 h: locatário não cancela.
     const late = db.collection('bookings').doc();
     await late.set({ rentalId: `${K}_car`, ownerId: owner.uid, clientId: renter.uid, status: 'confirmed', startMs: Date.now() + 5 * H, endMs: Date.now() + 29 * H });

@@ -81,7 +81,10 @@ test('carteira: saldo não é alterável pelo cliente', async () => {
 test('config/finance: leitura autenticada; gravação só pela callable (nem admin)', async () => {
   await assertSucceeds(getDoc(doc(as('cli'), 'config/finance')));
   await assertFails(updateDoc(doc(as('fin'), 'config/finance'), { commissionBps: 0 }));
-  await assertSucceeds(setDoc(doc(as('fin'), 'config/platform'), { appName: 'X' }), 'outras configs seguem como antes');
+  // Homologação: config/platform (manutenção, contatos) só admin master; config/booking só callable.
+  await assertFails(setDoc(doc(as('fin'), 'config/platform'), { appName: 'X' }), 'admin não master');
+  await assertFails(setDoc(doc(as('fin'), 'config/booking'), { holdMinutes: 1 }));
+  await assertSucceeds(setDoc(doc(as('fin'), 'config/banners'), { appName: 'X' }), 'outras configs seguem como antes');
 });
 
 test('carrinho: só o dono, formato restrito', async () => {
