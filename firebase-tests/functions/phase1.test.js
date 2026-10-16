@@ -144,7 +144,8 @@ describe('Resolve: matching e propostas no servidor', () => {
       pro: await before(pro), out: await before(proOutside), adv: await before(proOther), pend: await before(pending),
     };
     await newRequest({ description: 'Instalar chuveiro elétrico novo' });
-    const got = await waitFor(async () => (await before(pro)) > counts.pro);
+    // Gatilho assíncrono: sob carga da suíte completa pode passar de 15 s.
+    const got = await waitFor(async () => (await before(pro)) > counts.pro, 30000);
     assert.ok(got, 'prestador elegível notificado');
     await sleep(1500);
     assert.strictEqual(await before(proOutside), counts.out);
