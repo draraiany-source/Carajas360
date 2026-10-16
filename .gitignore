@@ -109,3 +109,4 @@ android/.gradle/
 firebase-tests/node_modules/
 *-debug.log
 dist/
+.claude/worktrees/
