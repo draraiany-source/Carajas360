@@ -1,0 +1,146 @@
+name: Implantar em HOMOLOGAÇÃO (manual)
+
+# Implanta índices, regras, Functions e o web no projeto Firebase de
+# HOMOLOGAÇÃO. Nunca em produção: o projeto precisa conter hml/homolog/staging,
+# não pode ser servicoconecta nem carajas360-a17c5 e tem de ser digitado de novo
+# em "confirmar". Só roda manualmente (Actions → este workflow → Run workflow).
+#
+# Secrets do environment "homologacao" (Settings → Environments):
+#   FIREBASE_SERVICE_ACCOUNT_HML  JSON da conta de serviço do projeto hml
+#                                 (papéis: Firebase Admin, Cloud Functions Admin,
+#                                 Service Account User, Secret Manager Viewer)
+#   HML_FIREBASE_OPTIONS_DART     lib/firebase_options_hml.dart gerado pelo flutterfire
+#                                 (opcional se o arquivo real já estiver no Git)
+#   HML_ENV_JSON                  config/env/hml.json (Maps + public key de TESTE do MP)
+#   HML_FUNCTIONS_ENV             functions/.env.<projeto> (sem segredos)
+#   HML_GOOGLE_WEB_CLIENT_ID      client id OAuth web (Authentication → Google)
+# Os segredos das Functions (MERCADOPAGO_ACCESS_TOKEN de TESTE, MP_WEBHOOK_SECRET)
+# ficam no Secret Manager do projeto hml (firebase functions:secrets:set).
+
+on:
+  workflow_dispatch:
+    inputs:
+      projeto:
+        description: 'ID do projeto Firebase de homologação'
+        required: true
+        default: 'carajas360-hml'
+      confirmar:
+        description: 'Digite o ID do projeto de novo para confirmar'
+        required: true
+      alvo:
+        description: 'O que implantar'
+        required: true
+        default: 'tudo'
+        type: choice
+        options: [tudo, backend, web]
+
+concurrency:
+  group: deploy-hml
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.47.7'
+
+jobs:
+  deploy:
+    name: Implantar ${{ inputs.alvo }} em ${{ inputs.projeto }}
+    runs-on: ubuntu-latest
+    environment: homologacao
+    timeout-minutes: 45
+    env:
+      PROJETO: ${{ inputs.projeto }}
+      ALVO: ${{ inputs.alvo }}
+    steps:
+      - name: Guarda — somente homologação
+        env:
+          CONFIRMAR: ${{ inputs.confirmar }}
+        run: |
+          case "$PROJETO" in
+            servicoconecta|carajas360-a17c5) echo "::error::$PROJETO é produção. Bloqueado."; exit 1 ;;
+          esac
+          echo "$PROJETO" | grep -Eq '^[a-z0-9-]+$' || { echo "::error::ID de projeto inválido."; exit 1; }
+          echo "$PROJETO" | grep -Eq 'hml|homolog|staging' || { echo "::error::$PROJETO não parece homologação."; exit 1; }
+          [ "$CONFIRMAR" = "$PROJETO" ] || { echo "::error::A confirmação não confere com o projeto."; exit 1; }
+
+      - uses: actions/checkout@v4
+
+      - name: Gravar configuração do hml a partir dos secrets
+        env:
+          OPTIONS_DART: ${{ secrets.HML_FIREBASE_OPTIONS_DART }}
+          ENV_JSON: ${{ secrets.HML_ENV_JSON }}
+          FUNCTIONS_ENV: ${{ secrets.HML_FUNCTIONS_ENV }}
+          WEB_CLIENT_ID: ${{ secrets.HML_GOOGLE_WEB_CLIENT_ID }}
+        run: |
+          [ -n "$OPTIONS_DART" ] && printf '%s\n' "$OPTIONS_DART" > lib/firebase_options_hml.dart
+          [ -n "$ENV_JSON" ] && printf '%s\n' "$ENV_JSON" > config/env/hml.json
+          [ -n "$FUNCTIONS_ENV" ] && printf '%s\n' "$FUNCTIONS_ENV" > "functions/.env.$PROJETO"
+          if [ -n "$WEB_CLIENT_ID" ]; then
+            echo "$WEB_CLIENT_ID" | grep -Eq '^[0-9]+-[a-z0-9]+\.apps\.googleusercontent\.com$' \
+              || { echo "::error::HML_GOOGLE_WEB_CLIENT_ID em formato inesperado."; exit 1; }
+            sed -i "s/COLE_SEU_GOOGLE_WEB_CLIENT_ID\.apps\.googleusercontent\.com/$WEB_CLIENT_ID/" web/index.html
+          fi
+          # O que falta aparece aqui pelo nome, sem valores.
+          node tool/check_hml_config.js --project "$PROJETO" --deploy
+
+      - name: Autenticar no Google Cloud (conta de serviço do hml)
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_HML }}
+
+      - name: Conferir que a credencial é do projeto alvo
+        run: |
+          SA_PROJECT="$(python3 -c 'import json,os;print(json.load(open(os.environ["GOOGLE_APPLICATION_CREDENTIALS"]))["project_id"])')"
+          [ "$SA_PROJECT" = "$PROJETO" ] || { echo "::error::A conta de serviço é de $SA_PROJECT, não de $PROJETO."; exit 1; }
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: firebase-tools e dependências das Functions
+        run: |
+          npm install -g firebase-tools@14
+          npm ci --prefix functions
+
+      - name: Backend — índices, regras e Functions
+        if: inputs.alvo != 'web'
+        run: |
+          firebase deploy --project "$PROJETO" --only firestore:indexes --non-interactive
+          firebase deploy --project "$PROJETO" --only firestore:rules,storage --non-interactive
+          firebase deploy --project "$PROJETO" --only functions --non-interactive --force
+
+      - uses: subosito/flutter-action@v2
+        if: inputs.alvo != 'backend'
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Web — build hml e Hosting
+        if: inputs.alvo != 'backend'
+        run: |
+          flutter pub get
+          flutter build web --release --dart-define-from-file=config/env/hml.json
+          # Homologação não deve ser indexada por buscadores (só neste deploy).
+          python3 - <<'EOF'
+          import json
+          d = json.load(open('firebase.json'))
+          d['hosting']['headers'][0]['headers'].append({'key': 'X-Robots-Tag', 'value': 'noindex, nofollow'})
+          json.dump(d, open('firebase.json', 'w'), indent=2)
+          EOF
+          firebase deploy --project "$PROJETO" --only hosting --non-interactive \
+            --message "hml ${GITHUB_SHA::7} run ${GITHUB_RUN_NUMBER}"
+          {
+            echo "### Web de homologação"
+            echo "https://$PROJETO.web.app (commit ${GITHUB_SHA::7})"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Resumo
+        if: always()
+        run: |
+          {
+            echo "Projeto: $PROJETO · alvo: $ALVO · commit: $GITHUB_SHA"
+            echo "Reversão: docs/homologacao/DEPLOY_E_REVERSAO.md §4 (Hosting: console → histórico de versões → Reverter; Functions: implantar a tag anterior)"
+          } >> "$GITHUB_STEP_SUMMARY"

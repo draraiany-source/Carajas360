@@ -79,6 +79,38 @@ firebase deploy --project <id-hml> --only hosting
 
 O Android e o iOS são gerados pelo CI (veja `BUILD_MOBILE.md`).
 
+### 2.1 Pelo GitHub Actions (recomendado): `.github/workflows/deploy-hml.yml`
+
+Implanta a mesma sequência acima. Só roda manualmente: *Actions → Implantar em HOMOLOGAÇÃO (manual) → Run workflow*.
+
+**Proteções:**
+- O projeto precisa conter `hml`/`homolog`/`staging` e não pode ser `servicoconecta` nem `carajas360-a17c5`.
+- O ID do projeto tem que ser digitado de novo em "confirmar".
+- A conta de serviço tem que ser do mesmo projeto.
+- `tool/check_hml_config.js --deploy` precisa sair sem pendências: nenhum arquivo modelo e `projectId` igual ao alvo.
+- O web de homologação recebe `X-Robots-Tag: noindex`.
+
+**Configuração única (você):**
+1. Em *Settings → Environments*, crie o environment `homologacao`. Opcionalmente, exija aprovação de um revisor antes de cada execução.
+2. Cadastre nesse environment os secrets abaixo. Nenhum valor fica no Git nem aparece no log.
+
+| Secret | Conteúdo |
+|---|---|
+| `FIREBASE_SERVICE_ACCOUNT_HML` | JSON da conta de serviço do projeto hml. Papéis: Firebase Admin, Cloud Functions Admin, Service Account User, Secret Manager Viewer |
+| `HML_FIREBASE_OPTIONS_DART` | Saída do `flutterfire configure` (`lib/firebase_options_hml.dart`) |
+| `HML_ENV_JSON` | `config/env/hml.json`: chave do Maps e *public key* de **teste** do Mercado Pago |
+| `HML_FUNCTIONS_ENV` | `functions/.env.<id-hml>` (§1), sem segredos |
+| `HML_GOOGLE_WEB_CLIENT_ID` | *Web client ID* do login Google |
+
+Os segredos das Functions continuam no Secret Manager (§1).
+
+**Execução:**
+- Em `alvo`, escolha `tudo`, `backend` ou `web`.
+- No fim, o resumo do job mostra o link `https://<id-hml>.web.app`.
+- Antes de rodar, crie a tag de reversão (`hml-AAAAMMDD-HHMM`).
+
+O `firebase.json` agora tem a seção `hosting`, servindo `build/web` com *rewrite* de SPA e cabeçalhos de segurança. Sem ela, o `--only hosting` acima falhava.
+
 As tarefas agendadas sobem junto com as Functions (Cloud Scheduler):
 
 | Tarefa | Frequência |
@@ -113,7 +145,7 @@ As tarefas agendadas sobem junto com as Functions (Cloud Scheduler):
 | Functions | `git checkout <tag-anterior> && (cd functions && npm ci) && firebase deploy --project <id-hml> --only functions` |
 | Regras | Console do Firestore → Regras → histórico → publicar a versão anterior; ou `firebase deploy --only firestore:rules,storage` a partir da tag anterior |
 | Índices | Índices a mais não quebram nada; não precisa remover |
-| Web | Firebase Hosting → histórico de versões → *Rollback* |
+| Web | Console do Firebase → Hosting → histórico de versões → *Reverter* na versão anterior; ou rodar o workflow com `alvo = web` a partir da tag anterior |
 | Android/iOS | Reinstalar o APK/IPA do build anterior (artefatos do CI por 30 dias) |
 
 **Antes de voltar as Functions para uma versão anterior a esta entrega:**

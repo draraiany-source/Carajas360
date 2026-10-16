@@ -130,11 +130,12 @@ Nada desta entrega está validado em **HML** nem em **DISP**: o projeto de homol
 
 | Suíte | Resultado | Onde |
 |---|---|---|
-| Regras + functions (emulador) | 152 testes; última suíte completa 151/152. A falha intermitente (prazo do gatilho de aviso do Resolve sob carga) foi corrigida em `ab41baa` e passa 2/2 isolada. Suíte completa anterior: 152/152 | EMU |
+| Regras + functions (emulador) | **152/152** em suíte completa limpa (16/10, depois da correção do teste intermitente em `ab41baa`) | EMU |
 | Unitários das functions | 65/65 | local |
 | Flutter (`flutter test`) | 124 + 1 pulado; `flutter analyze` sem erros | local |
 | E2E web (7 fluxos, Playwright) | 91/91: schedule 16, hml 10, app 3, catalog 16, checkout 17, resolve 13, phase6 16 | EMU |
 | Índices × consultas | 46 consultas compostas, 0 faltando | estático |
+| Hosting (`firebase.json`) | Emulador do Hosting: rewrite de SPA e cabeçalhos `nosniff`, `SAMEORIGIN` e `no-cache` em `/`, numa rota profunda e no JS | EMU |
 | Build iOS (`--no-codesign`, macOS) | ✅ run 5 (`086f708`) | CI |
 | Build web hml | ✅ run 5 (`086f708`) | CI |
 | Build APK hml + AAB prod (assinatura de teste) | ✅ run 5 (`086f708`): os dois compilaram, verificação de manifesto OK (ver §2.1) | CI |
@@ -161,6 +162,8 @@ Nada desta entrega está validado em **HML** nem em **DISP**: o projeto de homol
 1. **Projeto Firebase de homologação.** Precisamos de:
    - acesso ao projeto, ou que você crie `carajas360-hml`;
    - uma credencial de implantação: conta de serviço com papel de Firebase Admin, ou `firebase login:ci` para uso no CI como *secret*.
+
+   Com os secrets listados em `DEPLOY_E_REVERSAO.md` §2.1, o workflow manual `deploy-hml.yml` implanta backend e web e devolve o link `https://<id-hml>.web.app`. Ele é protegido contra produção.
 
    Sem isso não há **link web de homologação**, os APK/IPA abrem em "configuração indisponível" e nada foi validado em HML. A lista exata de arquivos e valores aparece em `node tool/check_hml_config.js`.
 2. **Mercado Pago sandbox.** Precisamos do *access token* e da *public key* de **usuário de teste**, e do webhook cadastrado com a assinatura. Além disso, a rede deste ambiente bloqueia `api.mercadopago.com`; o teste real tem que rodar no projeto hml ou no CI.
