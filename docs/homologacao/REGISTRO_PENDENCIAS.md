@@ -137,7 +137,24 @@ Nada desta entrega está validado em **HML** nem em **DISP**: o projeto de homol
 | Índices × consultas | 46 consultas compostas, 0 faltando | estático |
 | Build iOS (`--no-codesign`, macOS) | ✅ run 5 (`086f708`) | CI |
 | Build web hml | ✅ run 5 (`086f708`) | CI |
-| Build APK hml + AAB prod (assinatura de teste) | run 4: os dois compilaram, a verificação de manifesto passou e o APK foi publicado como artefato (só a leitura de metadados falhou, já corrigida). Run 5: ver resumo da entrega | CI |
+| Build APK hml + AAB prod (assinatura de teste) | ✅ run 5 (`086f708`): os dois compilaram, verificação de manifesto OK (ver §2.1) | CI |
+
+### 2.1 Build de homologação entregue (CI run 5)
+
+- **Run:** https://github.com/draraiany-source/Carajas360/actions/runs/38904443039, os 3 jobs verdes
+- **Commit:** `086f7085d7bde2fd56743025a7a434dce94d5df7`. Os commits seguintes alteram só testes e documentação, não o app.
+- **Versão:** `1.0.0+1` (pubspec), *build number* 5, Flutter 3.47.7
+
+| Artefato (expira 15/11/2026) | applicationId | versionName / versionCode | SHA-256 do arquivo |
+|---|---|---|---|
+| `carajas360-hml-apk` → `app-hml-release.apk` (instalável) | `br.com.servicoconecta.hml` | 1.0.0-hml / 5 | `3593e98d683b55ee8a957996ff59f9cce858e9fb9dba6a619bdc8993ab3de43c` |
+| `carajas360-prod-aab-test-signed` → `app-prod-release.aab` (só validação, **não publicar**) | `br.com.servicoconecta` | 1.0.0 / 5 | `2847b071537a2298270438ad2a6267d2bc169e6ecf452aa83ebf920a50b7116f` |
+| `carajas360-ios-build-log` | — | — | iOS release `--no-codesign` compilado |
+| `carajas360-web-hml` | — | — | build web release hml |
+
+- **Manifesto:** OK. Os manifestos de release hml/prod não têm `networkSecurityConfig` nem `usesCleartextTraffic=true`.
+- **Assinatura:** keystore descartável do CI. Não é a *upload key* da Play.
+- **Ao abrir:** o APK mostra "configuração indisponível" até o Firebase hml real existir (bloqueio 1).
 
 ## 3. Bloqueios reais (precisam de você)
 
