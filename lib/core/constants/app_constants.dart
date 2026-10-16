@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 abstract class AppInfo {
   static const name = 'Carajás 360';
   static const slogan = 'Tudo que você precisa na região, em um só lugar.';

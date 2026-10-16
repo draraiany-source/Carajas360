@@ -7,6 +7,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
+import '../../core/auth/access_control.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
@@ -181,10 +182,13 @@ class SupportScreen extends StatelessWidget {
   void _openTicket(BuildContext ctx) {
     final subj = TextEditingController();
     final msg = TextEditingController();
+    // Envio em andamento: evita chamado duplicado por toque duplo.
+    var sending = false;
     showModalBottomSheet(
         context: ctx,
         isScrollControlled: true,
-        builder: (_) => Padding(
+        builder: (_) => StatefulBuilder(
+            builder: (sheet, setSheet) => Padding(
               padding: EdgeInsets.fromLTRB(
                   20, 0, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
               child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -208,7 +212,9 @@ class SupportScreen extends StatelessWidget {
                 SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                        onPressed: () async {
+                        onPressed: sending
+                            ? null
+                            : () async {
                           final subject = subj.text.trim();
                           final message = msg.text.trim();
                           if (subject.isEmpty || message.isEmpty) {
@@ -217,6 +223,7 @@ class SupportScreen extends StatelessWidget {
                             return;
                           }
                           final String id;
+                          setSheet(() => sending = true);
                           try {
                             id = await FS.createSupportTicket(
                                 subject.length > 200
@@ -226,6 +233,7 @@ class SupportScreen extends StatelessWidget {
                                     ? message.substring(0, 5000)
                                     : message);
                           } catch (e) {
+                            if (sheet.mounted) setSheet(() => sending = false);
                             if (ctx.mounted) {
                               snack(ctx, 'Não foi possível abrir o chamado. Tente novamente.',
                                   bg: AppColors.error);
@@ -247,9 +255,9 @@ class SupportScreen extends StatelessWidget {
                                         builder: (_) => TicketDetailScreen(ticketId: id)))),
                           ));
                         },
-                        child: const Text('Enviar chamado'))),
+                        child: Text(sending ? 'Enviando…' : 'Enviar chamado'))),
               ]),
-            ));
+            )));
   }
 }
 
@@ -324,6 +332,11 @@ class _CouponsState extends State<CouponsScreen> {
   Future<void> _check() async {
     final code = _ctrl.text.trim().toUpperCase();
     if (code.isEmpty) return;
+    // Visitante: pede login (e volta aqui) em vez do erro do servidor.
+    if (!AuthService.isAuth) {
+      await loginAndResume(context);
+      return;
+    }
     setState(() {
       _checking = true;
       _found = null;

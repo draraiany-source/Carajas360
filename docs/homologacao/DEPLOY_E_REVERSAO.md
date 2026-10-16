@@ -25,7 +25,7 @@ O comando termina com código 0 só quando não restar nenhum modelo. Itens que 
 
 **Firebase do app**
 - `lib/firebase_options_hml.dart`: `flutterfire configure --project=<id-hml> --out=lib/firebase_options_hml.dart --android-package-name=br.com.servicoconecta.hml --ios-bundle-id=br.com.servicoconecta.hml`.
-- `android/app/src/hml/google-services.json` e `config/ios/GoogleService-Info-hml.plist`: baixar do console.
+- `android/app/src/hml/google-services.json` e `ios/config/GoogleService-Info-hml.plist`: baixar do console.
 
 **Login Google**
 - Ativar o provedor Google em Authentication.
@@ -91,7 +91,7 @@ Implanta a mesma sequência acima. Só roda manualmente: *Actions → Implantar 
 - O web de homologação recebe `X-Robots-Tag: noindex`.
 
 **Configuração única (você):**
-1. Em *Settings → Environments*, crie o environment `homologacao`. Opcionalmente, exija aprovação de um revisor antes de cada execução.
+1. Em *Settings → Environments*, crie o environment `homologacao` e, nele, em *Deployment branches*, permita **só a branch protegida**. Exija também a aprovação de um revisor. Isso é obrigatório: `workflow_dispatch` roda a partir de qualquer branch, inclusive uma em que alguém tenha alterado o próprio workflow; quem impede que os secrets cheguem a ela é o environment.
 2. Cadastre nesse environment os secrets abaixo. Nenhum valor fica no Git nem aparece no log.
 
 | Secret | Conteúdo |
@@ -108,6 +108,8 @@ Os segredos das Functions continuam no Secret Manager (§1).
 - Em `alvo`, escolha `tudo`, `backend` ou `web`.
 - No fim, o resumo do job mostra o link `https://<id-hml>.web.app`.
 - Antes de rodar, crie a tag de reversão (`hml-AAAAMMDD-HHMM`).
+
+Publicar o web em produção por engano fica bloqueado pelo `predeploy` do Hosting (`tool/hosting_guard.js`). Ele recusa `servicoconecta` e `carajas360-a17c5`, a menos que se defina `CARAJAS_PROD_HOSTING=confirmo-producao`.
 
 O `firebase.json` agora tem a seção `hosting`, servindo `build/web` com *rewrite* de SPA e cabeçalhos de segurança. Sem ela, o `--only hosting` acima falhava.
 

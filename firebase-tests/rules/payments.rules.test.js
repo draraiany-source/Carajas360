@@ -23,6 +23,7 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'users/fin'), { type: 'admin', adminRole: 'financial' });
+    await setDoc(doc(db, 'providers/pro'), { userId: 'pro', verified: true, active: true }); // pedido só para prestador verificado
     await setDoc(doc(db, 'users/mod'), { type: 'admin', adminRole: 'moderator' });
     await setDoc(doc(db, 'marketOrders/mo1'), { clientId: 'cli', storeOwnerId: 'loja', totalCents: 5500, status: 'pending_payment' });
     await setDoc(doc(db, 'marketOrders/mo1/events/e1'), { type: 'created' });
@@ -105,7 +106,7 @@ test('pedido de serviço: cliente não grava condições financeiras', async () 
   await env.withSecurityRulesDisabled(async (ctx) => {
     await setDoc(doc(ctx.firestore(), 'catalogNodes/eletricista'), { level: 'group', active: true, effectiveActive: true });
   });
-  const base = { clientId: 'cli', status: 'pending', paymentStatus: 'unpaid', payoutProcessed: false, category: 'eletricista' };
+  const base = { clientId: 'cli', providerId: 'pro', status: 'pending', paymentStatus: 'unpaid', payoutProcessed: false, category: 'eletricista' };
   await assertSucceeds(setDoc(doc(as('cli'), 'orders/s1'), base));
   await assertFails(setDoc(doc(as('cli'), 'orders/s2'), { ...base, financeTerms: { commissionBps: 0 } }));
 });

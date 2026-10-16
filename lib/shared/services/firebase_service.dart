@@ -1185,6 +1185,11 @@ class FS {
       .snapshots()
       .map((s) => s.docs.map((d) => TicketMessage.fromMap(d.id, d.data())).toList());
 
+  /// Dono abriu a conversa: limpa o "não lido" (callable markTicketRead).
+  static Future<void> markTicketRead(String ticketId) async {
+    await CloudFn.call('markTicketRead', {'ticketId': ticketId});
+  }
+
   /// Resposta no chamado. As regras exigem exatamente estes campos e
   /// createdAt do servidor; o papel 'support' só vale para admin.
   static Future<void> sendTicketMessage(String ticketId, String text,

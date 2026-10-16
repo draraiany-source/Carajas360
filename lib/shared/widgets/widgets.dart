@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -620,6 +622,66 @@ class LoadingOverlay extends StatelessWidget {
 void snack(BuildContext ctx, String msg, {Color bg = AppColors.primary}) =>
     ScaffoldMessenger.of(ctx)
         .showSnackBar(SnackBar(content: Text(msg), backgroundColor: bg));
+
+/// Falha genérica (rede/servidor) fora de CloudCallException.
+const genericActionError =
+    'Não foi possível concluir. Verifique a conexão e tente de novo.';
+
+/// Confirmação simples antes de ações irreversíveis (true = confirmou).
+Future<bool> confirmAction(BuildContext context,
+    {required String title,
+    required String message,
+    String confirmLabel = 'Confirmar',
+    String cancelLabel = 'Voltar'}) async {
+  final ok = await showDialog<bool>(
+      context: context,
+      builder: (d) => AlertDialog(
+            title: Text(title),
+            content: Text(message),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(d, false),
+                  child: Text(cancelLabel)),
+              ElevatedButton(
+                  onPressed: () => Navigator.pop(d, true),
+                  child: Text(confirmLabel)),
+            ],
+          ));
+  return ok == true;
+}
+
+/// Reconstrói periodicamente (prazos que vencem com a tela aberta).
+class PeriodicRebuild extends StatefulWidget {
+  final Duration every;
+  final WidgetBuilder builder;
+  const PeriodicRebuild(
+      {super.key,
+      this.every = const Duration(seconds: 20),
+      required this.builder});
+  @override
+  State<PeriodicRebuild> createState() => _PeriodicRebuildState();
+}
+
+class _PeriodicRebuildState extends State<PeriodicRebuild> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(widget.every, (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context);
+}
 
 String fmtDate(DateTime dt) {
   final n = DateTime.now();

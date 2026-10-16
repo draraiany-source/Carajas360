@@ -1045,143 +1045,168 @@ class _MarketingTab extends StatelessWidget {
   }
 
   void _newCoupon(BuildContext context) {
-    final code = TextEditingController();
-    final desc = TextEditingController();
-    final discount = TextEditingController();
-    final maxUses = TextEditingController();
-    // Padrão: um uso por cliente.
-    final perUser = TextEditingController(text: '1');
-    var isPercentage = true;
-    String? error;
-    var saving = false;
     showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        builder: (sheet) => StatefulBuilder(
-            builder: (sheet, setSheet) => Padding(
-                  padding: EdgeInsets.fromLTRB(
-                      20, 0, 20, MediaQuery.of(sheet).viewInsets.bottom + 32),
-                  child: SingleChildScrollView(
-                    child: Column(mainAxisSize: MainAxisSize.min, children: [
-                      const SizedBox(height: 8),
-                      const SheetHandle(),
-                      const SizedBox(height: 16),
-                      const Text('Novo cupom',
-                          style: TextStyle(
-                              fontSize: 18, fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 16),
-                      TextFormField(
-                          controller: code,
-                          textCapitalization: TextCapitalization.characters,
-                          decoration: const InputDecoration(hintText: 'CÓDIGO')),
-                      const SizedBox(height: 10),
-                      TextFormField(
-                          controller: desc,
-                          decoration:
-                              const InputDecoration(hintText: 'Descrição')),
-                      const SizedBox(height: 10),
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: Text(isPercentage
-                            ? 'Desconto percentual (%)'
-                            : 'Desconto em valor (R\$)'),
-                        value: isPercentage,
-                        onChanged: (v) => setSheet(() => isPercentage = v),
-                      ),
-                      TextFormField(
-                          key: const Key('coupon-discount'),
-                          controller: discount,
-                          keyboardType:
-                              const TextInputType.numberWithOptions(decimal: true),
-                          decoration: InputDecoration(
-                              hintText: isPercentage
-                                  ? 'Desconto (%) — até 100'
-                                  : 'Desconto (R\$)')),
-                      const SizedBox(height: 10),
-                      Row(children: [
-                        Expanded(
-                            child: TextFormField(
-                                key: const Key('coupon-max-uses'),
-                                controller: maxUses,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                    labelText: 'Limite total de usos',
-                                    helperText: 'Vazio = sem limite'))),
-                        const SizedBox(width: 10),
-                        Expanded(
-                            child: TextFormField(
-                                key: const Key('coupon-per-user'),
-                                controller: perUser,
-                                keyboardType: TextInputType.number,
-                                decoration: const InputDecoration(
-                                    labelText: 'Limite por cliente',
-                                    helperText: 'Vazio = sem limite'))),
-                      ]),
-                      if (error != null)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 10),
-                          child: Text(error!,
-                              style: const TextStyle(
-                                  color: AppColors.error,
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600)),
-                        ),
-                      const SizedBox(height: 14),
-                      SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                              onPressed: saving
-                                  ? null
-                                  : () async {
-                                      final err = validateCouponInput(
-                                          code: code.text,
-                                          discount: discount.text,
-                                          isPercentage: isPercentage,
-                                          maxUses: maxUses.text,
-                                          perUserLimit: perUser.text);
-                                      if (err != null) {
-                                        setSheet(() => error = err);
-                                        return;
-                                      }
-                                      setSheet(() {
-                                        error = null;
-                                        saving = true;
-                                      });
-                                      try {
-                                        await FS.createCoupon({
-                                          'code': code.text.trim().toUpperCase(),
-                                          'description': desc.text.trim(),
-                                          'discount': double.parse(discount.text
-                                              .trim()
-                                              .replaceAll(',', '.')),
-                                          'isPercentage': isPercentage,
-                                          if (maxUses.text.trim().isNotEmpty)
-                                            'maxUses': int.parse(maxUses.text.trim()),
-                                          if (perUser.text.trim().isNotEmpty)
-                                            'perUserLimit':
-                                                int.parse(perUser.text.trim()),
-                                          'usedCount': 0,
-                                          'expiresAt': Timestamp.fromDate(DateTime.now()
-                                              .add(const Duration(days: 30)))
-                                        });
-                                      } catch (e) {
-                                        setSheet(() {
-                                          saving = false;
-                                          error = 'Não foi possível salvar: $e';
-                                        });
-                                        return;
-                                      }
-                                      if (sheet.mounted) Navigator.pop(sheet);
-                                      if (context.mounted) {
-                                        snack(context, '✅ Cupom criado!',
-                                            bg: AppColors.secondary);
-                                      }
-                                    },
-                              child: Text(saving ? 'Salvando…' : 'Criar cupom'))),
-                    ]),
-                  ),
-                )));
+        builder: (_) => const _NewCouponSheet());
   }
+}
+
+/// Folha "Novo cupom": dona dos campos (descartados ao fechar).
+class _NewCouponSheet extends StatefulWidget {
+  const _NewCouponSheet();
+  @override
+  State<_NewCouponSheet> createState() => _NewCouponSheetState();
+}
+
+class _NewCouponSheetState extends State<_NewCouponSheet> {
+  final code = TextEditingController();
+  final desc = TextEditingController();
+  final discount = TextEditingController();
+  final maxUses = TextEditingController();
+  // Padrão: um uso por cliente.
+  final perUser = TextEditingController(text: '1');
+  var isPercentage = true;
+  String? error;
+  var saving = false;
+
+  @override
+  void dispose() {
+    for (final c in [code, desc, discount, maxUses, perUser]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+      padding: EdgeInsets.fromLTRB(
+          20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 32),
+      child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          const SheetHandle(),
+          const SizedBox(height: 16),
+          const Text('Novo cupom',
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 16),
+          TextFormField(
+              controller: code,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(hintText: 'CÓDIGO')),
+          const SizedBox(height: 10),
+          TextFormField(
+              controller: desc,
+              decoration:
+                  const InputDecoration(hintText: 'Descrição')),
+          const SizedBox(height: 10),
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(isPercentage
+                ? 'Desconto percentual (%)'
+                : 'Desconto em valor (R\$)'),
+            value: isPercentage,
+            onChanged: (v) => setState(() => isPercentage = v),
+          ),
+          TextFormField(
+              key: const Key('coupon-discount'),
+              controller: discount,
+              keyboardType:
+                  const TextInputType.numberWithOptions(decimal: true),
+              decoration: InputDecoration(
+                  hintText: isPercentage
+                      ? 'Desconto (%) — até 100'
+                      : 'Desconto (R\$)')),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(
+                child: TextFormField(
+                    key: const Key('coupon-max-uses'),
+                    controller: maxUses,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                        labelText: 'Limite total de usos',
+                        helperText: 'Vazio = sem limite'))),
+            const SizedBox(width: 10),
+            Expanded(
+                child: TextFormField(
+                    key: const Key('coupon-per-user'),
+                    controller: perUser,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                        labelText: 'Limite por cliente',
+                        helperText: 'Vazio = sem limite'))),
+          ]),
+          if (error != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 10),
+              child: Text(error!,
+                  style: const TextStyle(
+                      color: AppColors.error,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600)),
+            ),
+          const SizedBox(height: 14),
+          SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                  onPressed: saving
+                      ? null
+                      : () async {
+                          final err = validateCouponInput(
+                              code: code.text,
+                              discount: discount.text,
+                              isPercentage: isPercentage,
+                              maxUses: maxUses.text,
+                              perUserLimit: perUser.text);
+                          if (err != null) {
+                            setState(() => error = err);
+                            return;
+                          }
+                          setState(() {
+                            error = null;
+                            saving = true;
+                          });
+                          final messenger = ScaffoldMessenger.of(context);
+                          final nav = Navigator.of(context);
+                          try {
+                            await FS.createCoupon({
+                              'code': code.text.trim().toUpperCase(),
+                              'description': desc.text.trim(),
+                              'discount': double.parse(discount.text
+                                  .trim()
+                                  .replaceAll(',', '.')),
+                              'isPercentage': isPercentage,
+                              if (maxUses.text.trim().isNotEmpty)
+                                'maxUses': int.parse(maxUses.text.trim()),
+                              if (perUser.text.trim().isNotEmpty)
+                                'perUserLimit':
+                                    int.parse(perUser.text.trim()),
+                              'usedCount': 0,
+                              'expiresAt': Timestamp.fromDate(DateTime.now()
+                                  .add(const Duration(days: 30)))
+                            });
+                          } catch (e) {
+                            // Folha fechada durante o envio.
+                            if (!mounted) return;
+                            setState(() {
+                              saving = false;
+                              error = 'Não foi possível salvar: $e';
+                            });
+                            return;
+                          }
+                          if (!mounted) return;
+                          nav.pop();
+                          messenger.showSnackBar(const SnackBar(
+                              content: Text('✅ Cupom criado!'),
+                              backgroundColor:
+                                  AppColors.secondary));
+                        },
+                  child: Text(saving ? 'Salvando…' : 'Criar cupom'))),
+        ]),
+      ),
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1663,6 +1688,8 @@ class _BookingConfigCardState extends State<BookingConfigCard> {
       if (mounted) snack(context, '✅ Reservas atualizadas', bg: AppColors.secondary);
     } on CloudCallException catch (e) {
       if (mounted) snack(context, e.message, bg: AppColors.error);
+    } catch (_) {
+      if (mounted) snack(context, genericActionError, bg: AppColors.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }

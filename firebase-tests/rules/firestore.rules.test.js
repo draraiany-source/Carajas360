@@ -277,7 +277,7 @@ describe('financeiro e permissões', () => {
     await assertFails(setDoc(doc(as('cli'), 'payments/p1'), { userId: 'cli', status: 'approved' }));
   });
   test('pedido não nasce com comissão, repasse ou pago', async () => {
-    const o = { clientId: 'cli', status: 'pending', paymentStatus: 'unpaid', payoutProcessed: false, category: 'eletricista' };
+    const o = { clientId: 'cli', providerId: 'pro', status: 'pending', paymentStatus: 'unpaid', payoutProcessed: false, category: 'eletricista' };
     await assertFails(setDoc(doc(as('cli'), 'orders/n1'), { ...o, commission: 0 }));
     await assertFails(setDoc(doc(as('cli'), 'orders/n1'), { ...o, paymentStatus: 'paid' }));
     await assertFails(setDoc(doc(as('cli'), 'orders/n1'), { ...o, status: 'completed' }));

@@ -34,7 +34,7 @@ O workflow roda em *push* nas branches `fase1-seguranca-ambientes-filtros` e `ho
 |---|---|---|
 | Dart | `lib/firebase_options_hml.dart` (`flutterfire configure`) | `lib/firebase_options_prod.dart` |
 | Android | `android/app/src/hml/google-services.json` | `android/app/google-services.json` |
-| iOS | `config/ios/GoogleService-Info-hml.plist`. Em Info.plist, trocar `PLACEHOLDER-REVERSED-CLIENT-ID` pelo `REVERSED_CLIENT_ID` | idem prod |
+| iOS | `ios/config/GoogleService-Info-hml.plist`. Em Info.plist, trocar `PLACEHOLDER-REVERSED-CLIENT-ID` pelo `REVERSED_CLIENT_ID` | idem prod |
 | Maps | `android/local.properties` → `MAPS_API_KEY=…`; iOS: `ios/Flutter/MapsKey.xcconfig` → `MAPS_API_KEY=…` (sem chave, os mapas ficam desligados, sem crash) | idem |
 
 O Firebase é inicializado **só pelo Dart**, com as opções do `APP_ENV`. O iOS não chama `FirebaseApp.configure()`, para não misturar ambientes. O token APNs chega ao Messaging pelo *proxy* do AppDelegate.
@@ -52,6 +52,19 @@ cd ios && pod install && cd .. && flutter build ipa --release --dart-define-from
 # Web
 flutter build web --release --dart-define-from-file=config/env/hml.json
 ```
+
+## iOS: um *bundle id* só (pendente, auditoria 2)
+
+O projeto iOS usa `br.com.servicoconecta` em todas as configurações. O build do CI com `APP_ENV=hml` usa as opções do Firebase hml, mas é instalado com o id de produção. Por isso:
+- o login Google e o push (APNs) do app hml não casam com o app iOS `br.com.servicoconecta.hml` do Firebase;
+- o build hml substitui o de produção no aparelho.
+
+**Correção planejada (exige macOS/Xcode para validar e a conta Apple para assinar):**
+1. Criar as configurações `Debug-hml`/`Release-hml` e o *scheme* `hml`, com `PRODUCT_BUNDLE_IDENTIFIER = br.com.servicoconecta.hml`.
+2. Passar a gerar o build com `flutter build ipa --flavor hml`.
+3. Tirar `aps-environment` das entitlements fixas e defini-lo por configuração.
+
+Até lá, o IPA de homologação não deve ser distribuído.
 
 ## Bloqueios iOS restantes (precisam de conta Apple)
 

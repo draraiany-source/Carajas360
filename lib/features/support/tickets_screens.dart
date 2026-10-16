@@ -67,13 +67,16 @@ class MyTicketsScreen extends StatelessWidget {
                             Positioned(
                                 right: -2,
                                 top: -2,
-                                child: Container(
-                                    key: const Key('ticket-unread'),
-                                    width: 10,
-                                    height: 10,
-                                    decoration: const BoxDecoration(
-                                        color: AppColors.error,
-                                        shape: BoxShape.circle))),
+                                child: Semantics(
+                                  label: 'Nova resposta do suporte',
+                                  child: Container(
+                                      key: const Key('ticket-unread'),
+                                      width: 10,
+                                      height: 10,
+                                      decoration: const BoxDecoration(
+                                          color: AppColors.error,
+                                          shape: BoxShape.circle)),
+                                )),
                         ]),
                         title: Text(t.subject.isEmpty ? 'Chamado' : t.subject,
                             maxLines: 1,
@@ -105,11 +108,19 @@ class TicketDetailScreen extends StatefulWidget {
   final String ticketId;
   final TicketModel? initial;
   final bool asSupport;
+
+  /// Injeções para testes (padrão: Firestore e callable markTicketRead).
+  final Stream<TicketModel?>? ticketStream;
+  final Stream<List<TicketMessage>>? messagesStream;
+  final Future<void> Function(String ticketId)? markRead;
   const TicketDetailScreen(
       {super.key,
       required this.ticketId,
       this.initial,
-      this.asSupport = false});
+      this.asSupport = false,
+      this.ticketStream,
+      this.messagesStream,
+      this.markRead});
 
   @override
   State<TicketDetailScreen> createState() => _TicketDetailScreenState();
@@ -117,12 +128,52 @@ class TicketDetailScreen extends StatefulWidget {
 
 class _TicketDetailScreenState extends State<TicketDetailScreen> {
   final _ctrl = TextEditingController();
+  final _scroll = ScrollController();
   bool _sending = false;
+  // Streams criados uma vez (setState não reabre a assinatura).
+  late final Stream<TicketModel?> _ticket;
+  late final Stream<List<TicketMessage>> _messages;
+  String? _markedKey;
+  int _msgCount = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _ticket = widget.ticketStream ?? FS.ticketStream(widget.ticketId);
+    _messages =
+        widget.messagesStream ?? FS.ticketMessagesStream(widget.ticketId);
+  }
 
   @override
   void dispose() {
     _ctrl.dispose();
+    _scroll.dispose();
     super.dispose();
+  }
+
+  /// Dono abriu com resposta nova: limpa o "não lido" (uma vez por
+  /// mensagem; falha é ignorada). Admin no suporte não marca.
+  void _markReadIfNeeded(TicketModel t) {
+    if (widget.asSupport || !t.unreadByUser) return;
+    final key = '${t.lastMessageAt?.millisecondsSinceEpoch}';
+    if (_markedKey == key) return;
+    _markedKey = key;
+    Future(() => (widget.markRead ?? FS.markTicketRead)(widget.ticketId))
+        .catchError((_) {});
+  }
+
+  /// Rola até a mensagem mais recente quando chega uma nova.
+  void _scrollOnNew(int count) {
+    if (count <= _msgCount || _msgCount < 0) {
+      _msgCount = count;
+      return;
+    }
+    _msgCount = count;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scroll.hasClients) return;
+      _scroll.animateTo(_scroll.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 250), curve: Curves.easeOut);
+    });
   }
 
   Future<void> _send() async {
@@ -151,10 +202,16 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
 
   @override
   Widget build(BuildContext context) => StreamBuilder<TicketModel?>(
-        stream: FS.ticketStream(widget.ticketId),
+        stream: _ticket,
         initialData: widget.initial,
         builder: (context, tSnap) {
           final t = tSnap.data;
+          if (t != null) _markReadIfNeeded(t);
+          // Leitura concluída e documento ausente (apagado/sem acesso).
+          final notFound = t == null &&
+              !tSnap.hasError &&
+              tSnap.connectionState != ConnectionState.waiting &&
+              tSnap.connectionState != ConnectionState.none;
           return Scaffold(
             appBar: AppBar(
                 title: Text(
@@ -178,8 +235,12 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
               Expanded(
                 child: tSnap.hasError
                     ? QueryErrorView(error: tSnap.error)
+                    : notFound
+                    ? const Center(
+                        key: Key('ticket-not-found'),
+                        child: Text('Chamado não encontrado.'))
                     : StreamBuilder<List<TicketMessage>>(
-                        stream: FS.ticketMessagesStream(widget.ticketId),
+                        stream: _messages,
                         builder: (context, mSnap) {
                           if (mSnap.hasError) {
                             return QueryErrorView(error: mSnap.error);
@@ -189,7 +250,9 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                                 child: CircularProgressIndicator());
                           }
                           final msgs = mSnap.data ?? const <TicketMessage>[];
+                          if (mSnap.hasData) _scrollOnNew(msgs.length);
                           return ListView(
+                              controller: _scroll,
                               padding: pagePadding(context),
                               children: [
                                 if (t != null)

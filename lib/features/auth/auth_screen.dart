@@ -295,8 +295,12 @@ class _OnboardState extends State<OnboardingScreen> {
                 // protegidas pedem login (loginAndResume).
                 TextButton(
                     key: const Key('explore-guest'),
-                    onPressed: () => Navigator.pushNamedAndRemoveUntil(
-                        context, Routes.main, (_) => false),
+                    onPressed: () {
+                      // Visitante: descarta retomada pendente antiga.
+                      AuthResume.clear();
+                      Navigator.pushNamedAndRemoveUntil(
+                          context, Routes.main, (_) => false);
+                    },
                     child: const Text('Explorar sem entrar',
                         style: TextStyle(
                             color: Colors.white, fontWeight: FontWeight.w700))),
@@ -764,6 +768,8 @@ class _LoginState extends State<LoginScreen>
                     TextButton(
                         key: const Key('login-explore-guest'),
                         onPressed: () {
+                          // Desistiu do login: não retoma a ação depois.
+                          AuthResume.clear();
                           // Aberto por uma ação protegida: volta para onde estava.
                           final nav = Navigator.of(context);
                           if (nav.canPop()) {

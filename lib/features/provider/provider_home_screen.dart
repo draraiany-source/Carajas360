@@ -1070,6 +1070,8 @@ class _ProviderReviewBannerState extends State<ProviderReviewBanner> {
       if (mounted) snack(context, 'Pedido enviado. Seu cadastro voltou para análise.', bg: AppColors.secondary);
     } on CloudCallException catch (e) {
       if (mounted) snack(context, e.message, bg: AppColors.error);
+    } catch (_) {
+      if (mounted) snack(context, genericActionError, bg: AppColors.error);
     } finally {
       if (mounted) setState(() => _sending = false);
     }

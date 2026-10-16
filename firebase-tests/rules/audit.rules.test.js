@@ -24,6 +24,7 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'catalogNodes/eletricista'), { name: 'Eletricista', effectiveActive: true });
+    await setDoc(doc(db, 'providers/pro'), { userId: 'pro', verified: true, active: true }); // pedido só para prestador verificado
     await setDoc(doc(db, 'users/adm'), { type: 'admin', adminRole: 'marketing' });
     await setDoc(doc(db, 'users/master'), { type: 'admin', adminRole: 'master' });
     await setDoc(doc(db, 'users/cli'), { type: 'client', name: 'Cli' });

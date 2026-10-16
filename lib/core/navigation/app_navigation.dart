@@ -28,7 +28,22 @@ abstract final class AuthResume {
   static Future<void> set(String route, [Object? args]) async {
     try {
       final p = await SharedPreferences.getInstance();
-      await p.setString(_key, jsonEncode({'route': route, if (args is Map) 'args': args}));
+      String raw;
+      try {
+        raw = jsonEncode({'route': route, if (args is Map) 'args': args});
+      } catch (_) {
+        // Argumentos não serializáveis: guarda só a rota.
+        raw = jsonEncode({'route': route});
+      }
+      await p.setString(_key, raw);
+    } catch (_) {}
+  }
+
+  /// Descarta a rota pendente (evita retomar uma tela antiga).
+  static Future<void> clear() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.remove(_key);
     } catch (_) {}
   }
 
@@ -119,6 +134,8 @@ class SessionGuard {
     final nav = rootNavigatorKey.currentState;
     if (_handling || nav == null) return;
     _handling = true;
+    // Captura antes do await (o contexto pode mudar).
+    final messenger = ScaffoldMessenger.maybeOf(nav.context);
     try {
       String? current;
       Object? args;
@@ -130,10 +147,7 @@ class SessionGuard {
       if (current != null && current != Routes.login && current != Routes.splash && current != Routes.onboarding) {
         await AuthResume.set(current!, args);
       }
-      final ctx = rootNavigatorKey.currentContext;
-      if (ctx != null) {
-        ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(content: Text(message)));
-      }
+      messenger?.showSnackBar(SnackBar(content: Text(message)));
       // Não aguardar: o Future só completa quando a rota de login sai.
       unawaited(nav.pushNamedAndRemoveUntil(Routes.login, (_) => false));
     } finally {

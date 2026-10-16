@@ -10,6 +10,9 @@
     "source": "functions"
   },
   "hosting": {
+    "predeploy": [
+      "node \"$PROJECT_DIR/tool/hosting_guard.js\""
+    ],
     "public": "build/web",
     "ignore": [
       "firebase.json",

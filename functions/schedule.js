@@ -166,7 +166,7 @@ module.exports = function scheduleFunctions(deps) {
         tx.get(ref), tx.get(calRef), tx.get(db.collection('healthSchedules').doc(providerId)), tx.get(dayBusyQuery(providerId, date)),
         readHoldContext(tx, auth.uid),
       ]);
-      if (again.exists) return;
+      if (again.exists) { created = again.data(); return; }
       const sched = hc.validateSchedule(schedSnap.data()).value;
       if (!hc.slotAllowed(sched, startMs, service.durationMin, busyOf(busySnap, null, nowMs), nowMs)) {
         throw httpsError('failed-precondition', 'Horário indisponível. Escolha outro horário.');
@@ -199,6 +199,8 @@ module.exports = function scheduleFunctions(deps) {
   ex.healthAppointmentAction = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
     const action = String(data?.action || '');
+    // Manutenção: bloqueia o que move dinheiro ou avança status; cancelar continua liberado.
+    if (maintenanceGuard && action !== 'cancel') await maintenanceGuard(auth);
     const apptId = String(data?.appointmentId || '');
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(apptId)) throw httpsError('invalid-argument', 'appointmentId inválido');
     const ref = APPTS.doc(apptId);
@@ -256,6 +258,10 @@ module.exports = function scheduleFunctions(deps) {
    * continua livre (dentro do prazo, sempre continua); senão devolve o
    * valor. Idempotente (o gatilho pode repetir).
    */
+  // Reembolso recusado pelo gateway devolve paymentStatus a "approved": não é
+  // um pagamento novo (senão o gatilho pediria o reembolso de novo, em laço).
+  const refundRestored = (a, b) => Boolean(b) && b.paymentStatus === 'refund_requested' && a.paidAttemptId === b.paidAttemptId;
+
   async function settlePaidHealth(ref) {
     const nowMs = await clock.nowMs(db);
     const outcome = await db.runTransaction(async (tx) => {
@@ -288,7 +294,7 @@ module.exports = function scheduleFunctions(deps) {
     if (!a.providerId || !a.startMs) return null; // registros antigos sem profissional
     const ref = change.after.ref;
     // Pagamento aprovado (inclusive depois do prazo): confirma ou devolve.
-    if (a.paymentStatus === 'approved' && (!b || b.paymentStatus !== 'approved') && a.status !== 'scheduled') {
+    if (a.paymentStatus === 'approved' && (!b || b.paymentStatus !== 'approved') && a.status !== 'scheduled' && !refundRestored(a, b)) {
       await settlePaidHealth(ref);
       return null;
     }
@@ -330,7 +336,7 @@ module.exports = function scheduleFunctions(deps) {
     requireAuth(context);
     const r = await db.collection('rentals').doc(String(data?.rentalId || '')).get();
     if (!r.exists) throw httpsError('not-found', 'Anúncio não encontrado');
-    const q = rc.quote(r.data(), data || {}, Date.now());
+    const q = rc.quote(r.data(), data || {}, await clock.nowMs(db));
     if (!q.ok) throw httpsError('failed-precondition', q.errors.join('; '));
     return q.value;
   });
@@ -400,6 +406,8 @@ module.exports = function scheduleFunctions(deps) {
   ex.transitionRentalBooking = functions.region(REGION).https.onCall(async (data, context) => {
     const auth = requireAuth(context);
     const action = String(data?.action || '');
+    // Manutenção: bloqueia o que move dinheiro ou avança status; cancelar continua liberado.
+    if (maintenanceGuard && !['cancel', 'reject'].includes(action)) await maintenanceGuard(auth);
     const bookingId = String(data?.bookingId || '');
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(bookingId)) throw httpsError('invalid-argument', 'bookingId inválido');
     const ref = BOOKINGS.doc(bookingId);
@@ -460,7 +468,7 @@ module.exports = function scheduleFunctions(deps) {
     const a = change.after.data();
     const b = change.before.exists ? change.before.data() : null;
     const ref = change.after.ref;
-    if (a.paymentStatus === 'approved' && (!b || b.paymentStatus !== 'approved') && ['pending_payment', 'expired', 'cancelled'].includes(a.status)) {
+    if (a.paymentStatus === 'approved' && (!b || b.paymentStatus !== 'approved') && ['pending_payment', 'expired', 'cancelled'].includes(a.status) && !refundRestored(a, b)) {
       await settlePaidRental(ref);
       return null;
     }
@@ -521,6 +529,12 @@ module.exports = function scheduleFunctions(deps) {
     for (const col of [APPTS, BOOKINGS]) {
       const s = await col.where('status', '==', 'pending_payment').where('holdUntilMs', '<=', nowMs).limit(300).get();
       for (const d of s.docs) {
+        // Paga mas ainda pendente depois do prazo: a confirmação pelo gatilho
+        // falhou (gatilhos v1 não repetem). Confirma ou devolve aqui.
+        if (d.data().paymentStatus === 'approved') {
+          try { await (col === APPTS ? settlePaidHealth : settlePaidRental)(d.ref); } catch (e) { console.error('settle', d.id, e.message); }
+          continue;
+        }
         await db.runTransaction(async (tx) => {
           const cur = (await tx.get(d.ref)).data();
           if (!bc.shouldExpire(cur, nowMs)) return; // pago no último instante: o gatilho confirma

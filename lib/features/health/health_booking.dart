@@ -324,6 +324,16 @@ class _ApptList extends StatelessWidget {
       c.dispose();
       if (ok != true) return;
     }
+    if (action == 'cancel' && !asProvider) {
+      if (!context.mounted) return;
+      final ok = await confirmAction(context,
+          title: 'Cancelar agendamento?',
+          message: a.pendingPayment
+              ? 'O horário reservado será liberado.'
+              : 'O agendamento será cancelado conforme a política de cancelamento.',
+          confirmLabel: 'Cancelar agendamento');
+      if (!ok) return;
+    }
     if (action == 'reschedule') {
       if (!context.mounted) return;
       newStart = await showModalBottomSheet<int>(
@@ -347,6 +357,8 @@ class _ApptList extends StatelessWidget {
       if (context.mounted) snack(context, 'Agendamento atualizado', bg: AppColors.health);
     } on CloudCallException catch (e) {
       if (context.mounted) snack(context, e.message, bg: AppColors.error);
+    } catch (_) {
+      if (context.mounted) snack(context, genericActionError, bg: AppColors.error);
     }
   }
 
@@ -354,6 +366,46 @@ class _ApptList extends StatelessWidget {
       context,
       PayTarget('health', a.id, a.totalCents, 'Consulta — ${a.serviceName.isEmpty ? 'Saúde' : a.serviceName}'),
       holdUntilMs: a.holdUntilMs);
+
+  Widget _card(BuildContext context, AppointmentModel a, DateTime now) =>
+      Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        decoration: AppDecorations.card(r: 16),
+        padding: const EdgeInsets.all(14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(
+              '${a.serviceName.isEmpty ? 'Consulta' : a.serviceName} — ${asProvider ? 'paciente' : (a.providerName.isEmpty ? 'profissional' : a.providerName)}',
+              style: const TextStyle(fontWeight: FontWeight.w700)),
+          Text('${HealthTime.label(a.startMs)} · ${_modalityLabels[a.modality] ?? ''}',
+              style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
+          Text(appointmentStatusText(a, asProvider: asProvider, now: now),
+              style: TextStyle(
+                  fontSize: 12,
+                  color: a.canPay(now) ? AppColors.warning : null,
+                  fontWeight: a.pendingPayment ? FontWeight.w700 : null)),
+          if (!asProvider && a.canPay(now))
+            Wrap(spacing: 6, children: [
+              ElevatedButton(
+                  onPressed: () => _pay(context, a),
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.health, foregroundColor: Colors.white),
+                  child: Text('Pagar ${brl(a.totalCents)}')),
+              TextButton(
+                  onPressed: () => _act(context, a, 'cancel'),
+                  child: const Text('Cancelar', style: TextStyle(color: AppColors.error))),
+            ]),
+          if (a.status == 'scheduled')
+            Wrap(spacing: 6, children: [
+              TextButton(onPressed: () => _act(context, a, 'reschedule'), child: const Text('Reagendar')),
+              TextButton(
+                  onPressed: () => _act(context, a, 'cancel'),
+                  child: const Text('Cancelar', style: TextStyle(color: AppColors.error))),
+              if (asProvider && a.startMs <= now.millisecondsSinceEpoch) ...[
+                TextButton(onPressed: () => _act(context, a, 'complete'), child: const Text('Realizada')),
+                TextButton(onPressed: () => _act(context, a, 'no_show'), child: const Text('Falta')),
+              ],
+            ]),
+        ]),
+      );
 
   @override
   Widget build(BuildContext context) => StreamBuilder<List<Map<String, dynamic>>>(
@@ -371,44 +423,10 @@ class _ApptList extends StatelessWidget {
           final now = DateTime.now();
           return ListView(padding: pagePadding(context), children: [
             for (final a in items)
-              Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                decoration: AppDecorations.card(r: 16),
-                padding: const EdgeInsets.all(14),
-                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(
-                      '${a.serviceName.isEmpty ? 'Consulta' : a.serviceName} — ${asProvider ? 'paciente' : (a.providerName.isEmpty ? 'profissional' : a.providerName)}',
-                      style: const TextStyle(fontWeight: FontWeight.w700)),
-                  Text('${HealthTime.label(a.startMs)} · ${_modalityLabels[a.modality] ?? ''}',
-                      style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
-                  Text(appointmentStatusText(a, asProvider: asProvider, now: now),
-                      style: TextStyle(
-                          fontSize: 12,
-                          color: a.canPay(now) ? AppColors.warning : null,
-                          fontWeight: a.pendingPayment ? FontWeight.w700 : null)),
-                  if (!asProvider && a.canPay(now))
-                    Wrap(spacing: 6, children: [
-                      ElevatedButton(
-                          onPressed: () => _pay(context, a),
-                          style: ElevatedButton.styleFrom(backgroundColor: AppColors.health, foregroundColor: Colors.white),
-                          child: Text('Pagar ${brl(a.totalCents)}')),
-                      TextButton(
-                          onPressed: () => _act(context, a, 'cancel'),
-                          child: const Text('Cancelar', style: TextStyle(color: AppColors.error))),
-                    ]),
-                  if (a.status == 'scheduled')
-                    Wrap(spacing: 6, children: [
-                      TextButton(onPressed: () => _act(context, a, 'reschedule'), child: const Text('Reagendar')),
-                      TextButton(
-                          onPressed: () => _act(context, a, 'cancel'),
-                          child: const Text('Cancelar', style: TextStyle(color: AppColors.error))),
-                      if (asProvider && a.startMs <= now.millisecondsSinceEpoch) ...[
-                        TextButton(onPressed: () => _act(context, a, 'complete'), child: const Text('Realizada')),
-                        TextButton(onPressed: () => _act(context, a, 'no_show'), child: const Text('Falta')),
-                      ],
-                    ]),
-                ]),
-              ),
+              // Aguardando pagamento: reconstrói para o botão sumir quando o prazo vence.
+              a.pendingPayment
+                  ? PeriodicRebuild(builder: (context) => _card(context, a, DateTime.now()))
+                  : _card(context, a, now),
             const Text('Paciente: cancelamento e reagendamento até 2 h antes (no máximo 2 reagendamentos).',
                 style: TextStyle(fontSize: 11, color: AppColors.textLight)),
           ]);

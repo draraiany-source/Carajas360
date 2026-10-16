@@ -400,6 +400,17 @@ module.exports = function paymentFunctions(deps) {
       tx.set(aRef, attempt);
       const tUpd = { activeAttemptId: attemptId, attemptSeq: attempt.seq, paymentStatus: 'pending', updatedAt: FieldValue.serverTimestamp() };
       if (kind === 'market' && pixExpires && pixExpires > millis(t.reservedUntil)) tUpd.reservedUntil = ts(pixExpires);
+      if ((kind === 'health' || kind === 'rental') && pixExpires && pixExpires > Number(t.holdUntilMs)) {
+        // O Pix vale no mínimo 30 min: a retenção acompanha, para quem paga no
+        // prazo do Pix não perder o horário. Teto: prazo original + 30 min
+        // (cancelar e gerar outro Pix não segura o horário indefinidamente).
+        const base = Number(t.holdOriginalUntilMs || t.holdUntilMs);
+        const until = Math.min(pixExpires, base + 30 * 60000);
+        if (until > Number(t.holdUntilMs)) {
+          Object.assign(tUpd, { holdUntilMs: until, holdUntil: ts(until), holdOriginalUntilMs: base });
+          tx.set(db.collection('bookingHolds').doc(t.clientId), { holds: { [targetId]: until }, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+        }
+      }
       tx.update(tRef, tUpd);
       if (kind === 'market') tx.set(...event(tRef, 'payment_started', { attemptId, method }));
       return { created: true, attempt };
@@ -532,12 +543,13 @@ module.exports = function paymentFunctions(deps) {
     } else if (a.targetKind === 'health' || a.targetKind === 'rental') {
       // Só registra o pagamento; o gatilho da reserva confirma (ou devolve,
       // se o prazo venceu e o horário foi ocupado). Cobrança duplicada é devolvida.
-      if (!t || t.paymentStatus === 'approved') {
+      // Já paga (inclusive já reembolsada): qualquer outra aprovação é duplicada.
+      if (!t || t.paymentStatus === 'approved' || (t.paidAttemptId && t.paidAttemptId !== a.id)) {
         tx.set(C.refunds.doc(`rf_late_${a.id}`), refundDoc({ kind: a.targetKind, targetId: a.targetId, attempt: a, amountCents: a.amountCents, reason: 'late_or_duplicate_approval', by: 'system' }));
         issue(tx, { type: 'late_approval', targetKind: a.targetKind, targetId: a.targetId, attemptId: a.id, amountCents: a.amountCents, detail: 'Reserva já paga ou inexistente; reembolso automático solicitado.' });
         return;
       }
-      tx.update(tRef, { paymentStatus: 'approved', paidAttemptId: a.id, paidMethod: a.method, paidAt: FieldValue.serverTimestamp(), activeAttemptId: null, updatedAt: FieldValue.serverTimestamp() });
+      tx.update(tRef, { paymentStatus: 'approved', paidAttemptId: a.id, paidMethod: a.method, paidAt: FieldValue.serverTimestamp(), paidAtMs: now(), activeAttemptId: null, updatedAt: FieldValue.serverTimestamp() });
     } else if (a.targetKind === 'recharge') {
       if (t && t.paymentStatus === 'approved') {
         // Auditoria: segunda cobrança aprovada da mesma recarga (o razão
@@ -795,8 +807,10 @@ module.exports = function paymentFunctions(deps) {
           const cur = (await tx.get(ref)).data();
           if (cur.status !== 'requested') return;
           const tRef = targetRef(cur.targetKind, cur.targetId);
-          tx.update(ref, { status: 'failed', error: fin.redact(e.message), updatedAt: FieldValue.serverTimestamp() });
+          // Leituras antes das escritas (senão a transação falha e o reembolso
+          // recusado ficava "requested" para sempre, com o valor travado).
           const t = (await tx.get(tRef)).data() || {};
+          tx.update(ref, { status: 'failed', error: fin.redact(e.message), updatedAt: FieldValue.serverTimestamp() });
           const back = { refundPendingCents: FieldValue.increment(-cur.amountCents), updatedAt: FieldValue.serverTimestamp() };
           // Auditoria: sem isso o pedido ficava preso em "cancelamento solicitado".
           if (cur.targetKind === 'market' && t.status === 'cancellation_requested') back.status = t.statusBeforeCancel || 'paid';
@@ -973,6 +987,7 @@ module.exports = function paymentFunctions(deps) {
     const orderId = String(data?.orderId || '');
     if (!/^[A-Za-z0-9_-]{1,128}$/.test(orderId)) throw httpsError('invalid-argument', 'orderId inválido');
     const to = String(data?.status || '');
+    if (maintenanceGuard && to !== 'cancelled') await maintenanceGuard(auth);
     const ref = C.orders.doc(orderId);
     const adm = await isAdmin(auth);
     await clock.nowMs(db);
@@ -995,33 +1010,37 @@ module.exports = function paymentFunctions(deps) {
     const s = await C.orders.where('status', '==', 'pending_payment').where('reservedUntil', '<=', ts(now())).limit(limit).get();
     let expired = 0;
     for (const d of s.docs) {
-      const o = d.data();
-      if (o.activeAttemptId) {
-        const a = await reconcileAttempt(o.activeAttemptId);
-        if (a && a.status === 'approved') continue; // virou pago
-        if (a && fin.ACTIVE_ATTEMPT.includes(a.status)) {
-          const { gateway: g } = gateway();
-          if (a.gatewayPaymentId && g && a.method !== 'wallet') {
-            try { await applyUpdate(o.activeAttemptId, await g.cancel(a.gatewayPaymentId), 'expire'); } catch (e) { /* aprovação tardia será tratada */ }
-          }
-          const after = (await C.attempts.doc(o.activeAttemptId).get()).data();
-          if (after.status === 'approved') continue;
-          if (fin.ACTIVE_ATTEMPT.includes(after.status)) await failAttempt(o.activeAttemptId, 'reserva expirada', 'expired');
-        }
-      }
-      const ok = await db.runTransaction(async (tx) => {
-        const cur = (await tx.get(d.ref)).data();
-        if (cur.status !== 'pending_payment' || millis(cur.reservedUntil) > now()) return false;
-        const snaps = await readProducts(tx, cur.items);
-        releaseStock(tx, cur, snaps);
-        const cp = releaseCoupon(tx, cur);
-        tx.update(d.ref, { status: 'expired', paymentStatus: cur.paymentStatus === 'pending' ? 'expired' : cur.paymentStatus, stockReleased: true, activeAttemptId: null, ...cp, updatedAt: FieldValue.serverTimestamp() });
-        tx.set(...event(d.ref, 'expired', {}));
-        return true;
-      });
-      if (ok) expired += 1;
+      // Um pedido com problema não pode travar a fila (nem o resto da manutenção).
+      try { if (await expireOne(d)) expired += 1; } catch (e) { console.error('expireOrders', d.id, e.message); }
     }
     return expired;
+  }
+  async function expireOne(d) {
+    const o = d.data();
+    if (o.activeAttemptId) {
+      const a = await reconcileAttempt(o.activeAttemptId);
+      if (a && a.status === 'approved') return false; // virou pago
+      if (a && fin.ACTIVE_ATTEMPT.includes(a.status)) {
+        const { gateway: g } = gateway();
+        if (a.gatewayPaymentId && g && a.method !== 'wallet') {
+          try { await applyUpdate(o.activeAttemptId, await g.cancel(a.gatewayPaymentId), 'expire'); } catch (e) { /* aprovação tardia será tratada */ }
+        }
+        const after = (await C.attempts.doc(o.activeAttemptId).get()).data();
+        if (after.status === 'approved') return false;
+        if (fin.ACTIVE_ATTEMPT.includes(after.status)) await failAttempt(o.activeAttemptId, 'reserva expirada', 'expired');
+      }
+    }
+    const ok = await db.runTransaction(async (tx) => {
+      const cur = (await tx.get(d.ref)).data();
+      if (cur.status !== 'pending_payment' || millis(cur.reservedUntil) > now()) return false;
+      const snaps = await readProducts(tx, cur.items);
+      releaseStock(tx, cur, snaps);
+      const cp = releaseCoupon(tx, cur);
+      tx.update(d.ref, { status: 'expired', paymentStatus: cur.paymentStatus === 'pending' ? 'expired' : cur.paymentStatus, stockReleased: true, activeAttemptId: null, ...cp, updatedAt: FieldValue.serverTimestamp() });
+      tx.set(...event(d.ref, 'expired', {}));
+      return true;
+    });
+    return ok;
   }
 
   async function reconcileStale(limit = 50) {
@@ -1134,6 +1153,7 @@ module.exports = function paymentFunctions(deps) {
     const o = (await C.orders.doc(orderId).get()).data();
     if (!o) throw httpsError('not-found', 'Pedido não encontrado');
     if (o.clientId !== auth.uid) throw httpsError('permission-denied', 'Somente o cliente');
+    if (maintenanceGuard) await maintenanceGuard(auth); // libera dinheiro ao vendedor
     return releaseMarketOrder(orderId, auth.uid);
   });
 

@@ -19,6 +19,7 @@ beforeEach(async () => {
   await env.withSecurityRulesDisabled(async (ctx) => {
     const db = ctx.firestore();
     await setDoc(doc(db, 'users/admin'), { type: 'admin' });
+    await setDoc(doc(db, 'providers/pro'), { userId: 'pro', verified: true, active: true }); // pedido só para prestador verificado
     await setDoc(doc(db, 'catalogNodes/cat_automoveis'), { level: 'category', name: 'Automóveis', active: false, effectiveActive: false });
     await setDoc(doc(db, 'catalogNodes/svc_freios'), { level: 'service', name: 'Freios', parentId: 'mecanico', active: true, effectiveActive: false });
     await setDoc(doc(db, 'catalogNodes/eletricista'), { level: 'group', name: 'Eletricista', active: true, effectiveActive: true });
@@ -53,7 +54,7 @@ test('questionários: publicados públicos; rascunhos só admin', async () => {
 });
 
 test('nova contratação exige serviço ativo no catálogo', async () => {
-  const base = { clientId: 'cli', status: 'pending', paymentStatus: 'unpaid', payoutProcessed: false, title: 't' };
+  const base = { clientId: 'cli', providerId: 'pro', status: 'pending', paymentStatus: 'unpaid', payoutProcessed: false, title: 't' };
   await assertSucceeds(setDoc(doc(as('cli'), 'orders/o1'), { ...base, category: 'eletricista' }));
   await assertFails(setDoc(doc(as('cli'), 'orders/o2'), { ...base, category: 'svc_freios' }), 'desativado (herdado)');
   await assertFails(setDoc(doc(as('cli'), 'orders/o3'), { ...base, category: 'nao_existe' }));

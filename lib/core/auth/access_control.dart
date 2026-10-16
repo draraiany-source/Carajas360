@@ -8,7 +8,12 @@ import '../navigation/app_navigation.dart';
 /// Leva ao login guardando a rota atual para voltar a ela depois.
 Future<void> loginAndResume(BuildContext context) async {
   final s = ModalRoute.of(context)?.settings;
-  if (s?.name != null) await AuthResume.set(s!.name!, s.arguments);
+  if (s?.name != null) {
+    await AuthResume.set(s!.name!, s.arguments);
+  } else {
+    // Tela sem nome não pode ser retomada: limpa a pendência antiga.
+    await AuthResume.clear();
+  }
   if (context.mounted) await Navigator.pushNamed(context, Routes.login);
 }
 

@@ -22,7 +22,8 @@ const admin = require(path.join(__dirname, '../functions/node_modules/firebase-a
 const args = process.argv.slice(2);
 const project = args[args.indexOf('--project') + 1];
 const domain = (args.includes('--domain') && args[args.indexOf('--domain') + 1]) || 'hml.carajas360.test';
-const PROD = (process.env.PROD_PROJECT_IDS || 'servicoconecta,carajas360-a17c5').split(',').map((s) => s.trim());
+// A variável só acrescenta projetos à lista fixa; nunca a substitui.
+const PROD = ['servicoconecta', 'carajas360-a17c5', ...String(process.env.PROD_PROJECT_IDS || '').split(',').map((s) => s.trim()).filter(Boolean)];
 if (!project || args.indexOf('--project') < 0) { console.error('Informe --project <id-do-projeto-de-homologação>'); process.exit(2); }
 if (PROD.includes(project) || !/(^demo-|hml|homolog|staging)/.test(project)) {
   console.error(`Recusado: "${project}" não parece homologação. Este script nunca roda em produção.`);

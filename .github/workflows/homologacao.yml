@@ -100,7 +100,7 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-hml-release.apk dist/
-          m="$(find build/app/intermediates -name AndroidManifest.xml -path '*hmlRelease*' -path '*merged_manifest*' | head -1)"
+          m="$(find build/app/intermediates -name AndroidManifest.xml -path '*hmlRelease*' -path '*merged_manifest*' -print -quit)"
           [ -n "$m" ] && cp "$m" dist/merged-hmlRelease-AndroidManifest.xml
           rm -rf build/app/intermediates build/app/tmp build/app/outputs/apk build/app/outputs/flutter-apk
           df -h /
@@ -112,6 +112,8 @@ jobs:
             --build-number=${{ github.run_number }}
 
       - name: Verificar manifests de release + coletar metadados
+        env:
+          REF_NAME: ${{ github.ref_name }}
         id: verify
         run: |
           set -euo pipefail
@@ -177,7 +179,7 @@ jobs:
           Versão (pubspec.yaml) : $PUB_VERSION
           Build number (CI)     : ${{ github.run_number }}
           Commit                : ${{ github.sha }}
-          Branch                : ${{ github.ref_name }}
+          Branch                : $REF_NAME
           Workflow run          : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           Flutter               : ${{ env.FLUTTER_VERSION }}
 

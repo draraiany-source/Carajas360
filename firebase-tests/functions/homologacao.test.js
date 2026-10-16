@@ -104,7 +104,8 @@ const book = (u, hhmm, extra = {}) => call('bookHealthAppointment', u, {
 });
 const payCard = (u, kind, id, token = 'tok_approved') => call('startPayment', u, { targetKind: kind, targetId: id, method: 'card', requestId: rid('pay'), card: { token, installments: 1 } });
 const payPix = (u, kind, id) => call('startPayment', u, { targetKind: kind, targetId: id, method: 'pix', requestId: rid('pix') });
-const runJobs = (...jobs) => call('adminRunMaintenance', adm, { jobs });
+// Tarefas liberam repasses: perfil financeiro (master), não o de suporte.
+const runJobs = (...jobs) => call('adminRunMaintenance', master, { jobs });
 const statusOf = async (col, id) => (await doc(`${col}/${id}`)).status;
 const waitStatus = (col, id, st) => waitFor(async () => (await statusOf(col, id)) === st || null);
 
@@ -152,7 +153,7 @@ describe('B15 — reservas aguardando pagamento (Saúde e Locação)', () => {
     const r1 = await book(a, '13:00');
     const p1 = await payPix(a, 'health', r1.id);
     const g1 = (await attempt(p1.attemptId)).gatewayPaymentId;
-    await setClock(16 * MIN);
+    await setClock(31 * MIN); // o Pix (30 min) estende a retenção
     await runJobs('expireBookingHolds');
     assert.strictEqual(await statusOf('appointments', r1.id), 'expired');
     assert.ok(await waitFor(async () => ['cancelled', 'expired', 'failed'].includes((await attempt(p1.attemptId)).status) || null), 'cobrança aberta cancelada');
@@ -164,7 +165,7 @@ describe('B15 — reservas aguardando pagamento (Saúde e Locação)', () => {
     const r2 = await book(b, '14:00');
     const p2 = await payPix(b, 'health', r2.id);
     const g2 = (await attempt(p2.attemptId)).gatewayPaymentId;
-    await setClock(16 * MIN);
+    await setClock(31 * MIN); // o Pix (30 min) estende a retenção
     await runJobs('expireBookingHolds');
     const r3 = await book(c, '14:00'); // horário liberado, outra pessoa reserva e paga
     await payCard(c, 'health', r3.id);

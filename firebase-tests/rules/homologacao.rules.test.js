@@ -23,6 +23,10 @@ beforeEach(async () => {
     await setDoc(doc(db, 'support/t1'), { userId: 'cli', subject: 'Ajuda', message: 'Texto', status: 'open', priority: 'normal' });
     await setDoc(doc(db, 'chatRooms/cli_pro'), { participants: ['cli', 'pro'] });
     await setDoc(doc(db, 'catalogNodes/eletricista'), { name: 'Eletricista', effectiveActive: true });
+    await setDoc(doc(db, 'providers/pro'), { userId: 'pro', verified: true, active: true });
+    await setDoc(doc(db, 'providers/pendente'), { userId: 'pendente', verified: false });
+    await setDoc(doc(db, 'orders/o1'), { clientId: 'cli', providerId: 'pro', status: 'pending' });
+    await setDoc(doc(db, 'coupons/c1'), { code: 'X10', active: true });
   });
 });
 const as = (uid) => env.authenticatedContext(uid).firestore();
@@ -52,6 +56,32 @@ test('modo manutenção: usuário não cria pedido nem mensagem; admin cria; só
 
 test('mensagem automática de pedido pode levar orderId (o servidor não avisa em dobro)', async () => {
   await assertSucceeds(addDoc(collection(as('cli'), 'chatRooms/cli_pro/messages'), { senderId: 'cli', senderName: 'C', text: '📋 Nova solicitação', read: false, orderId: 'o1', createdAt: serverTimestamp() }));
+});
+
+test('auditoria 2: orderId inventado ou de outra pessoa não silencia mensagem', async () => {
+  const m = (orderId) => ({ senderId: 'pro', senderName: 'P', text: 'oi', read: false, orderId, createdAt: serverTimestamp() });
+  await assertFails(addDoc(collection(as('pro'), 'chatRooms/cli_pro/messages'), m('o1')), 'o pedido é do cliente, não do prestador');
+  await assertFails(addDoc(collection(as('cli'), 'chatRooms/cli_pro/messages'), { ...m('nao-existe'), senderId: 'cli' }));
+  await assertFails(addDoc(collection(as('cli'), 'chatRooms/cli_pro/messages'), { ...m({ grande: 'x' }), senderId: 'cli' }));
+});
+
+test('auditoria 2: pedido só para prestador verificado, com texto limitado', async () => {
+  const order = (extra) => ({ clientId: 'cli', providerId: 'pro', category: 'eletricista', title: 'Tomada', status: 'pending', paymentStatus: 'unpaid', payoutProcessed: false, payoutStatus: 'none', createdAt: serverTimestamp(), ...extra });
+  await assertSucceeds(addDoc(collection(as('cli'), 'orders'), order({})));
+  await assertFails(addDoc(collection(as('cli'), 'orders'), order({ providerId: 'qualquer-usuario' })), 'alvo sem perfil de prestador');
+  await assertFails(addDoc(collection(as('cli'), 'orders'), order({ providerId: 'pendente' })), 'prestador não verificado');
+  await assertFails(addDoc(collection(as('cli'), 'orders'), order({ providerId: 'cli' })), 'para si mesmo');
+  await assertFails(addDoc(collection(as('cli'), 'orders'), order({ title: 'x'.repeat(121) })));
+});
+
+test('auditoria 2: cupom não pode ser apagado (só desativado); anúncios param na manutenção', async () => {
+  const { deleteDoc, updateDoc } = require('firebase/firestore');
+  await assertFails(deleteDoc(doc(as('master'), 'coupons/c1')));
+  await assertSucceeds(updateDoc(doc(as('master'), 'coupons/c1'), { active: false }));
+  await assertSucceeds(setDoc(doc(as('cli'), 'rentals/r0'), { ownerId: 'cli', title: 'Casa', rating: 0, totalReviews: 0 }));
+  await env.withSecurityRulesDisabled((ctx) => setDoc(doc(ctx.firestore(), 'config/platform'), { maintenanceMode: true }));
+  await assertFails(setDoc(doc(as('cli'), 'rentals/r1'), { ownerId: 'cli', title: 'Casa', rating: 0, totalReviews: 0 }));
+  await assertFails(setDoc(doc(as('cli'), 'stores/s1'), { ownerId: 'cli', name: 'Loja', rating: 0, totalReviews: 0 }));
 });
 
 test('coleções internas (retenções, usos de cupom, relógio de teste) não são acessíveis pelo app', async () => {

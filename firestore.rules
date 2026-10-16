@@ -60,6 +60,17 @@ service cloud.firestore {
 
     // Item do catálogo existe e está ativo (incluindo ancestrais).
     // Desativar no admin impede NOVAS contratações; históricos seguem.
+    function verifiedProvider(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 &&
+        exists(/databases/$(database)/documents/providers/$(id)) &&
+        get(/databases/$(database)/documents/providers/$(id)).data.get('verified', false) == true &&
+        get(/databases/$(database)/documents/providers/$(id)).data.get('active', true) != false;
+    }
+
+    function boundedText(v, max) {
+      return v is string && v.size() <= max;
+    }
+
     function catalogActive(id) {
       return id is string && id.size() > 0 &&
         exists(/databases/$(database)/documents/catalogNodes/$(id)) &&
@@ -214,7 +225,7 @@ service cloud.firestore {
       allow read: if true;
       allow create: if isAuth() && incoming().ownerId == uid() &&
         zeroCounters() && incoming().get('verified', false) == false &&
-        !incoming().keys().hasAny(['commissionRate']);
+        !incoming().keys().hasAny(['commissionRate']) && notInMaintenance();
       allow update: if isAdmin() || (isAuth() &&
         resource.data.ownerId == uid() &&
         !changed().hasAny(['ownerId', 'rating', 'totalReviews', 'verified', 'commissionRate']));
@@ -225,7 +236,7 @@ service cloud.firestore {
       allow read: if true;
       // Auditoria: com storeId, a loja TEM de ser do autor (antes, possuir
       // qualquer empresa permitia inserir produto na loja de outra pessoa).
-      allow create: if isAuth() && zeroCounters() && (
+      allow create: if isAuth() && zeroCounters() && notInMaintenance() && (
         isAdmin() ||
         ('storeId' in incoming() && incoming().storeId is string &&
           exists(/databases/$(database)/documents/stores/$(incoming().storeId)) &&
@@ -241,7 +252,7 @@ service cloud.firestore {
     match /rentals/{rentalId} {
       allow read: if true;
       allow create: if isAuth() && incoming().ownerId == uid() &&
-        zeroCounters() && incoming().get('verified', false) == false;
+        zeroCounters() && incoming().get('verified', false) == false && notInMaintenance();
       allow update: if isAdmin() || (isAuth() &&
         resource.data.ownerId == uid() &&
         !changed().hasAny(['ownerId', 'rating', 'totalReviews', 'verified']));
@@ -291,6 +302,12 @@ service cloud.firestore {
         && incoming().get('type', 'service') != 'marketplace'
         // Serviço contratado precisa estar ativo no catálogo.
         && catalogActive(incoming().get('category', ''))
+        // Auditoria 2: o pedido avisa o prestador; só prestador verificado e
+        // ativo (senão vira canal de mensagens para qualquer usuário).
+        && verifiedProvider(incoming().get('providerId', ''))
+        && incoming().providerId != uid()
+        && boundedText(incoming().get('title', ''), 120)
+        && boundedText(incoming().get('description', ''), 2000)
         && notInMaintenance();
       // Cliente/prestador só marcam review. Status/preço/repasse: Cloud Functions.
       allow update: if isAdmin() || (
@@ -353,7 +370,13 @@ service cloud.firestore {
           notInMaintenance() &&
           incoming().read == false &&
           incoming().createdAt == request.time &&
-          incoming().text is string && incoming().text.size() <= 4000;
+          incoming().text is string && incoming().text.size() <= 4000 &&
+          // orderId (mensagem automática da solicitação, sem push): só o
+          // cliente do próprio pedido.
+          (!('orderId' in incoming()) || (
+            incoming().orderId is string && incoming().orderId.size() <= 128 &&
+            exists(/databases/$(database)/documents/orders/$(incoming().orderId)) &&
+            get(/databases/$(database)/documents/orders/$(incoming().orderId)).data.clientId == uid()));
         allow update: if isAuth() && uid() in roomParticipants() && (
           // Destinatário marca como lida.
           (resource.data.senderId != uid() &&
@@ -570,7 +593,10 @@ service cloud.firestore {
     // cupom pelo servidor (checkCoupon / quoteMarketOrder).
     match /coupons/{couponId} {
       allow read: if isAdmin();
-      allow write: if isAdmin();
+      // Sem exclusão: pedidos guardam couponId e devolvem o uso ao cupom.
+      // Para encerrar um cupom, desative-o (active: false).
+      allow create, update: if isAdmin();
+      allow delete: if false;
     }
 
     match /banners/{bannerId} {

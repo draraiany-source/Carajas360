@@ -10,7 +10,7 @@
 // continuam 1ª geração (sem migração para v2 nesta etapa).
 const functions = require('firebase-functions/v1');
 const admin = require('firebase-admin');
-const { FieldValue, Timestamp } = require('firebase-admin/firestore');
+const { FieldValue, Timestamp, FieldPath } = require('firebase-admin/firestore');
 const axios = require('axios');
 const crypto = require('crypto');
 const policy = require('./orderPolicy');
@@ -410,6 +410,7 @@ exports.autoConfirmServiceOrders = functions.pubsub.schedule('every 60 minutes')
 
 exports.processPayout = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
+  await maintenanceGuard(auth);
   const orderId = String(data?.orderId || '');
   if (!orderId) throw httpsError('invalid-argument', 'orderId obrigatório');
 
@@ -639,6 +640,7 @@ exports.aiAssistant = functions.region(REGION).https.onCall(async (data, context
  */
 exports.walletOp = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
+  await maintenanceGuard(auth);
   const op = String(data?.op || '');
   if (op === 'withdraw') {
     throw httpsError('failed-precondition', 'Saque/transferência bancária ainda não está disponível. O saldo permanece na carteira interna.');
@@ -762,11 +764,14 @@ exports.onReviewCreated = functions.firestore
       if (!fresh.exists || fresh.data().processedAt) return false;
       // R22: identidade do avaliador vem do servidor (perfil público mínimo
       // do autor autenticado), nunca de texto enviado pelo app.
+      const userRef = db.collection('users').doc(review.clientId);
+      const userSnap = await tx.get(userRef);
       const author = await reviewAuthor(tx, review.clientId);
+      delete author.profileFound;
       tx.update(snap.ref, { processedAt: FieldValue.serverTimestamp(), ...author });
       tx.update(orderSnap.ref, { reviewed: true });
-      tx.set(db.collection('users').doc(review.clientId),
-        { xp: FieldValue.increment(30) }, { merge: true });
+      // XP só para conta existente (set+merge criava usuário "fantasma").
+      if (userSnap.exists) tx.update(userRef, { xp: FieldValue.increment(30) });
       return true;
     });
     if (!firstRun) return null;
@@ -780,25 +785,46 @@ async function reviewAuthor(tx, clientId) {
   const ref = db.collection('publicProfiles').doc(String(clientId));
   const pub = tx ? await tx.get(ref) : await ref.get();
   const p = pub.exists ? pub.data() : {};
-  return { clientName: String(p.name || 'Cliente').slice(0, 80), clientPhoto: p.photoUrl || null, authorFromServer: true };
+  // Sem foto: avaliações são públicas (até sem login); o perfil público exige login.
+  return { clientName: String(p.name || 'Cliente').slice(0, 80), clientPhoto: null, authorFromServer: true, profileFound: pub.exists };
 }
 
-/** Admin: refaz o autor das avaliações antigas (nome digitado pelo app). */
-exports.migrateReviewAuthors = functions.region(REGION).https.onCall(async (data, context) => {
+/**
+ * Admin: refaz o autor das avaliações antigas (nome digitado pelo app).
+ * Sem perfil público (migratePublicProfiles ainda não rodou ou conta
+ * apagada) a avaliação é PULADA e listada: nunca vira "Cliente" de vez.
+ * Paginado, para não estourar o tempo da função.
+ */
+exports.migrateReviewAuthors = functions.runWith({ timeoutSeconds: 540 }).region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
   if (!(await isAdmin(auth))) throw httpsError('permission-denied', 'Somente admin');
   const dryRun = data?.dryRun !== false;
-  const snap = await db.collection('reviews').get();
+  let total = 0;
   let changed = 0;
-  for (const d of snap.docs) {
-    const r = d.data();
-    if (r.authorFromServer || !r.clientId) continue;
-    const author = await reviewAuthor(null, r.clientId);
-    if (author.clientName === r.clientName && author.clientPhoto === (r.clientPhoto || null)) continue;
-    changed += 1;
-    if (!dryRun) await d.ref.update(author);
+  const skippedNoProfile = [];
+  let last = null;
+  for (;;) {
+    let q = db.collection('reviews').orderBy(FieldPath.documentId()).limit(300);
+    if (last) q = q.startAfter(last);
+    const snap = await q.get();
+    if (snap.empty) break;
+    last = snap.docs[snap.docs.length - 1];
+    total += snap.size;
+    const batch = db.batch();
+    let writes = 0;
+    for (const d of snap.docs) {
+      const r = d.data();
+      if (r.authorFromServer || !r.clientId) continue;
+      const { profileFound, ...author } = await reviewAuthor(null, r.clientId);
+      // "Usuário" = perfil sem nome real (ex.: conta apagada): também não troca.
+      if (!profileFound || author.clientName === 'Usuário') { if (skippedNoProfile.length < 50) skippedNoProfile.push(d.id); continue; }
+      if (author.clientName === r.clientName && !r.clientPhoto) continue;
+      changed += 1;
+      if (!dryRun) { batch.update(d.ref, author); writes += 1; }
+    }
+    if (writes) await batch.commit();
   }
-  return { total: snap.size, changed, dryRun };
+  return { total, changed, skippedNoProfile, dryRun };
 });
 
 async function recomputeProviderRating(providerId) {
@@ -952,8 +978,12 @@ exports.onChatMessageCreated = functions.firestore
     const parts = (room.exists && room.data().participants) || [];
     const to = parts.find((p) => p !== m.senderId);
     if (!to || !parts.includes(m.senderId)) return null;
-    // Mensagem automática de uma solicitação: o aviso do pedido já foi enviado.
-    if (m.orderId) return null;
+    // Mensagem automática de uma solicitação: o aviso do pedido já foi enviado
+    // (confere o vínculo; orderId sozinho não silencia a mensagem).
+    if (m.orderId) {
+      const o = (await db.collection('orders').doc(String(m.orderId)).get()).data();
+      if (o && o.clientId === m.senderId && o.providerId === to) return null;
+    }
     const pub = await db.collection('publicProfiles').doc(String(m.senderId)).get();
     const name = (pub.exists && pub.data().name) || 'Nova mensagem';
     const text = m.mediaUrl && !m.text ? '📎 Anexo' : String(m.text || '').slice(0, 80);
@@ -1048,7 +1078,10 @@ exports.onAuthUserDeleted = functions.auth.user().onDelete(async (user) => {
 exports.onServiceOrderCreated = functions.firestore.document('orders/{orderId}').onCreate(async (snap) => {
   const o = snap.data() || {};
   if (o.status !== 'pending' || !o.providerId || o.providerId === o.clientId) return null;
-  await notifySafe(o.providerId, '📋 Nova solicitação de serviço', String(o.title || 'Você recebeu um pedido.').slice(0, 120), 'order', { route: 'providerOrders' });
+  // Texto fixo (o título é do cliente) e limite por cliente: o aviso não
+  // pode virar canal de mensagem livre.
+  try { await enforceRateLimit(String(o.clientId || ''), 'order_notify', 20, 60 * 60 * 1000); } catch (_) { return null; }
+  await notifySafe(o.providerId, '📋 Nova solicitação de serviço', 'Você recebeu um novo pedido. Abra o app para ver os detalhes.', 'order', { route: 'providerOrders' });
   return null;
 });
 
@@ -1077,6 +1110,17 @@ exports.onSupportMessageCreated = functions.firestore
     return null;
   });
 
+/** Dono do chamado abriu a conversa: limpa o aviso de resposta não lida. */
+exports.markTicketRead = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  const ticketId = cleanId(data?.ticketId, 'ticketId');
+  const ref = db.collection('support').doc(ticketId);
+  const t = (await ref.get()).data();
+  if (!t || t.userId !== auth.uid) throw httpsError('permission-denied', 'Chamado não encontrado');
+  if (t.unreadByUser) await ref.update({ unreadByUser: false });
+  return { ok: true };
+});
+
 /**
  * Admin: aprova ou recusa (com motivo) o cadastro de prestador. A recusa
  * tira o perfil da busca; o prestador corrige e pede nova análise.
@@ -1090,13 +1134,25 @@ exports.reviewProvider = functions.region(REGION).https.onCall(async (data, cont
   if (!['approve', 'reject'].includes(decision)) throw httpsError('invalid-argument', 'Decisão inválida');
   if (decision === 'reject' && reason.length < 5) throw httpsError('invalid-argument', 'Informe o motivo da recusa');
   const ref = db.collection('providers').doc(providerId);
-  if (!(await ref.get()).exists) throw httpsError('not-found', 'Prestador não encontrado');
+  const [pSnap, uSnap, adminSnap] = await Promise.all([ref.get(), db.collection('users').doc(providerId).get(), db.collection('users').doc(auth.uid).get()]);
+  if (!pSnap.exists) throw httpsError('not-found', 'Prestador não encontrado');
+  const prov = pSnap.data();
+  // Conta apagada ou suspensa não volta para a busca por uma aprovação da fila.
+  if (decision === 'approve' && (prov.deletedAt || (uSnap.exists && uSnap.data().status === 'suspended'))) {
+    throw httpsError('failed-precondition', 'Conta apagada ou suspensa: reative a conta antes de aprovar.');
+  }
+  // Mesma decisão de novo (clique duplo): sem nova notificação.
+  if ((decision === 'approve' && prov.verified === true && prov.verificationStatus === 'approved') ||
+      (decision === 'reject' && prov.verificationStatus === 'rejected' && prov.rejectionReason === reason)) {
+    return { ok: true, status: prov.verificationStatus, unchanged: true };
+  }
+  const adminName = String((adminSnap.exists && (adminSnap.data().name || adminSnap.data().email)) || auth.token?.email || auth.uid).slice(0, 80);
   const upd = decision === 'approve'
     ? { verified: true, active: true, verificationStatus: 'approved', reviewReason: FieldValue.delete(), rejectionReason: FieldValue.delete(), reviewedAt: FieldValue.serverTimestamp(), reviewedBy: auth.uid }
     : { verified: false, active: false, verificationStatus: 'rejected', rejectionReason: reason, reviewedAt: FieldValue.serverTimestamp(), reviewedBy: auth.uid };
   await ref.update(upd);
   await db.collection('auditLogs').add({
-    adminId: auth.uid, adminName: 'Admin', action: decision === 'approve' ? 'Aprovou prestador' : 'Recusou prestador',
+    adminId: auth.uid, adminName, action: decision === 'approve' ? 'Aprovou prestador' : 'Recusou prestador',
     target: providerId, details: decision === 'reject' ? { reason } : {}, timestamp: FieldValue.serverTimestamp(),
   });
   await notifySafe(providerId, decision === 'approve' ? '✅ Cadastro aprovado' : 'Cadastro não aprovado',
@@ -1112,7 +1168,12 @@ exports.requestProviderReview = functions.region(REGION).https.onCall(async (dat
   const p = await ref.get();
   if (!p.exists) throw httpsError('not-found', 'Perfil de prestador não encontrado');
   if (p.data().verified === true) return { ok: true, status: 'approved' };
+  // Só quem foi recusado pede reanálise (os demais já estão na fila).
+  if (p.data().verificationStatus !== 'rejected') return { ok: true, status: p.data().verificationStatus || 'pending' };
   await ref.update({ verificationStatus: 'pending_review', reviewRequestedAt: FieldValue.serverTimestamp() });
+  await db.collection('auditLogs').add({
+    adminId: null, adminName: 'Prestador', action: 'Pediu nova análise', target: auth.uid, details: {}, timestamp: FieldValue.serverTimestamp(),
+  });
   return { ok: true, status: 'pending_review' };
 });
 
@@ -1183,11 +1244,19 @@ delete schedule.__internals;
 exports.adminRunMaintenance = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
   if (!(await isAdmin(auth))) throw httpsError('permission-denied', 'Somente admin');
-  const names = Array.isArray(data?.jobs) && data.jobs.length ? data.jobs.map(String) : Object.keys(jobs);
+  // As tarefas liberam repasses e cancelam cobranças: mesmo perfil do financeiro.
+  const role = ((await db.collection('users').doc(auth.uid).get()).data() || {}).adminRole;
+  if (role && !['master', 'financial'].includes(role) && auth.token.admin !== true) {
+    throw httpsError('permission-denied', 'Perfil sem acesso financeiro');
+  }
+  const asked = Array.isArray(data?.jobs) && data.jobs.length ? data.jobs.map(String) : Object.keys(jobs);
+  const names = [...new Set(asked)].slice(0, 10);
+  const unknown = names.find((n) => !Object.hasOwn(jobs, n));
+  if (unknown) throw httpsError('invalid-argument', `Tarefa desconhecida: ${unknown.slice(0, 40)}`);
   const out = {};
   for (const n of names) {
-    if (!jobs[n]) throw httpsError('invalid-argument', `Tarefa desconhecida: ${n}`);
-    out[n] = await jobs[n]();
+    // Uma tarefa com erro não impede as outras.
+    try { out[n] = await jobs[n](); } catch (e) { console.error('adminRunMaintenance', n, e); out[n] = { error: String(e.message || e).slice(0, 200) }; }
   }
   return out;
 });

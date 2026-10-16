@@ -104,6 +104,9 @@ Future<void> main() async {
 
 RouteSettings? _routeSettings;
 
+/// Rota do topo para o modo manutenção (único para o app inteiro).
+final _maintenanceRoutes = MaintenanceRouteObserver();
+
 class ServicoConectaApp extends StatelessWidget {
   final bool firebaseOk;
   const ServicoConectaApp({super.key, this.firebaseOk = false});
@@ -119,20 +122,25 @@ class ServicoConectaApp extends StatelessWidget {
           darkTheme: AppTheme.dark,
           themeMode: themeMode,
           // Faixa de ambiente fora de produção (evita confundir dados).
-          // Aviso de conexão em todas as telas.
-          builder: (context, child) => AppEnv.isProd
-              ? OfflineBanner(child: child!)
-              : Banner(
-                  message: AppEnv.isHml ? 'HML' : 'DEV',
-                  location: BannerLocation.topEnd,
-                  color: AppEnv.isHml ? Colors.deepOrange : Colors.purple,
-                  child: OfflineBanner(child: child!)),
-          navigatorObservers: firebaseOk
-              ? [
-                  FirebaseAnalyticsObserver(
-                      analytics: FirebaseAnalytics.instance)
-                ]
-              : const <NavigatorObserver>[],
+          // Aviso de conexão em todas as telas. Modo manutenção cobre todas
+          // as rotas, exceto abertura/login/cadastro.
+          builder: (context, child) {
+            final app = OfflineBanner(
+                child: MaintenanceGate(
+                    exempt: _maintenanceRoutes.exempt, child: child!));
+            return AppEnv.isProd
+                ? app
+                : Banner(
+                    message: AppEnv.isHml ? 'HML' : 'DEV',
+                    location: BannerLocation.topEnd,
+                    color: AppEnv.isHml ? Colors.deepOrange : Colors.purple,
+                    child: app);
+          },
+          navigatorObservers: [
+            _maintenanceRoutes,
+            if (firebaseOk)
+              FirebaseAnalyticsObserver(analytics: FirebaseAnalytics.instance),
+          ],
           initialRoute: Routes.splash,
           onGenerateRoute: (settings) {
             // Nome/argumentos ficam na rota (retomada após login e sessão expirada).
@@ -147,8 +155,8 @@ class ServicoConectaApp extends StatelessWidget {
               case Routes.register:
                 return _route(const RegisterScreen());
               case Routes.main:
-                // Modo manutenção: bloqueia o app (exceto admin); login fica livre.
-                return _route(const MaintenanceGate(child: MainNav()));
+                // Modo manutenção: aplicado no builder (todas as rotas).
+                return _route(const MainNav());
               case Routes.search:
                 final sa = settings.arguments as Map<String, dynamic>?;
                 // 'category' mantido por compatibilidade (IDs antigos).
@@ -282,7 +290,7 @@ class ServicoConectaApp extends StatelessWidget {
                 return _route(const ChatInboxScreen());
               default:
                 // Rota desconhecida: volta ao app principal (evita splash “presa”).
-                return _route(const MaintenanceGate(child: MainNav()));
+                return _route(const MainNav());
             }
           },
         ),

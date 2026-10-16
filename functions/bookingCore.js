@@ -40,10 +40,15 @@ function activeHolds(map, nowMs) {
   return out;
 }
 
-/** A reserva ocupa o horário agora? */
+/**
+ * A reserva ocupa o horário agora? Paga dentro do prazo ocupa até ser
+ * confirmada; paga DEPOIS do prazo não tira o horário de quem ainda está
+ * dentro da própria retenção (a confirmação dela confere conflito).
+ */
 function holdBlocks(b, nowMs) {
   if (!b || b.status !== 'pending_payment') return false;
-  return b.paymentStatus === 'approved' || Number(b.holdUntilMs) > nowMs;
+  if (Number(b.holdUntilMs) > nowMs) return true;
+  return b.paymentStatus === 'approved' && !(Number(b.paidAtMs) > Number(b.holdUntilMs));
 }
 
 /** Pode expirar (prazo vencido e sem pagamento aprovado)? */

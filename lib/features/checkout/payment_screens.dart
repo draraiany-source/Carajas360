@@ -26,11 +26,39 @@ abstract final class FakeCardTokens {
   };
 }
 
+/// Prazo da reserva já passou? (o servidor continua sendo a referência).
+bool holdDeadlinePassed(int? deadlineMs, [DateTime? now]) =>
+    deadlineMs != null &&
+    (now ?? DateTime.now()).millisecondsSinceEpoch >= deadlineMs;
+
+const _holdExpiredMsg = 'O prazo para pagar terminou.';
+const _genericErrorMsg =
+    'Não foi possível concluir. Verifique a conexão e tente de novo.';
+
+// Reservas com pagamento em andamento (evita cobrança dupla por toque duplo).
+final _paying = <String>{};
+
 /// Pagamento de reserva retida (Saúde / Locação): escolhe a forma de
 /// pagamento e abre a cobrança. O horário só fica garantido até
 /// [holdUntilMs]; quem confirma a reserva é o servidor, após o banco.
 Future<bool> payReservation(BuildContext context, PayTarget target,
     {int? holdUntilMs}) async {
+  final key = '${target.kind}:${target.id}';
+  if (_paying.contains(key)) return false;
+  if (holdDeadlinePassed(holdUntilMs)) {
+    snack(context, _holdExpiredMsg, bg: AppColors.error);
+    return false;
+  }
+  _paying.add(key);
+  try {
+    return await _payReservation(context, target, holdUntilMs);
+  } finally {
+    _paying.remove(key);
+  }
+}
+
+Future<bool> _payReservation(
+    BuildContext context, PayTarget target, int? holdUntilMs) async {
   final method = await showModalBottomSheet<String>(
       context: context,
       builder: (c) => SafeArea(
@@ -60,8 +88,24 @@ Future<bool> payReservation(BuildContext context, PayTarget target,
           ));
   if (method == null || !context.mounted) return false;
   if (method == 'wallet') {
+    if (holdDeadlinePassed(holdUntilMs)) {
+      snack(context, _holdExpiredMsg, bg: AppColors.error);
+      return false;
+    }
+    // Indicador bloqueante enquanto a carteira é debitada.
+    final nav = Navigator.of(context, rootNavigator: true);
+    var busy = true;
+    unawaited(showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        useRootNavigator: true,
+        builder: (_) => const PopScope(
+            canPop: false,
+            child: Center(child: CircularProgressIndicator()))).whenComplete(() => busy = false));
     try {
       final a = await PaymentsApi.start(target: target, method: 'wallet', requestId: newRequestId());
+      if (busy) nav.pop();
+      busy = false;
       if (!context.mounted) return false;
       if (a != null && a.approved) {
         snack(context, '✅ Pagamento confirmado', bg: AppColors.secondary);
@@ -69,7 +113,13 @@ Future<bool> payReservation(BuildContext context, PayTarget target,
       }
       snack(context, a?.statusDetail ?? 'Pagamento com carteira não concluído', bg: AppColors.error);
     } on CloudCallException catch (e) {
+      if (busy) nav.pop();
+      busy = false;
       if (context.mounted) snack(context, e.message, bg: AppColors.error);
+    } catch (_) {
+      if (busy) nav.pop();
+      busy = false;
+      if (context.mounted) snack(context, _genericErrorMsg, bg: AppColors.error);
     }
     return false;
   }
@@ -119,12 +169,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   bool get _isPix => widget.method == 'pix';
 
+  /// Reserva com prazo vencido: não inicia nova cobrança.
+  bool get _deadlinePassed => holdDeadlinePassed(widget.deadlineMs);
+  bool _shownDeadlinePassed = false;
+
   @override
   void initState() {
     super.initState();
+    _shownDeadlinePassed = _deadlinePassed;
     if (_isPix) _start();
     _tick = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted && _attempt?.pixExpiresAt != null) setState(() {});
+      if (!mounted) return;
+      if (_attempt?.pixExpiresAt != null ||
+          _deadlinePassed != _shownDeadlinePassed) {
+        setState(() => _shownDeadlinePassed = _deadlinePassed);
+      }
     });
   }
 
@@ -163,6 +222,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   Future<void> _start({Map<String, dynamic>? card}) async {
     if (_starting) return;
+    if (_deadlinePassed) {
+      setState(() => _shownDeadlinePassed = true);
+      return;
+    }
     setState(() {
       _starting = true;
       _error = null;
@@ -213,6 +276,10 @@ class _PaymentScreenState extends State<PaymentScreen> {
   }
 
   Future<void> _payCard() async {
+    if (_deadlinePassed) {
+      setState(() => _shownDeadlinePassed = true);
+      return;
+    }
     if (!FakeCardTokens.enabled && !_form.currentState!.validate()) return;
     setState(() => _error = null);
     String? token;
@@ -249,6 +316,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
   @override
   Widget build(BuildContext context) {
     final a = _attempt;
+    // Prazo vencido sem cobrança em andamento: não deixa iniciar outra.
+    final blocked = _deadlinePassed && (a == null || a.failed);
     return Scaffold(
       appBar: AppBar(
           title: Text(_isPix ? '⚡ Pagamento Pix' : '💳 Pagamento com cartão'),
@@ -259,8 +328,13 @@ class _PaymentScreenState extends State<PaymentScreen> {
         child: Column(children: [
           _summary(a),
           const SizedBox(height: 16),
-          if (_error != null) _errorBox(_error!),
-          if (a == null && _isPix && _starting)
+          if (_error != null && !blocked) _errorBox(_error!),
+          if (blocked) ...[
+            _errorBox(_holdExpiredMsg, key: const Key('payment-deadline-passed')),
+            TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Voltar')),
+          ] else if (a == null && _isPix && _starting)
             const Padding(
                 padding: EdgeInsets.all(40),
                 child: CircularProgressIndicator(color: AppColors.pix))
@@ -301,7 +375,8 @@ class _PaymentScreenState extends State<PaymentScreen> {
         ],
       ]));
 
-  Widget _errorBox(String msg) => Container(
+  Widget _errorBox(String msg, {Key? key}) => Container(
+      key: key,
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -384,7 +459,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
 
   Widget _pix(PaymentAttempt a) {
     final exp = a.pixExpiresAt;
-    final left = exp == null ? null : exp.difference(DateTime.now());
+    final left = exp?.difference(DateTime.now());
     final code = a.pixCode;
     return Container(
         decoration: AppDecorations.card(r: 20),
