@@ -111,6 +111,12 @@ android {
             }
             minifyEnabled true
             shrinkResources true
+            // CI de validação (sem Firebase real) desliga o upload do mapping
+            // do Crashlytics: ORG_GRADLE_PROJECT_carajasSkipCrashlyticsUpload=true.
+            // Builds locais/reais mantêm o upload padrão.
+            firebaseCrashlytics {
+                mappingFileUploadEnabled = !project.hasProperty('carajasSkipCrashlyticsUpload')
+            }
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
     }
