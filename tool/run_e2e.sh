@@ -7,7 +7,7 @@
 # Requer: flutter, firebase-tools, Playwright (PLAYWRIGHT_MODULE) e Chromium (CHROMIUM_PATH).
 set -u
 OUT=${1:?dir de saída}; SDK=${2:?dir do firebase js sdk}; shift 2
-SUITES=${*:-catalog checkout resolve schedule phase6}
+SUITES=${*:-catalog checkout resolve schedule phase6 hml app}
 ROOT=$(cd "$(dirname "$0")/.." && pwd); cd "$ROOT"
 FLUTTER=${FLUTTER:-flutter}
 mkdir -p "$OUT"
@@ -15,7 +15,7 @@ mkdir -p "$OUT"
 defines() {
   # checkout e resolve pagam com o gateway falso do emulador.
   case $1 in
-    checkout|resolve) echo "--dart-define=APP_ENV=dev --dart-define=PAYMENTS_FAKE_TOKENS=true" ;;
+    checkout|resolve|schedule) echo "--dart-define=APP_ENV=dev --dart-define=PAYMENTS_FAKE_TOKENS=true" ;;
     *) echo "--dart-define=APP_ENV=dev" ;;
   esac
 }
@@ -24,8 +24,10 @@ summary="$OUT/resumo.txt"; : > "$summary"; failed=0
 for s in $SUITES; do
   web="$OUT/web_$s"; ev="$OUT/evidencias_$s"; mkdir -p "$ev"
   # shellcheck disable=SC2046
+  # "app" = o aplicativo real (lib/main.dart) em dev/emulador.
+  target="test_driver/e2e_${s}_main.dart"; [ "$s" = app ] && target="lib/main.dart"
   if ! $FLUTTER build web --profile --no-web-resources-cdn $(defines "$s") \
-      -t "test_driver/e2e_${s}_main.dart" --output="$web" > "$OUT/build_$s.log" 2>&1; then
+      -t "$target" --output="$web" > "$OUT/build_$s.log" 2>&1; then
     echo "$s: BUILD FALHOU (ver build_$s.log)" | tee -a "$summary"; failed=1; continue
   fi
   firebase emulators:exec --project demo-carajas360 --only auth,firestore,storage,functions \

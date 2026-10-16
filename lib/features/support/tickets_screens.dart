@@ -250,6 +250,7 @@ class _TicketDetailScreenState extends State<TicketDetailScreen> {
                     const SizedBox(width: 8),
                     IconButton.filled(
                         key: const Key('ticket-send'),
+                        tooltip: 'Enviar',
                         onPressed: _sending ? null : _send,
                         icon: _sending
                             ? const SizedBox(

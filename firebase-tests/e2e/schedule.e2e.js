@@ -104,8 +104,17 @@ async function typeInto(page, label, text) {
   check('sem_consentimento_nao_agenda', (await db.collection('appointments').where('clientId', '==', pat.uid).get()).empty);
   await click(p, 'Autorizo o uso');
   await click(p, 'Confirmar agendamento', { wait: 5000 });
+  // B15: o horário fica retido e o pagamento abre em seguida.
+  check('retencao_com_prazo', await waitText(p, 'Pague até'));
+  await shot(p, '1b_saude_pagar_ate');
+  await click(p, 'Cartão de crédito', { wait: 4000 });
+  await click(p, 'Pagar R$', { wait: 5000 });
+  check('pagamento_reserva_aprovado', await waitText(p, 'Pagamento confirmado pelo banco'));
   const aps = (await db.collection('appointments').where('clientId', '==', pat.uid).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
   check('consulta_com_profissional_e_data', aps.length === 1 && aps[0].providerId === doc.uid && aps[0].date === tomorrow && hc.localHmOf(aps[0].startMs) === '09:00' && aps[0].consent.version === '2026-10', JSON.stringify(aps.map((a) => [a.date, a.startMs])));
+  let ok = false;
+  for (let i = 0; i < 30 && !ok; i++) { ok = (await db.doc(`appointments/${aps[0].id}`).get()).data().status === 'scheduled'; if (!ok) await sleep(500); }
+  check('consulta_confirmada_apos_pagamento', ok);
   await p.close();
 
   // ── Saúde: reagendar pela lista ──
@@ -128,8 +137,17 @@ async function typeInto(page, label, text) {
   check('cotacao_do_servidor', await waitText(r, 'valor calculado pelo servidor'));
   await shot(r, '4_locacao_reserva');
   await click(r, 'Solicitar reserva', { wait: 5000 });
-  const bks = (await db.collection('bookings').where('clientId', '==', ren.uid).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
-  check('reserva_criada_pelo_servidor', bks.length === 1 && bks[0].totalCents === 35000 && bks[0].status === 'pending', JSON.stringify(bks.map((x) => [x.totalCents, x.status])));
+  check('locacao_retida_com_prazo', await waitText(r, 'Pague até'));
+  await click(r, 'Cartão de crédito', { wait: 4000 });
+  await click(r, 'Pagar R$', { wait: 5000 });
+  check('locacao_paga', await waitText(r, 'Pagamento confirmado pelo banco'));
+  let bks = [];
+  for (let i = 0; i < 30; i++) {
+    bks = (await db.collection('bookings').where('clientId', '==', ren.uid).get()).docs.map((d) => ({ id: d.id, ...d.data() }));
+    if (bks[0] && bks[0].status === 'pending') break;
+    await sleep(500);
+  }
+  check('reserva_criada_pelo_servidor', bks.length === 1 && bks[0].totalCents === 35000 && bks[0].status === 'pending' && bks[0].paymentStatus === 'approved', JSON.stringify(bks.map((x) => [x.totalCents, x.status, x.paymentStatus])));
   await r.close();
   const o = await open(`email=${encodeURIComponent(ownE)}&pass=Senha123!&screen=bookings`);
   await click(o, 'Recebi');
