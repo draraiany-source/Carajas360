@@ -130,10 +130,10 @@ Nada desta entrega está validado em **HML** nem em **DISP**: o projeto de homol
 
 | Suíte | Resultado | Onde |
 |---|---|---|
-| Regras + functions (emulador) | **152/152** em suíte completa limpa (16/10, depois da correção do teste intermitente em `ab41baa`) | EMU |
+| Regras + functions (emulador) | **164/164** depois da auditoria 2 (`docs/auditoria/AUDITORIA_2.md`) | EMU |
 | Unitários das functions | 65/65 | local |
-| Flutter (`flutter test`) | 124 + 1 pulado; `flutter analyze` sem erros | local |
-| E2E web (7 fluxos, Playwright) | 91/91: schedule 16, hml 10, app 3, catalog 16, checkout 17, resolve 13, phase6 16 | EMU |
+| Flutter (`flutter test`) | 140/140; `flutter analyze` sem erros | local |
+| E2E web (7 fluxos, Playwright) | 91/91 depois da auditoria 2: schedule 16, hml 10, app 3, catalog 16, checkout 17, resolve 13, phase6 16 | EMU |
 | Índices × consultas | 46 consultas compostas, 0 faltando | estático |
 | Hosting (`firebase.json`) | Emulador do Hosting: rewrite de SPA e cabeçalhos `nosniff`, `SAMEORIGIN` e `no-cache` em `/`, numa rota profunda e no JS | EMU |
 | Build iOS (`--no-codesign`, macOS) | ✅ run 5 (`086f708`) | CI |

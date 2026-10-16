@@ -81,7 +81,7 @@ Cada achado foi conferido no código antes da correção. As regressões ganhara
 | Regras + functions (emulador) | **164/164** (eram 152; +12 de regressão: `rules/homologacao.rules.test.js` e `functions/homologacao_auditoria2.test.js`) | EMU |
 | Unitários das functions | 65/65 | local |
 | Flutter (`flutter test`) | **140/140** (eram 124 + 1 pulado; +15 em `test/audit_round2_test.dart`; o teste que depende do emulador de Auth também rodou, porque o emulador estava ativo); `flutter analyze` sem erros (147 avisos informativos, eram 150) | local |
-| E2E web (7 fluxos) | ver `REGISTRO_PENDENCIAS.md` §2 | EMU |
+| E2E web (7 fluxos, app real incluído) | **91/91**: catalog 16, checkout 17, resolve 13, schedule 16, phase6 16, hml 10, app 3 | EMU |
 | Índices × consultas | 46 consultas compostas, 0 faltando | estático |
 
 **Mudanças de comportamento intencionais, com testes antigos ajustados:**
