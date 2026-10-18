@@ -4,7 +4,6 @@ abstract class AppInfo {
   static const version = '1.0.0';
   /// Nome legado do núcleo de serviços (módulo Serviços).
   static const servicesModuleName = 'Serviços';
-  static const servicesModuleLegacy = 'Serviço Conecta';
 }
 
 abstract class AppConst {

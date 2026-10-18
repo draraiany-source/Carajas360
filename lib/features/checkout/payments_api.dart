@@ -207,10 +207,11 @@ class PaymentAttempt {
       const ['rejected', 'cancelled', 'expired', 'failed'].contains(status);
 }
 
-/// Horário-limite de uma reserva aguardando pagamento ("HH:MM", hora do
-/// aparelho).
+/// Horário-limite de uma reserva aguardando pagamento ("HH:MM").
+/// Prazo da reserva no fuso da região (Belém/Brasília, UTC−3, sem horário
+/// de verão), o mesmo da agenda; o fuso do aparelho não muda o texto.
 String holdTimeLabel(int ms) {
-  final d = DateTime.fromMillisecondsSinceEpoch(ms);
+  final d = DateTime.fromMillisecondsSinceEpoch(ms, isUtc: true).subtract(const Duration(hours: 3));
   return '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
 }
 

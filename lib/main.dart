@@ -2,6 +2,7 @@ import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
@@ -117,6 +118,11 @@ class ServicoConectaApp extends StatelessWidget {
         builder: (context, themeMode, _) => MaterialApp(
           title: AppInfo.name,
           debugShowCheckedModeBanner: false,
+          // Textos padrão do Flutter (voltar, datas, copiar/colar, leitores
+          // de tela) em português do Brasil.
+          locale: const Locale('pt', 'BR'),
+          supportedLocales: const [Locale('pt', 'BR')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
           navigatorKey: rootNavigatorKey,
           theme: AppTheme.light,
           darkTheme: AppTheme.dark,

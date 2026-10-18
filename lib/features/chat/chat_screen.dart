@@ -371,9 +371,9 @@ class _ChatState extends State<ChatScreen> {
   void _requestCall({required bool isVideo}) => showDialog(
       context: context,
       builder: (_) => AlertDialog(
-            title: Text(isVideo ? 'Videochamada' : 'Ligação'),
+            title: Text(isVideo ? 'Pedir videochamada' : 'Pedir ligação'),
             content: Text(
-                'Deseja iniciar uma ${isVideo ? 'videochamada' : 'ligação'} com ${widget.otherName}?'),
+                'Enviar a ${widget.otherName} um pedido de ${isVideo ? 'videochamada' : 'ligação'} nesta conversa? A chamada em si é combinada entre vocês.'),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(context),
@@ -389,10 +389,10 @@ class _ChatState extends State<ChatScreen> {
                             : '📞 Solicitou uma ligação');
                     if (mounted)
                       snack(context,
-                          '${isVideo ? 'Videochamada' : 'Ligação'} solicitada. Aguardando resposta...',
+                          'Pedido de ${isVideo ? 'videochamada' : 'ligação'} enviado na conversa.',
                           bg: AppColors.primary);
                   },
-                  child: const Text('Chamar')),
+                  child: const Text('Enviar pedido')),
             ],
           ));
 
@@ -506,27 +506,16 @@ class _ChatState extends State<ChatScreen> {
                       bg: widget.avatarColor,
                       r: 11),
                   const SizedBox(width: 10),
-                  Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(widget.otherName,
-                            style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.textDark)),
-                        Row(children: [
-                          Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                  color: AppColors.success,
-                                  shape: BoxShape.circle)),
-                          const SizedBox(width: 4),
-                          const Text('Online agora',
-                              style: TextStyle(
-                                  fontSize: 11, color: AppColors.textLight))
-                        ]),
-                      ]),
+                  // Nome longo não invade os ícones; sem status "online"
+                  // inventado (não há presença em tempo real).
+                  Expanded(
+                      child: Text(widget.otherName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.textDark))),
                 ]),
           actions: [
             if (_searching)
@@ -542,21 +531,34 @@ class _ChatState extends State<ChatScreen> {
                   icon: const Icon(Icons.search_rounded,
                       color: AppColors.textDark),
                   onPressed: () => setState(() => _searching = true)),
-              IconButton(
-                  icon:
-                      const Icon(Icons.phone_rounded, color: AppColors.primary),
-                  onPressed: () => _requestCall(isVideo: false)),
-              IconButton(
-                  icon: const Icon(Icons.videocam_rounded,
-                      color: AppColors.primary),
-                  onPressed: () => _requestCall(isVideo: true)),
+              // Não há chamada pelo app: o pedido vai como mensagem na
+              // conversa (o texto do menu diz isso).
               PopupMenuButton<String>(
                 icon: const Icon(Icons.more_vert_rounded,
                     color: AppColors.textDark),
+                tooltip: 'Mais opções',
                 onSelected: (v) {
                   if (v == 'report') _reportUser(context);
+                  if (v == 'call') _requestCall(isVideo: false);
+                  if (v == 'video') _requestCall(isVideo: true);
                 },
                 itemBuilder: (_) => [
+                  const PopupMenuItem(
+                      value: 'call',
+                      child: Row(children: [
+                        Icon(Icons.phone_rounded,
+                            size: 18, color: AppColors.primary),
+                        SizedBox(width: 10),
+                        Text('Pedir ligação (por mensagem)')
+                      ])),
+                  const PopupMenuItem(
+                      value: 'video',
+                      child: Row(children: [
+                        Icon(Icons.videocam_rounded,
+                            size: 18, color: AppColors.primary),
+                        SizedBox(width: 10),
+                        Text('Pedir videochamada (por mensagem)')
+                      ])),
                   const PopupMenuItem(
                       value: 'report',
                       child: Row(children: [

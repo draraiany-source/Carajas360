@@ -80,8 +80,8 @@ void main() {
       expect(appointmentStatusText(free, now: now), contains('Agendada'));
     });
 
-    test('horário-limite em HH:MM', () {
-      final ms = DateTime(2026, 10, 16, 9, 5).millisecondsSinceEpoch;
+    test('horário-limite em HH:MM no fuso de Belém, qualquer que seja o do aparelho', () {
+      final ms = DateTime.utc(2026, 10, 16, 12, 5).millisecondsSinceEpoch;
       expect(holdTimeLabel(ms), '09:05');
     });
   });
