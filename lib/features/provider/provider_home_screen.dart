@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -15,6 +16,9 @@ import '../../core/catalog/catalog_service.dart';
 import '../../core/catalog/catalog_widgets.dart';
 import 'provider_services_screen.dart';
 import 'provider_attendance_screen.dart';
+import 'money_parse.dart';
+import '../resolve/resolve_contact.dart';
+export 'money_parse.dart';
 import '../health/health_schedule_editor.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -32,7 +36,8 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
   StreamSubscription<List<OrderModel>>? _newOrdersSub;
-  int _lastPendingCount = -1; // -1 = primeira carga (não alertar)
+  // null = primeira carga (não alertar). Compara ids, não a contagem.
+  Set<String>? _lastPendingIds;
 
   @override
   void initState() {
@@ -42,13 +47,15 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
     _newOrdersSub = FS.providerOrdersStream(
         statuses: const [OrderStatus.pending]).listen((orders) {
       if (!mounted) return;
-      if (_lastPendingCount >= 0 && orders.length > _lastPendingCount) {
+      final ids = {for (final o in orders) o.id};
+      final prev = _lastPendingIds;
+      if (prev != null && ids.any((id) => !prev.contains(id))) {
         HapticFeedback.heavyImpact();
         SystemSound.play(SystemSoundType.alert);
         snack(context, '🔔 Novo pedido recebido!', bg: AppColors.secondary);
         _tab.animateTo(0);
       }
-      _lastPendingCount = orders.length;
+      _lastPendingIds = ids;
     }, onError: (_) {});
   }
 
@@ -108,7 +115,10 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                                     color: Colors.white,
                                     fontWeight: FontWeight.w900,
                                     fontSize: 20)),
-                            GestureDetector(
+                            Semantics(
+                                button: true,
+                                label: 'Fechar',
+                                child: GestureDetector(
                                 onTap: () => Navigator.pop(context),
                                 child: Container(
                                     width: 38,
@@ -118,7 +128,7 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                                         borderRadius:
                                             BorderRadius.circular(11)),
                                     child: const Icon(Icons.close_rounded,
-                                        color: Colors.white, size: 20))),
+                                        color: Colors.white, size: 20)))),
                           ]),
                       const SizedBox(height: 12),
                       // ── Estilo Uber/iFood: ficar online/offline. Offline sai da
@@ -399,26 +409,37 @@ class _OrderList extends StatelessWidget {
                               color: AppColors.textMedium,
                               height: 1.4)),
                       const SizedBox(height: 6),
-                      Row(children: [
-                        const Icon(Icons.location_on_outlined,
-                            size: 14, color: AppColors.textLight),
-                        const SizedBox(width: 4),
-                        Expanded(
-                            child: Text(o.address,
-                                style: const TextStyle(
-                                    fontSize: 12, color: AppColors.textLight),
-                                overflow: TextOverflow.ellipsis))
-                      ]),
+                      // Resolve: endereço/telefone ficam no doc privado da solicitação.
+                      if (o.source == 'resolve')
+                        ResolveClientContact(orderId: o.id)
+                      else
+                        Row(children: [
+                          const Icon(Icons.location_on_outlined,
+                              size: 14, color: AppColors.textLight),
+                          const SizedBox(width: 4),
+                          Expanded(
+                              child: Text(o.address,
+                                  style: const TextStyle(
+                                      fontSize: 12, color: AppColors.textLight),
+                                  overflow: TextOverflow.ellipsis))
+                        ]),
                       if (o.status == OrderStatus.accepted ||
                           o.status == OrderStatus.inProgress) ...[
                         const SizedBox(height: 6),
-                        AppTag(o.statusLabel,
-                            bg: o.status == OrderStatus.inProgress
-                                ? const Color(0xFFE1F5FE)
-                                : const Color(0xFFE3F0FF),
-                            fg: o.status == OrderStatus.inProgress
-                                ? AppColors.info
-                                : AppColors.primary),
+                        Wrap(spacing: 6, runSpacing: 4, children: [
+                          AppTag(o.statusLabel,
+                              bg: o.status == OrderStatus.inProgress
+                                  ? const Color(0xFFE1F5FE)
+                                  : const Color(0xFFE3F0FF),
+                              fg: o.status == OrderStatus.inProgress
+                                  ? AppColors.info
+                                  : AppColors.primary),
+                          _PaymentTag(order: o),
+                        ]),
+                      ],
+                      if (o.status == OrderStatus.pending) ...[
+                        const SizedBox(height: 6),
+                        _PaymentTag(order: o),
                       ],
                       const SizedBox(height: 12),
                       if (o.status == OrderStatus.pending)
@@ -428,6 +449,25 @@ class _OrderList extends StatelessWidget {
                             width: double.infinity,
                             child: ElevatedButton.icon(
                               onPressed: () async {
+                                // Sem pagamento confirmado: confirma antes de iniciar.
+                                if (!o.isPaid) {
+                                  final go = await showDialog<bool>(
+                                      context: context,
+                                      builder: (c) => AlertDialog(
+                                            title: const Text('Pagamento ainda não confirmado'),
+                                            content: const Text(
+                                                'O cliente ainda não pagou este pedido. Deseja iniciar o atendimento mesmo assim?'),
+                                            actions: [
+                                              TextButton(
+                                                  onPressed: () => Navigator.pop(c, false),
+                                                  child: const Text('Voltar')),
+                                              ElevatedButton(
+                                                  onPressed: () => Navigator.pop(c, true),
+                                                  child: const Text('Iniciar mesmo assim')),
+                                            ],
+                                          ));
+                                  if (go != true) return;
+                                }
                                 try {
                                   await FS.startOrder(o.id);
                                   if (context.mounted) {
@@ -512,9 +552,8 @@ class _OrderList extends StatelessWidget {
 // PROVIDER ONBOARDING SCREEN (Vol.3: Cadastro de Profissionais —
 // foto, documento, selfie, certificados, áreas atendidas).
 // Aberta logo após o cadastro básico, quando o tipo é provider.
-// Todos os arquivos são opcionais aqui para não travar o fluxo,
-// mas o admin só aprova (FS.reviewProvider) quem enviou os
-// documentos — a UI deixa isso claro para o prestador.
+// "Enviar para aprovação" exige documento e selfie (o admin só
+// aprova quem enviou); "Completar depois" segue sem enviar nada.
 // ─────────────────────────────────────────────────────────────
 class ProviderOnboardingScreen extends StatefulWidget {
   const ProviderOnboardingScreen({super.key});
@@ -548,7 +587,14 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
     }
   }
 
+  bool get _canSubmit => _documentBytes != null && _selfieBytes != null;
+
   Future<void> _submit() async {
+    if (!_canSubmit) {
+      snack(context, 'Envie o documento de identidade e a selfie de validação.',
+          bg: AppColors.error);
+      return;
+    }
     setState(() => _loading = true);
     try {
       // Foto: URL pública. Documento e selfie: caminho privado no Storage.
@@ -728,10 +774,20 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
                                         'Ex: Centro, Zona Sul, Vila Mariana')),
                           ])),
                   const SizedBox(height: 24),
+                  if (!_canSubmit)
+                    const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                            'Para enviar, adicione o documento de identidade e a selfie de validação.',
+                            key: Key('onboarding-missing-docs'),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                fontSize: 12, color: AppColors.textLight))),
                   SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                        onPressed: _loading ? null : _submit,
+                        key: const Key('onboarding-submit'),
+                        onPressed: _loading || !_canSubmit ? null : _submit,
                         style: ElevatedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
@@ -785,7 +841,9 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
       );
 }
 
-// ── Ações do pedido pendente com timer de expiração (estilo iFood) ──
+// ── Ações do pedido pendente (estilo iFood) ──
+// O servidor ainda não expira pedidos: o tempo é só informativo e
+// "Aceitar"/"Recusar" seguem habilitados.
 class _PendingActions extends StatefulWidget {
   final OrderModel order;
   const _PendingActions({required this.order});
@@ -795,13 +853,13 @@ class _PendingActions extends StatefulWidget {
 }
 
 class _PendingActionsState extends State<_PendingActions> {
-  static const _window = Duration(minutes: 15);
   Timer? _tick;
+  bool _busy = false;
 
   @override
   void initState() {
     super.initState();
-    _tick = Timer.periodic(const Duration(seconds: 1), (_) {
+    _tick = Timer.periodic(const Duration(seconds: 30), (_) {
       if (mounted) setState(() {});
     });
   }
@@ -812,93 +870,102 @@ class _PendingActionsState extends State<_PendingActions> {
     super.dispose();
   }
 
-  Duration get _left {
-    final elapsed = DateTime.now().difference(widget.order.createdAt);
-    final left = _window - elapsed;
-    return left.isNegative ? Duration.zero : left;
+  /// Prestador aprovado porém offline: avisa antes de chamar o servidor.
+  Future<bool> _isOfflineApproved() async {
+    final uid = AuthService.uid;
+    if (uid == null) return false;
+    try {
+      final p = await FirebaseFirestore.instance
+          .collection(Col.providers)
+          .doc(uid)
+          .get();
+      final d = p.data();
+      return d != null && d['verified'] == true && d['active'] != true;
+    } catch (_) {
+      return false; // sem leitura: o servidor decide
+    }
+  }
+
+  Future<void> _accept() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      if (await _isOfflineApproved()) {
+        if (mounted) {
+          snack(context, 'Fique online para aceitar pedidos.',
+              bg: AppColors.warning);
+        }
+        return;
+      }
+      if (!mounted) return;
+      // Pedido sem preço: o prestador informa o orçamento.
+      double? price;
+      if ((widget.order.price ?? 0) <= 0) {
+        price = await askQuote(context);
+        if (price == null) return;
+      }
+      await FS.acceptOrder(widget.order.id, price: price);
+      if (mounted) snack(context, '✅ Pedido aceito!', bg: AppColors.secondary);
+    } catch (e) {
+      if (mounted) snack(context, '$e', bg: AppColors.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _decline() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    try {
+      await FS.declineOrder(widget.order.id);
+    } catch (e) {
+      if (mounted) snack(context, '$e', bg: AppColors.error);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final left = _left;
-    final expired = left == Duration.zero;
-    final mm = left.inMinutes.toString().padLeft(2, '0');
-    final ss = (left.inSeconds % 60).toString().padLeft(2, '0');
-    final urgent = left.inMinutes < 3;
+    final mins = DateTime.now().difference(widget.order.createdAt).inMinutes;
+    final urgent = mins >= 10;
     return Column(children: [
-      // Barra de tempo restante para responder
+      // Informativo: há quanto tempo o pedido chegou.
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
         decoration: BoxDecoration(
-          color: expired
-              ? const Color(0xFFF5F5F5)
-              : (urgent ? const Color(0xFFFFEBEE) : const Color(0xFFE3F0FF)),
+          color: urgent ? const Color(0xFFFFEBEE) : const Color(0xFFE3F0FF),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(expired ? Icons.timer_off_outlined : Icons.timer_outlined,
-              size: 15,
-              color: expired
-                  ? AppColors.textLight
-                  : (urgent ? AppColors.error : AppColors.primary)),
+          Icon(Icons.timer_outlined,
+              size: 15, color: urgent ? AppColors.error : AppColors.primary),
           const SizedBox(width: 6),
-          Text(expired ? 'Tempo esgotado' : 'Responda em $mm:$ss',
-              style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w800,
-                  color: expired
-                      ? AppColors.textLight
-                      : (urgent ? AppColors.error : AppColors.primary))),
+          Flexible(
+            child: Text(
+                '${mins < 1 ? 'Recebido agora' : 'Recebido há $mins min'} · responda o quanto antes',
+                key: const Key('pending-info'),
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w800,
+                    color: urgent ? AppColors.error : AppColors.primary)),
+          ),
         ]),
       ),
       const SizedBox(height: 8),
       Row(children: [
         Expanded(
             child: OutlinedButton(
-                onPressed: expired
-                    ? null
-                    : () async {
-                        try {
-                          await FS.declineOrder(widget.order.id);
-                        } catch (e) {
-                          if (context.mounted) {
-                            snack(context, '$e', bg: AppColors.error);
-                          }
-                        }
-                      },
+                onPressed: _busy ? null : _decline,
                 style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    side: BorderSide(
-                        color: expired ? AppColors.border : AppColors.error)),
-                child: Text('Recusar',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color:
-                            expired ? AppColors.textLight : AppColors.error)))),
+                    side: const BorderSide(color: AppColors.error)),
+                child: const Text('Recusar',
+                    style: TextStyle(fontSize: 13, color: AppColors.error)))),
         const SizedBox(width: 8),
         Expanded(
             child: ElevatedButton(
-                onPressed: expired
-                    ? null
-                    : () async {
-                        // Pedido sem preço: o prestador informa o orçamento.
-                        double? price;
-                        if ((widget.order.price ?? 0) <= 0) {
-                          price = await askQuote(context);
-                          if (price == null) return;
-                        }
-                        try {
-                          await FS.acceptOrder(widget.order.id, price: price);
-                          if (context.mounted) {
-                            snack(context, '✅ Pedido aceito!',
-                                bg: AppColors.secondary);
-                          }
-                        } catch (e) {
-                          if (context.mounted) {
-                            snack(context, '$e', bg: AppColors.error);
-                          }
-                        }
-                      },
+                onPressed: _busy ? null : _accept,
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.secondary,
                     padding: const EdgeInsets.symmetric(vertical: 10)),
@@ -908,6 +975,18 @@ class _PendingActionsState extends State<_PendingActions> {
       ]),
     ]);
   }
+}
+
+/// Situação do pagamento do pedido (paymentStatus gravado pelo servidor).
+class _PaymentTag extends StatelessWidget {
+  final OrderModel order;
+  const _PaymentTag({required this.order});
+  @override
+  Widget build(BuildContext context) => order.isPaid
+      ? const AppTag('💳 Pagamento confirmado',
+          bg: Color(0xFFE8F5E9), fg: AppColors.secondary)
+      : const AppTag('⏳ Aguardando pagamento',
+          bg: Color(0xFFFFF8E1), fg: AppColors.warning);
 }
 
 // ── Resumo semanal de ganhos com gráfico de barras (Flutter puro) ──
@@ -1042,14 +1121,6 @@ Future<double?> askQuote(BuildContext context) {
   );
 }
 
-/// "1.234,56" / "1234.5" → valor; null fora de 1..1.000.000.
-double? parseQuote(String raw) {
-  var t = raw.trim();
-  if (t.contains(',')) t = t.replaceAll('.', '').replaceAll(',', '.');
-  final v = double.tryParse(t);
-  if (v == null || v < 1 || v > 1000000) return null;
-  return (v * 100).roundToDouble() / 100;
-}
 
 /// Situação da análise do cadastro: recusado (com motivo e "Pedir nova
 /// análise") ou em análise.

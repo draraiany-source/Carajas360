@@ -88,6 +88,8 @@ class MarketOrder {
   final Map<String, dynamic> address;
   /// Repasse ao vendedor liberado (confirmação do cliente ou 7 dias).
   final bool released;
+  /// Nome do cliente gravado pelo servidor (perfil público mínimo).
+  final String clientName;
 
   const MarketOrder({
     required this.id,
@@ -112,11 +114,13 @@ class MarketOrder {
     this.createdAt,
     this.address = const {},
     this.released = false,
+    this.clientName = '',
   });
 
   factory MarketOrder.fromMap(String id, Map<String, dynamic> m) => MarketOrder(
         id: id,
         clientId: (m['clientId'] ?? '').toString(),
+        clientName: (m['clientName'] ?? '').toString(),
         storeId: (m['storeId'] ?? '').toString(),
         storeName: (m['storeName'] ?? '').toString(),
         status: (m['status'] ?? 'pending_payment').toString(),

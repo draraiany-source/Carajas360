@@ -182,7 +182,10 @@ service cloud.firestore {
     }
 
     match /companies/{companyId} {
-      allow read: if true;
+      // Auditoria 3: empresa ainda não aprovada (com e-mail/telefone) só
+      // para o dono e a equipe; aprovadas são públicas.
+      allow read: if resource.data.get('verified', false) == true ||
+        (isAuth() && (resource.data.get('ownerId', '') == uid() || isAdmin()));
       allow create: if isAuth() &&
         incoming().ownerId == uid() &&
         companyId == uid() &&
@@ -371,6 +374,10 @@ service cloud.firestore {
           incoming().read == false &&
           incoming().createdAt == request.time &&
           incoming().text is string && incoming().text.size() <= 4000 &&
+          // Anexo só do Storage do próprio app, na pasta da conversa.
+          (!('mediaUrl' in incoming()) || incoming().mediaUrl == null || (
+            incoming().mediaUrl is string && incoming().mediaUrl.size() <= 2048 &&
+            incoming().mediaUrl.matches('^https?://[^/]+/(v0/)?b/[^/]+/o/chat_media%2F' + roomId + '%2F.*'))) &&
           // orderId (mensagem automática da solicitação, sem push): só o
           // cliente do próprio pedido.
           (!('orderId' in incoming()) || (

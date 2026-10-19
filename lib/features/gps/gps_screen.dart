@@ -9,14 +9,12 @@ import '../../shared/widgets/widgets.dart';
 
 class _GCtx {
   final String title, icon, origin, dest;
-  final List<String> steps;
   final Color color;
   const _GCtx(
       {required this.title,
       required this.icon,
       required this.origin,
       required this.dest,
-      required this.steps,
       required this.color});
 }
 
@@ -26,28 +24,24 @@ const _ctxMap = {
       icon: '🔧',
       origin: 'Profissional',
       dest: 'Sua localização',
-      steps: ['Confirmado', 'A caminho', 'Chegando', 'Concluído'],
       color: AppColors.primary),
   'saude': _GCtx(
       title: 'Profissional de Saúde',
       icon: '🩺',
       origin: 'Profissional de saúde',
       dest: 'Sua casa',
-      steps: ['Agendado', 'A caminho', 'Chegando', 'Atendendo'],
       color: AppColors.health),
   'mercado': _GCtx(
       title: 'Entrega a caminho',
       icon: '🛵',
       origin: 'Loja',
       dest: 'Seu endereço',
-      steps: ['Preparando', 'Coletado', 'A caminho', 'Entregue'],
       color: AppColors.secondary),
   'aluguel': _GCtx(
       title: 'Rastreamento ativo',
       icon: '📍',
       origin: 'Item retirado',
       dest: 'Sua localização',
-      steps: ['Reservado', 'Retirado', 'Em uso', 'Devolvido'],
       color: AppColors.navy),
 };
 
@@ -65,7 +59,8 @@ class _GpsState extends State<GpsScreen> {
   GoogleMapController? _map;
   StreamSubscription? _gpsSub;
 
-  static const _fallbackOrigin = LatLng(-23.5505, -46.6333);
+  // Sem posição: centraliza na região de Carajás (Parauapebas).
+  static const _fallbackOrigin = LatLng(-6.07, -49.90);
   LatLng? _dest;
   LatLng? _pos;
   bool _locating = true;
@@ -173,7 +168,13 @@ class _GpsState extends State<GpsScreen> {
         SafeArea(
             child: Padding(
                 padding: const EdgeInsets.all(14),
-                child: GestureDetector(
+                child: Semantics(
+                  button: true,
+                  label: 'Voltar',
+                  excludeSemantics: true,
+                  child: Tooltip(
+                  message: 'Voltar',
+                  child: GestureDetector(
                   onTap: () => Navigator.pop(context),
                   child: Container(
                       width: 44,
@@ -189,7 +190,7 @@ class _GpsState extends State<GpsScreen> {
                           ]),
                       child: const Icon(Icons.arrow_back_ios_new_rounded,
                           size: 18, color: AppColors.textDark)),
-                ))),
+                ))))),
         Align(
             alignment: Alignment.bottomCenter,
             child: Container(

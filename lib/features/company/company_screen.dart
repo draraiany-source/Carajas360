@@ -6,7 +6,7 @@ import '../../core/constants/app_constants.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
-import '../wallet/wallet_screen.dart';
+import '../provider/money_parse.dart';
 import '../../core/catalog/catalog_widgets.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -21,6 +21,7 @@ class CompanyProfileScreen extends StatefulWidget {
 
 class _CompanyProfileState extends State<CompanyProfileScreen> {
   final String _ownerId = AuthService.uid ?? '';
+  late Future<CompanyModel?> _future = FS.getCompanyByOwner(_ownerId);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -31,10 +32,17 @@ class _CompanyProfileState extends State<CompanyProfileScreen> {
                 title: 'Não autenticado',
                 subtitle: 'Faça login para gerenciar sua empresa')
             : FutureBuilder<CompanyModel?>(
-                future: FS.getCompanyByOwner(_ownerId),
+                future: _future,
                 builder: (_, snap) {
                   if (snap.connectionState == ConnectionState.waiting)
                     return const Center(child: CircularProgressIndicator());
+                  // Falha na consulta não é "sem empresa": não abre o cadastro.
+                  if (snap.hasError) {
+                    return QueryErrorView(
+                        error: snap.error,
+                        onRetry: () => setState(
+                            () => _future = FS.getCompanyByOwner(_ownerId)));
+                  }
                   final company = snap.data;
                   return company == null
                       ? _RegisterCompanyForm(ownerId: _ownerId)
@@ -140,7 +148,7 @@ class _RegisterCompanyFormState extends State<_RegisterCompanyForm> {
                             fontSize: 18),
                         textAlign: TextAlign.center),
                     SizedBox(height: 4),
-                    Text('Gerencie equipe, categorias e leads em um só lugar',
+                    Text('Gerencie equipe, filiais e contratos em um só lugar',
                         style: TextStyle(color: Colors.white70, fontSize: 12),
                         textAlign: TextAlign.center),
                   ])),
@@ -287,35 +295,40 @@ class _CompanyDashboard extends StatelessWidget {
                                     color: Colors.white,
                                     fontWeight: FontWeight.w700,
                                     fontSize: 13)),
+                            // Assinatura sem cobrança integrada: só "Em breve".
                             if (company.plan == PlanTier.free)
-                              ElevatedButton(
-                                  // Assinatura sem cobrança integrada nesta fase.
-                                  onPressed: () => snack(context,
-                                      'Upgrade de plano ainda não está disponível para contratação no app.',
-                                      bg: AppColors.warning),
-                                  style: ElevatedButton.styleFrom(
-                                      backgroundColor: AppColors.gold,
-                                      foregroundColor: AppColors.textDark,
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 6)),
-                                  child: const Text('Upgrade',
-                                      style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w800))),
+                              const AppTag('Upgrade · Em breve',
+                                  key: Key('company-upgrade-soon'),
+                                  bg: Colors.white24,
+                                  fs: 11),
                           ])),
                 ]))),
         SliverToBoxAdapter(
             child: Padding(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                 child: Row(children: [
-                  StatCard(
-                      value: '${company.teamSize}',
-                      label: 'Equipe',
-                      color: AppColors.primary),
-                  StatCard(
-                      value: '${company.categories.length}',
-                      label: 'Categorias',
-                      color: AppColors.warning),
+                  // Conta a equipe real (atualiza ao voltar da tela de equipe).
+                  Expanded(
+                      child: StreamBuilder<List<EmployeeModel>>(
+                          stream: FS.employeesStream(company.id),
+                          builder: (_, snap) => Row(children: [
+                                StatCard(
+                                    key: const Key('company-team-count'),
+                                    value: snap.hasError
+                                        ? '—'
+                                        : snap.hasData
+                                            ? '${snap.data!.length}'
+                                            : '…',
+                                    label: 'Equipe',
+                                    color: AppColors.primary),
+                              ]))),
+                  Expanded(
+                      child: Row(children: [
+                    StatCard(
+                        value: '${company.categories.length}',
+                        label: 'Categorias',
+                        color: AppColors.warning),
+                  ])),
                 ]))),
         SliverToBoxAdapter(
             child: Padding(
@@ -353,46 +366,42 @@ class _CompanyDashboard extends StatelessWidget {
                       'Minha loja',
                       'Anuncie produtos no marketplace',
                       () => Navigator.pushNamed(context, Routes.store)),
+                  // Edição pelo app ainda não existe: itens marcados "Em breve".
                   _menuCard(
                       '🏷️',
                       'Categorias de atuação',
-                      '${company.categories.length} categorias ativas',
-                      () => snack(context,
-                          'Para alterar suas categorias, fale com o suporte pela Central de Ajuda.',
-                          bg: AppColors.primary)),
-                  _menuCard(
-                      '💳',
-                      'Assinatura',
-                      'Plano ${company.planLabel}',
-                      () => Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                              builder: (_) => const WalletScreen()))),
+                      '${company.categories.length} categorias · edição em breve (fale com o suporte)',
+                      null),
                   _menuCard(
                       '⚙️',
                       'Dados da empresa',
-                      company.cnpj,
-                      () => snack(context,
-                          'Para alterar CNPJ ou razão social, fale com o suporte pela Central de Ajuda.',
-                          bg: AppColors.primary)),
+                      'CNPJ ${company.cnpj} · edição em breve (fale com o suporte)',
+                      null),
                 ]))),
         const SliverToBoxAdapter(child: SizedBox(height: 40)),
       ]);
 
-  Widget _menuCard(String icon, String title, String sub, VoidCallback onTap) =>
+  // onTap null = recurso ainda não disponível (estilo desabilitado + "Em breve").
+  Widget _menuCard(String icon, String title, String sub, VoidCallback? onTap) =>
       Container(
         margin: const EdgeInsets.only(bottom: 8),
         decoration: AppDecorations.card(r: 14),
         child: ListTile(
-            leading: Text(icon, style: const TextStyle(fontSize: 22)),
+            enabled: onTap != null,
+            leading: Opacity(
+                opacity: onTap == null ? 0.5 : 1,
+                child: Text(icon, style: const TextStyle(fontSize: 22))),
             title: Text(title,
                 style:
                     const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
             subtitle: Text(sub,
                 style:
                     const TextStyle(fontSize: 11, color: AppColors.textLight)),
-            trailing: const Icon(Icons.chevron_right_rounded,
-                color: AppColors.textLight),
+            trailing: onTap == null
+                ? const AppTag('Em breve',
+                    bg: AppColors.background, fg: AppColors.textLight)
+                : const Icon(Icons.chevron_right_rounded,
+                    color: AppColors.textLight),
             onTap: onTap),
       );
 }
@@ -411,12 +420,15 @@ class _EmployeesScreen extends StatelessWidget {
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white),
         floatingActionButton: FloatingActionButton(
+            tooltip: 'Adicionar funcionário',
             onPressed: () => _addEmployee(context),
             backgroundColor: AppColors.secondary,
             child: const Icon(Icons.add)),
         body: StreamBuilder<List<EmployeeModel>>(
           stream: FS.employeesStream(companyId),
           builder: (_, snap) {
+            if (snap.hasError) return QueryErrorView(error: snap.error);
+            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final employees = snap.data ?? [];
             if (employees.isEmpty)
               return const EmptyState(
@@ -445,10 +457,13 @@ class _EmployeesScreen extends StatelessWidget {
                             style: const TextStyle(
                                 fontSize: 12, color: AppColors.textLight)),
                         trailing: IconButton(
+                            tooltip: 'Remover funcionário',
                             icon: const Icon(Icons.delete_outline_rounded,
                                 color: AppColors.error),
-                            onPressed: () =>
-                                FS.removeEmployee(e.id, companyId)),
+                            onPressed: () => _companyAction(
+                                context, () => FS.removeEmployee(e.id, companyId),
+                                confirm: 'Remover ${e.name} da equipe?',
+                                done: 'Funcionário removido.')),
                       ));
                 });
           },
@@ -491,13 +506,21 @@ class _EmployeesScreen extends StatelessWidget {
                         onPressed: () async {
                           if (name.text.trim().isEmpty ||
                               role.text.trim().isEmpty) return;
-                          await FS.addEmployee(
-                              companyId: companyId,
-                              name: name.text.trim(),
-                              role: role.text.trim(),
-                              email: email.text.trim().isEmpty
-                                  ? null
-                                  : email.text.trim());
+                          try {
+                            await FS.addEmployee(
+                                companyId: companyId,
+                                name: name.text.trim(),
+                                role: role.text.trim(),
+                                email: email.text.trim().isEmpty
+                                    ? null
+                                    : email.text.trim());
+                          } catch (e) {
+                            if (context.mounted) {
+                              snack(context, 'Não foi possível adicionar: $e',
+                                  bg: AppColors.error);
+                            }
+                            return;
+                          }
                           if (context.mounted) Navigator.pop(context);
                         },
                         child: const Text('Adicionar'))),
@@ -520,12 +543,15 @@ class _BranchesScreen extends StatelessWidget {
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white),
         floatingActionButton: FloatingActionButton(
+            tooltip: 'Adicionar filial',
             onPressed: () => _addBranch(context),
             backgroundColor: AppColors.secondary,
             child: const Icon(Icons.add)),
         body: StreamBuilder<List<BranchModel>>(
           stream: FS.branchesStream(companyId),
           builder: (_, snap) {
+            if (snap.hasError) return QueryErrorView(error: snap.error);
+            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final branches = snap.data ?? [];
             if (branches.isEmpty)
               return const EmptyState(
@@ -557,9 +583,13 @@ class _BranchesScreen extends StatelessWidget {
                             style: const TextStyle(
                                 fontSize: 12, color: AppColors.textLight)),
                         trailing: IconButton(
+                            tooltip: 'Remover filial',
                             icon: const Icon(Icons.delete_outline_rounded,
                                 color: AppColors.error),
-                            onPressed: () => FS.removeBranch(b.id)),
+                            onPressed: () => _companyAction(
+                                context, () => FS.removeBranch(b.id),
+                                confirm: 'Remover a filial ${b.name}?',
+                                done: 'Filial removida.')),
                       ));
                 });
           },
@@ -614,12 +644,20 @@ class _BranchesScreen extends StatelessWidget {
                         onPressed: () async {
                           if (name.text.trim().isEmpty ||
                               address.text.trim().isEmpty) return;
-                          await FS.addBranch(
-                              companyId: companyId,
-                              name: name.text.trim(),
-                              address: address.text.trim(),
-                              city: city.text.trim(),
-                              state: state.text.trim().toUpperCase());
+                          try {
+                            await FS.addBranch(
+                                companyId: companyId,
+                                name: name.text.trim(),
+                                address: address.text.trim(),
+                                city: city.text.trim(),
+                                state: state.text.trim().toUpperCase());
+                          } catch (e) {
+                            if (context.mounted) {
+                              snack(context, 'Não foi possível adicionar: $e',
+                                  bg: AppColors.error);
+                            }
+                            return;
+                          }
                           if (context.mounted) Navigator.pop(context);
                         },
                         child: const Text('Adicionar'))),
@@ -642,12 +680,15 @@ class _ContractsScreen extends StatelessWidget {
             backgroundColor: AppColors.primary,
             foregroundColor: Colors.white),
         floatingActionButton: FloatingActionButton(
+            tooltip: 'Novo contrato',
             onPressed: () => _addContract(context),
             backgroundColor: AppColors.secondary,
             child: const Icon(Icons.add)),
         body: StreamBuilder<List<ContractModel>>(
           stream: FS.contractsStream(companyId),
           builder: (_, snap) {
+            if (snap.hasError) return QueryErrorView(error: snap.error);
+            if (!snap.hasData) return const Center(child: CircularProgressIndicator());
             final contracts = snap.data ?? [];
             if (contracts.isEmpty)
               return const EmptyState(
@@ -696,9 +737,11 @@ class _ContractsScreen extends StatelessWidget {
                                 child: SizedBox(
                                     width: double.infinity,
                                     child: ElevatedButton(
-                                        onPressed: () =>
-                                            FS.updateContractStatus(
+                                        onPressed: () => _companyAction(
+                                            context,
+                                            () => FS.updateContractStatus(
                                                 c.id, ContractStatus.active),
+                                            done: 'Contrato ativado.'),
                                         style: ElevatedButton.styleFrom(
                                             backgroundColor:
                                                 AppColors.secondary,
@@ -740,9 +783,10 @@ class _ContractsScreen extends StatelessWidget {
                 const SizedBox(height: 10),
                 TextField(
                     controller: value,
-                    keyboardType: TextInputType.number,
-                    decoration:
-                        const InputDecoration(hintText: 'Valor total (R\$)')),
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    decoration: const InputDecoration(
+                        hintText: 'Valor total (R\$) — ex.: 1.500,00')),
                 const SizedBox(height: 16),
                 SizedBox(
                     width: double.infinity,
@@ -750,21 +794,63 @@ class _ContractsScreen extends StatelessWidget {
                         onPressed: () async {
                           if (client.text.trim().isEmpty ||
                               title.text.trim().isEmpty) return;
-                          final v = double.tryParse(
-                                  value.text.replaceAll(',', '.')) ??
-                              0;
+                          final v = parseBrlAmount(value.text);
+                          if (v == null || v <= 0) {
+                            snack(context, 'Informe um valor válido (ex.: 1.500,00)',
+                                bg: AppColors.error);
+                            return;
+                          }
                           final now = DateTime.now();
-                          await FS.createContract(
-                              companyId: companyId,
-                              clientName: client.text.trim(),
-                              title: title.text.trim(),
-                              value: v,
-                              startDate: now,
-                              endDate: now.add(const Duration(days: 365)));
+                          try {
+                            await FS.createContract(
+                                companyId: companyId,
+                                clientName: client.text.trim(),
+                                title: title.text.trim(),
+                                value: v,
+                                startDate: now,
+                                endDate: now.add(const Duration(days: 365)));
+                          } catch (e) {
+                            if (context.mounted) {
+                              snack(context, 'Não foi possível criar o contrato: $e',
+                                  bg: AppColors.error);
+                            }
+                            return;
+                          }
                           if (context.mounted) Navigator.pop(context);
                         },
                         child: const Text('Criar contrato'))),
               ]),
             ));
+  }
+}
+
+/// Ação de CRUD da empresa com confirmação opcional e aviso de erro.
+Future<void> _companyAction(BuildContext context, Future<void> Function() run,
+    {String? confirm, String? done}) async {
+  if (confirm != null) {
+    final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+              content: Text(confirm),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: const Text('Cancelar')),
+                ElevatedButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: const Text('Confirmar')),
+              ],
+            ));
+    if (ok != true || !context.mounted) return;
+  }
+  try {
+    await run();
+    if (done != null && context.mounted) {
+      snack(context, done, bg: AppColors.secondary);
+    }
+  } catch (e) {
+    if (context.mounted) {
+      snack(context, 'Não foi possível concluir: $e', bg: AppColors.error);
+    }
   }
 }

@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'admin_forms.dart';
 import 'catalog_admin_tab.dart';
 import 'finance_admin_tab.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../shared/models/models.dart';
@@ -73,7 +74,10 @@ class _AdminState extends State<AdminScreen>
                                     color: Colors.white,
                                     fontWeight: FontWeight.w900,
                                     fontSize: 22)),
-                            GestureDetector(
+                            Semantics(
+                                button: true,
+                                label: 'Fechar',
+                                child: GestureDetector(
                                 onTap: () => Navigator.pop(context),
                                 child: Container(
                                     width: 38,
@@ -83,7 +87,7 @@ class _AdminState extends State<AdminScreen>
                                         borderRadius:
                                             BorderRadius.circular(11)),
                                     child: const Icon(Icons.close_rounded,
-                                        color: Colors.white, size: 20))),
+                                        color: Colors.white, size: 20)))),
                           ]),
                       const SizedBox(height: 12),
                       FutureBuilder<Map<String, dynamic>>(
@@ -109,7 +113,8 @@ class _AdminState extends State<AdminScreen>
                                     ? '…'
                                     : PaySvc.fmt(
                                         (k?['revenue'] as double?) ?? 0),
-                                'Faturamento'),
+                                // Soma dos serviços concluídos (GMV), não receita da plataforma.
+                                'Volume de serviços (GMV)'),
                           ]);
                         },
                       ),
@@ -217,20 +222,40 @@ class _UsersTabState extends State<_UsersTab> {
             child: StreamBuilder<QuerySnapshot>(
           stream: FS.adminUsersStream(limit: 50),
           builder: (_, s) {
+            if (s.hasError) {
+              return QueryErrorView(
+                  error: s.error, onRetry: () => setState(() {}));
+            }
+            if (!s.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
             var docs = s.data?.docs ?? [];
+            // Filtro local: só entre os 50 cadastros mais recentes.
+            final partial = _filter != 'all';
             if (_filter != 'all')
               docs = docs
                   .where((d) => (d.data() as Map)['type'] == _filter)
                   .toList();
             if (docs.isEmpty)
-              return const EmptyState(
+              return EmptyState(
                   emoji: '👥',
-                  title: 'Sem usuários',
-                  subtitle: 'Aguardando cadastros');
+                  title: partial ? 'Nenhum deste tipo' : 'Sem usuários',
+                  subtitle: partial
+                      ? 'Nenhum entre os 50 cadastros mais recentes.'
+                      : 'Aguardando cadastros');
             return ListView.builder(
                 padding: const EdgeInsets.all(16),
-                itemCount: docs.length,
+                itemCount: docs.length + (partial ? 1 : 0),
                 itemBuilder: (_, i) {
+                  if (partial && i == 0) {
+                    return const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: Text(
+                            'Filtro aplicado aos 50 cadastros mais recentes.',
+                            style: TextStyle(
+                                fontSize: 11, color: AppColors.textLight)));
+                  }
+                  if (partial) i -= 1;
                   final d = docs[i].data() as Map<String, dynamic>;
                   final isActive = d['status'] != 'suspended';
                   return Container(
@@ -566,12 +591,9 @@ class _ValidationTab extends StatelessWidget {
                                     fontSize: 11, color: AppColors.textLight)),
                           ])),
                       ElevatedButton(
-                          onPressed: () async {
-                            await FS.approveCompany(docs[i].id);
-                            if (context.mounted)
-                              snack(context, '✅ Empresa aprovada!',
-                                  bg: AppColors.secondary);
-                          },
+                          onPressed: () => adminRun(
+                              context, () => FS.approveCompany(docs[i].id),
+                              done: '✅ Empresa aprovada!'),
                           style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.secondary,
                               padding: const EdgeInsets.symmetric(
@@ -692,7 +714,7 @@ class _FinancialTab extends StatelessWidget {
           final rows = [
             [
               '💰',
-              'Receita bruta (serviços concluídos)',
+              'Volume de serviços (GMV) — concluídos',
               PaySvc.fmt((r['grossRevenue'] as double?) ?? 0),
               AppColors.secondary
             ],
@@ -715,8 +737,8 @@ class _FinancialTab extends StatelessWidget {
               AppColors.pix
             ],
             [
-              '❌',
-              'Estornos',
+              '↩️',
+              'Reembolsos aprovados',
               PaySvc.fmt((r['refunds'] as double?) ?? 0),
               AppColors.error
             ],
@@ -888,32 +910,45 @@ class _MarketingTab extends StatelessWidget {
                 labelColor: AppColors.primary,
                 unselectedLabelColor: AppColors.textLight,
                 indicatorColor: AppColors.primary,
-                tabs: [Tab(text: '🖼️ Banners'), Tab(text: '🎟️ Cupons')])),
+                tabs: [
+                  Tab(text: '🖼️ Banners (em breve)'),
+                  Tab(text: '🎟️ Cupons')
+                ])),
         Expanded(
             child:
                 TabBarView(children: [_banners(context), _coupons(context)])),
       ]));
 
+  // Nenhuma tela do app exibe banners ainda: criação desabilitada e aviso
+  // "Em breve" para não sugerir que aparecem na home.
   Widget _banners(BuildContext context) => Scaffold(
         backgroundColor: Colors.transparent,
-        floatingActionButton: FloatingActionButton(
-            onPressed: () => _newBanner(context),
-            backgroundColor: AppColors.primary,
-            mini: true,
-            child: const Icon(Icons.add, color: Colors.white)),
         body: StreamBuilder<QuerySnapshot>(
             stream: FS.adminBannersStream(),
             builder: (_, s) {
+              if (s.hasError) return QueryErrorView(error: s.error);
               final docs = s.data?.docs ?? [];
+              const soon = InfoBanner(
+                  key: Key('banners-soon'),
+                  icon: '🚧',
+                  text: 'Em breve — banners ainda não são exibidos no app.',
+                  bg: Color(0xFFFFF8E1),
+                  fg: AppColors.textDark);
               if (docs.isEmpty)
-                return const EmptyState(
-                    emoji: '🖼️',
-                    title: 'Sem banners',
-                    subtitle: 'Adicione banners promocionais para a home');
+                return const Column(children: [
+                  soon,
+                  Expanded(
+                      child: EmptyState(
+                          emoji: '🖼️',
+                          title: 'Sem banners',
+                          subtitle: 'A exibição de banners na home chega em breve.')),
+                ]);
               return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: docs.length,
-                  itemBuilder: (_, i) {
+                  itemCount: docs.length + 1,
+                  itemBuilder: (_, j) {
+                    if (j == 0) return soon;
+                    final i = j - 1;
                     final d = docs[i].data() as Map<String, dynamic>;
                     return Container(
                         margin: const EdgeInsets.only(bottom: 8),
@@ -939,9 +974,13 @@ class _MarketingTab extends StatelessWidget {
                                       ? AppColors.secondary
                                       : AppColors.textLight)),
                           trailing: IconButton(
+                              tooltip: 'Excluir banner',
                               icon: const Icon(Icons.delete_outline,
                                   color: AppColors.error),
-                              onPressed: () => FS.deleteBanner(docs[i].id)),
+                              onPressed: () => adminRun(
+                                  context, () => FS.deleteBanner(docs[i].id),
+                                  confirm: 'Excluir este banner?',
+                                  done: 'Banner excluído.')),
                         ));
                   });
             }),
@@ -950,6 +989,7 @@ class _MarketingTab extends StatelessWidget {
   Widget _coupons(BuildContext context) => Scaffold(
         backgroundColor: Colors.transparent,
         floatingActionButton: FloatingActionButton(
+            tooltip: 'Novo cupom',
             onPressed: () => _newCoupon(context),
             backgroundColor: AppColors.primary,
             mini: true,
@@ -957,6 +997,7 @@ class _MarketingTab extends StatelessWidget {
         body: StreamBuilder<QuerySnapshot>(
             stream: FS.adminCouponsStream(),
             builder: (_, s) {
+              if (s.hasError) return QueryErrorView(error: s.error);
               final docs = s.data?.docs ?? [];
               if (docs.isEmpty)
                 return const EmptyState(
@@ -989,60 +1030,28 @@ class _MarketingTab extends StatelessWidget {
                                 if ((d['description'] ?? '').toString().isNotEmpty) d['description'],
                                 if (d['maxUses'] is int) 'usos: ${d['usedCount'] ?? 0}/${d['maxUses']}',
                                 if (d['perUserLimit'] is int) 'por cliente: ${d['perUserLimit']}',
+                                if (d['expiresAt'] is Timestamp)
+                                  'válido até ${fmtDate((d['expiresAt'] as Timestamp).toDate())}',
                               ].join(' · '),
                               style: const TextStyle(fontSize: 11)),
+                          // Cupom não pode ser excluído (regras): desative-o.
+                          trailing: Tooltip(
+                            message: 'Ativo',
+                            child: Switch(
+                                key: Key('coupon-active-${docs[i].id}'),
+                                value: d['active'] == true,
+                                onChanged: (v) => adminRun(
+                                    context,
+                                    () => FirebaseFirestore.instance
+                                        .collection(Col.coupons)
+                                        .doc(docs[i].id)
+                                        .update({'active': v}),
+                                    done: v ? 'Cupom ativado.' : 'Cupom desativado.')),
+                          ),
                         ));
                   });
             }),
       );
-
-  void _newBanner(BuildContext context) {
-    final title = TextEditingController();
-    final url = TextEditingController();
-    showModalBottomSheet(
-        context: context,
-        isScrollControlled: true,
-        builder: (_) => Padding(
-              padding: EdgeInsets.fromLTRB(
-                  20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 32),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(height: 8),
-                const SheetHandle(),
-                const SizedBox(height: 16),
-                const Text('Novo banner',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 16),
-                TextFormField(
-                    controller: title,
-                    decoration:
-                        const InputDecoration(hintText: 'Título do banner')),
-                const SizedBox(height: 10),
-                TextFormField(
-                    controller: url,
-                    decoration:
-                        const InputDecoration(hintText: 'URL da imagem')),
-                const SizedBox(height: 14),
-                SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                        onPressed: () async {
-                          await FS.saveBanner({
-                            'title': title.text,
-                            'imageUrl': url.text,
-                            'active': true,
-                            'order': 0
-                          });
-                          if (context.mounted) {
-                            Navigator.pop(context);
-                            snack(context, '✅ Banner criado!',
-                                bg: AppColors.secondary);
-                          }
-                        },
-                        child: const Text('Criar banner'))),
-              ]),
-            ));
-  }
 
   void _newCoupon(BuildContext context) {
     showModalBottomSheet(
@@ -1066,13 +1075,15 @@ class _NewCouponSheetState extends State<_NewCouponSheet> {
   final maxUses = TextEditingController();
   // Padrão: um uso por cliente.
   final perUser = TextEditingController(text: '1');
+  // Validade em dias a partir de hoje.
+  final validDays = TextEditingController(text: '30');
   var isPercentage = true;
   String? error;
   var saving = false;
 
   @override
   void dispose() {
-    for (final c in [code, desc, discount, maxUses, perUser]) {
+    for (final c in [code, desc, discount, maxUses, perUser, validDays]) {
       c.dispose();
     }
     super.dispose();
@@ -1138,6 +1149,14 @@ class _NewCouponSheetState extends State<_NewCouponSheet> {
                         labelText: 'Limite por cliente',
                         helperText: 'Vazio = sem limite'))),
           ]),
+          const SizedBox(height: 10),
+          TextFormField(
+              key: const Key('coupon-valid-days'),
+              controller: validDays,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                  labelText: 'Validade (dias)',
+                  helperText: 'De 1 a 365 dias a partir de hoje')),
           if (error != null)
             Padding(
               padding: const EdgeInsets.only(top: 10),
@@ -1160,8 +1179,12 @@ class _NewCouponSheetState extends State<_NewCouponSheet> {
                               isPercentage: isPercentage,
                               maxUses: maxUses.text,
                               perUserLimit: perUser.text);
-                          if (err != null) {
-                            setState(() => error = err);
+                          final days = int.tryParse(validDays.text.trim());
+                          final daysErr = days == null || days < 1 || days > 365
+                              ? 'Validade: informe de 1 a 365 dias'
+                              : null;
+                          if (err != null || daysErr != null) {
+                            setState(() => error = err ?? daysErr);
                             return;
                           }
                           setState(() {
@@ -1185,7 +1208,7 @@ class _NewCouponSheetState extends State<_NewCouponSheet> {
                                     int.parse(perUser.text.trim()),
                               'usedCount': 0,
                               'expiresAt': Timestamp.fromDate(DateTime.now()
-                                  .add(const Duration(days: 30)))
+                                  .add(Duration(days: days!)))
                             });
                           } catch (e) {
                             // Folha fechada durante o envio.
@@ -1313,8 +1336,10 @@ class _SupportTabState extends State<_SupportTab> {
                               if (t.status != TicketStatus.inProgress)
                                 Expanded(
                                     child: OutlinedButton(
-                                        onPressed: () => FS.updateTicketStatus(
-                                            t.id, 'inProgress'),
+                                        onPressed: () => adminRun(
+                                            context,
+                                            () => FS.updateTicketStatus(
+                                                t.id, 'inProgress')),
                                         style: OutlinedButton.styleFrom(
                                             padding: const EdgeInsets.symmetric(
                                                 vertical: 8)),
@@ -1324,8 +1349,11 @@ class _SupportTabState extends State<_SupportTab> {
                                 const SizedBox(width: 8),
                               Expanded(
                                   child: ElevatedButton(
-                                      onPressed: () => FS.updateTicketStatus(
-                                          t.id, 'resolved'),
+                                      onPressed: () => adminRun(
+                                          context,
+                                          () => FS.updateTicketStatus(
+                                              t.id, 'resolved'),
+                                          done: 'Chamado resolvido.'),
                                       style: ElevatedButton.styleFrom(
                                           backgroundColor: AppColors.secondary,
                                           padding: const EdgeInsets.symmetric(
@@ -1412,9 +1440,10 @@ class _ReportsTab extends StatelessWidget {
                                 if (r.status == ReportStatus.pending)
                                   Expanded(
                                       child: OutlinedButton(
-                                          onPressed: () =>
-                                              FS.updateReportStatus(
-                                                  r.id, ReportStatus.reviewing),
+                                          onPressed: () => adminRun(
+                                              context,
+                                              () => FS.updateReportStatus(
+                                                  r.id, ReportStatus.reviewing)),
                                           style: OutlinedButton.styleFrom(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -1424,9 +1453,10 @@ class _ReportsTab extends StatelessWidget {
                                 if (r.status == ReportStatus.reviewing) ...[
                                   Expanded(
                                       child: OutlinedButton(
-                                          onPressed: () =>
-                                              FS.updateReportStatus(
-                                                  r.id, ReportStatus.dismissed),
+                                          onPressed: () => adminRun(
+                                              context,
+                                              () => FS.updateReportStatus(
+                                                  r.id, ReportStatus.dismissed)),
                                           style: OutlinedButton.styleFrom(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -1436,9 +1466,10 @@ class _ReportsTab extends StatelessWidget {
                                   const SizedBox(width: 8),
                                   Expanded(
                                       child: ElevatedButton(
-                                          onPressed: () =>
-                                              FS.updateReportStatus(
-                                                  r.id, ReportStatus.resolved),
+                                          onPressed: () => adminRun(
+                                              context,
+                                              () => FS.updateReportStatus(
+                                                  r.id, ReportStatus.resolved)),
                                           style: ElevatedButton.styleFrom(
                                               backgroundColor:
                                                   AppColors.secondary,
@@ -1749,4 +1780,37 @@ class _BookingConfigCardState extends State<BookingConfigCard> {
           );
         },
       );
+}
+
+/// Executa uma ação do admin com confirmação opcional e snackbar de erro.
+Future<void> adminRun(BuildContext context, Future<void> Function() run,
+    {String? confirm, String? done}) async {
+  if (confirm != null) {
+    final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+              content: Text(confirm),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: const Text('Cancelar')),
+                ElevatedButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: const Text('Confirmar')),
+              ],
+            ));
+    if (ok != true || !context.mounted) return;
+  }
+  try {
+    await run();
+    if (done != null && context.mounted) {
+      snack(context, done, bg: AppColors.secondary);
+    }
+  } on CloudCallException catch (e) {
+    if (context.mounted) snack(context, e.message, bg: AppColors.error);
+  } catch (e) {
+    if (context.mounted) {
+      snack(context, 'Não foi possível concluir: $e', bg: AppColors.error);
+    }
+  }
 }

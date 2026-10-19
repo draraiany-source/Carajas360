@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../checkout/payments_api.dart';
+import '../provider/money_parse.dart';
 
 /// Painel financeiro (admin master/financeiro). Leitura protegida pelas
 /// regras (isFinanceAdmin); alterações passam por Cloud Functions que
@@ -108,9 +109,14 @@ class _RefundButton extends StatelessWidget {
                     ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('Solicitar')),
                   ],
                 ));
-        final cents = ((double.tryParse(ctrl.text.replaceAll(',', '.')) ?? 0) * 100).round();
+        // Aceita "1.500,00" (formato BR).
+        final cents = ((parseBrlAmount(ctrl.text) ?? 0) * 100).round();
         ctrl.dispose();
         if (ok != true || !context.mounted) return;
+        if (cents <= 0) {
+          snack(context, 'Informe um valor válido (ex.: 150,00)', bg: AppColors.error);
+          return;
+        }
         try {
           await CloudFn.call('refundMarketOrder',
               {'orderId': order.id, 'amountCents': cents, 'reason': 'Reembolso administrativo'});

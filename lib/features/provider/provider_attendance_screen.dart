@@ -19,7 +19,9 @@ class _ProviderAttendanceState extends State<ProviderAttendanceScreen> {
   static const _days = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
   static const _periods = {'morning': 'Manhã', 'afternoon': 'Tarde', 'evening': 'Noite'};
 
-  bool _loaded = false, _saving = false;
+  // Carregando → (erro | não encontrado | carregado).
+  bool _loading = true, _loaded = false, _saving = false;
+  Object? _error;
   Set<String> _modalities = {'presential'};
   double _radius = 30;
   Map<String, double>? _geo;
@@ -38,13 +40,32 @@ class _ProviderAttendanceState extends State<ProviderAttendanceScreen> {
   }
 
   Future<void> _load() async {
-    if (AuthService.uid == null) return;
-    final s = await _ref.get();
+    if (AuthService.uid == null) {
+      setState(() => _loading = false);
+      return;
+    }
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final DocumentSnapshot<Map<String, dynamic>> s;
+    try {
+      s = await _ref.get();
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _loading = false;
+          _error = e;
+        });
+      }
+      return;
+    }
     final d = s.data() ?? const {};
     final av = (d['availability'] as Map?) ?? const {};
     final g = d['geo'] as Map?;
     if (!mounted) return;
     setState(() {
+      _loading = false;
       _loaded = s.exists;
       _modalities = {...((d['modalities'] as List?) ?? const ['presential']).map((e) => '$e')};
       _radius = ((d['radiusKm'] as num?) ?? 30).toDouble().clamp(1, 200);
@@ -109,7 +130,11 @@ class _ProviderAttendanceState extends State<ProviderAttendanceScreen> {
                 child: ElevatedButton(
                     onPressed: _saving || !_loaded ? null : _save,
                     child: Text(_saving ? 'Salvando…' : 'Salvar')))),
-        body: !_loaded
+        body: _loading
+            ? const Center(child: CircularProgressIndicator())
+            : _error != null
+            ? QueryErrorView(error: _error, onRetry: _load)
+            : !_loaded
             ? const EmptyState(
                 emoji: '👷', title: 'Perfil de prestador não encontrado', subtitle: 'Cadastre-se como profissional.')
             : ListView(padding: pagePadding(context), children: [
@@ -165,7 +190,10 @@ class _ProviderAttendanceState extends State<ProviderAttendanceScreen> {
                       },
                       child: Text(_until == null ? 'Sem período de ausência' : _until!.toIso8601String().substring(0, 10))),
                   if (_until != null)
-                    IconButton(onPressed: () => setState(() => _until = null), icon: const Icon(Icons.close)),
+                    IconButton(
+                        tooltip: 'Remover data',
+                        onPressed: () => setState(() => _until = null),
+                        icon: const Icon(Icons.close)),
                 ]),
               ]),
       );

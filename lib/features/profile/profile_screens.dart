@@ -23,8 +23,13 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final uid = AuthService.uid;
+    // Aberto como rota (avatar/menus): precisa de voltar.
+    final canPop = Navigator.canPop(context);
     return Scaffold(
       backgroundColor: AppColors.background,
+      appBar: uid == null && canPop
+          ? AppBar(title: const Text('Perfil'))
+          : null,
       body: uid == null
           ? EmptyState(
               emoji: '👤',
@@ -45,7 +50,16 @@ class ProfileScreen extends StatelessWidget {
                           br: 32,
                           child: Center(
                               child: Column(children: [
-                            Stack(children: [
+                            if (canPop)
+                              Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: IconButton(
+                                      tooltip: 'Voltar',
+                                      onPressed: () => Navigator.pop(context),
+                                      icon: const Icon(
+                                          Icons.arrow_back_rounded,
+                                          color: Colors.white))),
+                            Stack(clipBehavior: Clip.none, children: [
                               AppAvatar(
                                   url: user?.photoUrl,
                                   name: user?.name ?? '?',
@@ -53,20 +67,37 @@ class ProfileScreen extends StatelessWidget {
                                   bg: AppColors.warning,
                                   r: 24),
                               Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: GestureDetector(
-                                    onTap: () => _pickAndUploadPhoto(context),
-                                    child: Container(
-                                        width: 28,
-                                        height: 28,
-                                        decoration: const BoxDecoration(
-                                            color: AppColors.primary,
-                                            shape: BoxShape.circle),
-                                        child: const Icon(
-                                            Icons.camera_alt_rounded,
-                                            size: 16,
-                                            color: Colors.white)),
+                                  bottom: -6,
+                                  right: -6,
+                                  child: Tooltip(
+                                    message: 'Alterar foto',
+                                    child: Semantics(
+                                      button: true,
+                                      label: 'Alterar foto',
+                                      excludeSemantics: true,
+                                      child: InkWell(
+                                        customBorder: const CircleBorder(),
+                                        onTap: () =>
+                                            _pickAndUploadPhoto(context),
+                                        // Área de toque 40x40; ícone visual 28.
+                                        child: SizedBox(
+                                          width: 40,
+                                          height: 40,
+                                          child: Center(
+                                            child: Container(
+                                                width: 28,
+                                                height: 28,
+                                                decoration: const BoxDecoration(
+                                                    color: AppColors.primary,
+                                                    shape: BoxShape.circle),
+                                                child: const Icon(
+                                                    Icons.camera_alt_rounded,
+                                                    size: 16,
+                                                    color: Colors.white)),
+                                          ),
+                                        ),
+                                      ),
+                                    ),
                                   )),
                             ]),
                             const SizedBox(height: 12),
@@ -100,20 +131,8 @@ class ProfileScreen extends StatelessWidget {
                   SliverToBoxAdapter(
                       child: Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                          child: Row(children: [
-                            const StatCard(
-                                value: '—',
-                                label: 'Serviços',
-                                color: AppColors.primary),
-                            const StatCard(
-                                value: '—',
-                                label: 'Economia',
-                                color: AppColors.secondary),
-                            StatCard(
-                                value: xp > 0 ? '$xp XP' : '—',
-                                label: 'Experiência',
-                                color: AppColors.warning),
-                          ]))),
+                          // Só dado real: progresso de XP do usuário.
+                          child: XpCard(xp: xp))),
                   const SliverToBoxAdapter(child: SizedBox(height: 16)),
                   SliverToBoxAdapter(
                       child: Padding(
@@ -124,13 +143,7 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '👤',
                                   'Dados pessoais',
-                                  'Nome, CPF, telefone',
-                                  () => _editProfile(context, user)),
-                              _item(
-                                  context,
-                                  '📍',
-                                  'Endereços',
-                                  'Gerenciar endereços',
+                                  'Nome e cidade',
                                   () => _editProfile(context, user)),
                               _item(
                                   context,
@@ -205,11 +218,12 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '📦',
                                   'Entregas',
-                                  'Rastrear pedidos',
+                                  'Em breve',
                                   () => Navigator.pushNamed(
                                       context, Routes.delivery)),
-                              _item(context, '🏆', 'Conquistas', 'Suas medalhas',
-                                  () => _showBadges(context)),
+                              _item(context, '🏆', 'Conquistas',
+                                  'Seu nível: ${xpLevel(xp)}',
+                                  () => _showBadges(context, xp)),
                               _item(
                                   context,
                                   '❓',
@@ -241,7 +255,7 @@ class ProfileScreen extends StatelessWidget {
                                     context,
                                     '🏢',
                                     'Painel da Empresa',
-                                    'Equipe, leads e plano',
+                                    'Equipe, filiais e contratos',
                                     () => Navigator.pushNamed(
                                         context, Routes.companyProfile)),
                               ])
@@ -251,7 +265,7 @@ class ProfileScreen extends StatelessWidget {
                                     context,
                                     '🏢',
                                     'Cadastrar minha empresa',
-                                    'Gerencie equipe e leads',
+                                    'Gerencie equipe, filiais e contratos',
                                     () => Navigator.pushNamed(
                                         context, Routes.companyProfile)),
                               ]),
@@ -268,14 +282,12 @@ class ProfileScreen extends StatelessWidget {
                             _section('App', [
                               _item(
                                   context,
-                                  '🎁',
-                                  'Indique e ganhe',
-                                  'Convide amigos e ganhe cashback',
-                                  () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) =>
-                                              const ReferralScreen()))),
+                                  '📣',
+                                  'Compartilhar o app',
+                                  'Envie o Carajás 360 para amigos',
+                                  () => SharePlus.instance.share(ShareParams(
+                                      text:
+                                          'Conheça o Carajás 360: serviços, saúde, mercado e locação em um só app.'))),
                               _item(context, '🌗', 'Tema', _themeLabel(),
                                   () => _showThemePicker(context)),
                               _item(context, 'ℹ️', 'Sobre o app',
@@ -315,9 +327,10 @@ class ProfileScreen extends StatelessWidget {
                                 child: OutlinedButton.icon(
                                   onPressed: () async {
                                     await AuthService.signOut();
-                                    if (context.mounted)
+                                    if (context.mounted) {
                                       Navigator.pushReplacementNamed(
                                           context, Routes.login);
+                                    }
                                   },
                                   icon: const Icon(Icons.logout_rounded,
                                       color: AppColors.error),
@@ -347,14 +360,17 @@ class ProfileScreen extends StatelessWidget {
       snack(context, 'Preparando exportação…');
       final data = await FS.exportMyData();
       final json = const JsonEncoder.withIndent('  ').convert(data);
-      await Share.share(json, subject: 'Meus dados — ${AppInfo.name}');
+      await SharePlus.instance.share(
+          ShareParams(text: json, subject: 'Meus dados — ${AppInfo.name}'));
       if (context.mounted) {
         snack(context, 'Dados exportados. Escolha onde salvar/compartilhar.',
             bg: AppColors.secondary);
       }
     } catch (e) {
+      debugPrint('exportMyData: $e');
       if (context.mounted) {
-        snack(context, 'Não foi possível exportar: $e', bg: AppColors.error);
+        snack(context, 'Não foi possível exportar seus dados. Tente novamente.',
+            bg: AppColors.error);
       }
     }
   }
@@ -382,6 +398,8 @@ class ProfileScreen extends StatelessWidget {
     try {
       // Exclui o Auth primeiro: se exigir login recente, nada é apagado.
       // Perfil (users/) e demais dados são removidos pelo servidor/admin.
+      // Marcado antes: o evento de logout pode chegar antes do retorno
+      // e não deve virar "sessão expirada".
       SessionGuard.instance.markExplicitSignOut();
       await AuthService.deleteAccount();
       if (context.mounted) {
@@ -389,6 +407,7 @@ class ProfileScreen extends StatelessWidget {
         Navigator.pushNamedAndRemoveUntil(context, Routes.login, (_) => false);
       }
     } on AuthFailure catch (e) {
+      SessionGuard.instance.clearExplicitSignOut();
       if (!context.mounted) return;
       if (e.code == 'requires-recent-login') {
         final relogin = await showDialog<bool>(
@@ -417,8 +436,11 @@ class ProfileScreen extends StatelessWidget {
         snack(context, e.message, bg: AppColors.error);
       }
     } catch (e) {
+      SessionGuard.instance.clearExplicitSignOut();
+      debugPrint('deleteAccount: $e');
       if (context.mounted) {
-        snack(context, 'Erro ao excluir: $e', bg: AppColors.error);
+        snack(context, 'Não foi possível excluir a conta. Tente novamente.',
+            bg: AppColors.error);
       }
     }
   }
@@ -458,82 +480,52 @@ class ProfileScreen extends StatelessWidget {
       );
 
   void _editProfile(BuildContext ctx, UserModel? user) {
-    final nameCtrl = TextEditingController(text: user?.name);
-    final cityCtrl = TextEditingController(text: user?.city);
     showModalBottomSheet(
         context: ctx,
         isScrollControlled: true,
-        builder: (_) => Padding(
-              padding: EdgeInsets.fromLTRB(
-                  20, 0, 20, MediaQuery.of(ctx).viewInsets.bottom + 32),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SizedBox(height: 8),
-                const SheetHandle(),
-                const SizedBox(height: 16),
-                const Text('Editar perfil',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 16),
-                TextFormField(
-                    controller: nameCtrl,
-                    decoration: const InputDecoration(
-                        hintText: 'Nome completo',
-                        prefixIcon: Icon(Icons.person_outline))),
-                const SizedBox(height: 10),
-                TextFormField(
-                    controller: cityCtrl,
-                    decoration: const InputDecoration(
-                        hintText: 'Cidade',
-                        prefixIcon: Icon(Icons.location_city_outlined))),
-                const SizedBox(height: 14),
-                SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                        onPressed: () async {
-                          await FS.updateUser(
-                              {'name': nameCtrl.text, 'city': cityCtrl.text});
-                          if (ctx.mounted) {
-                            Navigator.pop(ctx);
-                            snack(ctx, '✅ Perfil atualizado!',
-                                bg: AppColors.secondary);
-                          }
-                        },
-                        child: const Text('Salvar alterações'))),
-              ]),
-            ));
+        builder: (_) => EditProfileSheet(user: user));
   }
 
-  void _showBadges(BuildContext ctx) => showModalBottomSheet(
+  /// Níveis por XP (mesmas faixas de xpLevel): marca os já alcançados.
+  void _showBadges(BuildContext ctx, int xp) => showModalBottomSheet(
       context: ctx,
       builder: (_) => Padding(
             padding: const EdgeInsets.all(20),
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               const SheetHandle(),
               const SizedBox(height: 16),
-              const Text('🏆 Suas Conquistas',
+              const Text('🏆 Seus níveis',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 6),
+              Text('Você tem $xp XP · nível ${xpLevel(xp)}',
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textLight)),
               const SizedBox(height: 16),
               Wrap(spacing: 12, runSpacing: 12, children: [
-                for (final b in [
-                  ['⭐', 'Iniciante', '0 XP'],
-                  ['🥉', 'Bronze', '500 XP'],
-                  ['🥈', 'Prata', '1000 XP'],
-                  ['🥇', 'Ouro', '2000 XP'],
-                  ['💎', 'Diamante', '4000 XP']
+                for (final (emoji, name, min) in const [
+                  ('⭐', 'Iniciante', 0),
+                  ('🥉', 'Bronze', 500),
+                  ('🥈', 'Prata', 1000),
+                  ('🥇', 'Ouro', 2000),
+                  ('💎', 'Diamante', 4000),
                 ])
-                  Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: AppDecorations.card(r: 16),
-                      child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Text(b[0], style: const TextStyle(fontSize: 30)),
-                        const SizedBox(height: 4),
-                        Text(b[1],
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 12)),
-                        Text(b[2],
-                            style: const TextStyle(
-                                fontSize: 10, color: AppColors.textLight))
-                      ])),
+                  Opacity(
+                    opacity: xp >= min ? 1 : 0.4,
+                    child: Container(
+                        padding: const EdgeInsets.all(14),
+                        decoration: AppDecorations.card(r: 16),
+                        child:
+                            Column(mainAxisSize: MainAxisSize.min, children: [
+                          Text(emoji, style: const TextStyle(fontSize: 30)),
+                          const SizedBox(height: 4),
+                          Text(name,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w700, fontSize: 12)),
+                          Text(xp >= min ? 'Alcançado' : '$min XP',
+                              style: const TextStyle(
+                                  fontSize: 10, color: AppColors.textLight))
+                        ])),
+                  ),
               ]),
             ]),
           ));
@@ -551,7 +543,7 @@ class ProfileScreen extends StatelessWidget {
                   fontSize: 13, color: AppColors.textMedium, height: 1.5)),
           const SizedBox(height: 12),
           const Text(
-              'Um marketplace completo de serviços, saúde, entregas e mercado, tudo em um só app.',
+              'Serviços, saúde, mercado e locação da região em um só app.',
               style: TextStyle(fontSize: 12, color: AppColors.textLight)),
         ],
       );
@@ -561,8 +553,9 @@ class ProfileScreen extends StatelessWidget {
     final picked = await picker.pickImage(
         source: ImageSource.gallery, imageQuality: 85, maxWidth: 800);
     if (picked == null) return;
-    if (context.mounted)
+    if (context.mounted) {
       snack(context, 'Enviando foto...', bg: AppColors.primary);
+    }
     final url = await FS.uploadUserPhoto(await picked.readAsBytes(), picked.name);
     if (context.mounted) {
       snack(
@@ -592,10 +585,23 @@ class ProfileScreen extends StatelessWidget {
                 TextButton(
                     onPressed: () async {
                       Navigator.pop(context);
-                      await AuthService.resetPassword(user.email);
-                      if (context.mounted)
-                        snack(context, '✅ Link enviado para seu e-mail!',
-                            bg: AppColors.secondary);
+                      try {
+                        await AuthService.resetPassword(user.email);
+                        if (context.mounted) {
+                          snack(context, '✅ Link enviado para seu e-mail!',
+                              bg: AppColors.secondary);
+                        }
+                      } on AuthFailure catch (e) {
+                        if (context.mounted) {
+                          snack(context, e.message, bg: AppColors.error);
+                        }
+                      } catch (_) {
+                        if (context.mounted) {
+                          snack(context,
+                              'Não foi possível enviar o link. Tente novamente.',
+                              bg: AppColors.error);
+                        }
+                      }
                     },
                     child: const Text('Enviar')),
               ],
@@ -646,6 +652,87 @@ class ProfileScreen extends StatelessWidget {
       },
     );
   }
+}
+
+/// Edição de nome e cidade (controladores descartados no dispose).
+class EditProfileSheet extends StatefulWidget {
+  final UserModel? user;
+  const EditProfileSheet({super.key, this.user});
+  @override
+  State<EditProfileSheet> createState() => _EditProfileSheetState();
+}
+
+class _EditProfileSheetState extends State<EditProfileSheet> {
+  late final _nameCtrl = TextEditingController(text: widget.user?.name);
+  late final _cityCtrl = TextEditingController(text: widget.user?.city);
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    _nameCtrl.dispose();
+    _cityCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _save() async {
+    final name = _nameCtrl.text.trim();
+    if (name.isEmpty) {
+      snack(context, 'Informe seu nome', bg: AppColors.error);
+      return;
+    }
+    setState(() => _saving = true);
+    try {
+      await FS.updateUser({'name': name, 'city': _cityCtrl.text.trim()});
+      if (!mounted) return;
+      Navigator.pop(context);
+      snack(context, '✅ Perfil atualizado!', bg: AppColors.secondary);
+    } catch (e) {
+      debugPrint('updateUser: $e');
+      if (!mounted) return;
+      setState(() => _saving = false);
+      snack(context, 'Não foi possível salvar. Tente novamente.',
+          bg: AppColors.error);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.fromLTRB(
+            20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 32),
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          const SizedBox(height: 8),
+          const SheetHandle(),
+          const SizedBox(height: 16),
+          const Text('Editar perfil',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+          const SizedBox(height: 16),
+          TextFormField(
+              controller: _nameCtrl,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                  hintText: 'Nome completo',
+                  prefixIcon: Icon(Icons.person_outline))),
+          const SizedBox(height: 10),
+          TextFormField(
+              controller: _cityCtrl,
+              textCapitalization: TextCapitalization.words,
+              decoration: const InputDecoration(
+                  hintText: 'Cidade',
+                  prefixIcon: Icon(Icons.location_city_outlined))),
+          const SizedBox(height: 14),
+          SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                  onPressed: _saving ? null : _save,
+                  child: _saving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : const Text('Salvar alterações'))),
+        ]),
+      );
 }
 
 class NotificationsScreen extends StatelessWidget {
@@ -818,7 +905,8 @@ class ReviewScreen extends StatefulWidget {
 }
 
 class _ReviewState extends State<ReviewScreen> {
-  int _stars = 5;
+  // Sem nota pré-selecionada: o usuário precisa escolher.
+  int _stars = 0;
   final _ctrl = TextEditingController();
   final _tags = <String>{};
   bool _loading = false;
@@ -864,7 +952,13 @@ class _ReviewState extends State<ReviewScreen> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: List.generate(
                           5,
-                          (i) => GestureDetector(
+                          (i) => Semantics(
+                              button: true,
+                              selected: i < _stars,
+                              label: i == 0 ? '1 estrela' : '${i + 1} estrelas',
+                              excludeSemantics: true,
+                              child: GestureDetector(
+                              key: Key('review-star-${i + 1}'),
                               onTap: () => setState(() => _stars = i + 1),
                               child: AnimatedContainer(
                                   duration: const Duration(milliseconds: 150),
@@ -877,7 +971,7 @@ class _ReviewState extends State<ReviewScreen> {
                                       size: 44,
                                       color: i < _stars
                                           ? AppColors.warning
-                                          : AppColors.border))))),
+                                          : AppColors.border)))))),
                   const SizedBox(height: 8),
                   Text(_starsLabel(_stars),
                       style: const TextStyle(
@@ -932,7 +1026,7 @@ class _ReviewState extends State<ReviewScreen> {
                   SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
-                          onPressed: _loading ? null : _submit,
+                          onPressed: _loading || _stars == 0 ? null : _submit,
                           style: ElevatedButton.styleFrom(
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
@@ -944,6 +1038,10 @@ class _ReviewState extends State<ReviewScreen> {
       );
 
   Future<void> _submit() async {
+    if (_stars < 1) {
+      snack(context, 'Escolha de 1 a 5 estrelas');
+      return;
+    }
     setState(() => _loading = true);
     try {
       final user = await FS.getUser();
@@ -965,8 +1063,9 @@ class _ReviewState extends State<ReviewScreen> {
             bg: AppColors.secondary);
       }
     } catch (e) {
+      debugPrint('saveReview: $e');
       if (mounted) {
-        snack(context, 'Não foi possível enviar a avaliação: $e',
+        snack(context, 'Não foi possível enviar a avaliação. Tente novamente.',
             bg: AppColors.error);
       }
     } finally {
@@ -976,6 +1075,8 @@ class _ReviewState extends State<ReviewScreen> {
 
   String _starsLabel(int s) {
     switch (s) {
+      case 0:
+        return 'Toque nas estrelas para avaliar';
       case 1:
         return '😞 Muito ruim';
       case 2:

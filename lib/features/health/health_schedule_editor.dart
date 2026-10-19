@@ -79,7 +79,7 @@ class _EditorState extends State<HealthScheduleEditorScreen> {
         _weekly[d] = list.map((r) => _Range('${r['start']}', '${r['end']}')).toList();
       }
       _slot = (cur['slotMinutes'] as num?)?.toInt() ?? 30;
-      _blocked.addAll(((cur['blockedDates'] as List?) ?? const []).map((e) => '$e'));
+      _blocked.addAll({...((cur['blockedDates'] as List?) ?? const []).map((e) => '$e')}.toList()..sort());
       for (final id in healthIds) {
         final s = saved[id];
         _services.add(_Svc(id, catalog.nameOf(id),
@@ -91,6 +91,28 @@ class _EditorState extends State<HealthScheduleEditorScreen> {
       _loading = false;
     });
   }
+
+  /// Campo HH:MM com seletor de horário (o texto continua editável).
+  Widget _timeField(TextEditingController c, String label) => TextField(
+      controller: c,
+      decoration: InputDecoration(
+          labelText: label,
+          suffixIcon: IconButton(
+              tooltip: 'Escolher horário ($label)',
+              icon: const Icon(Icons.access_time, size: 18),
+              onPressed: () async {
+                final m = _hm.firstMatch(c.text.trim());
+                final t = await showTimePicker(
+                    context: context,
+                    initialTime: m == null
+                        ? const TimeOfDay(hour: 8, minute: 0)
+                        : TimeOfDay(hour: int.parse(c.text.trim().substring(0, 2)), minute: int.parse(c.text.trim().substring(3))),
+                    builder: (ctx, child) =>
+                        MediaQuery(data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true), child: child!));
+                if (t != null) {
+                  c.text = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+                }
+              })));
 
   static final _hm = RegExp(r'^([01]\d|2[0-3]):[0-5]\d$');
 
@@ -123,8 +145,9 @@ class _EditorState extends State<HealthScheduleEditorScreen> {
       await FS.saveHealthSchedule(
           {'weekly': weekly, 'slotMinutes': _slot, 'minLeadHours': 2, 'blockedDates': _blocked, 'services': services});
       if (mounted) snack(context, 'Agenda publicada', bg: AppColors.health);
-    } catch (e) {
-      if (mounted) snack(context, 'Não foi possível salvar: $e', bg: AppColors.error);
+    } catch (_) {
+      // Sem detalhes técnicos para o usuário.
+      if (mounted) snack(context, 'Não foi possível publicar a agenda. Verifique a conexão e tente de novo.', bg: AppColors.error);
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -208,10 +231,13 @@ class _EditorState extends State<HealthScheduleEditorScreen> {
                     ]),
                     for (final r in [..._weekly[d]!])
                       Row(children: [
-                        Expanded(child: TextField(controller: r.start, decoration: const InputDecoration(labelText: 'Início'))),
+                        Expanded(child: _timeField(r.start, 'Início')),
                         const SizedBox(width: 8),
-                        Expanded(child: TextField(controller: r.end, decoration: const InputDecoration(labelText: 'Fim'))),
-                        IconButton(onPressed: () => setState(() => _weekly[d]!.remove(r)), icon: const Icon(Icons.close)),
+                        Expanded(child: _timeField(r.end, 'Fim')),
+                        IconButton(
+                            tooltip: 'Remover faixa de ${_days[d]}',
+                            onPressed: () => setState(() => _weekly[d]!.remove(r)),
+                            icon: const Icon(Icons.close)),
                       ]),
                   ]),
                 const SizedBox(height: 12),
@@ -222,10 +248,16 @@ class _EditorState extends State<HealthScheduleEditorScreen> {
                         final now = DateTime.now();
                         final d = await showDatePicker(
                             context: context, firstDate: now, lastDate: now.add(const Duration(days: 365)), initialDate: now);
-                        if (d != null) {
-                          setState(() => _blocked.add(
-                              '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}'));
+                        if (d == null || !mounted) return;
+                        final key = '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+                        // Evita dia bloqueado repetido.
+                        if (_blocked.contains(key)) {
+                          snack(this.context, 'Este dia já está bloqueado.');
+                          return;
                         }
+                        setState(() => _blocked
+                          ..add(key)
+                          ..sort());
                       },
                       child: const Text('+ bloquear dia')),
                 ]),

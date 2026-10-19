@@ -196,7 +196,7 @@ class ServicoConectaApp extends StatelessWidget {
               case Routes.marketplace:
                 return _route(const MarketplaceScreen());
               case Routes.store:
-                return _route(const StoreScreen());
+                return _route(const RequireAuth(title: 'Minha loja', child: StoreScreen()));
               case Routes.rental:
                 final ra = settings.arguments as Map<String, dynamic>?;
                 return _route(

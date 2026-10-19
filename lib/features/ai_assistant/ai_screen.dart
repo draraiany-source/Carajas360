@@ -20,12 +20,12 @@ class _AiState extends State<AiAssistantScreen> {
   final _msgs = <_AiMsg>[];
   bool _typing = false;
 
+  // Sugestões sobre o uso do app (a IA não agenda nem contrata).
   static const _suggestions = [
-    'Quanto custa um eletricista?',
-    'Quero agendar uma consulta médica',
-    'Melhores diaristas da cidade',
     'Como funciona o pagamento?',
-    'Tenho um vazamento urgente!',
+    'Como peço um orçamento no Resolve?',
+    'Como acompanho meu pedido?',
+    'Como avalio um profissional?',
   ];
 
   static const _responses = {
@@ -48,7 +48,7 @@ class _AiState extends State<AiAssistantScreen> {
     super.initState();
     _msgs.add(_AiMsg(
         text:
-            '👋 Olá! Sou o assistente inteligente do **Carajás 360**.\n\nPosso ajudar com:\n• Encontrar profissionais\n• Sugerir preços justos\n• Agendar serviços\n• Responder dúvidas\n\nComo posso te ajudar hoje?',
+            '👋 Olá! Sou o assistente do **Carajás 360**.\n\nTire dúvidas sobre como usar o Carajás 360: pedidos, pagamentos, Resolve, Saúde e sua conta.\n\nComo posso te ajudar?',
         isAi: true,
         time: DateTime.now()));
   }
@@ -107,10 +107,11 @@ class _AiState extends State<AiAssistantScreen> {
   }
 
   void _scrollBottom() => Future.delayed(const Duration(milliseconds: 100), () {
-        if (_scroll.hasClients)
+        if (_scroll.hasClients) {
           _scroll.animateTo(_scroll.position.maxScrollExtent,
               duration: const Duration(milliseconds: 300),
               curve: Curves.easeOut);
+        }
       });
 
   @override
@@ -132,7 +133,7 @@ class _AiState extends State<AiAssistantScreen> {
                           fontSize: 15,
                           fontWeight: FontWeight.w700,
                           color: Colors.white)),
-                  Text('Sempre disponível',
+                  Text('Dúvidas sobre o app',
                       style: TextStyle(fontSize: 10, color: Colors.white70)),
                 ]),
           ]),
@@ -148,6 +149,18 @@ class _AiState extends State<AiAssistantScreen> {
               return _bubble(_msgs[i]);
             },
           )),
+
+          // Aviso fixo: respostas geradas por IA.
+          Container(
+            width: double.infinity,
+            color: AppColors.surfaceMuted,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+            child: const Text(
+                'As respostas são geradas por IA e podem conter erros; confira no app.',
+                key: Key('ai-disclaimer'),
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: AppColors.textMedium)),
+          ),
 
           // Suggestions
           if (_msgs.length <= 1)
@@ -205,15 +218,21 @@ class _AiState extends State<AiAssistantScreen> {
                   ),
                 )),
                 const SizedBox(width: 8),
-                GestureDetector(
-                    onTap: () => _send(),
-                    child: Container(
-                        width: 44,
-                        height: 44,
-                        decoration:
-                            AppDecorations.gradient(AppGradients.purple, r: 22),
-                        child: const Icon(Icons.send_rounded,
-                            color: Colors.white, size: 20))),
+                Tooltip(
+                    message: 'Enviar',
+                    child: Semantics(
+                        button: true,
+                        label: 'Enviar mensagem',
+                        excludeSemantics: true,
+                        child: GestureDetector(
+                            onTap: () => _send(),
+                            child: Container(
+                                width: 44,
+                                height: 44,
+                                decoration: AppDecorations.gradient(
+                                    AppGradients.purple, r: 22),
+                                child: const Icon(Icons.send_rounded,
+                                    color: Colors.white, size: 20))))),
               ])),
         ]),
       );

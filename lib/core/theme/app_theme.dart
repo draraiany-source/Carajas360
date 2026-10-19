@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import 'theme_controller.dart';
 
 abstract class AppDecorations {
   static BoxDecoration card(
           {double r = 20, Color? color, bool elevated = true, BuildContext? context}) {
-    final isDark = context != null &&
-        Theme.of(context).brightness == Brightness.dark;
+    // Sem context (a maioria das chamadas): segue o modo do app/sistema;
+    // antes o cartão ficava branco com texto claro no modo escuro.
+    final isDark = context != null
+        ? Theme.of(context).brightness == Brightness.dark
+        : ThemeController.instance.isDark;
     final bg = color ??
         (isDark ? AppColors.darkSurface : AppColors.surface);
     final border = isDark ? AppColors.darkBorder : AppColors.border;

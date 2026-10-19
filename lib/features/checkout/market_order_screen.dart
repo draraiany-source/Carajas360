@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/security/order_policy.dart';
+import '../../core/utils/chat_nav.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import 'cart_service.dart';
@@ -22,10 +23,13 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
   bool _cartCleaned = false;
 
   /// Itens só saem do carrinho quando o pagamento está CONFIRMADO.
+  /// Roda após o frame (notifyListeners não pode ocorrer durante o build).
   void _cleanCart(MarketOrder o) {
     if (_cartCleaned || !o.isPaid) return;
     _cartCleaned = true;
-    CartService.instance.removeProducts(o.items.map((i) => i.productId));
+    final ids = o.items.map((i) => i.productId).toList();
+    WidgetsBinding.instance.addPostFrameCallback(
+        (_) => CartService.instance.removeProducts(ids));
   }
 
   Future<void> _pay(MarketOrder o, String method) async {
@@ -85,6 +89,22 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
   }
 
   Future<void> _confirmReceipt(MarketOrder o) async {
+    // Libera o pagamento à loja: ação irreversível, pede confirmação.
+    final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+              title: const Text('Confirmar recebimento?'),
+              content: const Text(
+                  'Confirme apenas se recebeu os itens. O pagamento será liberado à loja e esta ação não pode ser desfeita.'),
+              actions: [
+                TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Voltar')),
+                ElevatedButton(
+                    key: const Key('confirm-receipt-ok'),
+                    onPressed: () => Navigator.pop(c, true),
+                    child: const Text('Confirmar')),
+              ],
+            ));
+    if (ok != true || !mounted) return;
     setState(() => _busy = true);
     try {
       await PaymentsApi.confirmReceipt(o.id);
@@ -152,7 +172,7 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
           if (o.deliveryMode == 'delivery' && o.address.isNotEmpty)
             Padding(
                 padding: const EdgeInsets.only(top: 8),
-                child: Text('Entrega: ${o.address['street'] ?? ''}, ${o.address['number'] ?? ''} — ${o.address['city'] ?? ''}',
+                child: Text('Entrega: ${marketAddressLine(o.address)}',
                     style: const TextStyle(fontSize: 12, color: AppColors.textLight))),
         ]),
       ),
@@ -224,10 +244,21 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
                 onTap: () => _pay(o, a.method)));
       });
 
-  static String _hm(DateTime d) =>
-      '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+  // Horário no fuso da região (UTC−3), como holdTimeLabel.
+  static String _hm(DateTime d) => holdTimeLabel(d.millisecondsSinceEpoch);
 
-  static String _eventLabel(String t) => const {
+  static String _eventLabel(String t) => marketEventLabel(t);
+
+  Widget _row(String a, String b, {bool bold = false}) => Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(a, style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w400)),
+            Text(b, style: TextStyle(fontWeight: bold ? FontWeight.w900 : FontWeight.w600)),
+          ]);
+}
+
+/// Rótulo legível de um evento do histórico do pedido.
+String marketEventLabel(String t) => const {
         'created': 'Pedido criado',
         'payment_started': 'Pagamento iniciado',
         'payment_failed': 'Tentativa de pagamento não concluída',
@@ -242,15 +273,16 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
         'refund_confirmed': 'Reembolso confirmado',
         'cancelled': 'Cancelado',
         'expired': 'Reserva expirada',
+        'released': 'Pagamento liberado à loja',
       }[t] ??
-      t;
+    t;
 
-  Widget _row(String a, String b, {bool bold = false}) => Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(a, style: TextStyle(fontWeight: bold ? FontWeight.w800 : FontWeight.w400)),
-            Text(b, style: TextStyle(fontWeight: bold ? FontWeight.w900 : FontWeight.w600)),
-          ]);
+/// Endereço de entrega em uma linha (rua, número, bairro — cidade).
+String marketAddressLine(Map<String, dynamic> a) {
+  String f(String k) => (a[k] ?? '').toString().trim();
+  final street = [f('street'), f('number')].where((x) => x.isNotEmpty).join(', ');
+  final head = [street, f('district')].where((x) => x.isNotEmpty).join(' — ');
+  return [head, f('city')].where((x) => x.isNotEmpty).join(' — ');
 }
 
 /// Histórico de pedidos do Mercado do cliente.
@@ -299,6 +331,28 @@ class StoreOrdersScreen extends StatelessWidget {
     'ready': [('delivered', 'Retirado/entregue')],
   };
 
+  List<Widget> _details(BuildContext context, MarketOrder o) {
+    const small = TextStyle(fontSize: 12, color: AppColors.textLight);
+    final ref = (o.address['reference'] ?? '').toString().trim();
+    return [
+      if (o.clientName.isNotEmpty) Text('Cliente: ${o.clientName}', style: small),
+      for (final i in o.items)
+        Text('• ${i.name} × ${i.qty}', style: const TextStyle(fontSize: 13)),
+      const SizedBox(height: 6),
+      Text(o.deliveryMode == 'pickup' ? 'Modo: retirada na loja' : 'Modo: entrega', style: small),
+      if (o.deliveryMode == 'delivery' && o.address.isNotEmpty) ...[
+        Text('Endereço: ${marketAddressLine(o.address)}', style: small),
+        if (ref.isNotEmpty) Text('Referência: $ref', style: small),
+      ],
+      if (o.clientId.isNotEmpty)
+        TextButton.icon(
+            key: Key('chat-client-${o.id}'),
+            icon: const Icon(Icons.chat_bubble_outline_rounded, size: 18),
+            label: const Text('Conversar com o cliente'),
+            onPressed: () => ChatNav.open(context, otherUserId: o.clientId, otherName: o.clientName.isNotEmpty ? o.clientName : 'Cliente')),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     final uid = AuthService.uid;
@@ -312,7 +366,7 @@ class StoreOrdersScreen extends StatelessWidget {
                 if (s.hasError) return QueryErrorView(error: s.error);
                 if (!s.hasData) return const Center(child: CircularProgressIndicator());
                 if (s.data!.isEmpty) {
-                  return const EmptyState(emoji: '📦', title: 'Sem pedidos', subtitle: 'Pedidos pagos aparecem aqui');
+                  return const EmptyState(emoji: '📦', title: 'Sem pedidos', subtitle: 'Pedidos da sua loja aparecem aqui');
                 }
                 return ListView(children: [
                   for (final o in s.data!)
@@ -320,10 +374,17 @@ class StoreOrdersScreen extends StatelessWidget {
                         child: Padding(
                             padding: const EdgeInsets.all(12),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('${o.items.length} item(ns) — ${brl(o.totalCents)} · ${o.deliveryMode == 'pickup' ? 'retirada' : 'entrega'}',
-                                  style: const TextStyle(fontWeight: FontWeight.w700)),
-                              Text('${orderStatusLabel[o.status] ?? o.status} · ${paymentStatusLabel[o.paymentStatus] ?? o.paymentStatus}',
-                                  style: const TextStyle(fontSize: 12)),
+                              // Detalhes para a loja separar e entregar.
+                              ExpansionTile(
+                                  key: Key('store-order-${o.id}'),
+                                  tilePadding: EdgeInsets.zero,
+                                  childrenPadding: const EdgeInsets.only(bottom: 8),
+                                  expandedCrossAxisAlignment: CrossAxisAlignment.start,
+                                  title: Text('${o.items.length} item(ns) — ${brl(o.totalCents)} · ${o.deliveryMode == 'pickup' ? 'retirada' : 'entrega'}',
+                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                                  subtitle: Text('${orderStatusLabel[o.status] ?? o.status} · ${paymentStatusLabel[o.paymentStatus] ?? o.paymentStatus}',
+                                      style: const TextStyle(fontSize: 12)),
+                                  children: _details(context, o)),
                               if (o.awaitingReceipt) const Text(_payoutNote, style: TextStyle(fontSize: 12, color: AppColors.textLight)),
                               Wrap(spacing: 8, children: [
                                 for (final (to, label) in _next[o.status] ?? const <(String, String)>[])

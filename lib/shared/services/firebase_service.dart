@@ -238,6 +238,8 @@ class AuthService {
 
   static Future<void> signOut() async {
     SessionGuard.instance.markExplicitSignOut();
+    // Aparelho compartilhado: quem entrar depois não recebe os avisos desta conta.
+    await PushSvc.forget();
     try {
       if (_googleInitialized) await _google.signOut();
     } catch (e) {
@@ -418,6 +420,11 @@ class FS {
   static Future<void> updateFcmToken(String token) async {
     if (_uid == null) return;
     await _db.collection(Col.users).doc(_uid).update({'fcmToken': token});
+  }
+
+  static Future<void> clearFcmToken() async {
+    if (_uid == null) return;
+    await _db.collection(Col.users).doc(_uid).update({'fcmToken': FieldValue.delete()});
   }
 
   static Future<void> addXp(int xp) async {
@@ -801,14 +808,17 @@ class FS {
 
   // Apaga uma mensagem para todos: mantém o documento mas marca como
   // deletada (a UI mostra "mensagem apagada"), preservando a ordem.
-  static Future<void> deleteMessageForAll(String roomId, String messageId) =>
-      _db
-          .collection(Col.chatRooms)
-          .doc(roomId)
-          .collection(Col.messages)
-          .doc(messageId)
-          .update(
-              {'deleted': true, 'text': '', 'mediaUrl': FieldValue.delete()});
+  static Future<void> deleteMessageForAll(String roomId, String messageId) async {
+    final room = _db.collection(Col.chatRooms).doc(roomId);
+    final msgRef = room.collection(Col.messages).doc(messageId);
+    final msg = (await msgRef.get()).data() ?? {};
+    final batch = _db.batch()
+      ..update(msgRef, {'deleted': true, 'text': '', 'mediaUrl': FieldValue.delete()});
+    // A prévia da conversa não pode continuar mostrando o texto apagado.
+    final last = (await room.get()).data()?['lastMsg'];
+    if (last != null && last == msg['text']) batch.update(room, {'lastMsg': 'Mensagem apagada'});
+    await batch.commit();
+  }
 
   // Indicador "digitando...": grava/limpa o estado do usuário na sala.
   static Future<void> setTyping(String roomId, bool typing) {
@@ -890,6 +900,7 @@ class FS {
         .collection(Col.messages)
         .where('senderId', isNotEqualTo: _uid)
         .where('read', isEqualTo: false)
+        .limit(400) // lote do Firestore tem limite de 500 escritas
         .get();
     if (unread.docs.isEmpty) return;
     final batch = _db.batch();
@@ -1097,6 +1108,7 @@ class FS {
     required int startMs,
     required String modality,
     String? reason,
+    String? address,
   }) async {
     final r = await CloudFn.call('bookHealthAppointment', {
       'requestId': requestId,
@@ -1106,6 +1118,7 @@ class FS {
       'modality': modality,
       'consentVersion': healthConsentVersion,
       if (reason != null && reason.trim().isNotEmpty) 'reason': reason.trim(),
+      if (address != null && address.trim().isNotEmpty) 'address': address.trim(),
     });
     return r;
   }
@@ -1146,9 +1159,11 @@ class FS {
 
   /// Abre um chamado e devolve o id (para abrir a conversa em seguida).
   static Future<String> createSupportTicket(String subject, String message) async {
+    // Nome para a equipe saber com quem fala (antes ia vazio).
+    final me = _uid == null ? null : (await _db.collection(Col.users).doc(_uid).get()).data();
     final ref = await _db.collection(Col.support).add({
       'userId': _uid,
-      'userName': '',
+      'userName': ((me?['name'] as String?) ?? FirebaseAuth.instance.currentUser?.displayName ?? '').trim(),
       'subject': subject,
       'message': message,
       'status': 'open',
@@ -1537,11 +1552,6 @@ class FS {
         .update({'totalProducts': FieldValue.increment(-1)});
   }
 
-  /// Baixa o estoque após a venda (usado ao concluir o pedido).
-  static Future<void> decrementStock(String productId, int qty) => _db
-      .collection(Col.products)
-      .doc(productId)
-      .update({'stock': FieldValue.increment(-qty)});
 
   static Stream<List<ProductModel>> productsStream(
       {String? storeId, String? category}) {
@@ -1673,15 +1683,14 @@ class FS {
       });
       final netToProviders = grossRevenue - commission;
 
-      final cancelled = await _db
-          .collection(Col.orders)
-          .where('status', isEqualTo: 'cancelled')
-          .where('refunded', isEqualTo: true)
+      // Reembolsos confirmados (coleção refunds, em centavos). Antes lia um
+      // campo de pedido que nada grava, e o total ficava sempre em R$ 0.
+      final refundAgg = await _db
+          .collection('refunds')
+          .where('status', isEqualTo: 'approved')
+          .aggregate(sum('amountCents'))
           .get();
-      final refunds = cancelled.docs.fold<double>(
-          0,
-          (sum, d) =>
-              sum + ((d.data()['refundAmount'] as num?)?.toDouble() ?? 0));
+      final refunds = (refundAgg.getSum('amountCents') ?? 0) / 100;
 
       // Recargas confirmadas (Fase 3: tipo 'recharge', em centavos).
       final pixTx = await _db
@@ -1710,14 +1719,12 @@ class FS {
 
   // Suspensão no servidor: desativa o Auth, revoga tokens e grava status.
   static Future<void> suspendUser(String uid, {String? adminName}) async {
+    // A auditoria é gravada pelo servidor (antes ficava em dobro).
     await CloudFn.call('setUserSuspended', {'userId': uid, 'suspended': true});
-    await logAdminAction('Suspendeu usuário',
-        target: uid, adminName: adminName);
   }
 
   static Future<void> reactivateUser(String uid, {String? adminName}) async {
     await CloudFn.call('setUserSuspended', {'userId': uid, 'suspended': false});
-    await logAdminAction('Reativou usuário', target: uid, adminName: adminName);
   }
 
   static Future<void> approveCompany(String id, {String? adminName}) async {
@@ -1727,24 +1734,6 @@ class FS {
         .update({'verified': true, 'active': true});
     await logAdminAction('Aprovou empresa', target: id, adminName: adminName);
   }
-
-  // ── Admin: categorias (Vol.6: criar/editar/excluir/ordenação) ─
-  static Future<void> saveCategory(Map<String, dynamic> data,
-      {String? id}) async {
-    if (id != null) {
-      await _db
-          .collection(Col.categories)
-          .doc(id)
-          .set(data, SetOptions(merge: true));
-    } else {
-      await _db.collection(Col.categories).add(data);
-    }
-  }
-
-  static Future<void> deleteCategory(String id) =>
-      _db.collection(Col.categories).doc(id).delete();
-  static Stream<QuerySnapshot> categoriesStream() =>
-      _db.collection(Col.categories).orderBy('order').snapshots();
 
   // ── Admin: marketing / banners (Vol.6) ─────────────────────────
   static Future<void> saveBanner(Map<String, dynamic> data,
@@ -1835,15 +1824,6 @@ class FS {
     await _db.collection(Col.reports).doc(id).update({'status': status.name});
     await logAdminAction('Atualizou denúncia',
         target: id, adminName: adminName, details: {'status': status.name});
-  }
-
-  // ── Admin: financeiro (Vol.6: comissões, repasses, saques, estornos) ─
-  static Future<void> processRefund(String orderId, double amount,
-      {String? adminName}) async {
-    await _db.collection(Col.orders).doc(orderId).update(
-        {'status': 'cancelled', 'refunded': true, 'refundAmount': amount});
-    await logAdminAction('Processou estorno',
-        target: orderId, adminName: adminName, details: {'amount': amount});
   }
 
   // ── Auditoria (Vol.6: toda ação crítica registrada) ────────────
@@ -2418,17 +2398,45 @@ class PushSvc {
     // Sem google-services real / emulador, FCM pode falhar — nao derruba o app.
     if (!kIsWeb) {
       try {
-        await initLocalNotificationsPlugin((_, __) {});
+        await initLocalNotificationsPlugin((_, __) {}, onTap: (payload) {
+          try {
+            if (payload != null) _open(Map<String, dynamic>.from(jsonDecode(payload) as Map));
+          } catch (_) {}
+        });
         FirebaseMessaging.onMessage.listen((msg) {
           if (msg.notification != null) {
             _show(msg.notification!.title ?? 'Carajás 360',
-                msg.notification!.body ?? '');
+                msg.notification!.body ?? '', msg.data);
           }
         });
       } catch (e) {
         debugPrint('FCM/local notifications: $e');
       }
     }
+    try {
+      // Toque no aviso (app em segundo plano ou fechado) abre a tela certa.
+      FirebaseMessaging.onMessageOpenedApp.listen((m) => _open(m.data));
+      final first = await FirebaseMessaging.instance.getInitialMessage();
+      if (first != null) _open(first.data);
+      // Token trocado pelo sistema: atualiza para não perder avisos.
+      FirebaseMessaging.instance.onTokenRefresh.listen((t) {
+        if (AuthService.isAuth) FS.updateFcmToken(t).catchError((_) {});
+      });
+    } catch (e) {
+      debugPrint('FCM handlers: $e');
+    }
+  }
+
+  /// Leva ao destino do aviso (mesmo mapa das notificações do app).
+  static void _open(Map<String, dynamic> data) {
+    final t = notificationTarget(data['type'] as String?, {
+      if ((data['route'] ?? '') != '') 'route': data['route'],
+      if ((data['id'] ?? '') != '') 'id': data['id'],
+    });
+    final nav = rootNavigatorKey.currentState;
+    if (t == null || nav == null) return;
+    if (!AuthService.isAuth) return; // a retomada pós-login cuida disso
+    nav.pushNamed(t.route, arguments: t.args);
   }
 
   static Future<void> saveToken(String uid) async {
@@ -2440,12 +2448,25 @@ class PushSvc {
     }
   }
 
-  static Future<void> _show(String title, String body) async {
+  /// Logout: tira o token do perfil e invalida o do aparelho.
+  static Future<void> forget() async {
+    try {
+      if (AuthService.isAuth) await FS.clearFcmToken();
+    } catch (e) {
+      debugPrint('FCM clear: $e');
+    }
+    try {
+      await FirebaseMessaging.instance.deleteToken();
+    } catch (_) {}
+  }
+
+  static Future<void> _show(String title, String body, [Map<String, dynamic>? data]) async {
     if (kIsWeb) return;
     await showLocalNotification(
       id: DateTime.now().millisecondsSinceEpoch ~/ 1000,
       title: title,
       body: body,
+      payload: data == null || data.isEmpty ? null : jsonEncode(data),
     );
   }
 }

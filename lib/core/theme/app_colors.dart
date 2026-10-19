@@ -11,6 +11,8 @@ abstract class AppColors {
   static const secondaryLight = Color(0xFF2E9B68);
   static const success = Color(0xFF12B76A);
   static const warning = Color(0xFFF5A524);
+  /// Âmbar escuro para TEXTO (o warning claro tem contraste 2:1 no branco).
+  static const warningText = Color(0xFF8A5A00);
   static const error = Color(0xFFD92D20);
   static const info = Color(0xFF0E8F9E);
   static const health = Color(0xFF0F6B5C);
@@ -28,7 +30,8 @@ abstract class AppColors {
   static const textDark = Color(0xFF0F172A);
   static const textMedium = Color(0xFF334155);
   static const textLight = Color(0xFF64748B);
-  static const textHint = Color(0xFF94A3B8);
+  // Escurecido (antes #94A3B8, 2,6:1 no branco) para ficar legível.
+  static const textHint = Color(0xFF6B7789);
   static const shimmerBase = Color(0xFFE2E8F0);
   static const pix = Color(0xFF32BCAD);
   static const gold = Color(0xFFE6A700);

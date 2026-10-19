@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/navigation/app_navigation.dart';
+import '../../core/catalog/catalog_service.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
@@ -15,9 +16,31 @@ import '../checkout/cart.dart';
 import '../checkout/cart_service.dart';
 import '../checkout/checkout_screen.dart';
 
+/// Nota com estrela só quando há avaliações (null = esconder).
+String? ratingLabel(double rating, int totalReviews) =>
+    totalReviews > 0 ? rating.toStringAsFixed(1) : null;
+
+/// Busca simples por nome do produto ou da loja (sem diferenciar caixa).
+bool marketMatches(MarketProduct p, String query) {
+  final q = query.trim().toLowerCase();
+  if (q.isEmpty) return true;
+  return p.name.toLowerCase().contains(q) || p.store.toLowerCase().contains(q);
+}
+
+/// Categorias presentes nos produtos (na ordem em que aparecem), para que
+/// todo chip filtre algo.
+List<String> marketCategories(Iterable<MarketProduct> products) {
+  final out = <String>[];
+  for (final p in products) {
+    if (p.category.isNotEmpty && !out.contains(p.category)) out.add(p.category);
+  }
+  return out;
+}
+
 class MarketProduct {
   final String id, name, emoji, category, store, storeId;
   final double price, rating;
+  final int totalReviews;
   MarketProduct(
       {required this.id,
       required this.name,
@@ -26,7 +49,8 @@ class MarketProduct {
       required this.price,
       required this.store,
       this.storeId = 'demo',
-      required this.rating});
+      required this.rating,
+      this.totalReviews = 0});
 
   /// Linha do carrinho (preço só para exibição; o servidor recalcula).
   CartLine line(int qty) => CartLine(
@@ -46,7 +70,8 @@ class MarketplaceScreen extends StatefulWidget {
 }
 
 class _MarketState extends State<MarketplaceScreen> {
-  int _cat = 0;
+  String _cat = 'all';
+  String _query = '';
   Cart get _cart => CartService.instance.cart;
   StreamSubscription<List<ProductModel>>? _prodSub;
   Object? _prodError;
@@ -83,6 +108,7 @@ class _MarketState extends State<MarketplaceScreen> {
                 store: p.storeName,
                 storeId: p.storeId,
                 rating: p.rating,
+                totalReviews: p.totalReviews,
               ))
           .toList());
     }, onError: (Object e) {
@@ -97,17 +123,32 @@ class _MarketState extends State<MarketplaceScreen> {
     super.dispose();
   }
 
-  static const _cats = [
-    {'id': 'all', 'name': 'Todos', 'emoji': '🏪'},
-    {'id': 'market', 'name': 'Mercado', 'emoji': '🛒'},
-    {'id': 'pharmacy', 'name': 'Farmácia', 'emoji': '💊'},
-    {'id': 'pet', 'name': 'Pet Shop', 'emoji': '🐾'},
-    {'id': 'materials', 'name': 'Materiais', 'emoji': '🔩'},
-    {'id': 'food', 'name': 'Refeições', 'emoji': '🍔'},
-    {'id': 'agro', 'name': 'Agro', 'emoji': '🌾'},
-    {'id': 'machines', 'name': 'Máquinas', 'emoji': '🚜'},
-    {'id': 'tools', 'name': 'Ferramentas', 'emoji': '🧰'},
-  ];
+  // Rótulos dos IDs usados só no catálogo de demonstração.
+  static const _demoCats = {
+    'market': ('Mercado', '🛒'),
+    'pharmacy': ('Farmácia', '💊'),
+    'pet': ('Pet Shop', '🐾'),
+    'materials': ('Materiais', '🔩'),
+    'food': ('Refeições', '🍔'),
+    'agro': ('Agro', '🌾'),
+    'machines': ('Máquinas', '🚜'),
+    'tools': ('Ferramentas', '🧰'),
+  };
+
+  /// Chips montados a partir das categorias reais dos produtos carregados
+  /// (nome/ícone do catálogo administrável).
+  List<({String id, String name, String emoji})> get _cats {
+    final catalog = CatalogService.instance.catalog;
+    return [
+      (id: 'all', name: 'Todos', emoji: '🏪'),
+      for (final id in marketCategories(_allProducts))
+        (
+          id: id,
+          name: catalog.byId(id)?.name ?? _demoCats[id]?.$1 ?? id,
+          emoji: catalog.byId(id)?.icon ?? _demoCats[id]?.$2 ?? '🏷️',
+        ),
+    ];
+  }
 
   /// Catálogo FICTÍCIO apenas para desenvolvimento local
   /// (DEMO_DATA=true em dev). Nunca aparece em homologação/produção.
@@ -315,11 +356,16 @@ class _MarketState extends State<MarketplaceScreen> {
         ...?_storeProducts,
       ];
 
+  // Categoria que sumiu da lista (ex.: produto removido) volta a "Todos".
+  String get _effectiveCat =>
+      _allProducts.any((p) => p.category == _cat) ? _cat : 'all';
+
   List<MarketProduct> get _filtered {
-    final cat = _cats[_cat]['id'];
-    return cat == 'all'
-        ? _allProducts
-        : _allProducts.where((p) => p.category == cat).toList();
+    final cat = _effectiveCat;
+    return _allProducts
+        .where((p) => cat == 'all' || p.category == cat)
+        .where((p) => marketMatches(p, _query))
+        .toList();
   }
 
   int get _totalItems => _cart.totalItems;
@@ -345,14 +391,16 @@ class _MarketState extends State<MarketplaceScreen> {
                                         color: Colors.white,
                                         fontWeight: FontWeight.w900,
                                         fontSize: 22)),
-                                Text('Entrega rápida na sua porta',
+                                Text('Compre das lojas da região',
                                     style: TextStyle(
                                         color: Colors.white70, fontSize: 12))
                               ]),
                           Row(children: [
-                            if (_totalItems > 0)
-                              Stack(children: [
-                                GestureDetector(
+                            // Vitrine de lojas: sempre visível.
+                            Semantics(
+                                button: true,
+                                label: 'Ver lojas',
+                                child: GestureDetector(
                                     onTap: () => Navigator.pushNamed(
                                         context, Routes.stores),
                                     child: Container(
@@ -366,7 +414,9 @@ class _MarketState extends State<MarketplaceScreen> {
                                                 BorderRadius.circular(12)),
                                         child: const Icon(
                                             Icons.storefront_rounded,
-                                            color: Colors.white))),
+                                            color: Colors.white)))),
+                            if (_totalItems > 0)
+                              Stack(children: [
                                 Semantics(button: true, label: 'Abrir carrinho', child: GestureDetector(
                                     onTap: _checkout,
                                     child: Container(
@@ -412,13 +462,15 @@ class _MarketState extends State<MarketplaceScreen> {
                           ]),
                         ]),
                     const SizedBox(height: 14),
-                    const AppSearchBar(hint: 'Buscar produtos, lojas...'),
+                    AppSearchBar(
+                        hint: 'Buscar produtos, lojas...',
+                        onChanged: (v) => setState(() => _query = v)),
                     const SizedBox(height: 10),
                     Row(children: [
                       const Icon(Icons.delivery_dining_rounded,
                           color: Colors.white70, size: 16),
                       const SizedBox(width: 6),
-                      Text('Frete e prazo informados pela loja no pedido',
+                      Text('Frete informado pela loja no pedido',
                           style: TextStyle(
                               color: Colors.white.withOpacity(0.8),
                               fontSize: 11,
@@ -433,11 +485,10 @@ class _MarketState extends State<MarketplaceScreen> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 10),
                       child: Row(
-                          children: List.generate(_cats.length, (i) {
-                        final c = _cats[i];
-                        final sel = _cat == i;
+                          children: _cats.map((c) {
+                        final sel = _effectiveCat == c.id;
                         return GestureDetector(
-                            onTap: () => setState(() => _cat = i),
+                            onTap: () => setState(() => _cat = c.id),
                             child: AnimatedContainer(
                                 duration: const Duration(milliseconds: 200),
                                 margin: const EdgeInsets.only(right: 8),
@@ -455,10 +506,10 @@ class _MarketState extends State<MarketplaceScreen> {
                                 child: Row(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Text(c['emoji']!,
+                                      Text(c.emoji,
                                           style: const TextStyle(fontSize: 15)),
                                       const SizedBox(width: 6),
-                                      Text(c['name']!,
+                                      Text(c.name,
                                           style: TextStyle(
                                               fontSize: 12,
                                               fontWeight: FontWeight.w700,
@@ -466,7 +517,7 @@ class _MarketState extends State<MarketplaceScreen> {
                                                   ? Colors.white
                                                   : AppColors.textDark))
                                     ])));
-                      }))))),
+                      }).toList())))),
           if (_prodError != null)
             SliverToBoxAdapter(
                 child: Padding(
@@ -489,8 +540,10 @@ class _MarketState extends State<MarketplaceScreen> {
                     child: EmptyState(
                         emoji: '🛒',
                         title: 'Nenhum produto disponível',
-                        subtitle: 'Ainda não há produtos publicados por lojas '
-                            'nesta categoria.',
+                        subtitle: _query.trim().isNotEmpty
+                            ? 'Nenhum produto ou loja corresponde à busca.'
+                            : 'Ainda não há produtos publicados por lojas '
+                                'nesta categoria.',
                         asset: AppAssets.mktSemProdutos)))
           else
           SliverPadding(
@@ -505,35 +558,9 @@ class _MarketState extends State<MarketplaceScreen> {
                       child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Row(
-                                mainAxisAlignment:
-                                    MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(p.emoji,
-                                      style: const TextStyle(fontSize: 36)),
-                                  StreamBuilder<bool>(
-                                    stream: FS.isProductFavoriteStream(p.id),
-                                    builder: (_, snap) {
-                                      final isFav = snap.data ?? false;
-                                      return GestureDetector(
-                                        onTap: () async {
-                                          await toggleFavoriteSafe(
-                                              context,
-                                              () => FS.toggleProductFavorite(
-                                                  p.id));
-                                        },
-                                        child: Icon(
-                                            isFav
-                                                ? Icons.favorite_rounded
-                                                : Icons.favorite_border_rounded,
-                                            color: isFav
-                                                ? AppColors.error
-                                                : AppColors.textHint,
-                                            size: 20),
-                                      );
-                                    },
-                                  ),
-                                ]),
+                            // Sem coração: Favoritos só lista profissionais.
+                            Text(p.emoji,
+                                style: const TextStyle(fontSize: 36)),
                             const SizedBox(height: 6),
                             Text(p.name,
                                 style: const TextStyle(
@@ -547,14 +574,16 @@ class _MarketState extends State<MarketplaceScreen> {
                                 style: const TextStyle(
                                     fontSize: 10, color: AppColors.textLight)),
                             const Spacer(),
-                            Row(children: [
-                              const Icon(Icons.star_rounded,
-                                  color: AppColors.warning, size: 12),
-                              Text(' ${p.rating}',
-                                  style: const TextStyle(
-                                      fontSize: 10,
-                                      fontWeight: FontWeight.w700))
-                            ]),
+                            if (ratingLabel(p.rating, p.totalReviews)
+                                case final r?)
+                              Row(children: [
+                                const Icon(Icons.star_rounded,
+                                    color: AppColors.warning, size: 12),
+                                Text(' $r',
+                                    style: const TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w700))
+                              ]),
                             const SizedBox(height: 6),
                             Text(PaySvc.fmt(p.price),
                                 style: const TextStyle(
@@ -663,11 +692,20 @@ class _MarketState extends State<MarketplaceScreen> {
                                   color: Colors.white,
                                   fontWeight: FontWeight.w800,
                                   fontSize: 15)),
-                          Text(PaySvc.fmt(_totalPrice),
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w900,
-                                  fontSize: 15)),
+                          // Valor estimado: o servidor recalcula com frete.
+                          Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.end,
+                              children: [
+                                const Text('Estimativa',
+                                    style: TextStyle(
+                                        color: Colors.white70, fontSize: 10)),
+                                Text(PaySvc.fmt(_totalPrice),
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 15)),
+                              ]),
                         ])),
               )
             : null,

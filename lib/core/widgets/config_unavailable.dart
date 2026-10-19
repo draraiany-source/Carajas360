@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../config/app_env.dart';
 import '../constants/app_constants.dart';
@@ -15,6 +16,10 @@ class ConfigUnavailableApp extends StatelessWidget {
   Widget build(BuildContext context) => MaterialApp(
         title: AppInfo.name,
         debugShowCheckedModeBanner: false,
+        // Textos do Material em português (pt_BR).
+        locale: const Locale('pt', 'BR'),
+        supportedLocales: const [Locale('pt', 'BR')],
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
         home: ConfigUnavailableScreen(problems: problems),
       );
 }

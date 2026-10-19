@@ -24,7 +24,7 @@ abstract final class ChatNav {
       roomId = await FS.getOrCreateRoom(otherUserId);
     } catch (e) {
       if (context.mounted) {
-        snack(context, 'Não foi possível abrir o chat: $e',
+        snack(context, 'Não foi possível abrir o chat. Tente novamente.',
             bg: AppColors.error);
       }
       return;

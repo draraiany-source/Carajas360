@@ -16,6 +16,22 @@ import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import 'chat_voice.dart';
 
+/// Respostas rápidas neutras (servem para qualquer tipo de conversa).
+const chatQuickReplies = [
+  'Olá!',
+  'Qual a disponibilidade?',
+  'Pode me passar mais detalhes?',
+  'Obrigado!',
+];
+
+final _locationMsg = RegExp(
+    r'^📍 Localização compartilhada\nhttps://maps\.google\.com/\?q=-?\d{1,3}(\.\d+)?,-?\d{1,3}(\.\d+)?$');
+
+/// Link da localização só quando o texto é exatamente o gerado pelo app
+/// (ação "Localização"); qualquer outro texto aparece como texto comum.
+String? chatLocationUrl(String text) =>
+    _locationMsg.hasMatch(text) ? text.split('\n').last : null;
+
 class ChatScreen extends StatefulWidget {
   final String roomId, otherName;
   final String? otherPhoto;
@@ -87,12 +103,13 @@ class _ChatState extends State<ChatScreen> {
             : (reply.senderId == _uid ? _myName : widget.otherName),
       );
       _scrollBottom();
-    } catch (e) {
+    } catch (_) {
       // Devolve o texto para o usuário tentar de novo.
       if (!mounted) return;
       if (override == null && _msgCtrl.text.isEmpty) _msgCtrl.text = text;
       setState(() => _replyTo = reply);
-      snack(context, 'Mensagem não enviada: $e', bg: AppColors.error);
+      snack(context, 'Mensagem não enviada. Verifique a conexão e tente de novo.',
+          bg: AppColors.error);
     }
   }
 
@@ -130,7 +147,20 @@ class _ChatState extends State<ChatScreen> {
                         style: TextStyle(color: AppColors.error)),
                     onTap: () async {
                       Navigator.pop(context);
-                      await FS.deleteMessageForAll(widget.roomId, msg.id);
+                      final ok = await confirmAction(context,
+                          title: 'Apagar para todos?',
+                          message:
+                              'A mensagem some da conversa para os dois lados. Esta ação não pode ser desfeita.',
+                          confirmLabel: 'Apagar');
+                      if (!ok) return;
+                      try {
+                        await FS.deleteMessageForAll(widget.roomId, msg.id);
+                      } catch (_) {
+                        if (mounted) {
+                          snack(context, 'Não foi possível apagar a mensagem.',
+                              bg: AppColors.error);
+                        }
+                      }
                     }),
               const SizedBox(height: 12),
             ])));
@@ -422,14 +452,25 @@ class _ChatState extends State<ChatScreen> {
                     onPressed: () async {
                       if (reasonCtrl.text.trim().isEmpty) return;
                       Navigator.pop(context);
-                      await FS.createReport(
-                          targetId: _otherUserId,
-                          targetName: widget.otherName,
-                          reason: reasonCtrl.text.trim());
-                      if (context.mounted)
-                        snack(context,
-                            'Denúncia enviada. Nossa equipe vai analisar.',
-                            bg: AppColors.secondary);
+                      try {
+                        await FS.createReport(
+                            targetId: _otherUserId,
+                            targetName: widget.otherName,
+                            reason: reasonCtrl.text.trim(),
+                            // Conversa de origem, para a moderação localizar.
+                            details: 'Conversa: ${widget.roomId}');
+                        if (context.mounted) {
+                          snack(context,
+                              'Denúncia enviada. Nossa equipe vai analisar.',
+                              bg: AppColors.secondary);
+                        }
+                      } catch (_) {
+                        if (context.mounted) {
+                          snack(context,
+                              'Não foi possível enviar a denúncia. Tente de novo.',
+                              bg: AppColors.error);
+                        }
+                      }
                     },
                     child: const Text('Enviar',
                         style: TextStyle(color: AppColors.error))),
@@ -520,6 +561,7 @@ class _ChatState extends State<ChatScreen> {
           actions: [
             if (_searching)
               IconButton(
+                  tooltip: 'Fechar pesquisa',
                   icon: const Icon(Icons.close_rounded,
                       color: AppColors.textDark),
                   onPressed: () => setState(() {
@@ -528,6 +570,7 @@ class _ChatState extends State<ChatScreen> {
                       }))
             else ...[
               IconButton(
+                  tooltip: 'Pesquisar na conversa',
                   icon: const Icon(Icons.search_rounded,
                       color: AppColors.textDark),
                   onPressed: () => setState(() => _searching = true)),
@@ -579,7 +622,7 @@ class _ChatState extends State<ChatScreen> {
           const InfoBanner(
               icon: '🔒',
               text:
-                  'Pagamento protegido. Pague somente após o serviço concluído.',
+                  'Pague somente pelo app: o valor fica protegido até a conclusão.',
               bg: Color(0xFFE8F5E9),
               fg: AppColors.secondary),
           Expanded(
@@ -803,17 +846,18 @@ class _ChatState extends State<ChatScreen> {
                         ),
                       if (msg.mediaUrl != null)
                         _mediaContent(msg, isMe)
-                      else if (msg.text.contains('maps.google.com'))
+                      else if (chatLocationUrl(msg.text) != null)
                         InkWell(
-                          onTap: () =>
-                              _openUrl(msg.text.split('\n').last.trim()),
+                          onTap: () => _openUrl(chatLocationUrl(msg.text)!),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             Icon(Icons.location_on_rounded,
                                 size: 18,
                                 color: isMe ? Colors.white : AppColors.error),
                             const SizedBox(width: 6),
                             Flexible(
-                                child: Text('Localização compartilhada',
+                                child: Text(
+                                    // Mostra o destino real do link.
+                                    'Localização compartilhada\n${Uri.parse(chatLocationUrl(msg.text)!).host}',
                                     style: TextStyle(
                                         color: isMe
                                             ? Colors.white
@@ -883,6 +927,7 @@ class _ChatState extends State<ChatScreen> {
                         fontSize: 12, color: AppColors.textLight)),
               ])),
           IconButton(
+              tooltip: 'Cancelar resposta',
               icon: const Icon(Icons.close_rounded, size: 20),
               onPressed: () => setState(() => _replyTo = null)),
         ]),
@@ -894,11 +939,8 @@ class _ChatState extends State<ChatScreen> {
           scrollDirection: Axis.horizontal,
           padding: const EdgeInsets.symmetric(horizontal: 12),
           children: [
-            'Sim, pode vir! 👍',
-            'Qual o valor?',
-            'Tem garantia?',
-            'Quando pode?',
-            'Combinado! ✅'
+            // Respostas neutras: servem para qualquer conversa.
+            ...chatQuickReplies
           ]
               .map((r) => GestureDetector(
                   onTap: () => _send(r),
@@ -923,6 +965,7 @@ class _ChatState extends State<ChatScreen> {
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 28),
         child: Row(children: [
           IconButton(
+              tooltip: 'Anexar',
               icon: const Icon(Icons.attach_file_rounded,
                   color: AppColors.textLight),
               onPressed: _showAttachMenu),
@@ -949,7 +992,10 @@ class _ChatState extends State<ChatScreen> {
                     const EdgeInsets.symmetric(horizontal: 16, vertical: 10)),
           )),
           const SizedBox(width: 8),
-          GestureDetector(
+          Semantics(
+              button: true,
+              label: 'Enviar mensagem',
+              child: GestureDetector(
               onTap: () => _send(),
               child: Container(
                   width: 44,
@@ -957,7 +1003,7 @@ class _ChatState extends State<ChatScreen> {
                   decoration: const BoxDecoration(
                       color: AppColors.primary, shape: BoxShape.circle),
                   child: const Icon(Icons.send_rounded,
-                      color: Colors.white, size: 20))),
+                      color: Colors.white, size: 20)))),
         ]),
       );
 }
@@ -992,12 +1038,16 @@ class _AudioBubbleState extends State<_AudioBubble> {
   }
 
   Future<void> _toggle() async {
-    if (_playing) {
-      await _player.pause();
-    } else {
-      await _player.play(UrlSource(widget.url));
+    try {
+      if (_playing) {
+        await _player.pause();
+      } else {
+        await _player.play(UrlSource(widget.url));
+      }
+      if (mounted) setState(() => _playing = !_playing);
+    } catch (_) {
+      if (mounted) snack(context, 'Não foi possível tocar o áudio.', bg: AppColors.error);
     }
-    setState(() => _playing = !_playing);
   }
 
   @override
@@ -1005,7 +1055,11 @@ class _AudioBubbleState extends State<_AudioBubble> {
         width: 180,
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         child: Row(children: [
-          GestureDetector(
+          Semantics(
+              button: true,
+              label: _playing ? 'Pausar mensagem de voz' : 'Ouvir mensagem de voz',
+              excludeSemantics: true,
+              child: GestureDetector(
               onTap: _toggle,
               child: Container(
                   width: 34,
@@ -1018,15 +1072,17 @@ class _AudioBubbleState extends State<_AudioBubble> {
                   child: Icon(
                       _playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
                       color: widget.isMe ? Colors.white : AppColors.primary,
-                      size: 20))),
+                      size: 20)))),
           const SizedBox(width: 8),
+          // Barra decorativa (sem progresso real): fora da leitura de tela.
           Expanded(
-              child: Container(
+              child: ExcludeSemantics(
+                  child: Container(
                   height: 3,
                   decoration: BoxDecoration(
                       color: (widget.isMe ? Colors.white : AppColors.primary)
                           .withOpacity(0.3),
-                      borderRadius: BorderRadius.circular(2)))),
+                      borderRadius: BorderRadius.circular(2))))),
           const SizedBox(width: 8),
           Icon(Icons.mic_rounded,
               size: 16,

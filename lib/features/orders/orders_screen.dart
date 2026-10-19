@@ -192,6 +192,36 @@ class _MyOrdersState extends State<MyOrdersScreen> {
               ),
             ),
           ),
+          // Atalho para as compras do Mercado (pedidos de lojas).
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            child: Material(
+              color: AppColors.delivery.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(14),
+              child: InkWell(
+                key: const Key('market-orders-shortcut'),
+                borderRadius: BorderRadius.circular(14),
+                onTap: () =>
+                    Navigator.pushNamed(context, Routes.marketOrders),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  child: Row(children: [
+                    Text('🛒', style: TextStyle(fontSize: 18)),
+                    SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Compras do Mercado',
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700, fontSize: 13),
+                      ),
+                    ),
+                    Icon(Icons.chevron_right_rounded,
+                        color: AppColors.delivery),
+                  ]),
+                ),
+              ),
+            ),
+          ),
           SizedBox(
               height: 46,
               child: ListView(
@@ -201,9 +231,11 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                   children: [
                     _filterChip('Todos', null),
                     _filterChip('Aguardando', OrderStatus.pending),
+                    _filterChip('Aceitos', OrderStatus.accepted),
                     _filterChip('Em andamento', OrderStatus.inProgress),
                     _filterChip('Concluídos', OrderStatus.completed),
                     _filterChip('Cancelados', OrderStatus.cancelled),
+                    _filterChip('Em disputa', OrderStatus.disputed),
                   ])),
           Expanded(
               child: StreamBuilder<List<OrderModel>>(
@@ -335,8 +367,10 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                                   child: const Text('Avaliar',
                                       style: TextStyle(fontSize: 12))),
                           ]),
-                          // Cliente confirma a conclusão (libera o repasse).
+                          // Cliente confirma a conclusão (libera o repasse);
+                          // só faz sentido com o pedido pago.
                           if (o.status == OrderStatus.inProgress &&
+                              o.isPaid &&
                               o.clientId == AuthService.uid)
                             _ConfirmDone(order: o),
                         ]),
@@ -448,7 +482,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                             paid
                                 ? 'Pedido cancelado. O reembolso foi solicitado.'
                                 : 'Pedido cancelado',
-                            bg: AppColors.error);
+                            bg: AppColors.secondary);
                       }
                     } catch (e) {
                       if (context.mounted) {
@@ -816,7 +850,7 @@ class _RequestServiceState extends State<RequestServiceScreen> {
                         style: TextStyle(
                             fontSize: 14, fontWeight: FontWeight.w600)),
                     subtitle: const Text(
-                        'Prioriza sua solicitação na fila do profissional',
+                        'Marca como urgente para o profissional',
                         style: TextStyle(
                             fontSize: 11, color: AppColors.textLight)),
                     value: _urgent,

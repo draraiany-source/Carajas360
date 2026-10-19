@@ -7,5 +7,5 @@
       C1100 365.0 1060.0 405.0 1000 405.0
       C945.0 405.0 900 360.0 900 300 Z"/><rect x="64" y="64" width="126.0" height="40" rx="20" fill="#FFFFFF"/>
 <text x="127.0" y="90" text-anchor="middle" font-family="Inter, sans-serif" font-weight="700" font-size="16" fill="#E1431F">ENTREGAS</text><text x="64" y="170" font-family="Sora, sans-serif" font-weight="800" font-size="46" fill="#FFFFFF">Entrega rápida, do seu jeito</text>
-<text x="64" y="215" font-family="Inter, sans-serif" font-weight="500" font-size="22" fill="#FFFFFF" opacity="0.9">Motoboy e frete expresso na palma da mão</text><circle cx="960" cy="255" r="16" fill="none" stroke="#FFFFFF" stroke-width="5"/><circle cx="1060" cy="255" r="16" fill="none" stroke="#FFFFFF" stroke-width="5"/><path d="M960 255l0-45h60l24 24h16v21" fill="none" stroke="#FFFFFF" stroke-width="5"/>
+<text x="64" y="215" font-family="Inter, sans-serif" font-weight="500" font-size="22" fill="#FFFFFF" opacity="0.9">Combine a entrega direto com a loja</text><circle cx="960" cy="255" r="16" fill="none" stroke="#FFFFFF" stroke-width="5"/><circle cx="1060" cy="255" r="16" fill="none" stroke="#FFFFFF" stroke-width="5"/><path d="M960 255l0-45h60l24 24h16v21" fill="none" stroke="#FFFFFF" stroke-width="5"/>
 </svg>

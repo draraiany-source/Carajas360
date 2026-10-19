@@ -712,7 +712,7 @@ exports.switchProfileType = functions.region(REGION).https.onCall(async (data, c
 exports.sendPushNotification = functions.firestore
   .document('notifications/{notifId}')
   .onCreate(async (snap) => {
-    const { userId, title, body } = snap.data();
+    const { userId, title, body, type, link } = snap.data();
     if (!userId) return null;
     const userDoc = await db.collection('users').doc(userId).get();
     const fcmToken = userDoc.data()?.fcmToken;
@@ -721,12 +721,18 @@ exports.sendPushNotification = functions.firestore
       await admin.messaging().send({
         token: fcmToken,
         notification: { title, body },
+        // Destino do toque no aviso (mesmo mapa das notificações do app).
+        data: { type: String(type || ''), route: String((link && link.route) || ''), id: String((link && link.id) || '') },
         android: { notification: { icon: 'ic_launcher', color: '#0B3D91' } },
         apns: { payload: { aps: { badge: 1, sound: 'default' } } },
       });
     } catch (e) {
       // Push é melhor-esforço: a notificação já está salva no Firestore.
       console.warn('sendPushNotification', userId, e.code || e.message);
+      // Token inválido (app desinstalado/logout em outro aparelho): limpa.
+      if (/registration-token-not-registered|invalid-registration-token/.test(String(e.code || ''))) {
+        await userDoc.ref.update({ fcmToken: FieldValue.delete() }).catch(() => {});
+      }
     }
     return null;
   });
@@ -1067,10 +1073,26 @@ exports.onAuthUserDeleted = functions.auth.user().onDelete(async (user) => {
     del(db.collection('favorites').where('userId', '==', uid)),
     del(db.collection('notifications').where('userId', '==', uid)),
   ]);
+  // Auditoria 3: o perfil de prestador fica (histórico de pedidos aponta
+  // para ele), mas sem dados pessoais; avaliações escritas pela pessoa
+  // ficam anônimas; arquivos pessoais saem do Storage. Conversas
+  // permanecem para a outra parte, sem o perfil público (já removido).
   const prov = await db.collection('providers').doc(uid).get();
   if (prov.exists) {
-    await prov.ref.update({ active: false, verified: false, acceptingRequests: false, deletedAt: FieldValue.serverTimestamp() });
+    await prov.ref.update({
+      active: false, verified: false, acceptingRequests: false, deletedAt: FieldValue.serverTimestamp(),
+      name: 'Profissional removido', photoUrl: null, bio: null, phone: null, email: null, whatsapp: null, address: null,
+    });
   }
+  const reviews = await db.collection('reviews').where('clientId', '==', uid).limit(400).get();
+  if (!reviews.empty) {
+    const b = db.batch();
+    reviews.docs.forEach((d) => b.update(d.ref, { clientName: 'Usuário removido', clientPhoto: null }));
+    await b.commit();
+  }
+  const bucket = admin.storage().bucket();
+  await Promise.all([`users/${uid}/`, `providers/${uid}/`, `resolveUploads/${uid}/`, `rentalPhotos/${uid}/`]
+    .map((prefix) => bucket.deleteFiles({ prefix }).catch((e) => console.warn('deleteFiles', prefix, e.message))));
   return null;
 });
 

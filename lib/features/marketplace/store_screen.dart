@@ -7,10 +7,37 @@ import '../../core/constants/app_constants.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../checkout/cart.dart';
+import '../checkout/cart_service.dart';
+import '../checkout/checkout_screen.dart';
 import '../checkout/market_order_screen.dart';
 import '../checkout/payments_api.dart';
+import '../../core/auth/access_control.dart';
 import '../../core/catalog/catalog.dart';
+import '../../core/catalog/catalog_service.dart';
 import '../../core/catalog/catalog_widgets.dart';
+
+/// Converte valor digitado em reais ("1.234,56", "12,5", "12.50").
+/// Com vírgula, pontos são milhar; sem vírgula, "1.234" também é milhar.
+/// Devolve null se não for número.
+double? parseBrlNumber(String raw) {
+  var t = raw.replaceAll('R\$', '').replaceAll(' ', '').trim();
+  if (t.isEmpty) return null;
+  if (t.contains(',')) {
+    t = t.replaceAll('.', '').replaceAll(',', '.');
+  } else if (RegExp(r'^-?\d{1,3}(\.\d{3})+$').hasMatch(t)) {
+    t = t.replaceAll('.', '');
+  }
+  return double.tryParse(t);
+}
+
+/// Estoque digitado: vazio = 0; negativo ou inválido = null.
+int? parseStock(String raw) {
+  final t = raw.trim();
+  if (t.isEmpty) return 0;
+  final v = int.tryParse(t);
+  return (v == null || v < 0) ? null : v;
+}
 
 // ─────────────────────────────────────────────────────────────
 // MINHA LOJA (Vol.12: Marketplace — lojas de empresas)
@@ -27,12 +54,22 @@ class StoreScreen extends StatelessWidget {
             title: const Text('Minha loja'),
             backgroundColor: AppColors.delivery,
             foregroundColor: Colors.white),
-        body: StreamBuilder<StoreModel?>(
+        // Sem login: convida a entrar (não mostra o cadastro que falharia).
+        body: !AuthService.isAuth
+            ? EmptyState(
+                emoji: '🏪',
+                title: 'Entre para gerenciar sua loja',
+                subtitle: 'É preciso ter uma conta para abrir e gerenciar uma loja.',
+                actionLabel: 'Entrar',
+                onAction: () => loginAndResume(context))
+            : StreamBuilder<StoreModel?>(
           stream: FS.myStoreStream(),
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
+            // Erro de leitura não pode virar o formulário de nova loja.
+            if (snap.hasError) return QueryErrorView(error: snap.error);
             final store = snap.data;
             return store == null ? _StoreForm() : _StoreDashboard(store: store);
           },
@@ -73,6 +110,7 @@ class _StoreFormState extends State<_StoreForm> {
     }
     setState(() => _saving = true);
     String? id;
+    Object? err;
     try {
       id = await FS.saveStore(StoreModel(
         id: '',
@@ -88,11 +126,18 @@ class _StoreFormState extends State<_StoreForm> {
       ));
     } catch (e) {
       debugPrint('saveStore: $e');
+      err = e;
     } finally {
       if (mounted) setState(() => _saving = false);
     }
     if (!mounted) return;
-    snack(context, id != null ? '✅ Loja criada!' : 'Falha ao criar a loja.',
+    snack(
+        context,
+        id != null
+            ? '✅ Loja criada!'
+            : err != null
+                ? 'Falha ao criar a loja: $err'
+                : 'Falha ao criar a loja. Verifique se você está logado.',
         bg: id != null ? AppColors.secondary : AppColors.error);
   }
 
@@ -293,7 +338,9 @@ class _StoreDashboard extends StatelessWidget {
             const SizedBox(height: 16),
             Row(children: [
               _stat('${store.totalProducts}', 'Produtos'),
-              _stat(store.rating.toStringAsFixed(1), 'Avaliação'),
+              // Sem avaliações: não exibe nota 0,0.
+              _stat(store.totalReviews > 0 ? store.rating.toStringAsFixed(1) : '—',
+                  'Avaliação'),
               _stat('${store.totalReviews}', 'Avaliações'),
             ]),
           ]),
@@ -320,10 +367,9 @@ class _StoreDashboard extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                         builder: (_) => _CatalogScreen(store: store)))),
-            _menu(context, '🎟️', 'Cupons', 'Gerencie cupons de desconto',
-                () => Navigator.pushNamed(context, Routes.coupons)),
+            // Cupons são criados só pelo admin (sem item aqui).
             _menu(context, '📋', 'Pedidos', 'Acompanhe as vendas',
-                () => Navigator.pushNamed(context, Routes.myOrders)),
+                () => Navigator.pushNamed(context, Routes.storeOrders)),
           ]),
         )),
       ]);
@@ -407,6 +453,7 @@ class _CatalogScreen extends StatelessWidget {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
+            if (snap.hasError) return QueryErrorView(error: snap.error);
             final items = snap.data ?? [];
             if (items.isEmpty) {
               return const EmptyState(
@@ -480,7 +527,7 @@ class _CatalogScreen extends StatelessWidget {
                     IconButton(
                       icon: const Icon(Icons.delete_outline_rounded,
                           size: 20, color: AppColors.error),
-                      onPressed: () => FS.removeProduct(p.id, store.id),
+                      onPressed: () => _confirmRemove(context, p),
                     ),
                   ]),
                 );
@@ -490,125 +537,210 @@ class _CatalogScreen extends StatelessWidget {
         ),
       );
 
-  void _productSheet(BuildContext context, {ProductModel? edit}) {
-    final name = TextEditingController(text: edit?.name ?? '');
-    final price =
-        TextEditingController(text: edit?.price.toStringAsFixed(2) ?? '');
-    final promo =
-        TextEditingController(text: edit?.promoPrice?.toStringAsFixed(2) ?? '');
-    final stock = TextEditingController(text: '${edit?.stock ?? 0}');
-    final emoji = TextEditingController(text: edit?.emoji ?? '📦');
-    final desc = TextEditingController(text: edit?.description ?? '');
-    String cat = edit?.category ??
-        (store.categories.isNotEmpty ? store.categories.first : 'materials');
+  Future<void> _confirmRemove(BuildContext context, ProductModel p) async {
+    final ok = await showDialog<bool>(
+        context: context,
+        builder: (c) => AlertDialog(
+              title: const Text('Excluir produto?'),
+              content: Text('"${p.name}" deixará de aparecer no marketplace.'),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(c, false),
+                    child: const Text('Voltar')),
+                TextButton(
+                    onPressed: () => Navigator.pop(c, true),
+                    child: const Text('Excluir',
+                        style: TextStyle(color: AppColors.error))),
+              ],
+            ));
+    if (ok != true) return;
+    try {
+      await FS.removeProduct(p.id, store.id);
+      if (context.mounted) {
+        snack(context, 'Produto excluído', bg: AppColors.secondary);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        snack(context, 'Não foi possível excluir o produto: $e',
+            bg: AppColors.error);
+      }
+    }
+  }
 
+  void _productSheet(BuildContext context, {ProductModel? edit}) {
     showModalBottomSheet(
         context: context,
         isScrollControlled: true,
-        builder: (ctx) => Padding(
-              padding: EdgeInsets.fromLTRB(
-                  20, 16, 20, MediaQuery.of(ctx).viewInsets.bottom + 24),
-              child: SingleChildScrollView(
-                  child: Column(mainAxisSize: MainAxisSize.min, children: [
-                const SheetHandle(),
-                const SizedBox(height: 14),
-                Text(edit == null ? 'Novo produto' : 'Editar produto',
-                    style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w800)),
-                const SizedBox(height: 16),
-                Row(children: [
-                  SizedBox(
-                      width: 70,
-                      child: TextField(
-                          controller: emoji,
-                          textAlign: TextAlign.center,
-                          decoration:
-                              const InputDecoration(labelText: 'Ícone'))),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: TextField(
-                          controller: name,
-                          decoration: const InputDecoration(
-                              labelText: 'Nome do produto *'))),
-                ]),
-                const SizedBox(height: 12),
-                TextField(
-                    controller: desc,
-                    maxLines: 2,
-                    decoration: const InputDecoration(labelText: 'Descrição')),
-                const SizedBox(height: 12),
-                Row(children: [
-                  Expanded(
-                      child: TextField(
-                          controller: price,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                              labelText: 'Preço *', prefixText: 'R\$ '))),
-                  const SizedBox(width: 10),
-                  Expanded(
-                      child: TextField(
-                          controller: promo,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                              labelText: 'Promoção', prefixText: 'R\$ '))),
-                ]),
-                const SizedBox(height: 12),
-                TextField(
-                    controller: stock,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(labelText: 'Estoque')),
-                const SizedBox(height: 18),
-                SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        final v =
-                            double.tryParse(price.text.replaceAll(',', '.')) ??
-                                0;
-                        if (name.text.trim().isEmpty || v <= 0) {
-                          snack(ctx, 'Informe nome e preço válidos',
-                              bg: AppColors.error);
-                          return;
-                        }
-                        final pr =
-                            double.tryParse(promo.text.replaceAll(',', '.'));
-                        try {
-                          await FS.saveProduct(ProductModel(
-                            id: edit?.id ?? '',
-                            storeId: store.id,
-                            storeName: store.name,
-                            name: name.text.trim(),
-                            category: cat,
-                            description: desc.text.trim(),
-                            emoji: emoji.text.trim().isEmpty
-                                ? '📦'
-                                : emoji.text.trim(),
-                            price: v,
-                            promoPrice:
-                                (pr != null && pr > 0 && pr < v) ? pr : null,
-                            stock: int.tryParse(stock.text) ?? 0,
-                            createdAt: DateTime.now(),
-                          ));
-                        } catch (e) {
-                          if (ctx.mounted) {
-                            snack(ctx, 'Não foi possível salvar o produto: $e',
-                                bg: AppColors.error);
-                          }
-                          return;
-                        }
-                        if (ctx.mounted) Navigator.pop(ctx);
-                      },
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.delivery,
-                          padding: const EdgeInsets.symmetric(vertical: 15)),
-                      child: Text(
-                          edit == null
-                              ? 'Publicar produto'
-                              : 'Salvar alterações',
-                          style: const TextStyle(fontWeight: FontWeight.w800)),
-                    )),
-              ])),
-            ));
+        builder: (_) => _ProductSheet(store: store, edit: edit));
+  }
+}
+
+/// Formulário de produto (dono dos controllers: libera no dispose).
+class _ProductSheet extends StatefulWidget {
+  final StoreModel store;
+  final ProductModel? edit;
+  const _ProductSheet({required this.store, this.edit});
+  @override
+  State<_ProductSheet> createState() => _ProductSheetState();
+}
+
+class _ProductSheetState extends State<_ProductSheet> {
+  // Preço pré-preenchido no formato brasileiro (vírgula decimal).
+  static String _fmt(double? v) =>
+      v == null ? '' : v.toStringAsFixed(2).replaceAll('.', ',');
+
+  late final _name = TextEditingController(text: widget.edit?.name ?? '');
+  late final _price = TextEditingController(text: _fmt(widget.edit?.price));
+  late final _promo =
+      TextEditingController(text: _fmt(widget.edit?.promoPrice));
+  late final _stock =
+      TextEditingController(text: '${widget.edit?.stock ?? 0}');
+  late final _emoji = TextEditingController(text: widget.edit?.emoji ?? '📦');
+  late final _desc =
+      TextEditingController(text: widget.edit?.description ?? '');
+  late String _cat = widget.edit?.category ??
+      (widget.store.categories.isNotEmpty
+          ? widget.store.categories.first
+          : 'materials');
+  bool _saving = false;
+
+  @override
+  void dispose() {
+    for (final c in [_name, _price, _promo, _stock, _emoji, _desc]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Categorias da loja (+ a atual do produto, se não estiver nelas).
+  List<String> get _catOptions => {
+        ...widget.store.categories,
+        _cat,
+      }.toList();
+
+  Future<void> _save() async {
+    final v = parseBrlNumber(_price.text) ?? 0;
+    if (_name.text.trim().isEmpty || v <= 0) {
+      snack(context, 'Informe nome e preço válidos', bg: AppColors.error);
+      return;
+    }
+    final stock = parseStock(_stock.text);
+    if (stock == null) {
+      snack(context, 'Estoque inválido (use 0 ou mais)', bg: AppColors.error);
+      return;
+    }
+    final pr = parseBrlNumber(_promo.text);
+    final edit = widget.edit;
+    setState(() => _saving = true);
+    try {
+      await FS.saveProduct(ProductModel(
+        id: edit?.id ?? '',
+        storeId: widget.store.id,
+        storeName: widget.store.name,
+        name: _name.text.trim(),
+        category: _cat,
+        description: _desc.text.trim(),
+        emoji: _emoji.text.trim().isEmpty ? '📦' : _emoji.text.trim(),
+        price: v,
+        promoPrice: (pr != null && pr > 0 && pr < v) ? pr : null,
+        stock: stock,
+        createdAt: DateTime.now(),
+      ));
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        snack(context, 'Não foi possível salvar o produto: $e',
+            bg: AppColors.error);
+      }
+      return;
+    }
+    if (mounted) Navigator.pop(context);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final catalog = CatalogService.instance.catalog;
+    const money = TextInputType.numberWithOptions(decimal: true);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+          20, 16, 20, MediaQuery.of(context).viewInsets.bottom + 24),
+      child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+        const SheetHandle(),
+        const SizedBox(height: 14),
+        Text(widget.edit == null ? 'Novo produto' : 'Editar produto',
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 16),
+        Row(children: [
+          SizedBox(
+              width: 70,
+              child: TextField(
+                  controller: _emoji,
+                  textAlign: TextAlign.center,
+                  decoration: const InputDecoration(labelText: 'Ícone'))),
+          const SizedBox(width: 10),
+          Expanded(
+              child: TextField(
+                  controller: _name,
+                  decoration:
+                      const InputDecoration(labelText: 'Nome do produto *'))),
+        ]),
+        const SizedBox(height: 12),
+        // Categoria escolhida pelo lojista entre as da loja.
+        DropdownButtonFormField<String>(
+          key: const Key('product-category'),
+          initialValue: _cat,
+          isExpanded: true,
+          decoration: const InputDecoration(labelText: 'Categoria'),
+          items: [
+            for (final id in _catOptions)
+              DropdownMenuItem(
+                  value: id,
+                  child: Text(catalog.nameOf(id),
+                      overflow: TextOverflow.ellipsis)),
+          ],
+          onChanged: (v) => setState(() => _cat = v ?? _cat),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+            controller: _desc,
+            maxLines: 2,
+            decoration: const InputDecoration(labelText: 'Descrição')),
+        const SizedBox(height: 12),
+        Row(children: [
+          Expanded(
+              child: TextField(
+                  controller: _price,
+                  keyboardType: money,
+                  decoration: const InputDecoration(
+                      labelText: 'Preço *', prefixText: 'R\$ '))),
+          const SizedBox(width: 10),
+          Expanded(
+              child: TextField(
+                  controller: _promo,
+                  keyboardType: money,
+                  decoration: const InputDecoration(
+                      labelText: 'Promoção', prefixText: 'R\$ '))),
+        ]),
+        const SizedBox(height: 12),
+        TextField(
+            controller: _stock,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Estoque')),
+        const SizedBox(height: 18),
+        SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: _saving ? null : _save,
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.delivery,
+                  padding: const EdgeInsets.symmetric(vertical: 15)),
+              child: Text(
+                  widget.edit == null ? 'Publicar produto' : 'Salvar alterações',
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+            )),
+      ])),
+    );
   }
 }
 
@@ -631,6 +763,7 @@ class StoresListScreen extends StatelessWidget {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
+            if (snap.hasError) return QueryErrorView(error: snap.error);
             final stores = snap.data ?? [];
             if (stores.isEmpty) {
               return const EmptyState(
@@ -738,6 +871,20 @@ class StoreProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
+        // Atalho para o carrinho quando há itens.
+        floatingActionButton: ListenableBuilder(
+            listenable: CartService.instance,
+            builder: (context, _) {
+              final n = CartService.instance.cart.totalItems;
+              if (n == 0) return const SizedBox.shrink();
+              return FloatingActionButton.extended(
+                  backgroundColor: AppColors.secondary,
+                  foregroundColor: Colors.white,
+                  icon: const Icon(Icons.shopping_cart_rounded),
+                  label: Text('Ver carrinho ($n)'),
+                  onPressed: () => Navigator.push(context,
+                      MaterialPageRoute(builder: (_) => const CartScreen())));
+            }),
         body: CustomScrollView(slivers: [
           SliverAppBar(
             expandedHeight: 170,
@@ -832,6 +979,10 @@ class StoreProfileScreen extends StatelessWidget {
                         padding: EdgeInsets.all(30),
                         child: Center(child: CircularProgressIndicator())));
               }
+              if (snap.hasError) {
+                return SliverToBoxAdapter(
+                    child: QueryErrorView(error: snap.error));
+              }
               final items = snap.data ?? [];
               if (items.isEmpty) {
                 return const SliverToBoxAdapter(
@@ -889,6 +1040,8 @@ class StoreProfileScreen extends StatelessWidget {
                                         bg: const Color(0xFFFFEBEE),
                                         fg: AppColors.error)),
                             ]),
+                            const SizedBox(height: 6),
+                            _AddToCart(product: p, store: store),
                           ]),
                     );
                   }, childCount: items.length),
@@ -898,6 +1051,80 @@ class StoreProfileScreen extends StatelessWidget {
           ),
         ]),
       );
+}
+
+/// Botão de carrinho do card da vitrine (mesmo carrinho do marketplace).
+class _AddToCart extends StatelessWidget {
+  final ProductModel product;
+  final StoreModel store;
+  const _AddToCart({required this.product, required this.store});
+
+  CartLine _line(int qty) => CartLine(
+      productId: product.id,
+      storeId: product.storeId.isNotEmpty ? product.storeId : store.id,
+      storeName: product.storeName.isNotEmpty ? product.storeName : store.name,
+      name: product.name,
+      emoji: product.emoji ?? '📦',
+      unitPriceCents: (product.finalPrice * 100).round(),
+      qty: qty);
+
+  @override
+  Widget build(BuildContext context) {
+    if (!product.inStock) {
+      return const SizedBox(
+          height: 30,
+          child: Center(
+              child: Text('Sem estoque',
+                  style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.error))));
+    }
+    return ListenableBuilder(
+        listenable: CartService.instance,
+        builder: (context, _) {
+          final qty = CartService.instance.cart.qtyOf(product.id);
+          if (qty == 0) {
+            return SizedBox(
+                width: double.infinity,
+                height: 30,
+                child: ElevatedButton(
+                    onPressed: () =>
+                        CartService.instance.setQty(_line(1), 1),
+                    style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.secondary,
+                        padding: EdgeInsets.zero,
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(10))),
+                    child: const Text('+ Adicionar',
+                        style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white))));
+          }
+          return SizedBox(
+              height: 30,
+              child: Row(children: [
+                IconButton(
+                    padding: EdgeInsets.zero,
+                    iconSize: 18,
+                    icon: const Icon(Icons.remove_circle_outline),
+                    onPressed: () =>
+                        CartService.instance.setQty(_line(qty), qty - 1)),
+                Expanded(
+                    child: Text('$qty',
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontWeight: FontWeight.w800))),
+                IconButton(
+                    padding: EdgeInsets.zero,
+                    iconSize: 18,
+                    icon: const Icon(Icons.add_circle_outline,
+                        color: AppColors.secondary),
+                    onPressed: () =>
+                        CartService.instance.setQty(_line(qty), qty + 1)),
+              ]));
+        });
+  }
 }
 
 /// Frete e modos de entrega da loja. O servidor usa estes campos para
@@ -924,7 +1151,7 @@ class _DeliverySettingsState extends State<_DeliverySettings> {
 
   Future<void> _save() async {
     final cents =
-        ((double.tryParse(_fee.text.replaceAll(',', '.')) ?? -1) * 100).round();
+        ((parseBrlNumber(_fee.text) ?? -1) * 100).round();
     if (cents < 0 || cents > 100000) {
       snack(context, 'Frete inválido (R\$ 0 a R\$ 1.000)', bg: AppColors.error);
       return;

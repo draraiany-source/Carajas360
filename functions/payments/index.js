@@ -239,6 +239,9 @@ module.exports = function paymentFunctions(deps) {
     const addr = validAddress(data?.address, mode);
     if (addr && addr.error) throw httpsError('invalid-argument', addr.error);
 
+    // A loja precisa saber quem atender (nome do perfil público mínimo).
+    const pub = await db.collection('publicProfiles').doc(auth.uid).get();
+    const clientName = String((pub.exists && pub.data().name) || 'Cliente').slice(0, 80);
     const result = await db.runTransaction(async (tx) => {
       const again = await tx.get(ref);
       if (again.exists) return { reused: true, order: again.data() };
@@ -254,6 +257,7 @@ module.exports = function paymentFunctions(deps) {
       const t = now();
       const order = {
         clientId: auth.uid,
+        clientName,
         storeId: store.id,
         storeName: store.name || '',
         storeOwnerId: store.ownerId || null,

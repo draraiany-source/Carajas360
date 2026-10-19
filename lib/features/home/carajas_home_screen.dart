@@ -20,6 +20,20 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   String _city = RegionCities.defaultCity;
+  // Puxar para atualizar: recria os streams da tela.
+  int _refreshTick = 0;
+
+  /// Compara cidades ignorando caixa e acentos.
+  static String _cityKey(String? c) {
+    const from = 'áàâãäéèêëíìîïóòôõöúùûüç';
+    const to = 'aaaaaeeeeiiiiooooouuuuc';
+    final buf = StringBuffer();
+    for (final ch in (c ?? '').trim().toLowerCase().split('')) {
+      final i = from.indexOf(ch);
+      buf.write(i >= 0 ? to[i] : ch);
+    }
+    return buf.toString();
+  }
 
   @override
   void initState() {
@@ -104,8 +118,7 @@ class _HomeScreenState extends State<HomeScreen> {
       body: RefreshIndicator(
         color: AppColors.primary,
         onRefresh: () async {
-          await Future.delayed(const Duration(milliseconds: 450));
-          if (mounted) setState(() {});
+          if (mounted) setState(() => _refreshTick++);
         },
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(
@@ -126,7 +139,9 @@ class _HomeScreenState extends State<HomeScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  'Olá, ${user?.firstName.isNotEmpty == true ? user!.firstName : 'Bem-vindo'}',
+                                  user?.firstName.isNotEmpty == true
+                                      ? 'Olá, ${user!.firstName}'
+                                      : 'Olá! Bem-vindo(a)',
                                   style: TextStyle(
                                       color: Colors.white
                                           .withValues(alpha: 0.82),
@@ -161,6 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                 clipBehavior: Clip.none,
                                 children: [
                                   IconButton(
+                                    tooltip: 'Notificações',
                                     onPressed: () => Navigator.pushNamed(
                                         context, Routes.notifications),
                                     icon: const Icon(
@@ -191,15 +207,23 @@ class _HomeScreenState extends State<HomeScreen> {
                               );
                             },
                           ),
-                          GestureDetector(
-                            onTap: () =>
-                                Navigator.pushNamed(context, Routes.profile),
-                            child: AppAvatar(
-                                url: user?.photoUrl,
-                                name: user?.name ?? '?',
-                                size: 40,
-                                bg: AppColors.warning,
-                                r: 12),
+                          Tooltip(
+                            message: 'Meu perfil',
+                            child: Semantics(
+                              button: true,
+                              label: 'Meu perfil',
+                              excludeSemantics: true,
+                              child: GestureDetector(
+                                onTap: () => Navigator.pushNamed(
+                                    context, Routes.profile),
+                                child: AppAvatar(
+                                    url: user?.photoUrl,
+                                    name: user?.name ?? '?',
+                                    size: 40,
+                                    bg: AppColors.warning,
+                                    r: 12),
+                              ),
+                            ),
                           ),
                         ],
                       ),
@@ -218,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               color: Colors.white, size: 18),
                           const SizedBox(width: 4),
                           Flexible(
-                            child: Text('📍 $_city',
+                            child: Text(_city,
                                 style: TextStyle(
                                     color: Colors.white
                                         .withValues(alpha: 0.92),
@@ -280,7 +304,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: Padding(
               padding: const EdgeInsets.only(top: 22),
               child: SecHeader(
-                title: 'Próximos de você',
+                title: 'Profissionais em $_city',
                 action: 'Ver serviços →',
                 onAction: () =>
                     Navigator.pushNamed(context, Routes.servicesHub),
@@ -288,22 +312,28 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           SliverToBoxAdapter(
+            // Sem filtro de cidade no servidor: busca mais e filtra aqui.
             child: StreamBuilder<List<ProviderModel>>(
-              stream: FS.providersStream(limit: 5),
+              key: ValueKey('near-$_city-$_refreshTick'),
+              stream: FS.providersStream(limit: 30),
               builder: (_, snap) {
-                final list = snap.data ?? [];
+                final cityKey = _cityKey(_city);
+                final list = (snap.data ?? [])
+                    .where((p) => _cityKey(p.city) == cityKey)
+                    .take(5)
+                    .toList();
                 if (snap.connectionState == ConnectionState.waiting &&
-                    list.isEmpty) {
+                    !snap.hasData) {
                   return const Padding(
                       padding: EdgeInsets.all(16), child: ShimCard());
                 }
                 if (list.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.fromLTRB(16, 10, 16, 0),
+                  return Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
                     child: InfoBanner(
                       icon: '📍',
                       text:
-                          'Profissionais da região aparecerão aqui. Abra Serviços para explorar.',
+                          'Ainda não há profissionais cadastrados em $_city. Abra Serviços para explorar.',
                       bg: AppColors.surfaceMuted,
                       fg: AppColors.textMedium,
                     ),

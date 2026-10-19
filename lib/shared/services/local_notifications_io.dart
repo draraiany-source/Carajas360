@@ -3,21 +3,24 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 final _plugin = FlutterLocalNotificationsPlugin();
 
 Future<void> initLocalNotificationsPlugin(
-  void Function(String title, String body) onMessage,
-) async {
+  void Function(String title, String body) onMessage, {
+  void Function(String? payload)? onTap,
+}) async {
   const a = AndroidInitializationSettings('@mipmap/ic_launcher');
   const i = DarwinInitializationSettings(
       requestAlertPermission: true,
       requestBadgePermission: true,
       requestSoundPermission: true);
   await _plugin.initialize(
-      settings: const InitializationSettings(android: a, iOS: i));
+      settings: const InitializationSettings(android: a, iOS: i),
+      onDidReceiveNotificationResponse: (r) => onTap?.call(r.payload));
 }
 
 Future<void> showLocalNotification({
   required int id,
   required String title,
   required String body,
+  String? payload,
 }) async {
   const a = AndroidNotificationDetails('sc_main', 'Carajás 360',
       channelDescription: 'Notificações',
@@ -30,5 +33,6 @@ Future<void> showLocalNotification({
     title: title,
     body: body,
     notificationDetails: const NotificationDetails(android: a, iOS: i),
+    payload: payload,
   );
 }

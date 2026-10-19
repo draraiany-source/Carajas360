@@ -17,35 +17,51 @@ import 'tickets_screens.dart';
 class SupportScreen extends StatelessWidget {
   const SupportScreen({super.key});
 
-  static const _faq = [
+  /// Perguntas frequentes — descrevem só fluxos que existem no app.
+  static const faq = [
     {
       'q': 'Como contratar um profissional?',
       'a':
-          'Busque a categoria, escolha o profissional, veja avaliações, contrate e pague com segurança.'
+          'Busque a categoria, escolha o profissional, veja o perfil e as avaliações, faça o pedido e pague pelo app.'
     },
     {
       'q': 'O pagamento é seguro?',
       'a':
-          'Sim! O valor fica retido até a conclusão do serviço. PIX, cartão e carteira digital.'
+          'Pague somente pelo app (PIX, cartão de crédito ou saldo da carteira): o valor fica protegido até a conclusão do serviço.'
     },
     {
       'q': 'Como cancelar um pedido?',
       'a':
-          'Acesse o pedido em andamento e toque em "Cancelar". Dependendo do status, pode haver taxa.'
+          'Abra o pedido em Perfil › Meu histórico e toque em "Cancelar pedido". A opção e o reembolso dependem do status do pedido.'
     },
     {
       'q': 'Como avaliar um profissional?',
       'a':
-          'Após concluído o serviço, você receberá uma notificação para avaliar com estrelas e comentário.'
+          'Depois que o pedido é concluído, abra-o em Perfil › Meu histórico e toque em "Avaliar".'
     },
     {
       'q': 'Como me tornar prestador?',
       'a':
-          'Acesse "Cadastrar como prestador" no menu, envie documentos e aguarde aprovação em até 24h.'
+          'Ao criar a conta, escolha "Prestador" e complete o cadastro enviando foto, documento e selfie. A equipe analisa os documentos e você recebe um aviso quando o perfil for aprovado. Depois, use Perfil › Área do Prestador.'
     },
     {
       'q': 'Como usar cupom de desconto?',
-      'a': 'Na tela de pagamento, toque em "Adicionar cupom" e insira o código.'
+      'a': 'No Mercado, em "Finalizar pedido", digite o código no campo "Cupom".'
+    },
+    {
+      'q': 'Saúde: como agendar e pagar?',
+      'a':
+          'Em Saúde, escolha o profissional, o dia e um horário livre. Consultas com valor são pagas pelo app; o horário fica reservado por alguns minutos até o pagamento.'
+    },
+    {
+      'q': 'Saúde: como cancelar ou reagendar?',
+      'a':
+          'Em Saúde, abra Agendamentos (ícone no topo) e toque em "Cancelar" ou "Reagendar" até 2 horas antes da consulta.'
+    },
+    {
+      'q': 'Locação: como reservar?',
+      'a':
+          'Abra o anúncio, toque em "Reservar", escolha período e data e pague pelo app. Depois do pagamento, o anunciante confirma a reserva; se ele recusar, o valor é devolvido.'
     },
   ];
 
@@ -119,7 +135,7 @@ class SupportScreen extends StatelessWidget {
           const SizedBox(height: 20),
           const SecHeader(title: 'Perguntas frequentes'),
           const SizedBox(height: 12),
-          for (final item in _faq) _FaqTile(q: item['q']!, a: item['a']!),
+          for (final item in faq) _FaqTile(q: item['q']!, a: item['a']!),
           const SizedBox(height: 20),
           Container(
               decoration: AppDecorations.card(r: 18),
@@ -1088,7 +1104,7 @@ class ReferralScreen extends StatelessWidget {
                   style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
               const SizedBox(height: 8),
               const Text(
-                  'A cada amigo que se cadastrar com o seu código e concluir o primeiro serviço, vocês dois ganham R\$ 10 de cashback na carteira.',
+                  'Compartilhe o Carajás 360 com amigos. O programa de indicação com benefícios ainda não está disponível.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       fontSize: 13, color: AppColors.textLight, height: 1.5)),

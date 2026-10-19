@@ -100,13 +100,11 @@ class _SplashState extends State<SplashScreen>
                                 spacing: 8,
                                 runSpacing: 8,
                                 alignment: WrapAlignment.center,
+                                // Só módulos já disponíveis (sem "em breve").
                                 children: [
                                   'Serviços',
                                   'Resolve',
                                   'Saúde',
-                                  'Vagas',
-                                  'Fretes',
-                                  'Imóveis'
                                 ]
                                     .map((t) => Container(
                                         padding: const EdgeInsets.symmetric(
@@ -165,9 +163,9 @@ class _OnboardState extends State<OnboardingScreen> {
   static const _slides = [
     {
       'img': 0,
-      'title': 'Mais de 300 serviços',
+      'title': 'Dezenas de serviços na região',
       'desc':
-          'Encontre eletricistas, encanadores, diaristas e profissionais de qualquer área a um toque.',
+          'Encontre eletricistas, encanadores, diaristas e outros profissionais da região.',
       'color': AppColors.primary
     },
     {
@@ -179,8 +177,8 @@ class _OnboardState extends State<OnboardingScreen> {
     },
     {
       'img': 2,
-      'title': 'Acompanhe em tempo real',
-      'desc': 'Rastreie o profissional a caminho com GPS ao vivo.',
+      'title': 'Acompanhe seu pedido',
+      'desc': 'Veja o status do pedido e converse com o profissional pelo chat.',
       'color': AppColors.delivery
     },
     {
@@ -342,6 +340,8 @@ class _LoginState extends State<LoginScreen>
   }
 
   void _err(String m) {
+    // Pode ser chamado após awaits: tela já fechada.
+    if (!mounted) return;
     setState(() => _loading = false);
     snack(context, m, bg: AppColors.error);
   }
@@ -355,11 +355,14 @@ class _LoginState extends State<LoginScreen>
     setState(() => _loading = true);
     await AuthService.verifyPhone(
         phone: p,
-        onSent: (id, _) => setState(() {
-              _verId = id;
-              _otpSent = true;
-              _loading = false;
-            }),
+        onSent: (id, _) {
+          if (!mounted) return;
+          setState(() {
+            _verId = id;
+            _otpSent = true;
+            _loading = false;
+          });
+        },
         onAutoVerified: (cred) {
           if (!mounted || cred.user == null) return;
           setState(() => _loading = true);
@@ -425,7 +428,7 @@ class _LoginState extends State<LoginScreen>
         await _afterLogin(
             cred.user!.uid, cred.additionalUserInfo?.isNewUser ?? false);
       } else {
-        setState(() => _loading = false);
+        if (mounted) setState(() => _loading = false);
         // Cancelamento pelo usuário — sem snackbar.
       }
     } on AuthFailure catch (e) {
@@ -437,12 +440,18 @@ class _LoginState extends State<LoginScreen>
 
   Future<void> _signInApple() async {
     setState(() => _loading = true);
-    final cred = await AuthService.signInApple();
-    if (cred != null) {
-      await _afterLogin(
-          cred.user!.uid, cred.additionalUserInfo?.isNewUser ?? false);
-    } else {
-      setState(() => _loading = false);
+    try {
+      final cred = await AuthService.signInApple();
+      if (cred != null) {
+        await _afterLogin(
+            cred.user!.uid, cred.additionalUserInfo?.isNewUser ?? false);
+      } else if (mounted) {
+        setState(() => _loading = false);
+      }
+    } on AuthFailure catch (e) {
+      _err(e.message);
+    } catch (_) {
+      _err('Não foi possível entrar com Apple.');
     }
   }
 
@@ -531,10 +540,16 @@ class _LoginState extends State<LoginScreen>
                                   Tab(text: 'E-mail')
                                 ])),
                         const SizedBox(height: 22),
+                        // Altura acompanha o tamanho de fonte do sistema;
+                        // rolagem interna evita estouro com fonte grande.
                         SizedBox(
-                            height: _otpSent ? 280 : 230,
+                            height: (_otpSent ? 280.0 : 230.0) *
+                                MediaQuery.textScalerOf(context)
+                                    .scale(1)
+                                    .clamp(1.0, 1.6),
                             child: TabBarView(controller: _tab, children: [
-                              Column(children: [
+                              SingleChildScrollView(
+                                  child: Column(children: [
                                 if (!_otpSent) ...[
                                   const Align(
                                       alignment: Alignment.centerLeft,
@@ -617,8 +632,9 @@ class _LoginState extends State<LoginScreen>
                                           }),
                                       child: const Text('Trocar número')),
                                 ],
-                              ]),
-                              Column(children: [
+                              ])),
+                              SingleChildScrollView(
+                                  child: Column(children: [
                                 TextFormField(
                                     controller: _emailCtrl,
                                     keyboardType: TextInputType.emailAddress,
@@ -656,7 +672,7 @@ class _LoginState extends State<LoginScreen>
                                           try {
                                             await AuthService.resetPassword(
                                                 email);
-                                            if (mounted) {
+                                            if (context.mounted) {
                                               snack(context,
                                                   'E-mail de recuperação enviado!',
                                                   bg: AppColors.secondary);
@@ -701,7 +717,7 @@ class _LoginState extends State<LoginScreen>
                                                   fontWeight: FontWeight.w700,
                                                   fontSize: 13)))
                                     ]),
-                              ]),
+                              ])),
                             ])),
                         const SizedBox(height: 16),
                         Row(children: [
@@ -783,14 +799,46 @@ class _LoginState extends State<LoginScreen>
                                 color: Colors.white,
                                 fontWeight: FontWeight.w700))),
                     const SizedBox(height: 8),
-                    Text(
-                        'Ao continuar você concorda com os Termos de Uso e Política de Privacidade.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                            color: Colors.white.withOpacity(0.5),
-                            fontSize: 11)),
+                    // Termos e privacidade abrem a tela legal (como no cadastro).
+                    Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text('Ao continuar você concorda com os ',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 11)),
+                          _legalLink('Termos de Uso', isPrivacy: false),
+                          Text(' e a ',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 11)),
+                          _legalLink('Política de Privacidade',
+                              isPrivacy: true),
+                          Text('.',
+                              style: TextStyle(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 11)),
+                        ]),
                     const SizedBox(height: 20),
                   ]))),
+        ),
+      );
+
+  Widget _legalLink(String label, {required bool isPrivacy}) => InkWell(
+        onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(
+                builder: (_) => LegalScreen(isPrivacy: isPrivacy))),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Text(label,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  decoration: TextDecoration.underline,
+                  decorationColor: Colors.white)),
         ),
       );
 }
@@ -919,8 +967,8 @@ class _RegState extends State<RegisterScreen>
             uid,
             'Bem-vindo ao Carajás 360!',
             _type == UserType.provider
-                ? 'Sua conta foi criada. Seu cadastro de prestador esta em analise.'
-                : 'Sua conta foi criada. Explore os servicos.',
+                ? 'Sua conta foi criada. Seu cadastro de prestador está em análise.'
+                : 'Sua conta foi criada. Explore os serviços.',
             'general');
         await PushSvc.saveToken(uid);
       } catch (e) {
@@ -967,6 +1015,19 @@ class _RegState extends State<RegisterScreen>
           .timeout(const Duration(seconds: 8));
     } catch (_) {
       return null;
+    }
+  }
+
+  /// Voltar: desfaz a pilha quando possível. Após login social/SMS o
+  /// cadastro abre sozinho (perfil de cliente já criado): segue ao início.
+  void _goBack() {
+    final nav = Navigator.of(context);
+    if (nav.canPop()) {
+      nav.pop();
+    } else if (AuthService.isAuth) {
+      nav.pushNamedAndRemoveUntil(Routes.main, (_) => false);
+    } else {
+      nav.pushNamedAndRemoveUntil(Routes.login, (_) => false);
     }
   }
 
@@ -1143,7 +1204,13 @@ class _RegState extends State<RegisterScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Theme(
+    // Voltar do sistema segue a mesma regra do botão (nunca prende o usuário).
+    return PopScope(
+      canPop: Navigator.of(context).canPop(),
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _goBack();
+      },
+      child: Theme(
       data: Theme.of(context).copyWith(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: SpanDs.background,
@@ -1212,14 +1279,9 @@ class _RegState extends State<RegisterScreen>
                           child: Row(children: [
                             _GlassIconButton(
                               icon: Icons.arrow_back_ios_new_rounded,
-                              onTap: () => Navigator.maybePop(context),
+                              tooltip: 'Voltar',
+                              onTap: _goBack,
                             ),
-                            const Spacer(),
-                            Text('Passo 1 de 1',
-                                style: SpanDs.poppins(
-                                    size: 12,
-                                    weight: FontWeight.w600,
-                                    color: SpanDs.textSecondary)),
                           ]),
                         ),
                       ),
@@ -1252,11 +1314,8 @@ class _RegState extends State<RegisterScreen>
                                       Icons.handyman_rounded,
                                       'Prestador',
                                       'Oferecer serviços'),
-                                  _typeCard(
-                                      UserType.deliverer,
-                                      Icons.delivery_dining_rounded,
-                                      'Entregador',
-                                      'Fazer entregas'),
+                                  // Entregador oculto: módulo Entregas
+                                  // ainda não está disponível.
                                 ]),
                                 const SizedBox(height: 22),
                                 _premiumField(
@@ -1304,13 +1363,23 @@ class _RegState extends State<RegisterScreen>
                                             () => _pass2Vis = !_pass2Vis),
                                       )),
                                 ],
-                                _premiumField(_cpf, 'CPF', Icons.badge_outlined,
+                                // CPF: obrigatório para prestador; cliente
+                                // pode deixar em branco (pedido no pagamento).
+                                _premiumField(
+                                    _cpf,
+                                    _type == UserType.client
+                                        ? 'CPF (opcional)'
+                                        : 'CPF',
+                                    Icons.badge_outlined,
                                     kt: TextInputType.number,
                                     fmt: [
                                       FilteringTextInputFormatter.digitsOnly,
                                       LengthLimitingTextInputFormatter(11)
                                     ],
-                                    val: (v) => AuthValidators.cpfError(v)),
+                                    val: (v) => _type == UserType.client &&
+                                            (v ?? '').trim().isEmpty
+                                        ? null
+                                        : AuthValidators.cpfError(v)),
                                 _premiumField(
                                     _phone, 'Telefone', Icons.phone_outlined,
                                     kt: TextInputType.phone,
@@ -1377,11 +1446,24 @@ class _RegState extends State<RegisterScreen>
                                 const SizedBox(height: 22),
                                 _buildCta(),
                                 const SizedBox(height: 8),
-                                Text(
-                                  'Seus dados ficam protegidos. Leva menos de 1 minuto.',
-                                  textAlign: TextAlign.center,
-                                  style: SpanDs.poppins(
-                                      size: 11, color: SpanDs.textTertiary),
+                                Center(
+                                  child: InkWell(
+                                    onTap: () => Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                            builder: (_) => const LegalScreen(
+                                                isPrivacy: true))),
+                                    child: Padding(
+                                      padding: const EdgeInsets.symmetric(
+                                          vertical: 8, horizontal: 4),
+                                      child: Text(
+                                          'Veja como tratamos seus dados na Política de Privacidade.',
+                                          textAlign: TextAlign.center,
+                                          style: SpanDs.poppins(
+                                              size: 11,
+                                              color: SpanDs.textSecondary)),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),
@@ -1396,7 +1478,7 @@ class _RegState extends State<RegisterScreen>
           ]),
         ),
       ),
-    );
+    ));
   }
 
   Widget _buildHero() {
@@ -1434,7 +1516,7 @@ class _RegState extends State<RegisterScreen>
                         height: 1.1)),
                 const SizedBox(height: 8),
                 Text(
-                    'Conecte-se a profissionais, serviços e entregas com a mesma fluidez de um app premium.',
+                    'Encontre profissionais e serviços da região em um só lugar.',
                     style: SpanDs.poppins(
                         size: 13,
                         height: 1.45,
@@ -1576,11 +1658,19 @@ class _RegState extends State<RegisterScreen>
 class _GlassIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
-  const _GlassIconButton({required this.icon, required this.onTap});
+  final String tooltip;
+  const _GlassIconButton(
+      {required this.icon, required this.onTap, required this.tooltip});
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return Tooltip(
+        message: tooltip,
+        child: Semantics(
+            button: true,
+            label: tooltip,
+            excludeSemantics: true,
+            child: Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
@@ -1596,6 +1686,6 @@ class _GlassIconButton extends StatelessWidget {
           child: Icon(icon, size: 18, color: SpanDs.textPrimary),
         ),
       ),
-    );
+    )));
   }
 }

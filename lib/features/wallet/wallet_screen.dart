@@ -25,7 +25,7 @@ class _WalletState extends State<WalletScreen>
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 2, vsync: this);
   }
 
   @override
@@ -41,19 +41,29 @@ class _WalletState extends State<WalletScreen>
           headerSliverBuilder: (_, __) =>
               [SliverToBoxAdapter(child: _header())],
           body: TabBarView(
-              controller: _tab, children: [_extract(), _pixTab(), _plans()]),
+              controller: _tab, children: [_extract(), _pixTab()]),
         ),
       );
 
   Widget _header() => GradHeader(
       gradient: AppGradients.primary,
       child: Column(children: [
-        Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-          const Text('👜 Minha Carteira',
-              style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 22)),
+        Row(children: [
+          // Aberta como rota (perfil/banner): precisa de voltar.
+          if (Navigator.canPop(context))
+            IconButton(
+                tooltip: 'Voltar',
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back_rounded,
+                    color: Colors.white)),
+          const Expanded(
+            child: Text('👜 Minha Carteira',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    fontSize: 22)),
+          ),
           StreamBuilder<UserModel?>(
               stream:
                   _uid.isNotEmpty ? FS.userStream(_uid) : const Stream.empty(),
@@ -117,10 +127,10 @@ class _WalletState extends State<WalletScreen>
             labelStyle:
                 const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
             dividerColor: Colors.transparent,
+            // Planos removidos: assinatura não existe no app.
             tabs: const [
               Tab(text: 'Extrato'),
               Tab(text: 'Recarga'),
-              Tab(text: 'Planos')
             ]),
       ]));
 
@@ -299,103 +309,6 @@ class _WalletState extends State<WalletScreen>
             label: const Text('Adicionar saldo')),
       ]);
 
-  Widget _plans() => StreamBuilder<UserModel?>(
-        stream: _uid.isNotEmpty ? FS.userStream(_uid) : const Stream.empty(),
-        builder: (_, snap) {
-          final currentPlan = snap.data?.plan ?? PlanTier.free;
-          return ListView(padding: pagePadding(context), children: [
-            const Text('Escolha seu plano',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-            const SizedBox(height: 4),
-            const Text('Desbloqueie mais benefícios',
-                style: TextStyle(fontSize: 13, color: AppColors.textLight)),
-            const SizedBox(height: 20),
-            for (final p in _plansData)
-              _planCard(p, isCurrent: p['tier'] == currentPlan),
-          ]);
-        },
-      );
-
-  Widget _planCard(Map<String, dynamic> p, {required bool isCurrent}) =>
-      Container(
-        margin: const EdgeInsets.only(bottom: 14),
-        decoration: AppDecorations.gradient(p['grad'] as Gradient, r: 20),
-        padding: const EdgeInsets.all(20),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Text(p['name'] as String,
-                style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.white)),
-            if (isCurrent)
-              Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: AppColors.success,
-                      borderRadius: BorderRadius.circular(20)),
-                  child: const Text('✓ Ativo',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w800)))
-            else if (p['badge'] != null)
-              Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.25),
-                      borderRadius: BorderRadius.circular(20)),
-                  child: Text(p['badge'] as String,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w700))),
-          ]),
-          const SizedBox(height: 4),
-          Text(p['price'] as String,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 22)),
-          const SizedBox(height: 12),
-          for (final f in (p['features'] as List<String>))
-            Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Row(children: [
-                  const Icon(Icons.check_circle_rounded,
-                      color: Colors.white70, size: 16),
-                  const SizedBox(width: 8),
-                  Text(f,
-                      style: TextStyle(
-                          color: Colors.white.withOpacity(0.9), fontSize: 13))
-                ])),
-          const SizedBox(height: 14),
-          SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: isCurrent ? null : () => _subscribe(context, p),
-                style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Colors.white.withOpacity(isCurrent ? 0.1 : 0.25),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12))),
-                child: Text(isCurrent ? 'Plano atual' : 'Assinar ${p['name']}',
-                    style: const TextStyle(fontWeight: FontWeight.w700)),
-              )),
-        ]),
-      );
-
-  /// Assinaturas não têm cobrança integrada nesta fase: nenhum fluxo de
-  /// pagamento é oferecido (evita cobrar sem efeito no plano).
-  void _subscribe(BuildContext context, Map<String, dynamic> plan) => snack(
-      context,
-      'Assinatura do plano ${plan['name']} ainda não está disponível para contratação no app.',
-      bg: AppColors.warning);
-
   static final _demoTxs = [
     TransactionModel(
         id: '1',
@@ -442,46 +355,5 @@ class _WalletState extends State<WalletScreen>
         icon: '🛒',
         status: 'done',
         createdAt: DateTime.now().subtract(const Duration(days: 3))),
-  ];
-
-  static final _plansData = [
-    {
-      'name': 'Básico',
-      'price': 'Grátis',
-      'priceValue': 0.0,
-      'tier': PlanTier.free,
-      'grad': AppGradients.dark,
-      'badge': null,
-      'features': ['1 solicitação por semana', 'Suporte por chat']
-    },
-    {
-      'name': 'Profissional',
-      'price': 'R\$ 49,90/mês',
-      'priceValue': 49.90,
-      'tier': PlanTier.professional,
-      'grad': AppGradients.primary,
-      'badge': '⭐ Popular',
-      'features': [
-        'Serviços ilimitados',
-        'Destaque na busca',
-        'Suporte prioritário',
-        'Cupons exclusivos'
-      ]
-    },
-    {
-      'name': 'Premium',
-      'price': 'R\$ 99,90/mês',
-      'priceValue': 99.90,
-      'tier': PlanTier.premium,
-      'grad': AppGradients.gold,
-      'badge': '💎 Melhor',
-      'features': [
-        'Tudo ilimitado',
-        'IA Assistente',
-        'Saúde incluída',
-        'Aluguel com desconto',
-        'Gerente dedicado'
-      ]
-    },
   ];
 }

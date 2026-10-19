@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/catalog/catalog.dart';
 import '../../core/catalog/catalog_selection.dart';
-import '../../core/catalog/catalog_service.dart';
 import '../../core/catalog/catalog_widgets.dart';
 import '../../core/catalog/provider_search.dart';
 import '../../core/modules/platform_modules.dart';
@@ -36,7 +35,7 @@ class _ServicesHubState extends State<ServicesHubScreen> {
   /// nunca libera um módulo marcado "Em desenvolvimento".
   static const _verticals = [
     {'id': 'health', 'icon': '🏥', 'label': 'Saúde', 'route': Routes.health},
-    {'id': 'delivery', 'icon': '📦', 'label': 'Entregas', 'route': Routes.delivery},
+    {'id': 'delivery', 'icon': '📦', 'label': 'Entregas', 'route': Routes.delivery, 'soon': 'true'},
     {'id': 'marketplace', 'icon': '🛒', 'label': 'Mercado', 'route': Routes.marketplace},
     {'id': 'rental', 'icon': '🔑', 'label': 'Locação', 'route': Routes.rental},
     {'id': 'ai', 'icon': '🤖', 'label': 'Assistente', 'route': Routes.aiAssistant},
@@ -71,7 +70,9 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                    'Olá, ${user?.firstName.isNotEmpty == true ? user!.firstName : 'Bem-vindo'}',
+                                    user?.firstName.isNotEmpty == true
+                                        ? 'Olá, ${user!.firstName}'
+                                        : 'Olá! Bem-vindo(a)',
                                     style: TextStyle(
                                         color: Colors.white.withValues(alpha: 0.82),
                                         fontSize: 13,
@@ -94,6 +95,7 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                                     clipBehavior: Clip.none,
                                     children: [
                                       IconButton(
+                                          tooltip: 'Notificações',
                                           onPressed: () => Navigator.pushNamed(
                                               context, Routes.notifications),
                                           icon: const Icon(
@@ -130,15 +132,21 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                                     ]);
                               },
                             ),
-                            GestureDetector(
-                                onTap: () => Navigator.pushNamed(
-                                    context, Routes.profile),
-                                child: AppAvatar(
-                                    url: user?.photoUrl,
-                                    name: user?.name ?? '?',
-                                    size: 40,
-                                    bg: AppColors.warning,
-                                    r: 12)),
+                            Tooltip(
+                                message: 'Meu perfil',
+                                child: Semantics(
+                                    button: true,
+                                    label: 'Meu perfil',
+                                    excludeSemantics: true,
+                                    child: GestureDetector(
+                                        onTap: () => Navigator.pushNamed(
+                                            context, Routes.profile),
+                                        child: AppAvatar(
+                                            url: user?.photoUrl,
+                                            name: user?.name ?? '?',
+                                            size: 40,
+                                            bg: AppColors.warning,
+                                            r: 12)))),
                           ]),
                         ]),
                     const SizedBox(height: 14),
@@ -159,7 +167,8 @@ class _ServicesHubState extends State<ServicesHubScreen> {
               _tileGrid([
                 for (final v in _verticals)
                   _tile(v['icon']!, v['label']!,
-                      () => Navigator.pushNamed(context, v['route']!)),
+                      () => Navigator.pushNamed(context, v['route']!),
+                      soon: v['soon'] == 'true'),
               ]),
             ]),
           )),
@@ -191,10 +200,12 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                   children: [
                     _promoBanner('promocoes', Routes.coupons),
                     _promoBanner('marketplace', Routes.marketplace),
+                    // Cashback real: compras entregues do Mercado (carteira).
                     _promoBanner('cashback', Routes.wallet),
                     _promoBanner('cupons', Routes.coupons),
                     _promoBanner('home_care', Routes.health),
-                    _promoBanner('empresas', Routes.companyProfile),
+                    // "Empresas" removido: o banner promete gestão de
+                    // manutenção, mas o destino é só o cadastro.
                   ],
                 )),
           )),
@@ -256,9 +267,11 @@ class _ServicesHubState extends State<ServicesHubScreen> {
         );
       });
 
-  Widget _tile(String icon, String label, VoidCallback onTap) => Semantics(
+  Widget _tile(String icon, String label, VoidCallback onTap,
+          {bool soon = false}) =>
+      Semantics(
         button: true,
-        label: label,
+        label: soon ? '$label, em breve' : label,
         excludeSemantics: true,
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
@@ -266,7 +279,8 @@ class _ServicesHubState extends State<ServicesHubScreen> {
           child: Container(
               decoration: AppDecorations.card(r: 14),
               padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 2),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
+              // Com selo: reduz para caber na célula (sem estouro).
+              child: _fitIf(soon, Column(mainAxisSize: MainAxisSize.min, children: [
                 Text(icon, style: const TextStyle(fontSize: 24)),
                 const SizedBox(height: 5),
                 Text(label,
@@ -277,9 +291,29 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                         fontWeight: FontWeight.w700,
                         color: AppColors.textDark),
                     textAlign: TextAlign.center),
-              ])),
+                // Mesmo selo dos módulos da Home.
+                if (soon)
+                  Container(
+                    margin: const EdgeInsets.only(top: 2),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                        color: AppColors.warning.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(8)),
+                    child: const Text('Em breve',
+                        maxLines: 1,
+                        style: TextStyle(
+                            fontSize: 8,
+                            fontWeight: FontWeight.w800,
+                            color: AppColors.warning)),
+                  ),
+              ]))),
         ),
       );
+
+  static Widget _fitIf(bool fit, Widget child) => fit
+      ? Center(child: FittedBox(fit: BoxFit.scaleDown, child: child))
+      : child;
 
   Widget _promoBanner(String slug, String route) {
     final path = AppAssets.banners[slug];
@@ -445,6 +479,8 @@ class SearchScreen extends StatefulWidget {
 class _SearchState extends State<SearchScreen> {
   final _ctrl = TextEditingController();
   final _scroll = ScrollController();
+  // Campo de preço da folha de filtros (descartado no dispose).
+  final _priceCtrl = TextEditingController();
   Timer? _debounce;
   String _q = '';
   CatalogSelection? _pendingInitial;
@@ -488,6 +524,7 @@ class _SearchState extends State<SearchScreen> {
     _debounce?.cancel();
     _ctrl.dispose();
     _scroll.dispose();
+    _priceCtrl.dispose();
     super.dispose();
   }
 
@@ -806,8 +843,8 @@ class _SearchState extends State<SearchScreen> {
       };
 
   void _openFilters() {
-    final priceCtrl = TextEditingController(
-        text: _maxPrice == null ? '' : _maxPrice!.toStringAsFixed(0));
+    final priceCtrl = _priceCtrl
+      ..text = _maxPrice == null ? '' : _maxPrice!.toStringAsFixed(0);
     String? city = _city;
     String? modality = _modality;
     double? minRating = _minRating;

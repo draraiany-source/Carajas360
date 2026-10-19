@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/auth/access_control.dart';
 import '../../core/navigation/app_navigation.dart';
 import '../../core/security/order_policy.dart';
@@ -16,6 +17,63 @@ import '../../core/catalog/catalog.dart';
 import '../../core/catalog/catalog_service.dart';
 import '../checkout/payment_screens.dart';
 import '../checkout/payments_api.dart';
+import '../health/health_booking.dart' show HealthTime;
+
+/// Rótulos de categorias antigas (antes do catálogo) — nunca o slug cru.
+const rentalLegacyCategoryLabels = {
+  'car': 'Carro',
+  'carro': 'Carro',
+  'pickup': 'Picape',
+  'motorcycle': 'Moto',
+  'moto': 'Moto',
+  'van': 'Van',
+  'truck': 'Caminhão',
+  'bus': 'Ônibus',
+  'house': 'Casa',
+  'apartment': 'Apartamento',
+  'machine': 'Máquina',
+  'tractor': 'Trator',
+  'excavator': 'Escavadeira',
+  'backhoe': 'Retroescavadeira',
+  'crane': 'Guindaste',
+  'generator': 'Gerador',
+  'equipment': 'Equipamento',
+};
+
+/// Nome da categoria: catálogo → rótulo legado → "Outros".
+String rentalCategoryLabel(String? id, [String? catalogName]) {
+  if (catalogName != null && catalogName.trim().isNotEmpty && catalogName != id) return catalogName;
+  return rentalLegacyCategoryLabels[(id ?? '').toLowerCase()] ?? 'Outros';
+}
+
+/// Início da locação em Belém (UTC−3) para o dia/hora escolhidos.
+int rentalStartMs(DateTime day, int hour, int minute) =>
+    DateTime.utc(day.year, day.month, day.day, hour, minute).subtract(HealthTime.offset).millisecondsSinceEpoch;
+
+/// Data (dd/MM/aaaa) no fuso de Belém.
+String rentalDate(int ms) {
+  final d = HealthTime.local(ms);
+  return '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
+}
+
+/// Período "dd/MM às HH:mm – dd/MM às HH:mm" no fuso de Belém.
+String rentalRange(DateTime start, DateTime end) =>
+    '${HealthTime.label(start.millisecondsSinceEpoch)} – ${HealthTime.label(end.millisecondsSinceEpoch)}';
+
+/// Erro da cotação do servidor em uma frase amigável.
+String rentalQuoteErrorText(String raw) {
+  final m = raw.toLowerCase();
+  if (m.contains('pausado') || m.contains('indisponível') || m.contains('não encontrado')) {
+    return 'Este anúncio não está disponível para reserva no momento.';
+  }
+  if (m.contains('início')) return 'Escolha um início com pelo menos 1 hora de antecedência (até 1 ano).';
+  if (m.contains('quantidade')) return 'Quantidade fora do limite para este período.';
+  if (m.contains('período') || m.contains('preço')) return 'Este período não está disponível neste anúncio.';
+  if (m.contains('reservado') || m.contains('ocupado') || m.contains('sobrep')) {
+    return 'Já existe reserva nesse período. Escolha outra data.';
+  }
+  return 'Não foi possível calcular o valor para essa escolha. Ajuste a data ou o período.';
+}
 
 // ─────────────────────────────────────────────────────────────
 // LOCAÇÃO (Vol.13) — vitrine de veículos e máquinas para aluguel.
@@ -46,8 +104,16 @@ class _RentalScreenState extends State<RentalScreen>
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
         floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => Navigator.push(context,
-              MaterialPageRoute(builder: (_) => const MyRentalsScreen())),
+          onPressed: () {
+            // Anunciar exige login.
+            if (!AuthService.isAuth) {
+              snack(context, 'Entre para anunciar.');
+              loginAndResume(context);
+              return;
+            }
+            Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const MyRentalsScreen()));
+          },
           backgroundColor: AppColors.primary,
           icon: const Icon(Icons.add),
           label: const Text('Anunciar'),
@@ -111,6 +177,7 @@ class _RentalScreenState extends State<RentalScreen>
   Widget _list(RentalKind kind) => StreamBuilder<List<RentalModel>>(
         stream: FS.rentalsStream(kind: kind),
         builder: (_, snap) {
+          if (snap.hasError) return QueryErrorView(error: snap.error);
           if (snap.connectionState == ConnectionState.waiting) {
             return ListView.builder(
                 padding: pagePadding(context),
@@ -307,8 +374,12 @@ class RentalDetailScreen extends StatelessWidget {
               IconButton(
                 tooltip: 'Compartilhar',
                 icon: const Icon(Icons.share_rounded),
-                onPressed: () => snack(context, 'Link do anúncio copiado!',
-                    bg: AppColors.secondary),
+                // Copia um texto real (não há link público do anúncio).
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(
+                      text: '${rental.title} — veja este anúncio de locação no app Carajás 360.'));
+                  if (context.mounted) snack(context, 'Texto copiado', bg: AppColors.secondary);
+                },
               ),
             ],
             flexibleSpace: FlexibleSpaceBar(
@@ -385,7 +456,8 @@ class RentalDetailScreen extends StatelessWidget {
                     _row('Especificações', rental.specs!),
                   _row(
                       'Categoria',
-                      CatalogService.instance.catalog.nameOf(rental.category)),
+                      rentalCategoryLabel(rental.category,
+                          CatalogService.instance.catalog.byId(rental.category)?.name)),
                 ]),
               ),
               if (rental.description != null &&
@@ -471,6 +543,7 @@ class MyRentalsScreen extends StatelessWidget {
         body: StreamBuilder<List<RentalModel>>(
           stream: FS.myRentalsStream(),
           builder: (_, snap) {
+            if (snap.hasError) return QueryErrorView(error: snap.error);
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
             }
@@ -529,7 +602,13 @@ class MyRentalsScreen extends StatelessWidget {
                     Switch(
                       value: r.available,
                       activeColor: AppColors.secondary,
-                      onChanged: (v) => FS.setRentalAvailability(r.id, v),
+                      onChanged: (v) async {
+                        try {
+                          await FS.setRentalAvailability(r.id, v);
+                        } catch (_) {
+                          if (context.mounted) snack(context, genericActionError, bg: AppColors.error);
+                        }
+                      },
                     ),
                     IconButton(
                       tooltip: 'Editar',
@@ -541,7 +620,7 @@ class MyRentalsScreen extends StatelessWidget {
                       tooltip: 'Excluir',
                       icon: const Icon(Icons.delete_outline_rounded,
                           size: 20, color: AppColors.error),
-                      onPressed: () => FS.removeRental(r.id),
+                      onPressed: () => _delete(context, r),
                     ),
                   ]),
                 );
@@ -550,6 +629,34 @@ class MyRentalsScreen extends StatelessWidget {
           },
         ),
       );
+
+  /// Exclui com confirmação; avisa se há reservas em aberto.
+  Future<void> _delete(BuildContext context, RentalModel r) async {
+    var open = 0;
+    try {
+      final received = await FS.receivedBookingsStream().first.timeout(const Duration(seconds: 5));
+      open = received
+          .where((b) =>
+              b.rentalId == r.id &&
+              const [BookingStatus.pendingPayment, BookingStatus.pending, BookingStatus.confirmed, BookingStatus.active]
+                  .contains(b.status))
+          .length;
+    } catch (_) {}
+    if (!context.mounted) return;
+    final ok = await confirmAction(context,
+        title: 'Excluir anúncio?',
+        message: open > 0
+            ? 'Este anúncio tem $open reserva(s) em aberto. Resolva-as em Reservas antes de excluir, ou pause o anúncio.'
+            : '"${r.title}" será removido. Esta ação não pode ser desfeita.',
+        confirmLabel: 'Excluir');
+    if (!ok || !context.mounted) return;
+    try {
+      await FS.removeRental(r.id);
+      if (context.mounted) snack(context, 'Anúncio excluído', bg: AppColors.secondary);
+    } catch (_) {
+      if (context.mounted) snack(context, 'Não foi possível excluir o anúncio.', bg: AppColors.error);
+    }
+  }
 
   void _form(BuildContext context, {RentalModel? edit}) {
     showModalBottomSheet(
@@ -677,10 +784,18 @@ class _RentalFormState extends State<_RentalForm> {
     setState(() => _saving = true);
     String? id;
     try {
+      // Nome real do anunciante (o mesmo usado no chat).
+      var owner = 'Anunciante';
+      try {
+        final n = await FS.myDisplayName();
+        if (n.trim().isNotEmpty && n != 'Usuário') owner = n.trim();
+      } catch (_) {}
       id = await FS.saveRental(RentalModel(
         id: widget.edit?.id ?? '',
         ownerId: '',
-        ownerName: 'Anunciante',
+        ownerName: owner,
+        // Editar não reativa anúncio pausado.
+        available: widget.edit?.available ?? true,
         title: _title.text.trim(),
         category: _cat,
         kind: _kind,
@@ -936,11 +1051,18 @@ class _BookingSheetState extends State<_BookingSheet> {
           orElse: () => const MapEntry('diária', null))
       .key;
   int _qty = 1;
-  DateTime _start = DateTime.now().add(const Duration(days: 1));
+  // Dia escolhido (amanhã no fuso de Belém) e hora de início (por hora).
+  DateTime _start = () {
+    final b = HealthTime.local(DateTime.now().millisecondsSinceEpoch).add(const Duration(days: 1));
+    return DateTime(b.year, b.month, b.day);
+  }();
+  TimeOfDay _time = const TimeOfDay(hour: 8, minute: 0);
   final _note = TextEditingController();
   bool _saving = false;
-  // Mesmo id em repetições: o servidor não duplica a reserva.
-  final _requestId = 'bk${DateTime.now().microsecondsSinceEpoch}';
+  // Mesmo id só ao repetir a mesma escolha (o servidor não duplica);
+  // mudou período/data/hora/quantidade, gera outro.
+  String _requestId = _newRequestId();
+  static String _newRequestId() => 'bk${DateTime.now().microsecondsSinceEpoch}';
   static const _keys = {'hora': 'hour', 'diária': 'day', 'semana': 'week', 'mês': 'month'};
   Map<String, dynamic>? _quote;
   String? _quoteError;
@@ -955,23 +1077,27 @@ class _BookingSheetState extends State<_BookingSheet> {
     }).catchError((_) {});
   }
 
-  /// Início às 08:00 do dia escolhido (diária/semana/mês) ou no próximo
-  /// horário cheio (por hora).
-  int get _startMs => DateTime(_start.year, _start.month, _start.day, 8).millisecondsSinceEpoch;
+  bool get _hourly => _period == 'hora';
+
+  /// Início no fuso de Belém: hora escolhida (por hora) ou 08:00.
+  int get _startMs => _hourly
+      ? rentalStartMs(_start, _time.hour, _time.minute)
+      : rentalStartMs(_start, 8, 0);
 
   Future<void> _refreshQuote() async {
     setState(() {
       _quote = null;
       _quoteError = null;
+      _requestId = _newRequestId();
     });
     try {
       final q = await FS.quoteRentalBooking(
           rentalId: widget.rental.id, period: _keys[_period] ?? 'day', quantity: _qty, startMs: _startMs);
       if (mounted) setState(() => _quote = q);
     } on CloudCallException catch (e) {
-      if (mounted) setState(() => _quoteError = e.message);
+      if (mounted) setState(() => _quoteError = rentalQuoteErrorText(e.message));
     } catch (_) {
-      if (mounted) setState(() => _quoteError = 'Não foi possível calcular o valor.');
+      if (mounted) setState(() => _quoteError = 'Não foi possível calcular o valor. Verifique a conexão.');
     }
   }
 
@@ -984,6 +1110,7 @@ class _BookingSheetState extends State<_BookingSheet> {
   double get _unit => ((_quote?['unitCents'] as num?) ?? 0) / 100;
   double get _total => ((_quote?['totalCents'] as num?) ?? 0) / 100;
 
+  // Dia escolhido (já no calendário de Belém).
   String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
 
@@ -997,6 +1124,19 @@ class _BookingSheetState extends State<_BookingSheet> {
     );
     if (picked != null) {
       setState(() => _start = picked);
+      _refreshQuote();
+    }
+  }
+
+  Future<void> _pickTime() async {
+    final t = await showTimePicker(
+        context: context,
+        initialTime: _time,
+        helpText: 'Hora de início (horário de Belém)',
+        builder: (ctx, child) =>
+            MediaQuery(data: MediaQuery.of(ctx).copyWith(alwaysUse24HourFormat: true), child: child!));
+    if (t != null) {
+      setState(() => _time = t);
       _refreshQuote();
     }
   }
@@ -1019,6 +1159,9 @@ class _BookingSheetState extends State<_BookingSheet> {
       if (!mounted) return;
       final status = r['status'] as String?;
       final until = (r['holdUntilMs'] as num?)?.toInt();
+      // Início confirmado pelo servidor.
+      final startMs = (r['startMs'] as num?)?.toInt() ?? (_quote!['startMs'] as num?)?.toInt() ?? _startMs;
+      final when = HealthTime.label(startMs);
       final cents = (r['totalCents'] as num?)?.toInt() ?? 0;
       var paid = false;
       if (status == 'pending_payment' && until != null && cents > 0) {
@@ -1044,12 +1187,12 @@ class _BookingSheetState extends State<_BookingSheet> {
                       ? AppColors.warning
                       : AppColors.secondary,
           content: Text(paid
-              ? '✅ Pagamento recebido. O anunciante vai confirmar a reserva.'
+              ? '✅ Pagamento recebido (início $when). O anunciante vai confirmar a reserva.'
               : expired
                   ? 'O prazo para pagar terminou e o período foi liberado. Faça uma nova reserva.'
                   : waiting
-                      ? 'Período reservado. Pague até ${holdTimeLabel(until)} em Reservas para garantir.'
-                      : '✅ Reserva solicitada! O anunciante vai confirmar.')));
+                      ? 'Período a partir de $when reservado. Pague até ${holdTimeLabel(until)} em Reservas para garantir.'
+                      : '✅ Reserva solicitada (início $when). O anunciante vai confirmar.')));
     } on CloudCallException catch (e) {
       if (mounted) snack(context, e.message, bg: AppColors.error);
     } catch (_) {
@@ -1085,6 +1228,7 @@ class _BookingSheetState extends State<_BookingSheet> {
                       label: Text('${e.key} · ${PaySvc.fmt(e.value!)}'),
                       selected: _period == e.key,
                       onSelected: (_) {
+                        if (_period == e.key) return;
                         setState(() => _period = e.key);
                         _refreshQuote();
                       },
@@ -1111,6 +1255,29 @@ class _BookingSheetState extends State<_BookingSheet> {
               ]),
             ),
           )),
+          if (_hourly) ...[
+            const SizedBox(width: 10),
+            Semantics(
+              button: true,
+              label: 'Hora de início',
+              child: GestureDetector(
+                onTap: _pickTime,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
+                  decoration: BoxDecoration(
+                      color: AppColors.background,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.border)),
+                  child: Row(children: [
+                    const Icon(Icons.access_time, size: 16, color: AppColors.primary),
+                    const SizedBox(width: 6),
+                    Text('${_time.hour.toString().padLeft(2, '0')}:${_time.minute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                  ]),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(width: 10),
           Container(
             decoration: BoxDecoration(
@@ -1119,6 +1286,7 @@ class _BookingSheetState extends State<_BookingSheet> {
                 border: Border.all(color: AppColors.border)),
             child: Row(children: [
               IconButton(
+                  tooltip: 'Diminuir quantidade',
                   icon: const Icon(Icons.remove_rounded, size: 18),
                   onPressed: _qty > 1
                       ? () {
@@ -1129,6 +1297,7 @@ class _BookingSheetState extends State<_BookingSheet> {
               Text('$_qty',
                   style: const TextStyle(fontWeight: FontWeight.w800)),
               IconButton(
+                  tooltip: 'Aumentar quantidade',
                   icon: const Icon(Icons.add_rounded, size: 18),
                   onPressed: () {
                     setState(() => _qty++);
@@ -1143,7 +1312,7 @@ class _BookingSheetState extends State<_BookingSheet> {
             child: Text(
               _quote == null
                   ? (_quoteError ?? 'Calculando…')
-                  : 'De ${_fmtDate(DateTime.fromMillisecondsSinceEpoch((_quote!['startMs'] as num).toInt()))} até ${_fmtDate(DateTime.fromMillisecondsSinceEpoch((_quote!['endMs'] as num).toInt()))} · valor calculado pelo servidor',
+                  : 'De ${HealthTime.label((_quote!['startMs'] as num).toInt())} até ${HealthTime.label((_quote!['endMs'] as num).toInt())} (horário de Belém) · valor calculado pelo servidor',
               style:
                   const TextStyle(fontSize: 11.5, color: AppColors.textLight),
             )),
@@ -1152,7 +1321,7 @@ class _BookingSheetState extends State<_BookingSheet> {
           Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                  'Já reservado: ${_busy.take(4).map((b) => '${_fmtDate(b.start)}–${_fmtDate(b.end)}${b.pending ? ' (pendente)' : ''}').join(', ')}',
+                  'Já reservado: ${_busy.take(4).map((b) => '${rentalDate(b.start.millisecondsSinceEpoch)}–${rentalDate(b.end.millisecondsSinceEpoch)}${b.pending ? ' (pendente)' : ''}').join(', ')}',
                   style: const TextStyle(fontSize: 11.5, color: AppColors.warning))),
         ],
         const SizedBox(height: 14),
@@ -1352,6 +1521,12 @@ class MyBookingsScreen extends StatelessWidget {
                 '${b.quantity} ${b.period}(s) · ${PaySvc.fmt(b.total)}',
                 style: const TextStyle(
                     fontSize: 12.5, color: AppColors.textLight)),
+            // Período no fuso de Belém.
+            Text(rentalRange(b.start, b.end),
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            if ((b.note ?? '').trim().isNotEmpty)
+              Text('Obs.: ${b.note!.trim()}',
+                  style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
             if (owner)
               Text('Cliente: ${b.clientName}',
                   style: const TextStyle(

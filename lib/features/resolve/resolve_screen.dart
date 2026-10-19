@@ -18,6 +18,8 @@ import '../checkout/payment_screens.dart';
 import '../checkout/payments_api.dart';
 import 'questionnaire.dart';
 import 'questionnaire_form.dart';
+import 'resolve_contact.dart';
+import '../provider/money_parse.dart';
 
 /// Cliente: descreve necessidade e recebe propostas.
 class ResolveScreen extends StatefulWidget {
@@ -265,7 +267,10 @@ class _ResolveScreenState extends State<ResolveScreen> {
                   if (d != null) setState(() => _date = d);
                 }),
             if (_date != null)
-              IconButton(onPressed: () => setState(() => _date = null), icon: const Icon(Icons.close)),
+              IconButton(
+                  tooltip: 'Remover data',
+                  onPressed: () => setState(() => _date = null),
+                  icon: const Icon(Icons.close)),
             for (final e in _periods.entries)
               ChoiceChip(
                   label: Text(e.value),
@@ -445,7 +450,7 @@ class ResolveDetailScreen extends StatelessWidget {
                         emoji: '⏳',
                         title: 'Aguardando propostas',
                         subtitle:
-                            'Profissionais da regiao foram notificados. Volte em breve.',
+                            'Profissionais da região foram notificados. Volte em breve.',
                       );
                     }
                     return ListView.separated(
@@ -464,7 +469,7 @@ class ResolveDetailScreen extends StatelessWidget {
                                 builder: (c) => AlertDialog(
                                       title: const Text('Aceitar proposta?'),
                                       content: Text(
-                                          '${p.providerName} · R\$ ${p.price.toStringAsFixed(2)} · ${p.deadlineDays} dia(s).\nAs demais propostas serão encerradas.'),
+                                          '${p.providerName} · ${brl((p.price * 100).round())} · ${p.deadlineDays} dia(s).\nAs demais propostas serão encerradas.'),
                                       actions: [
                                         TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Voltar')),
                                         ElevatedButton(onPressed: () => Navigator.pop(c, true), child: const Text('Aceitar')),
@@ -546,7 +551,7 @@ class _ProposalTile extends StatelessWidget {
                 Text(proposal.providerName,
                     style: const TextStyle(fontWeight: FontWeight.w800)),
                 Text(
-                    '⭐ ${proposal.rating.toStringAsFixed(1)} · ${proposal.totalServices} servicos',
+                    '⭐ ${proposal.rating.toStringAsFixed(1)} · ${proposal.totalServices} serviços',
                     style: const TextStyle(
                         fontSize: 12, color: AppColors.textLight)),
               ],
@@ -557,7 +562,7 @@ class _ProposalTile extends StatelessWidget {
         ]),
         const SizedBox(height: 10),
         Row(children: [
-          Text('R\$ ${proposal.price.toStringAsFixed(0)}',
+          Text(brl((proposal.price * 100).round()),
               style: const TextStyle(
                   fontWeight: FontWeight.w800,
                   fontSize: 18,
@@ -567,7 +572,7 @@ class _ProposalTile extends StatelessWidget {
               style: const TextStyle(fontSize: 13)),
           if (proposal.available) ...[
             const SizedBox(width: 8),
-            const Text('· Disponivel',
+            const Text('· Disponível',
                 style: TextStyle(
                     fontSize: 12,
                     color: AppColors.secondary,
@@ -618,7 +623,7 @@ class MyResolveScreen extends StatelessWidget {
             return const EmptyState(
               emoji: '📋',
               title: 'Nenhum pedido ainda',
-              subtitle: 'Peca um orcamento e receba propostas da regiao.',
+              subtitle: 'Peça um orçamento e receba propostas da região.',
             );
           }
           return ListView.separated(
@@ -634,7 +639,7 @@ class MyResolveScreen extends StatelessWidget {
                 title: Text(r.description,
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 subtitle: Text(
-                    '${r.city} · ${r.proposalCount} proposta(s) · ${r.status.name}'),
+                    '${r.city} · ${r.proposalCount} proposta(s) · ${resolveStatusLabel(r.status)}'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => Navigator.pushNamed(
                     context, Routes.resolveDetail,
@@ -717,7 +722,7 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
         ],
       ),
     );
-    final price = double.tryParse(priceCtrl.text.replaceAll(',', '.')) ?? 0;
+    final price = parseBrlAmount(priceCtrl.text) ?? 0;
     final days = int.tryParse(daysCtrl.text) ?? 0;
     final message = msgCtrl.text.trim().isEmpty ? null : msgCtrl.text.trim();
     priceCtrl.dispose();
@@ -854,6 +859,14 @@ class _ResolveOpportunitiesState extends State<ResolveOpportunitiesScreen> {
   }
 }
 
+/// Situação da solicitação em português (lista "Meus Resolve").
+String resolveStatusLabel(ResolveStatus s) => switch (s) {
+      ResolveStatus.open => 'Aguardando propostas',
+      ResolveStatus.matched => 'Contratado',
+      ResolveStatus.closed => 'Encerrado',
+      ResolveStatus.cancelled => 'Cancelado',
+    };
+
 String _modalityLabel(String? m) => switch (m) {
       'online' => 'Online',
       'home_care' => 'No endereço do cliente',
@@ -872,15 +885,51 @@ class _ContractCard extends StatelessWidget {
   final ResolveRequest request;
   const _ContractCard({required this.request});
 
+  // Lista todos os anexos; cada um abre por URL temporária do servidor.
+  void _openAttachments(BuildContext context) {
+    showModalBottomSheet(
+        context: context,
+        builder: (c) => SafeArea(
+              child: ListView(shrinkWrap: true, children: [
+                for (var i = 0; i < request.attachmentCount; i++)
+                  ListTile(
+                      key: Key('attachment-$i'),
+                      leading: const Icon(Icons.attach_file),
+                      title: Text('Anexo ${i + 1}'),
+                      onTap: () async {
+                        try {
+                          final url = await FS.resolveAttachmentUrl(request.id, i);
+                          if (url != null) await launchUrl(Uri.parse(url));
+                        } on CloudCallException catch (e) {
+                          if (context.mounted) snack(context, e.message, bg: AppColors.error);
+                        } catch (_) {
+                          if (context.mounted) snack(context, genericActionError, bg: AppColors.error);
+                        }
+                      }),
+              ]),
+            ));
+  }
+
   @override
   Widget build(BuildContext context) {
     final mine = request.clientId == AuthService.uid;
+    // Prestador escolhido vê endereço/telefone do cliente.
+    final isProvider = request.matchedProviderId != null &&
+        request.matchedProviderId == AuthService.uid;
     return StreamBuilder(
         stream: FirebaseFirestore.instance.collection('orders').doc(request.orderId).snapshots(),
         builder: (context, snap) {
           final o = snap.data?.data();
           final paid = o?['paymentStatus'] == 'paid';
           final price = (o?['priceCents'] as num?)?.toInt() ?? ((request.acceptedPrice ?? 0) * 100).round();
+          // Nome da outra parte no chat.
+          String nameOf(Object? v, String fallback) {
+            final t = (v ?? '').toString().trim();
+            return t.isEmpty ? fallback : t;
+          }
+          final otherName = mine
+              ? nameOf(o?['providerName'], 'Profissional')
+              : nameOf(o?['clientName'] ?? request.clientName, 'Cliente');
           return Container(
             margin: const EdgeInsets.fromLTRB(16, 0, 16, 12),
             padding: const EdgeInsets.all(14),
@@ -895,6 +944,10 @@ class _ContractCard extends StatelessWidget {
               if (request.preferredDate != null)
                 Text('Agenda: ${request.preferredDate} (${_periodLabel(request.preferredPeriod)}) — a confirmar com o profissional',
                     style: const TextStyle(fontSize: 12, color: AppColors.textLight)),
+              if (isProvider) ...[
+                const SizedBox(height: 6),
+                ResolveClientContact(requestId: request.id),
+              ],
               const SizedBox(height: 8),
               Wrap(spacing: 8, runSpacing: 6, children: [
                 if (request.chatRoomId != null)
@@ -902,7 +955,7 @@ class _ContractCard extends StatelessWidget {
                       icon: const Icon(Icons.chat_bubble_outline, size: 18),
                       label: const Text('Chat'),
                       onPressed: () => Navigator.pushNamed(context, Routes.chat,
-                          arguments: {'roomId': request.chatRoomId, 'name': 'Profissional'})),
+                          arguments: {'roomId': request.chatRoomId, 'name': otherName})),
                 if (mine && !paid && o != null && price > 0)
                   ElevatedButton.icon(
                       key: const Key('pay-service'),
@@ -931,14 +984,7 @@ class _ContractCard extends StatelessWidget {
                   TextButton.icon(
                       icon: const Icon(Icons.attach_file, size: 18),
                       label: Text('Anexos (${request.attachmentCount})'),
-                      onPressed: () async {
-                        try {
-                          final url = await FS.resolveAttachmentUrl(request.id, 0);
-                          if (url != null) await launchUrl(Uri.parse(url));
-                        } on CloudCallException catch (e) {
-                          if (context.mounted) snack(context, e.message, bg: AppColors.error);
-                        }
-                      }),
+                      onPressed: () => _openAttachments(context)),
               ]),
             ]),
           );

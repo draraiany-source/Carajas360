@@ -66,6 +66,9 @@ class AppSearchBar extends StatelessWidget {
                 child: TextField(
               onChanged: onChanged,
               readOnly: readOnly,
+              // O toque no campo também abre a busca (o GestureDetector de
+              // fora não recebe o toque que o TextField consome).
+              onTap: onTap,
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: InputDecoration(
                   hintText: hint,
@@ -315,13 +318,19 @@ class ProvCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(role, style: Theme.of(context).textTheme.bodySmall),
                   const SizedBox(height: 6),
+                  // Sem avaliações: "Novo" (não "★ 0.0 · Bronze"). Modalidade é
+                  // o que o profissional oferece, não status de presença.
                   Wrap(spacing: 5, runSpacing: 4, children: [
-                    AppTag('★ ${rating.toStringAsFixed(1)}',
-                        bg: const Color(0xFFFFF8E1), fg: AppColors.warning),
-                    AppTag(badge,
-                        bg: const Color(0xFFE8F5E9), fg: AppColors.secondary),
+                    if (reviews > 0) ...[
+                      AppTag('★ ${rating.toStringAsFixed(1)} ($reviews)',
+                          bg: const Color(0xFFFFF8E1), fg: AppColors.warningText),
+                      AppTag(badge,
+                          bg: const Color(0xFFE8F5E9), fg: AppColors.secondary),
+                    ] else
+                      AppTag('Novo',
+                          bg: const Color(0xFFE8F5E9), fg: AppColors.secondary),
                     if (isOnline == true)
-                      AppTag('📹 Online',
+                      AppTag('📹 Atende online',
                           bg: const Color(0xFFE3F0FF), fg: AppColors.primary),
                     if (isOnline == false)
                       AppTag('🏠 Presencial',
@@ -333,79 +342,85 @@ class ProvCard extends StatelessWidget {
                         child: ElevatedButton(
                             onPressed: onTap,
                             style: ElevatedButton.styleFrom(
-                                backgroundColor: isOnline == true
-                                    ? AppColors.success
-                                    : AppColors.primary,
+                                backgroundColor: AppColors.primary,
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 9),
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10))),
-                            child: Text(
-                                isOnline == true ? '📹 Online' : '📍 Contratar',
-                                style: const TextStyle(
+                            child: const Text('Contratar',
+                                style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white)))),
-                    const SizedBox(width: 8),
-                    GestureDetector(
-                        onTap: onChat,
-                        child: Container(
-                            padding: const EdgeInsets.all(9),
-                            decoration: BoxDecoration(
-                                color: AppColors.background,
-                                borderRadius: BorderRadius.circular(10)),
-                            child: const Text('💬',
-                                style: TextStyle(fontSize: 16)))),
+                    // Conversa só quando há para onde levar (antes aparecia sem ação).
+                    if (onChat != null) ...[
+                      const SizedBox(width: 8),
+                      Semantics(
+                          button: true,
+                          label: 'Conversar com $name',
+                          child: GestureDetector(
+                              onTap: onChat,
+                              child: Container(
+                                  width: 42,
+                                  height: 40,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(
+                                      color: AppColors.background,
+                                      borderRadius: BorderRadius.circular(10)),
+                                  child: const ExcludeSemantics(
+                                      child: Text('💬',
+                                          style: TextStyle(fontSize: 16)))))),
+                    ],
                   ]),
                 ])),
           ]),
         ),
       );
-  Widget _avatar() => Stack(children: [
-        AppAvatar(url: photo, name: name, size: 52, bg: avatarBg, r: 14),
-        if (isOnline == true)
-          Positioned(
-              bottom: 0,
-              right: 0,
-              child: Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(
-                      color: AppColors.success,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: AppColors.white, width: 2)),
-                  child: const Icon(Icons.videocam,
-                      size: 8, color: Colors.white))),
-      ]);
+  Widget _avatar() =>
+      AppAvatar(url: photo, name: name, size: 52, bg: avatarBg, r: 14);
 }
 
-class _FavToggle extends StatelessWidget {
+class _FavToggle extends StatefulWidget {
   final String providerId;
   const _FavToggle({required this.providerId});
   @override
+  State<_FavToggle> createState() => _FavToggleState();
+}
+
+class _FavToggleState extends State<_FavToggle> {
+  // Um listener por cartão, criado uma vez (antes, um novo a cada rebuild).
+  late final Stream<bool> _fav = FS.isFavoriteStream(widget.providerId);
+  @override
   Widget build(BuildContext context) => StreamBuilder<bool>(
-        stream: FS.isFavoriteStream(providerId),
+        stream: _fav,
         builder: (_, snap) {
           final isFav = snap.data ?? false;
-          return GestureDetector(
-            onTap: () async {
-              final nowFav = await toggleFavoriteSafe(
-                  context, () => FS.toggleFavorite(providerId));
-              if (nowFav == null) return;
-              if (context.mounted)
-                snack(
-                    context,
-                    nowFav
-                        ? '⭐ Adicionado aos favoritos'
-                        : 'Removido dos favoritos',
-                    bg: nowFav ? AppColors.warning : AppColors.textLight);
-            },
-            child: Padding(
-              padding: const EdgeInsets.only(left: 6, right: 2),
-              child: Icon(
-                  isFav ? Icons.star_rounded : Icons.star_border_rounded,
-                  color: isFav ? AppColors.warning : AppColors.textHint,
-                  size: 20),
+          return Semantics(
+            button: true,
+            toggled: isFav,
+            label: isFav ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
+            child: InkResponse(
+              radius: 22,
+              onTap: () async {
+                final nowFav = await toggleFavoriteSafe(
+                    context, () => FS.toggleFavorite(widget.providerId));
+                if (nowFav == null) return;
+                if (context.mounted) {
+                  snack(
+                      context,
+                      nowFav
+                          ? '⭐ Adicionado aos favoritos'
+                          : 'Removido dos favoritos',
+                      bg: nowFav ? AppColors.warningText : AppColors.textLight);
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Icon(
+                    isFav ? Icons.star_rounded : Icons.star_border_rounded,
+                    color: isFav ? AppColors.warning : AppColors.textHint,
+                    size: 22),
+              ),
             ),
           );
         },

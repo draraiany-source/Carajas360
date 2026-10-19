@@ -155,6 +155,12 @@ module.exports = function scheduleFunctions(deps) {
     const { prov, service, serviceName } = await healthContext(providerId, catalogId);
     if (!service.modalities.includes(modality)) throw httpsError('invalid-argument', 'Modalidade não oferecida para esta especialidade');
     const reason = String(data?.reason || '').trim().slice(0, 1000);
+    // Auditoria 3: atendimento domiciliar precisa do endereço (só paciente e
+    // profissional leem, em private/clinical); o profissional vê quem marcou.
+    const address = String(data?.address || '').trim().slice(0, 300);
+    if (modality === 'home_care' && address.length < 8) throw httpsError('invalid-argument', 'Informe o endereço do atendimento domiciliar');
+    const pub = await db.collection('publicProfiles').doc(auth.uid).get();
+    const clientName = String((pub.exists && pub.data().name) || 'Paciente').slice(0, 80);
     const date = hc.localDateOf(startMs);
     const calRef = db.collection('healthCalendars').doc(providerId);
     const nowMs = await clock.nowMs(db);
@@ -177,7 +183,7 @@ module.exports = function scheduleFunctions(deps) {
       if (paid) takeHold(tx, auth.uid, hold.holdsSnap, hold.cfg, id, status.holdUntilMs, nowMs);
       created = status;
       tx.set(ref, {
-        clientId: auth.uid, providerId, providerName: prov.name || '',
+        clientId: auth.uid, clientName, providerId, providerName: prov.name || '',
         catalogId, serviceName, modality,
         startMs, endMs, startAt: Timestamp.fromMillis(startMs), endAt: Timestamp.fromMillis(endMs),
         date, timezone: hc.TZ, priceCents: service.priceCents, totalCents: service.priceCents, ...status, rescheduleCount: 0,
@@ -185,7 +191,8 @@ module.exports = function scheduleFunctions(deps) {
         requestId, createdAt: FieldValue.serverTimestamp(), updatedAt: FieldValue.serverTimestamp(),
       });
       tx.set(ref.collection('private').doc('clinical'), {
-        clientId: auth.uid, providerId, reason: reason || null, updatedAt: FieldValue.serverTimestamp(),
+        clientId: auth.uid, providerId, reason: reason || null,
+        address: modality === 'home_care' ? address : null, updatedAt: FieldValue.serverTimestamp(),
       });
       tx.set(calRef, { version: FieldValue.increment(1), updatedAt: FieldValue.serverTimestamp() }, { merge: true });
       tx.set(db.collection('healthConsents').doc(auth.uid), {

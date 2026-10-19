@@ -121,6 +121,8 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
   String? _error;
   bool _loadingQuote = false, _creating = false;
   Timer? _debounce;
+  // Descarta respostas de cotações antigas (ex.: cupom alterado no meio).
+  int _quoteSeq = 0;
 
   List<CartLine> get _lines =>
       CartService.instance.cart.byStore()[widget.storeId] ?? const [];
@@ -149,20 +151,37 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
 
   Future<void> _loadQuote() async {
     if (_lines.isEmpty) return;
+    _debounce?.cancel();
+    final seq = ++_quoteSeq;
+    // Sem cotação válida até o servidor responder (não mostra total antigo).
     setState(() {
       _loadingQuote = true;
       _error = null;
+      _quote = null;
     });
     try {
       final q = await PaymentsApi.quote(_body());
-      if (mounted) setState(() => _quote = q);
+      if (mounted && seq == _quoteSeq) setState(() => _quote = q);
     } on CloudCallException catch (e) {
-      if (mounted) setState(() => _error = e.message);
+      if (mounted && seq == _quoteSeq) setState(() => _error = e.message);
     } catch (e) {
-      if (mounted) setState(() => _error = 'Não foi possível calcular o total. Tente novamente.');
+      if (mounted && seq == _quoteSeq) {
+        setState(() => _error = 'Não foi possível calcular o total. Tente novamente.');
+      }
     } finally {
-      if (mounted) setState(() => _loadingQuote = false);
+      if (mounted && seq == _quoteSeq) setState(() => _loadingQuote = false);
     }
+  }
+
+  /// Cupom alterado: invalida a cotação e recalcula após uma pausa.
+  void _onCouponChanged(String _) {
+    _debounce?.cancel();
+    _quoteSeq++;
+    setState(() {
+      _quote = null;
+      _loadingQuote = false;
+    });
+    _debounce = Timer(const Duration(milliseconds: 700), _loadQuote);
   }
 
   Future<String> _requestId() async {
@@ -251,7 +270,12 @@ class _CheckoutScreenState extends State<CheckoutScreen> {
             const SizedBox(height: 12),
           ],
           Row(children: [
-            Expanded(child: TextField(controller: _coupon, decoration: const InputDecoration(labelText: 'Cupom'))),
+            Expanded(
+                child: TextField(
+                    key: const Key('coupon-field'),
+                    controller: _coupon,
+                    onChanged: _onCouponChanged,
+                    decoration: const InputDecoration(labelText: 'Cupom'))),
             TextButton(onPressed: _loadQuote, child: const Text('Aplicar')),
           ]),
           const SizedBox(height: 12),

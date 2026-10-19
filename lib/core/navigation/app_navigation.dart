@@ -129,6 +129,9 @@ class SessionGuard {
   /// Chamar antes de um "Sair" voluntário.
   void markExplicitSignOut() => _explicitSignOut = true;
 
+  /// Desfaz [markExplicitSignOut] quando a saída não aconteceu (ex.: exclusão falhou).
+  void clearExplicitSignOut() => _explicitSignOut = false;
+
   /// Leva ao login preservando a tela atual.
   Future<void> expired([String message = 'Sua sessão expirou. Entre novamente para continuar.']) async {
     final nav = rootNavigatorKey.currentState;

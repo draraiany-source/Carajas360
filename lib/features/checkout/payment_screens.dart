@@ -451,7 +451,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
     if (a.method == 'pix') return _pix(a);
     return Column(children: [
       const Padding(padding: EdgeInsets.all(24), child: CircularProgressIndicator()),
-      const Text('Pagamento em análise pelo emissor. Avisaremos quando houver resposta.',
+      const Text('Pagamento em análise pelo emissor. Acompanhe o status em Meus pedidos.',
           textAlign: TextAlign.center),
       TextButton(onPressed: _cancel, child: const Text('Cancelar cobrança')),
     ]);
@@ -590,9 +590,7 @@ class _PaymentScreenState extends State<PaymentScreen> {
             items: options
                 .map((n) => DropdownMenuItem(
                     value: n,
-                    child: Text(n == 1
-                        ? 'À vista — ${brl(total)}'
-                        : '${n}x de ${brl(total ~/ n)}')))
+                    child: Text(installmentLabel(total, n))))
                 .toList(),
             onChanged: (v) => setState(() => _installments = v ?? 1),
           ),
@@ -613,4 +611,21 @@ class _PaymentScreenState extends State<PaymentScreen> {
               style: TextStyle(fontSize: 11, color: AppColors.textLight)),
         ]));
   }
+}
+
+/// Valores das parcelas (centavos): a última absorve o resto, então a
+/// soma é sempre igual ao total. Exibição apenas; o processador decide.
+List<int> installmentAmounts(int totalCents, int n) {
+  if (n <= 1) return [totalCents];
+  final base = totalCents ~/ n;
+  return [for (var i = 0; i < n - 1; i++) base, totalCents - base * (n - 1)];
+}
+
+/// Rótulo da opção de parcelamento (sem juros conhecidos no app).
+String installmentLabel(int totalCents, int n) {
+  if (n <= 1) return 'À vista — ${brl(totalCents)}';
+  final parts = installmentAmounts(totalCents, n);
+  return parts.first == parts.last
+      ? '${n}x de ${brl(parts.first)}'
+      : '${n}x de aprox. ${brl(parts.first)}';
 }

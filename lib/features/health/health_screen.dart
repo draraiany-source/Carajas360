@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import '../../core/navigation/app_navigation.dart';
 import '../../core/auth/access_control.dart';
 import 'health_booking.dart';
@@ -29,6 +30,8 @@ class _HealthState extends State<HealthScreen> {
   String _name = '';
   Timer? _debounce;
   int _tick = 0;
+  // Âncora da lista de profissionais (atalho "Agendar").
+  final _listKey = GlobalKey();
 
   @override
   void initState() {
@@ -175,7 +178,7 @@ class _HealthState extends State<HealthScreen> {
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Row(children: [
                     // Emergência não é agendável: orienta o serviço público.
-                    _action('🚨', 'Emergência', 'SAMU 192', AppColors.error,
+                    _action(const Text('🚨', style: TextStyle(fontSize: 24)), 'Emergência', 'SAMU 192', AppColors.error,
                         () => showDialog(
                             context: context,
                             builder: (d) => AlertDialog(
@@ -185,22 +188,43 @@ class _HealthState extends State<HealthScreen> {
                                   actions: [
                                     TextButton(
                                         onPressed: () => Navigator.pop(d),
-                                        child: const Text('Entendi'))
+                                        child: const Text('Entendi')),
+                                    ElevatedButton.icon(
+                                        style: ElevatedButton.styleFrom(
+                                            backgroundColor: AppColors.error,
+                                            foregroundColor: Colors.white),
+                                        icon: const Icon(Icons.phone, size: 18),
+                                        label: const Text('Ligar 192'),
+                                        onPressed: () async {
+                                          Navigator.pop(d);
+                                          final ok = await launchUrl(Uri(scheme: 'tel', path: '192'))
+                                              .catchError((_) => false);
+                                          if (!ok && mounted) {
+                                            snack(this.context, 'Não foi possível abrir o discador. Ligue 192.',
+                                                bg: AppColors.error);
+                                          }
+                                        }),
                                   ],
                                 ))),
                     const SizedBox(width: 8),
-                    _action('📅', 'Agendar', 'Escolha abaixo', AppColors.health,
-                        () => snack(context,
-                            'Escolha um profissional na lista para ver os horários livres.',
-                            bg: AppColors.health)),
+                    _action(const Icon(Icons.event, color: Colors.white, size: 26), 'Agendar', 'Escolha abaixo',
+                        AppColors.health, () {
+                      // Leva até a lista de profissionais.
+                      final c = _listKey.currentContext;
+                      if (c != null) {
+                        Scrollable.ensureVisible(c,
+                            duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+                      }
+                    }),
                     const SizedBox(width: 8),
-                    _action('🏡', 'Home Care', 'Domiciliar', AppColors.teal,
+                    _action(const Text('🏡', style: TextStyle(fontSize: 24)), 'Home Care', 'Domiciliar', AppColors.teal,
                         () => setState(() => _mode = 3)),
                   ]))),
-          const SliverToBoxAdapter(
+          SliverToBoxAdapter(
               child: Padding(
-                  padding: EdgeInsets.fromLTRB(16, 20, 16, 0),
-                  child: SecHeader(title: '👨‍⚕️ Profissionais disponíveis'))),
+                  key: _listKey,
+                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  child: const SecHeader(title: '👨‍⚕️ Profissionais disponíveis'))),
           SliverToBoxAdapter(
               child: FutureBuilder<ProviderPage>(
             key: ValueKey('${_query.key}|$_tick'),
@@ -270,31 +294,27 @@ class _HealthState extends State<HealthScreen> {
                                     fontWeight: FontWeight.w800, fontSize: 16)),
                             const SizedBox(height: 14),
                             for (final step in [
+                              // Passos reais do fluxo de agendamento.
                               [
                                 '1️⃣',
                                 'Escolha o profissional',
-                                'Filtre por especialidade, avaliação e disponibilidade.'
+                                'Filtre por especialidade e modalidade (online, presencial ou domiciliar).'
                               ],
                               [
                                 '2️⃣',
                                 'Agende',
-                                'Escolha data, horário e modalidade.'
+                                'Escolha o dia e um horário livre da agenda do profissional.'
                               ],
                               [
                                 '3️⃣',
-                                'Pague com segurança',
-                                'PIX, cartão ou carteira digital.'
+                                'Pague pelo app',
+                                'Consultas com valor são pagas pelo app para garantir o horário.'
                               ],
                               [
                                 '4️⃣',
-                                'Consulta realizada',
-                                'Online via vídeo ou presencial.'
+                                'Atendimento',
+                                'Online: o link é combinado pela conversa. Presencial: o endereço do profissional é passado na conversa. Domiciliar: no endereço que você informar.'
                               ],
-                              [
-                                '5️⃣',
-                                'Avalie o atendimento',
-                                'Ajude outros pacientes.'
-                              ]
                             ])
                               Padding(
                                   padding: const EdgeInsets.only(bottom: 12),
@@ -330,10 +350,14 @@ class _HealthState extends State<HealthScreen> {
         ]),
       );
 
-  Widget _action(String icon, String title, String sub, Color color,
+  Widget _action(Widget icon, String title, String sub, Color color,
           VoidCallback onTap) =>
       Expanded(
-          child: GestureDetector(
+          child: Semantics(
+              button: true,
+              label: '$title, $sub',
+              excludeSemantics: true,
+              child: GestureDetector(
               onTap: onTap,
               child: Container(
                 padding: const EdgeInsets.symmetric(vertical: 14),
@@ -344,7 +368,7 @@ class _HealthState extends State<HealthScreen> {
                         end: Alignment.bottomRight),
                     r: 16),
                 child: Column(children: [
-                  Text(icon, style: const TextStyle(fontSize: 24)),
+                  SizedBox(height: 30, child: Center(child: icon)),
                   const SizedBox(height: 4),
                   Text(title,
                       style: const TextStyle(
@@ -355,7 +379,7 @@ class _HealthState extends State<HealthScreen> {
                       style:
                           const TextStyle(color: Colors.white70, fontSize: 9))
                 ]),
-              )));
+              ))));
 
   /// Agendamento real: profissional + especialidade + horário da agenda.
   void _schedule(String providerId, String name, String catalogId, String service) {
