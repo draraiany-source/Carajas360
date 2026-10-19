@@ -259,11 +259,12 @@ jobs:
           flutter --version
           flutter pub get
 
-      - name: flutter build ios --no-codesign (hml)
+      - name: flutter build ios --no-codesign --flavor hml
         run: |
           set -o pipefail
           mkdir -p dist
-          flutter build ios --release --no-codesign \
+          # --flavor hml: scheme hml / Release-hml (bundle br.com.servicoconecta.hml).
+          flutter build ios --release --no-codesign --flavor hml \
             --dart-define=APP_ENV=hml \
             --build-number=${{ github.run_number }} 2>&1 | tee dist/build-ios.log
 
@@ -291,6 +292,11 @@ jobs:
           } > dist/ios-build-summary.txt
           cat dist/ios-build-summary.txt
           cat dist/ios-build-summary.txt >> "$GITHUB_STEP_SUMMARY"
+          # Separação de ambientes: o build hml não pode usar o bundle id de produção.
+          BID=$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" build/ios/iphoneos/Runner.app/Info.plist 2>/dev/null || true)
+          if [ "$BID" != "br.com.servicoconecta.hml" ]; then
+            echo "::error::Bundle id do build hml é '$BID' (esperado br.com.servicoconecta.hml)"; exit 1
+          fi
 
       - uses: actions/upload-artifact@v4
         if: always()

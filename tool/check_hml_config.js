@@ -40,7 +40,12 @@ add('Firebase', 'firebase_options_hml.dart → projectId', optIds.length === 1 &
 const iosHml = read('ios/config/GoogleService-Info-hml.plist');
 add('Firebase', 'ios/config/GoogleService-Info-hml.plist', iosHml != null && !PLACEHOLDER.test(iosHml), iosHml == null ? 'ausente — app iOS do projeto hml' : (PLACEHOLDER.test(iosHml) ? 'modelo' : 'preenchido'), true);
 const web = read('web/index.html') || '';
-add('Login Google', 'web/index.html google-signin-client_id', !/COLE_SEU_GOOGLE_WEB_CLIENT_ID/.test(web), 'client id OAuth web do projeto hml (Authentication → Google)');
+add('Login Google', 'web/index.html sem client id fixo', !/google-signin-client_id/.test(web), 'na web o login Google é o popup do Firebase Auth; não há client id no HTML');
+add('Login Google', 'Authentication › Google ativo; domínios autorizados com <hml>.web.app', null, 'conferir no console do projeto hml (e o domínio próprio, se usar FIREBASE_AUTH_DOMAIN)');
+// iOS: o flavor hml precisa de bundle id próprio (não substituir o app de produção).
+const pbx = read('ios/Runner.xcodeproj/project.pbxproj') || '';
+const iosFlavor = /PRODUCT_BUNDLE_IDENTIFIER = br\.com\.servicoconecta\.hml;/.test(pbx) && read('ios/Runner.xcodeproj/xcshareddata/xcschemes/hml.xcscheme') != null;
+add('iOS', 'scheme hml / Release-hml → br.com.servicoconecta.hml', iosFlavor, iosFlavor ? 'build: flutter build ipa --flavor hml' : 'falta a configuração hml no projeto Xcode', true);
 const env = read('config/env/hml.json');
 let envJson = null;
 try { envJson = env == null ? null : JSON.parse(env); } catch (_) { envJson = null; }

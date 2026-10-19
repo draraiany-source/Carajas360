@@ -20,8 +20,23 @@ class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform =>
       forEnvironment(AppEnv.current);
 
-  static FirebaseOptions forEnvironment(AppEnvironment env) {
+  /// Domínio do login na web (popup do Google/Apple). Vazio = o padrão do
+  /// projeto (<id>.firebaseapp.com). Para um domínio próprio, configure-o no
+  /// Hosting do mesmo projeto, inclua-o em Authentication › Domínios
+  /// autorizados e passe --dart-define=FIREBASE_AUTH_DOMAIN=<domínio>.
+  static const _authDomainOverride =
+      String.fromEnvironment('FIREBASE_AUTH_DOMAIN');
+
+  static FirebaseOptions forEnvironment(AppEnvironment env,
+      {String authDomainOverride = _authDomainOverride}) {
     final platform = kIsWeb ? null : defaultTargetPlatform;
+    final options = _forPlatform(env, platform);
+    if (platform != null || authDomainOverride.trim().isEmpty) return options;
+    return options.copyWith(authDomain: authDomainOverride.trim());
+  }
+
+  static FirebaseOptions _forPlatform(
+      AppEnvironment env, TargetPlatform? platform) {
     return switch (env) {
       AppEnvironment.dev => _pick(platform, DevFirebaseOptions.android,
           DevFirebaseOptions.ios, DevFirebaseOptions.web),
