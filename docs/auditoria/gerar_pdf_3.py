@@ -266,7 +266,7 @@ for title, rows in INVENTORY:
     r = [[P('<b>Tela</b>', 'cellb'), P('<b>Antes</b>', 'cellb'), P('<b>Depois</b>', 'cellb'), P('<b>O que mudou</b>', 'cellb')]]
     for a, b, c, d in rows:
         r.append([P(a, 'cellb'), chip(b, INV[b]), chip(c, INV[c]), P(d, 'cell')])
-    story += [P(title, 'h2'), table(r, [42 * mm, 19 * mm, 19 * mm, W - 80 * mm])]
+    story += [P(title, 'h2'), table(r, [40 * mm, 22 * mm, 22 * mm, W - 84 * mm])]
 
 # 4. Achados
 story += [PageBreak(), P('4. Achados e correções', 'h1'),
