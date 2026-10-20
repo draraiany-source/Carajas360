@@ -905,8 +905,12 @@ class FS {
       return Future.value(hit.url);
     }
     // Vários widgets pedindo a mesma mensagem: uma chamada só.
-    return _chatMediaPending[key] ??= _fetchChatMediaUrl(roomId, messageId)
-        .whenComplete(() => _chatMediaPending.remove(key));
+    // Bloco sem retorno: `=> remove(key)` devolveria o próprio futuro
+    // pendente e o whenComplete esperaria por si mesmo (nunca concluía).
+    return _chatMediaPending[key] ??=
+        _fetchChatMediaUrl(roomId, messageId).whenComplete(() {
+      _chatMediaPending.remove(key);
+    });
   }
 
   static Future<String> _fetchChatMediaUrl(

@@ -2,12 +2,12 @@
 # Fase 7: compila os harnesses web e roda os E2E, cada um num emulador limpo.
 # Somente dev/emulador (projeto demo-carajas360); nada sai da máquina.
 #
-# Uso: tool/run_e2e.sh <dir-saida> <firebase-js-sdk-dir> [catalog checkout resolve schedule phase6]
+# Uso: tool/run_e2e.sh <dir-saida> <firebase-js-sdk-dir> [catalog checkout resolve schedule phase6 hml app pend3]
 #   <firebase-js-sdk-dir>: node_modules/firebase (v12) servido no lugar do CDN.
 # Requer: flutter, firebase-tools, Playwright (PLAYWRIGHT_MODULE) e Chromium (CHROMIUM_PATH).
 set -u
 OUT=${1:?dir de saída}; SDK=${2:?dir do firebase js sdk}; shift 2
-SUITES=${*:-catalog checkout resolve schedule phase6 hml app}
+SUITES=${*:-catalog checkout resolve schedule phase6 hml app pend3}
 ROOT=$(cd "$(dirname "$0")/.." && pwd); cd "$ROOT"
 FLUTTER=${FLUTTER:-flutter}
 mkdir -p "$OUT"
@@ -24,8 +24,9 @@ summary="$OUT/resumo.txt"; : > "$summary"; failed=0
 for s in $SUITES; do
   web="$OUT/web_$s"; ev="$OUT/evidencias_$s"; mkdir -p "$ev"
   # shellcheck disable=SC2046
-  # "app" = o aplicativo real (lib/main.dart) em dev/emulador.
-  target="test_driver/e2e_${s}_main.dart"; [ "$s" = app ] && target="lib/main.dart"
+  # "app" e "pend3" = o aplicativo real (lib/main.dart) em dev/emulador.
+  target="test_driver/e2e_${s}_main.dart"
+  case $s in app|pend3) target="lib/main.dart" ;; esac
   if ! $FLUTTER build web --profile --no-web-resources-cdn $(defines "$s") \
       -t "$target" --output="$web" > "$OUT/build_$s.log" 2>&1; then
     echo "$s: BUILD FALHOU (ver build_$s.log)" | tee -a "$summary"; failed=1; continue
