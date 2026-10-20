@@ -14,8 +14,11 @@ import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import 'tickets_screens.dart';
 
-class SupportScreen extends StatelessWidget {
+class SupportScreen extends StatefulWidget {
   const SupportScreen({super.key});
+
+  @override
+  State<SupportScreen> createState() => _SupportScreenState();
 
   /// Perguntas frequentes — descrevem só fluxos que existem no app.
   static const faq = [
@@ -42,7 +45,7 @@ class SupportScreen extends StatelessWidget {
     {
       'q': 'Como me tornar prestador?',
       'a':
-          'Ao criar a conta, escolha "Prestador" e complete o cadastro enviando foto, documento e selfie. A equipe analisa os documentos e você recebe um aviso quando o perfil for aprovado. Depois, use Perfil › Área do Prestador.'
+          'Ao criar a conta, escolha "Prestador"; se você já tem conta de cliente, use Perfil › Quero ser prestador. Escolha suas especialidades e envie documento e selfie (a foto é opcional). A equipe analisa e você recebe um aviso: o mesmo item mostra se está em análise ou, se não for aprovado, o motivo e o botão "Pedir nova análise". Depois da aprovação, use Perfil › Área do Prestador.'
     },
     {
       'q': 'Como usar cupom de desconto?',
@@ -65,6 +68,13 @@ class SupportScreen extends StatelessWidget {
     },
   ];
 
+}
+
+class _SupportScreenState extends State<SupportScreen> {
+  // Contatos lidos uma vez (antes, a cada rebuild).
+  late final Future<({String? email, String? phone})> _contact =
+      FS.supportContact();
+
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Central de Ajuda')),
@@ -82,7 +92,7 @@ class SupportScreen extends StatelessWidget {
                         fontSize: 18)),
                 const SizedBox(height: 12),
                 FutureBuilder<({String? email, String? phone})>(
-                  future: FS.supportContact(),
+                  future: _contact,
                   builder: (_, snap) {
                     // Só contatos configurados pelo admin (config/platform);
                     // sem contato, o atendimento é pelo chamado no app.
@@ -135,7 +145,7 @@ class SupportScreen extends StatelessWidget {
           const SizedBox(height: 20),
           const SecHeader(title: 'Perguntas frequentes'),
           const SizedBox(height: 12),
-          for (final item in faq) _FaqTile(q: item['q']!, a: item['a']!),
+          for (final item in SupportScreen.faq) _FaqTile(q: item['q']!, a: item['a']!),
           const SizedBox(height: 20),
           Container(
               decoration: AppDecorations.card(r: 18),

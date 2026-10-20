@@ -58,7 +58,8 @@ const ACCOUNTS = [
     await db.doc(`users/${u.uid}`).set({ name: a.name, email: a.email, ...a.user, status: 'active', testAccount: true, updatedAt: admin.firestore.FieldValue.serverTimestamp() }, { merge: true });
     if (a.provider) await db.doc(`providers/${u.uid}`).set({ userId: u.uid, rating: 0, totalReviews: 0, verificationStatus: 'approved', ...a.provider }, { merge: true });
     if (a.role === 'loja') {
-      await db.doc(`stores/${u.uid}_loja`).set({ ownerId: u.uid, name: 'Loja Teste', active: true, verified: false, rating: 0, totalReviews: 0, pickupEnabled: true, deliveryEnabled: true, deliveryFeeCents: 500 }, { merge: true });
+      // Loja de teste já aprovada: loja não aprovada não aparece nem vende.
+      await db.doc(`stores/${u.uid}_loja`).set({ ownerId: u.uid, name: 'Loja Teste', active: true, verified: true, rating: 0, totalReviews: 0, pickupEnabled: true, deliveryEnabled: true, deliveryFeeCents: 500 }, { merge: true });
     }
     out.push({ papel: a.role, email: a.email, senha: pw });
   }

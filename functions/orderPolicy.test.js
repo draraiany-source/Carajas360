@@ -110,3 +110,24 @@ describe('campos sensíveis', () => {
     }
   });
 });
+
+describe('prazo de pedido pendente (expiresAt)', () => {
+  const D = 24 * 60 * 60 * 1000;
+  const ts = (ms) => ({ toMillis: () => ms });
+  it('usa expiresAt gravado pelo servidor', () => {
+    assert.equal(policy.expiresAtMs({ createdAt: ts(1000), expiresAt: ts(5000) }), 5000);
+  });
+  it('pedido antigo sem expiresAt: createdAt + 7 dias', () => {
+    assert.equal(policy.PENDING_EXPIRY_MS, 7 * D);
+    assert.equal(policy.expiresAtMs({ createdAt: ts(1000) }), 1000 + 7 * D);
+    assert.equal(policy.expiresAtMs({ createdAt: new Date(1000) }), 1000 + 7 * D);
+    assert.equal(policy.expiresAtMs({}), null);
+  });
+  it('isExpired só vale para pendente e a partir do instante do prazo', () => {
+    const o = { status: 'pending', expiresAt: ts(10) };
+    assert.equal(policy.isExpired(o, 9), false);
+    assert.equal(policy.isExpired(o, 10), true);
+    assert.equal(policy.isExpired({ ...o, status: 'accepted' }, 99), false);
+    assert.equal(policy.isExpired({ status: 'pending' }, 99), false);
+  });
+});

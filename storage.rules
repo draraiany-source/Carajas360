@@ -114,9 +114,16 @@ service firebase.storage {
       allow delete: if isAuth() && request.auth.uid == userId;
     }
 
+    // Anexos do chat (LGPD): leitura só por quem está AGORA na conversa;
+    // o app não publica download URL (usa getChatMediaUrl). O nome do
+    // arquivo começa com o uid de quem enviou ("apagar para todos" só
+    // remove o próprio arquivo). Remoção apenas pelo servidor.
     match /chat_media/{roomId}/{allPaths=**} {
       allow read: if isParticipant(roomId);
-      allow create: if isParticipant(roomId) && resource == null && isDocOrImage();
+    }
+    match /chat_media/{roomId}/{fileName} {
+      allow create: if isParticipant(roomId) && resource == null && isDocOrImage() &&
+        fileName.matches(request.auth.uid + '_[A-Za-z0-9._-]{1,100}');
     }
 
     match /{allPaths=**} {

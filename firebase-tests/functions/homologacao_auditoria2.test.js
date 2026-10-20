@@ -81,7 +81,7 @@ before(async () => {
   const weekly = {};
   for (let d = 0; d < 7; d++) weekly[d] = [{ start: '08:00', end: '18:00' }];
   b.set(db.doc(`healthSchedules/${doctor.uid}`), { slotMinutes: 30, minLeadHours: 2, weekly, blockedDates: [], services: [{ catalogId: CARDIO, durationMin: 30, priceCents: 15000, modalities: ['online'] }] });
-  b.set(db.doc(`stores/${STORE}`), { ownerId: seller.uid, name: 'Mercado A2', active: true, deliveryFeeCents: 500, pickupEnabled: true, deliveryEnabled: true });
+  b.set(db.doc(`stores/${STORE}`), { ownerId: seller.uid, name: 'Mercado A2', active: true, verified: true, deliveryFeeCents: 500, pickupEnabled: true, deliveryEnabled: true });
   b.set(db.doc(`products/${PROD}`), { storeId: STORE, name: 'Arroz', price: 50, stock: 1000, active: true });
   b.set(db.doc('config/booking'), { holdMinutes: 15, maxPendingPerClient: 3 });
   await b.commit();

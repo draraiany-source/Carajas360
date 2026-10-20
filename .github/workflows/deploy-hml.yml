@@ -111,6 +111,8 @@ jobs:
         run: |
           flutter pub get
           flutter build web --release --dart-define-from-file=config/env/hml.json
+          # Push web: config real do hml para o service worker (2 = desligado).
+          node tool/gen_web_push_config.js --env hml --out build/web || [ $? -eq 2 ]
 
       - name: Autenticar no Google Cloud (conta de serviço do hml)
         uses: google-github-actions/auth@v2

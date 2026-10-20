@@ -5,6 +5,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/security/order_policy.dart';
+import '../../core/utils/memo.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import 'cart.dart';
@@ -44,14 +45,54 @@ class CartScreen extends StatelessWidget {
       });
 }
 
-class _StoreGroup extends StatelessWidget {
+class _StoreGroup extends StatefulWidget {
   final String storeId;
   final List<CartLine> lines;
   const _StoreGroup({required this.storeId, required this.lines});
 
   @override
-  Widget build(BuildContext context) {
-    final est = lines.fold<int>(0, (s, l) => s + l.subtotalCents);
+  State<_StoreGroup> createState() => _StoreGroupState();
+}
+
+class _StoreGroupState extends State<_StoreGroup> {
+  String get storeId => widget.storeId;
+  List<CartLine> get lines => widget.lines;
+
+  // O carrinho reconstrói o grupo a cada mudança de quantidade e os produtos
+  // ficavam dentro do builder da loja: as assinaturas só são refeitas quando
+  // a loja ou o conjunto de produtos muda.
+  final _store = Memo<Stream<Map<String, dynamic>?>>();
+  final _products = Memo<Stream<Map<String, Map<String, dynamic>?>>>();
+
+  // Loja e produtos ao vivo: loja desativada/não aprovada ou produto
+  // removido aparecem como indisponíveis e bloqueiam "Finalizar".
+  @override
+  Widget build(BuildContext context) =>
+      StreamBuilder<Map<String, dynamic>?>(
+          stream: _store.of(storeId, () => FS.storeDataStream(storeId)),
+          builder: (context, storeSnap) {
+            final ids = lines.map((l) => l.productId).toList();
+            return StreamBuilder<Map<String, Map<String, dynamic>?>>(
+                  stream: _products.of(
+                      ids.join(','), () => FS.productsByIdStream(ids)),
+                  builder: (context, prodSnap) => _content(
+                      context,
+                      storeSnap.connectionState == ConnectionState.active &&
+                          !storeSnap.hasError,
+                      storeSnap.data,
+                      prodSnap.data ?? const {}));
+          });
+
+  Widget _content(BuildContext context, bool storeLoaded,
+      Map<String, dynamic>? store, Map<String, Map<String, dynamic>?> products) {
+    final storeReason = storeLoaded ? storeUnavailableReason(store) : null;
+    final unavailable = storeLoaded
+        ? unavailableProductIds(lines, store, products)
+        : const <String>{};
+    final est = lines
+        .where((l) => !unavailable.contains(l.productId))
+        .fold<int>(0, (s, l) => s + l.subtotalCents);
+    final blocked = unavailable.isNotEmpty;
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       decoration: AppDecorations.card(r: 16),
@@ -59,29 +100,58 @@ class _StoreGroup extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('🏪 ${lines.first.storeName.isEmpty ? 'Loja' : lines.first.storeName}',
             style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+        if (storeReason != null)
+          Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(storeReason,
+                  key: Key('store-unavailable-$storeId'),
+                  style: const TextStyle(fontSize: 12, color: AppColors.error))),
         const SizedBox(height: 8),
         for (final l in lines)
-          Row(children: [
-            Expanded(child: Text('${l.emoji} ${l.name}', style: const TextStyle(fontSize: 13))),
-            IconButton(
-                icon: const Icon(Icons.remove_circle_outline, size: 20),
-                onPressed: () => CartService.instance.setQty(l, l.qty - 1)),
-            Text('${l.qty}', style: const TextStyle(fontWeight: FontWeight.w700)),
-            IconButton(
-                icon: const Icon(Icons.add_circle_outline, size: 20),
-                onPressed: () => CartService.instance.setQty(l, l.qty + 1)),
-          ]),
+          unavailable.contains(l.productId)
+              ? Row(key: Key('cart-unavailable-${l.productId}'), children: [
+                  Expanded(
+                      child: Text('${l.emoji} ${l.name}',
+                          style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.textLight,
+                              decoration: TextDecoration.lineThrough))),
+                  const Text('Indisponível',
+                      style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.error)),
+                  IconButton(
+                      tooltip: 'Remover',
+                      icon: const Icon(Icons.delete_outline_rounded, size: 20),
+                      onPressed: () => CartService.instance.setQty(l, 0)),
+                ])
+              : Row(children: [
+                  Expanded(child: Text('${l.emoji} ${l.name}', style: const TextStyle(fontSize: 13))),
+                  IconButton(
+                      icon: const Icon(Icons.remove_circle_outline, size: 20),
+                      onPressed: () => CartService.instance.setQty(l, l.qty - 1)),
+                  Text('${l.qty}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                  IconButton(
+                      icon: const Icon(Icons.add_circle_outline, size: 20),
+                      onPressed: () => CartService.instance.setQty(l, l.qty + 1)),
+                ]),
         const Divider(),
         Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
           const Text('Estimativa (sem frete)', style: TextStyle(fontSize: 12)),
           Text(brl(est), style: const TextStyle(fontWeight: FontWeight.w800)),
         ]),
+        if (blocked && storeReason == null)
+          const Padding(
+              padding: EdgeInsets.only(top: 6),
+              child: Text('Remova os itens indisponíveis para finalizar.',
+                  style: TextStyle(fontSize: 12, color: AppColors.error))),
         const SizedBox(height: 10),
         SizedBox(
             width: double.infinity,
             child: ElevatedButton(
                 key: Key('checkout-$storeId'),
-                onPressed: () => openCheckout(context, storeId),
+                onPressed: blocked ? null : () => openCheckout(context, storeId),
                 child: const Text('Finalizar pedido desta loja'))),
       ]),
     );

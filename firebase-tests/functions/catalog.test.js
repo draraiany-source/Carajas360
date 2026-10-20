@@ -65,21 +65,25 @@ before(async () => {
 
 describe('Migração do catálogo v1', () => {
   test('simulação não grava; execução cria; segunda execução não duplica', async () => {
-    const before = (await db.collection('catalogNodes').get()).size;
+    // Outras suítes criam nós próprios (prefixo do teste) antes desta: só os
+    // nós do seed contam para o que a migração ainda precisa criar.
+    const seedIds = new Set(seed.nodes.map((n) => n.id));
+    const countSeed = async () => (await db.collection('catalogNodes').get()).docs.filter((d) => seedIds.has(d.id)).length;
+    const before = await countSeed();
     const dry = await call('migrateCatalogV1', adm, { dryRun: true });
     assert.strictEqual(dry.dryRun, true);
     assert.strictEqual(dry.toCreate, seed.nodes.length - before);
-    assert.strictEqual((await db.collection('catalogNodes').get()).size, before, 'dryRun não grava');
+    assert.strictEqual(await countSeed(), before, 'dryRun não grava');
     assert.ok(dry.unknownReferences.some((u) => u.id === 'id_antigo_x' && u.collection === 'providers'));
     assert.ok(dry.legacyAdminCategories.some((c) => c.id === 'admin_legado' && c.mappedTo === null));
 
     const r1 = await call('migrateCatalogV1', adm, {});
-    assert.strictEqual((await db.collection('catalogNodes').get()).size, seed.nodes.length);
+    assert.strictEqual(await countSeed(), seed.nodes.length);
     assert.ok(r1.providersReindexed >= 2);
     const r2 = await call('migrateCatalogV1', adm, {});
     assert.strictEqual(r2.toCreate, 0, 'idempotente');
     assert.strictEqual(r2.conflicts.length, 0);
-    assert.strictEqual((await db.collection('catalogNodes').get()).size, seed.nodes.length, 'sem duplicação');
+    assert.strictEqual(await countSeed(), seed.nodes.length, 'sem duplicação');
     // Nada foi apagado nem reclassificado.
     assert.ok((await db.doc('categories/admin_legado').get()).exists);
     assert.deepStrictEqual((await db.doc('providers/legacy_unknown').get()).data().categories, ['id_antigo_x']);

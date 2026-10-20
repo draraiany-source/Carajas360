@@ -338,16 +338,45 @@ class _ResolveScreenState extends State<ResolveScreen> {
   }
 }
 
-class ResolveDetailScreen extends StatelessWidget {
+class ResolveDetailScreen extends StatefulWidget {
   final String requestId;
   const ResolveDetailScreen({super.key, required this.requestId});
+
+  @override
+  State<ResolveDetailScreen> createState() => _ResolveDetailScreenState();
+}
+
+class _ResolveDetailScreenState extends State<ResolveDetailScreen> {
+  String get requestId => widget.requestId;
+
+  // Criadas uma vez por solicitação: antes, cada atualização da solicitação
+  // recriava a assinatura das propostas.
+  late Stream<ResolveRequest?> _request;
+  late Stream<List<ResolveProposal>> _proposals;
+
+  void _subscribe() {
+    _request = FS.resolveRequestStream(requestId);
+    _proposals = FS.resolveProposalsStream(requestId);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribe();
+  }
+
+  @override
+  void didUpdateWidget(ResolveDetailScreen old) {
+    super.didUpdateWidget(old);
+    if (old.requestId != widget.requestId) _subscribe();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Propostas recebidas')),
       body: StreamBuilder<ResolveRequest?>(
-        stream: FS.resolveRequestStream(requestId),
+        stream: _request,
         builder: (_, reqSnap) {
           if (reqSnap.hasError) {
             return const EmptyState(
@@ -431,7 +460,7 @@ class ResolveDetailScreen extends StatelessWidget {
                 ),
               Expanded(
                 child: StreamBuilder<List<ResolveProposal>>(
-                  stream: FS.resolveProposalsStream(requestId),
+                  stream: _proposals,
                   builder: (_, snap) {
                     final list = snap.data ?? [];
                     if (snap.hasError) {
@@ -598,8 +627,16 @@ class _ProposalTile extends StatelessWidget {
   }
 }
 
-class MyResolveScreen extends StatelessWidget {
+class MyResolveScreen extends StatefulWidget {
   const MyResolveScreen({super.key});
+
+  @override
+  State<MyResolveScreen> createState() => _MyResolveScreenState();
+}
+
+class _MyResolveScreenState extends State<MyResolveScreen> {
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<ResolveRequest>> _mine = FS.myResolveRequestsStream();
 
   @override
   Widget build(BuildContext context) {
@@ -611,7 +648,7 @@ class MyResolveScreen extends StatelessWidget {
         icon: const Icon(Icons.add),
       ),
       body: StreamBuilder<List<ResolveRequest>>(
-        stream: FS.myResolveRequestsStream(),
+        stream: _mine,
         builder: (_, snap) {
           if (snap.hasError) return QueryErrorView(error: snap.error);
           final list = snap.data ?? [];
@@ -881,9 +918,29 @@ String _periodLabel(String? p) => switch (p) {
     };
 
 /// Contratação: pedido criado no aceite, com chat, agenda e pagamento.
-class _ContractCard extends StatelessWidget {
+class _ContractCard extends StatefulWidget {
   final ResolveRequest request;
   const _ContractCard({required this.request});
+
+  @override
+  State<_ContractCard> createState() => _ContractCardState();
+}
+
+class _ContractCardState extends State<_ContractCard> {
+  ResolveRequest get request => widget.request;
+
+  // A solicitação chega de um stream (novo objeto a cada atualização): a
+  // assinatura do pedido só é refeita quando o pedido vinculado muda.
+  late Stream<DocumentSnapshot<Map<String, dynamic>>> _order = _orderStream();
+
+  Stream<DocumentSnapshot<Map<String, dynamic>>> _orderStream() =>
+      FirebaseFirestore.instance.collection('orders').doc(request.orderId).snapshots();
+
+  @override
+  void didUpdateWidget(_ContractCard old) {
+    super.didUpdateWidget(old);
+    if (old.request.orderId != widget.request.orderId) _order = _orderStream();
+  }
 
   // Lista todos os anexos; cada um abre por URL temporária do servidor.
   void _openAttachments(BuildContext context) {
@@ -917,7 +974,7 @@ class _ContractCard extends StatelessWidget {
     final isProvider = request.matchedProviderId != null &&
         request.matchedProviderId == AuthService.uid;
     return StreamBuilder(
-        stream: FirebaseFirestore.instance.collection('orders').doc(request.orderId).snapshots(),
+        stream: _order,
         builder: (context, snap) {
           final o = snap.data?.data();
           final paid = o?['paymentStatus'] == 'paid';

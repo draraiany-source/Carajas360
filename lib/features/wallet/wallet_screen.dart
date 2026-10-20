@@ -21,6 +21,13 @@ class _WalletState extends State<WalletScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tab;
   final _uid = AuthService.uid ?? '';
+  // Assinaturas criadas uma vez (não a cada rebuild/troca de aba).
+  late final Stream<UserModel?> _user =
+      _uid.isNotEmpty ? FS.userStream(_uid) : const Stream.empty();
+  late final Stream<WalletModel?> _wallet =
+      _uid.isNotEmpty ? FS.walletStream() : const Stream.empty();
+  late final Stream<List<TransactionModel>> _txs =
+      _uid.isNotEmpty ? FS.txStream() : const Stream.empty();
 
   @override
   void initState() {
@@ -65,8 +72,7 @@ class _WalletState extends State<WalletScreen>
                     fontSize: 22)),
           ),
           StreamBuilder<UserModel?>(
-              stream:
-                  _uid.isNotEmpty ? FS.userStream(_uid) : const Stream.empty(),
+              stream: _user,
               builder: (_, s) => Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
@@ -81,7 +87,7 @@ class _WalletState extends State<WalletScreen>
         ]),
         const SizedBox(height: 18),
         StreamBuilder<WalletModel?>(
-            stream: _uid.isNotEmpty ? FS.walletStream() : const Stream.empty(),
+            stream: _wallet,
             builder: (_, s) {
               final bal = s.data?.balanceCents ?? 0;
               return Container(
@@ -223,7 +229,7 @@ class _WalletState extends State<WalletScreen>
   }
 
   Widget _extract() => StreamBuilder<List<TransactionModel>>(
-      stream: _uid.isNotEmpty ? FS.txStream() : const Stream.empty(),
+      stream: _txs,
       builder: (_, s) {
         if (s.hasError) return QueryErrorView(error: s.error);
         final txs = DemoData.orEmpty(s.data, _demoTxs);

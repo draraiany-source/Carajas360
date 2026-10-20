@@ -16,6 +16,7 @@ import '../../core/auth/access_control.dart';
 import '../../core/catalog/catalog.dart';
 import '../../core/catalog/catalog_service.dart';
 import '../../core/catalog/catalog_widgets.dart';
+import '../../core/utils/memo.dart';
 
 /// Converte valor digitado em reais ("1.234,56", "12,5", "12.50").
 /// Com vírgula, pontos são milhar; sem vírgula, "1.234" também é milhar.
@@ -44,8 +45,16 @@ int? parseStock(String raw) {
 // Cadastro da loja, catálogo, estoque e promoções. Carrinho,
 // pedidos, cupons, favoritos e avaliações são os já existentes.
 // ─────────────────────────────────────────────────────────────
-class StoreScreen extends StatelessWidget {
+class StoreScreen extends StatefulWidget {
   const StoreScreen({super.key});
+
+  @override
+  State<StoreScreen> createState() => _StoreScreenState();
+}
+
+class _StoreScreenState extends State<StoreScreen> {
+  // Uma assinatura por usuário logado (não a cada rebuild).
+  final _store = Memo<Stream<StoreModel?>>();
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -63,7 +72,7 @@ class StoreScreen extends StatelessWidget {
                 actionLabel: 'Entrar',
                 onAction: () => loginAndResume(context))
             : StreamBuilder<StoreModel?>(
-          stream: FS.myStoreStream(),
+          stream: _store.of(AuthService.uid, FS.myStoreStream),
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -349,6 +358,21 @@ class _StoreDashboard extends StatelessWidget {
             child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(children: [
+            // Loja inativa ou em aprovação: produtos fora da vitrine.
+            if (!store.active || !store.verified)
+              Container(
+                key: const Key('store-hidden-banner'),
+                margin: const EdgeInsets.only(bottom: 10),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                    color: const Color(0xFFFFF3E0),
+                    borderRadius: BorderRadius.circular(14)),
+                child: Text(
+                    !store.active
+                        ? '⏸️ Loja desativada: seus produtos não aparecem no marketplace e não podem ser comprados.'
+                        : '⏳ Loja aguardando aprovação: seus produtos só aparecem no marketplace depois que o admin aprovar a loja.',
+                    style: const TextStyle(fontSize: 12, height: 1.4)),
+              ),
             _menu(
                 context,
                 '📦',
@@ -431,9 +455,20 @@ class _StoreDashboard extends StatelessWidget {
 }
 
 // ── Catálogo / estoque ───────────────────────────────────────
-class _CatalogScreen extends StatelessWidget {
+class _CatalogScreen extends StatefulWidget {
   final StoreModel store;
   const _CatalogScreen({required this.store});
+
+  @override
+  State<_CatalogScreen> createState() => _CatalogScreenState();
+}
+
+class _CatalogScreenState extends State<_CatalogScreen> {
+  StoreModel get store => widget.store;
+
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<ProductModel>> _products =
+      FS.productsStream(storeId: store.id, owner: true);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -448,7 +483,8 @@ class _CatalogScreen extends StatelessWidget {
           child: const Icon(Icons.add),
         ),
         body: StreamBuilder<List<ProductModel>>(
-          stream: FS.productsStream(storeId: store.id),
+          // Catálogo do lojista: vê os produtos mesmo com a loja inativa.
+          stream: _products,
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -747,8 +783,16 @@ class _ProductSheetState extends State<_ProductSheet> {
 // ─────────────────────────────────────────────────────────────
 // VITRINE DE LOJAS — lista pública das lojas do marketplace
 // ─────────────────────────────────────────────────────────────
-class StoresListScreen extends StatelessWidget {
+class StoresListScreen extends StatefulWidget {
   const StoresListScreen({super.key});
+
+  @override
+  State<StoresListScreen> createState() => _StoresListScreenState();
+}
+
+class _StoresListScreenState extends State<StoresListScreen> {
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<StoreModel>> _stores = FS.storesStream();
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -758,7 +802,7 @@ class StoresListScreen extends StatelessWidget {
             backgroundColor: AppColors.delivery,
             foregroundColor: Colors.white),
         body: StreamBuilder<List<StoreModel>>(
-          stream: FS.storesStream(),
+          stream: _stores,
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -864,9 +908,21 @@ class StoresListScreen extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 // PERFIL PÚBLICO DA LOJA — vitrine de produtos para o comprador
 // ─────────────────────────────────────────────────────────────
-class StoreProfileScreen extends StatelessWidget {
+class StoreProfileScreen extends StatefulWidget {
   final StoreModel store;
   const StoreProfileScreen({super.key, required this.store});
+
+  @override
+  State<StoreProfileScreen> createState() => _StoreProfileScreenState();
+}
+
+class _StoreProfileScreenState extends State<StoreProfileScreen> {
+  StoreModel get store => widget.store;
+
+  // Criado uma vez: o carrinho (ListenableBuilder) e rebuilds não refazem a
+  // consulta da vitrine.
+  late final Stream<List<ProductModel>> _products =
+      FS.productsStream(storeId: store.id);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -971,7 +1027,7 @@ class StoreProfileScreen extends StatelessWidget {
             child: SecHeader(title: 'Produtos (${store.totalProducts})'),
           )),
           StreamBuilder<List<ProductModel>>(
-            stream: FS.productsStream(storeId: store.id),
+            stream: _products,
             builder: (_, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const SliverToBoxAdapter(

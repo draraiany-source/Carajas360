@@ -12,13 +12,24 @@ import '../../core/theme/theme_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/demo_data.dart';
+import '../../core/utils/memo.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../support/support_screens.dart';
+import 'provider_apply.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  // Assinatura do perfil criada uma vez por usuário logado (não a cada
+  // rebuild); refeita só se a conta mudar.
+  final _user = Memo<Stream<UserModel?>>();
 
   @override
   Widget build(BuildContext context) {
@@ -39,7 +50,7 @@ class ProfileScreen extends StatelessWidget {
               onAction: () => Navigator.pushNamed(context, Routes.login),
             )
           : StreamBuilder<UserModel?>(
-              stream: FS.userStream(uid),
+              stream: _user.of(uid, () => FS.userStream(uid)),
               builder: (_, snap) {
                 final user = snap.data;
                 final xp = user?.xp ?? 0;
@@ -232,6 +243,12 @@ class ProfileScreen extends StatelessWidget {
                                   () => Navigator.pushNamed(
                                       context, Routes.support)),
                             ]),
+                            // Cliente que quer atender: mesmo cadastro e
+                            // mesma aprovação do registro de prestador.
+                            if (user != null && user.type == UserType.client)
+                              _section('Trabalhe com a gente', [
+                                ProviderApplyItems(user: user),
+                              ]),
                             if (user?.type == UserType.provider)
                               _section('Área do Prestador', [
                                 _item(
@@ -735,8 +752,16 @@ class _EditProfileSheetState extends State<EditProfileSheet> {
       );
 }
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key});
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  // Criado uma vez por usuário logado (não a cada rebuild).
+  final _notifs = Memo<Stream<List<NotifModel>>>();
 
   static final _demo = [
     NotifModel(
@@ -794,7 +819,7 @@ class NotificationsScreen extends StatelessWidget {
               actionLabel: 'Entrar',
               onAction: () => loginAndResume(context))
           : StreamBuilder<List<NotifModel>>(
-        stream: FS.notifStream(),
+        stream: _notifs.of(uid, FS.notifStream),
         builder: (_, snap) {
           if (snap.hasError) return QueryErrorView(error: snap.error);
           if (!snap.hasData && snap.connectionState == ConnectionState.waiting) {

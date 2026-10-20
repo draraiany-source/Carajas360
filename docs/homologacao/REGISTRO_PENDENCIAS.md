@@ -121,6 +121,27 @@ Nada desta entrega está validado em **HML** nem em **DISP**: o projeto de homol
 - **Teste:** com 71 h ainda aguarda e com 72 h confirma; com 7 dias − 1 h retém e com 7 dias libera; repasse único.
 - **Validação:** EMU ✅
 
+### Cashback na confirmação automática de serviço (72 h) — DECISÃO DE PRODUTO PENDENTE
+- **Situação atual (conferida):**
+  - **Mercado:** regra aprovada (Fase 3, §8): cashback de `config/finance.cashbackBps` (2%) sobre mercadorias, gravado em `financeTerms` na criação, creditado **uma vez** quando o pedido entregue é liberado (`releaseMarketOrder`, chave `cashback_{pedido}`). Vale tanto para "Confirmar recebimento" quanto para a liberação automática de 7 dias. Reembolso confirmado estorna proporcionalmente (`cashback_reversal_{reembolso}`).
+  - **Serviço:** cashback só pela callable `walletOp` (`op: 'cashback'`, 2% do preço ou `financeTerms.cashbackBps`, chave `cashback_service_{pedido}` + `cashbackGranted`), que o app chama **apenas** quando o cliente toca em concluir. A tarefa `autoConfirmServiceOrders` (72 h) conclui e repassa, mas **não credita**. Não há regra aprovada dizendo se a autoconfirmação deve gerar cashback (AUDITORIA_3, E9).
+  - Observação: o servidor não distingue quem concluiu — `walletOp` aceita qualquer pedido concluído e pago chamado pelo cliente ou pelo prestador, inclusive um autoconfirmado. Hoje a diferença existe só porque o app não faz essa chamada.
+- **Opções:**
+  1. **Creditar também na autoconfirmação** (compra concluída, independente de quem confirma): chamar o mesmo crédito dentro da transação de `completeInTx` (mesma chave/marcador; idempotente). Impacto: custo de cashback em todos os serviços pagos concluídos; incentivo de confirmar no app deixa de existir.
+  2. **Não creditar na autoconfirmação** (incentivo a confirmar no app): bloquear `walletOp` quando `autoConfirmed == true`, fechando a brecha acima. Impacto: comunicar ao cliente que o cashback depende de confirmar no app.
+  3. **Manter como está** (sem garantia no servidor). Não recomendado.
+- **Pendências relacionadas encontradas:**
+  - Mercado: se houver reembolso parcial (ou pedido de reembolso em andamento) **antes** da liberação, `paymentStatus` deixa de ser `approved` e o cashback não é creditado nem depois. Definir se deve creditar o valor proporcional restante.
+  - Pedido de serviço concluído não tem fluxo de reembolso pós-conclusão (status final), então hoje não há estorno de cashback de serviço a fazer; se um reembolso pós-conclusão for criado, precisa estornar `cashback_service_{pedido}`.
+- **Telas:** nenhuma promete cashback na confirmação automática (Carteira: "Cashback de compras entregues"; banner: "Conforme as regras de cada oferta").
+- **Teste:** `firebase-tests/functions/pend3_cashback.test.js` (crédito único com chamadas repetidas/concorrentes no serviço e no Mercado; liberação de 7 dias credita uma vez; estorno proporcional 20 + 80 em reembolso parcial e total; autoconfirmação de 72 h sem cashback = comportamento atual).
+- **Validação:** EMU ✅ (comportamento atual). **Decisão:** sua.
+
+### Cliente que quer virar prestador (Perfil › Quero ser prestador)
+- **Correção:** item no Perfil da conta cliente. Reaproveita o cadastro existente: especialidades (`createProviderProfile`, nasce `verified/active=false`), a mesma tela de documentos e selfie (`ProviderOnboardingScreen`) e a mesma fila do admin (`reviewProvider`). O item mostra o estado: não iniciado, cadastro incompleto (sem documento/selfie), em análise, recusado (motivo, "Pedir nova análise" e reenviar documentos) e aprovado (Área do Prestador). O tipo da conta (`users.type`) não muda; o acesso de prestador continua dependendo só de `providers/{uid}.verified`.
+- **Teste:** `firebase-tests/rules/pend3_profile.rules.test.js` (sem autoaprovação: `verified`, `active`, `verificationStatus`, nota, `type/adminRole/roles`; `type: provider` sem aprovação não recebe pedidos nem fica online) e `test/pend3_profile_test.dart` (mapeamento de estado e FAQ).
+- **Validação:** EMU ✅ · app em aparelho: —
+
 ### Gateway (aprovado, recusado, pendente, reembolso, webhooks duplicados e fora de ordem)
 - **Cobertura:** gateway simulado do emulador em `payments.test.js` (Mercado) e `homologacao.test.js` (reservas).
 - **Validação:** EMU ✅

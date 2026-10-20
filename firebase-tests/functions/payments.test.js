@@ -109,7 +109,7 @@ async function paidOrder(user) {
 before(async () => {
   [fin, seller] = await Promise.all([signUp('fin'), signUp('seller')]);
   await db.doc(`users/${fin.uid}`).set({ type: 'admin', adminRole: 'financial', name: 'Financeiro' });
-  await db.doc(`stores/${S}`).set({ ownerId: seller.uid, name: 'Mercado Teste', active: true, deliveryFeeCents: 500, pickupEnabled: true, deliveryEnabled: true });
+  await db.doc(`stores/${S}`).set({ ownerId: seller.uid, name: 'Mercado Teste', active: true, verified: true, deliveryFeeCents: 500, pickupEnabled: true, deliveryEnabled: true });
   await db.doc(`products/${P1}`).set({ storeId: S, name: 'Arroz 5kg', price: 25, stock: 1000, active: true });
   await db.doc(`products/${P2}`).set({ storeId: S, name: 'Último lote', price: 10, stock: 3, active: true });
   await db.doc(`products/${P3}`).set({ storeId: S, name: 'Café', price: 40, promoPrice: 30, stock: 1000, active: true });

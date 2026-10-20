@@ -2,7 +2,7 @@
   "name": "carajas360-functions",
   "description": "Cloud Functions - Carajás 360",
   "scripts": {
-    "test": "node --test orderPolicy.test.js security.test.js catalogCore.test.js financeCore.test.js gateway.test.js resolveCore.test.js scheduleCore.test.js profiles.test.js",
+    "test": "node --test orderPolicy.test.js security.test.js catalogCore.test.js financeCore.test.js gateway.test.js resolveCore.test.js scheduleCore.test.js profiles.test.js push.test.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "deploy": "firebase deploy --only functions",

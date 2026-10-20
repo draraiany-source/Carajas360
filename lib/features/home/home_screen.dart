@@ -12,6 +12,7 @@ import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/utils/chat_nav.dart';
+import '../../core/utils/memo.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -30,6 +31,12 @@ class ServicesHubScreen extends StatefulWidget {
 class _ServicesHubState extends State<ServicesHubScreen> {
   CatalogSelection _sel = CatalogSelection.none;
   int _retryTick = 0;
+  // Assinaturas criadas uma vez por usuário (e refeitas no "puxar para
+  // atualizar"), não a cada rebuild — a de notificações ficava dentro do
+  // builder do perfil e era recriada a cada atualização dele.
+  final _header = Memo<Stream<UserModel?>>();
+  final _notifs = Memo<Stream<List<NotifModel>>>();
+  final _xp = Memo<Stream<UserModel?>>();
 
   /// Verticais especializadas (módulos próprios). Uma categoria de serviço
   /// nunca libera um módulo marcado "Em desenvolvimento".
@@ -57,7 +64,8 @@ class _ServicesHubState extends State<ServicesHubScreen> {
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(
               child: StreamBuilder<UserModel?>(
-            stream: uid != null ? FS.userStream(uid) : const Stream.empty(),
+            stream: _header.of('$uid-$_retryTick',
+                () => uid != null ? FS.userStream(uid) : const Stream.empty()),
             builder: (_, snap) {
               final user = snap.data;
               return GradHeader(
@@ -86,7 +94,8 @@ class _ServicesHubState extends State<ServicesHubScreen> {
                               ]),
                           Row(children: [
                             StreamBuilder<List<NotifModel>>(
-                              stream: FS.notifStream(),
+                              stream:
+                                  _notifs.of('$uid-$_retryTick', FS.notifStream),
                               builder: (_, notifSnap) {
                                 final unread = (notifSnap.data ?? [])
                                     .where((n) => !n.read)
@@ -241,7 +250,8 @@ class _ServicesHubState extends State<ServicesHubScreen> {
           SliverToBoxAdapter(
               child: uid != null
                   ? StreamBuilder<UserModel?>(
-                      stream: FS.userStream(uid),
+                      stream:
+                          _xp.of('$uid-$_retryTick', () => FS.userStream(uid)),
                       builder: (_, snap) => Padding(
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                           child: XpCard(xp: snap.data?.xp ?? 0)),

@@ -20,6 +20,8 @@ import '../../core/security/order_policy.dart';
 import '../../core/navigation/app_navigation.dart';
 import 'apple_sign_in.dart';
 import 'local_notifications.dart';
+import 'push_device.dart';
+import 'web_push_bridge.dart';
 
 /// Erro de autenticação com mensagem amigável para a UI.
 class AuthFailure implements Exception {
@@ -122,7 +124,11 @@ class AuthService {
       case 'network-request-failed':
         return 'Sem conexão com a internet.';
       case 'operation-not-allowed':
-        return 'Cadastro por e-mail não está habilitado no Firebase.';
+        return 'Este método de login não está habilitado neste ambiente.';
+      case 'unauthorized-domain':
+        return 'Login com Google indisponível neste endereço. Use o app ou o site oficial.';
+      case 'popup-blocked':
+        return 'O navegador bloqueou a janela de login. Permita pop-ups e tente de novo.';
       case 'missing-email':
         return 'Digite um e-mail válido.';
       case 'auth/invalid-continue-uri':
@@ -190,20 +196,17 @@ class AuthService {
               e.code == 'web-context-cancelled') {
             return null;
           }
-          // Sem Client ID real no Web de produção, tenta plugin nativo.
-          if (!FirebaseBootstrap.shouldUseEmulator) {
-            debugPrint('Google federado falhou, tentando plugin: ${e.code}');
-          } else {
+          // Web: o login é só o popup do Firebase Auth (cliente OAuth do
+          // próprio projeto, Authentication › Google); o plugin google_sign_in
+          // não autentica na web, então não há alternativa a tentar.
+          if (kIsWeb || FirebaseBootstrap.shouldUseEmulator) {
             throw AuthFailure(_mapAuthError(e), code: e.code);
           }
+          debugPrint('Google federado falhou, tentando plugin: ${e.code}');
         }
       }
 
-      final ok = await _ensureGoogleInitialized();
-      if (!ok && kIsWeb) {
-        throw const AuthFailure(
-            'Configure o Google Client ID Web (meta google-signin-client_id).');
-      }
+      await _ensureGoogleInitialized();
       final account = await _google.authenticate();
       final auth = account.authentication;
       final authorization = await account.authorizationClient
@@ -417,14 +420,35 @@ class FS {
     return SettableMetadata(contentType: type);
   }
 
-  static Future<void> updateFcmToken(String token) async {
-    if (_uid == null) return;
-    await _db.collection(Col.users).doc(_uid).update({'fcmToken': token});
+  // Pendência 3: token de push por aparelho (users/{uid}/devices/{deviceId}).
+  static Future<void> saveDeviceToken(String deviceId, String token, String platform) async {
+    final uid = _uid;
+    if (uid == null) return;
+    final user = _db.collection(Col.users).doc(uid);
+    await user.collection('devices').doc(deviceId).set({
+      'token': token,
+      'platform': platform,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+    // Migração: o token antigo (um por usuário) sai quando é deste aparelho;
+    // se for de outro aparelho fica como reserva até ele se registrar.
+    try {
+      final legacy = (await user.get()).data()?['fcmToken'];
+      if (legacy == token) await user.update({'fcmToken': FieldValue.delete()});
+    } catch (_) {}
   }
 
-  static Future<void> clearFcmToken() async {
-    if (_uid == null) return;
-    await _db.collection(Col.users).doc(_uid).update({'fcmToken': FieldValue.delete()});
+  /// Logout: tira só este aparelho (os outros continuam recebendo).
+  static Future<void> removeDeviceToken(String deviceId, [String? token]) async {
+    final uid = _uid;
+    if (uid == null) return;
+    final user = _db.collection(Col.users).doc(uid);
+    await user.collection('devices').doc(deviceId).delete();
+    if (token == null) return;
+    try {
+      final legacy = (await user.get()).data()?['fcmToken'];
+      if (legacy == token) await user.update({'fcmToken': FieldValue.delete()});
+    } catch (_) {}
   }
 
   static Future<void> addXp(int xp) async {
@@ -775,7 +799,9 @@ class FS {
       {required String roomId,
       required String senderName,
       required String text,
-      String? mediaUrl,
+      String? mediaPath,
+      String? mediaType,
+      String? mediaName,
       String? replyToText,
       String? replyToSender,
       String? orderId}) async {
@@ -792,7 +818,10 @@ class FS {
           'senderName': senderName,
           'text': text,
           'read': false,
-          if (mediaUrl != null) 'mediaUrl': mediaUrl,
+          // LGPD: só o caminho no Storage (URL temporária via servidor).
+          if (mediaPath != null) 'mediaPath': mediaPath,
+          if (mediaPath != null) 'mediaType': mediaType ?? 'image',
+          if (mediaPath != null && mediaName != null) 'mediaName': mediaName,
           if (replyToText != null) 'replyToText': replyToText,
           if (replyToSender != null) 'replyToSender': replyToSender,
           // Mensagem automática de pedido (o servidor não notifica de novo).
@@ -813,7 +842,15 @@ class FS {
     final msgRef = room.collection(Col.messages).doc(messageId);
     final msg = (await msgRef.get()).data() ?? {};
     final batch = _db.batch()
-      ..update(msgRef, {'deleted': true, 'text': '', 'mediaUrl': FieldValue.delete()});
+      ..update(msgRef, {
+        'deleted': true,
+        'text': '',
+        // O servidor apaga o arquivo (onChatMessageDeletedForAll).
+        'mediaUrl': FieldValue.delete(),
+        'mediaPath': FieldValue.delete(),
+        'mediaType': FieldValue.delete(),
+        'mediaName': FieldValue.delete(),
+      });
     // A prévia da conversa não pode continuar mostrando o texto apagado.
     final last = (await room.get()).data()?['lastMsg'];
     if (last != null && last == msg['text']) batch.update(room, {'lastMsg': 'Mensagem apagada'});
@@ -836,20 +873,63 @@ class FS {
       .map((s) => (s.data()?['typing_$otherUid'] as bool?) ?? false);
 
   // ── Upload de mídia (Vol.2/Vol.3: chat com fotos/vídeos/documentos) ─
+  // LGPD: retorna só o CAMINHO no Storage (sem download URL com token).
+  // O nome começa com o uid de quem envia (exigido pelas regras).
   static Future<String?> uploadChatMedia(
       Uint8List bytes, String fileName, String roomId) async {
     if (_uid == null) return null;
     try {
       final ext = _extOf(fileName);
-      final ref = FirebaseStorage.instance.ref().child(
-          'chat_media/$roomId/${DateTime.now().millisecondsSinceEpoch}.$ext');
-      await ref.putData(bytes, _metaFor(fileName));
-      return await ref.getDownloadURL();
+      final path =
+          'chat_media/$roomId/${_uid}_${DateTime.now().millisecondsSinceEpoch}.$ext';
+      await FirebaseStorage.instance
+          .ref()
+          .child(path)
+          .putData(bytes, _metaFor(fileName));
+      return path;
     } catch (e) {
       debugPrint('Upload de mídia falhou: $e');
       return null;
     }
   }
+
+  // URL temporária do anexo, guardada em memória por mensagem até perto
+  // de expirar. O servidor confere a participação atual na conversa.
+  static final Map<String, ({String url, DateTime expiresAt})> _chatMediaCache =
+      {};
+  static final Map<String, Future<String>> _chatMediaPending = {};
+  static Future<String> chatMediaUrl(String roomId, String messageId) {
+    final key = '$roomId/$messageId';
+    final hit = _chatMediaCache[key];
+    if (hit != null && DateTime.now().isBefore(hit.expiresAt)) {
+      return Future.value(hit.url);
+    }
+    // Vários widgets pedindo a mesma mensagem: uma chamada só.
+    return _chatMediaPending[key] ??= _fetchChatMediaUrl(roomId, messageId)
+        .whenComplete(() => _chatMediaPending.remove(key));
+  }
+
+  static Future<String> _fetchChatMediaUrl(
+      String roomId, String messageId) async {
+    final key = '$roomId/$messageId';
+    final r = await CloudFn.call(
+        'getChatMediaUrl', {'roomId': roomId, 'messageId': messageId});
+    final url = r['url'] as String?;
+    if (url == null) throw const CloudCallException('Anexo indisponível.');
+    final exp = (r['expiresAt'] as num?)?.toInt();
+    _chatMediaCache[key] = (
+      url: url,
+      // Margem de 1 min para não usar uma URL prestes a expirar.
+      expiresAt: exp != null
+          ? DateTime.fromMillisecondsSinceEpoch(exp)
+              .subtract(const Duration(minutes: 1))
+          : DateTime.now().add(const Duration(minutes: 5)),
+    );
+    return url;
+  }
+
+  static void forgetChatMediaUrl(String roomId, String messageId) =>
+      _chatMediaCache.remove('$roomId/$messageId');
 
   // Upload de arquivos do cadastro de prestador. `photo` é pública e
   // retorna a download URL. `document`, `selfie` e `certificate` são
@@ -1313,7 +1393,10 @@ class FS {
         ..remove('rating')
         ..remove('totalReviews')
         ..remove('verified')
-        ..remove('commissionRate');
+        ..remove('commissionRate')
+        // Mercado: contador e visibilidade mantidos por functions/market.js.
+        ..remove('totalProducts')
+        ..remove('storeActive');
 
   static Future<String?> saveStore(StoreModel store) async {
     if (_uid == null) return null;
@@ -1516,9 +1599,12 @@ class FS {
     }
   }
 
+  /// Lojas públicas: só ativas E aprovadas pelo admin.
   static Stream<List<StoreModel>> storesStream({String? category}) {
-    Query<Map<String, dynamic>> q =
-        _db.collection(Col.stores).where('active', isEqualTo: true);
+    Query<Map<String, dynamic>> q = _db
+        .collection(Col.stores)
+        .where('active', isEqualTo: true)
+        .where('verified', isEqualTo: true);
     if (category != null) q = q.where('categories', arrayContains: category);
     return q.snapshots().map(
         (s) => s.docs.map((d) => StoreModel.fromMap(d.id, d.data())).toList());
@@ -1531,10 +1617,7 @@ class FS {
       final doc = await _db
           .collection(Col.products)
           .add({...data, 'createdAt': FieldValue.serverTimestamp()});
-      await _db
-          .collection(Col.stores)
-          .doc(p.storeId)
-          .update({'totalProducts': FieldValue.increment(1)});
+      // totalProducts da loja: recontado pelo servidor (onProductMarketSync).
       return doc.id;
     }
     await _db
@@ -1545,22 +1628,68 @@ class FS {
   }
 
   static Future<void> removeProduct(String productId, String storeId) async {
+    // O contador da loja é recontado pelo servidor.
     await _db.collection(Col.products).doc(productId).delete();
-    await _db
-        .collection(Col.stores)
-        .doc(storeId)
-        .update({'totalProducts': FieldValue.increment(-1)});
   }
 
 
+  /// Produtos ativos. Vitrine pública (padrão): só de loja ativa e
+  /// aprovada (storeActive, gravado pelo servidor). `owner: true` é o
+  /// catálogo do próprio lojista (vê os produtos mesmo com a loja
+  /// inativa/em aprovação).
   static Stream<List<ProductModel>> productsStream(
-      {String? storeId, String? category}) {
+      {String? storeId, String? category, bool owner = false}) async* {
     Query<Map<String, dynamic>> q =
         _db.collection(Col.products).where('active', isEqualTo: true);
     if (storeId != null) q = q.where('storeId', isEqualTo: storeId);
     if (category != null) q = q.where('category', isEqualTo: category);
-    return q.snapshots().map((s) =>
-        s.docs.map((d) => ProductModel.fromMap(d.id, d.data())).toList());
+    // Antes da reconciliação (config/market.storeActiveReady) produtos
+    // antigos ainda não têm o campo: consulta sem o filtro para não
+    // esvaziar a vitrine e esconde só os já marcados como indisponíveis.
+    if (!owner && await marketStoreActiveReady()) {
+      q = q.where('storeActive', isEqualTo: true);
+    }
+    yield* q.snapshots().map((s) => s.docs
+        .map((d) => ProductModel.fromMap(d.id, d.data()))
+        .where((p) => owner || p.storeAvailable)
+        .toList());
+  }
+
+  static Future<bool>? _marketReady;
+
+  /// config/market.storeActiveReady: ligado pela reconciliação do servidor.
+  /// Falha de leitura não fica em cache (tenta de novo na próxima tela).
+  static Future<bool> marketStoreActiveReady() =>
+      _marketReady ??= _db
+          .collection('config')
+          .doc('market')
+          .get()
+          .then((d) => d.data()?['storeActiveReady'] == true)
+          .catchError((Object e) {
+        _marketReady = null;
+        return false;
+      });
+
+  /// Loja e produtos do carrinho de uma loja (disponibilidade ao vivo).
+  static Stream<Map<String, dynamic>?> storeDataStream(String storeId) => _db
+      .collection(Col.stores)
+      .doc(storeId)
+      .snapshots()
+      .map((d) => d.data());
+
+  /// Dados atuais dos produtos (até 30 ids; ausente = excluído → null).
+  static Stream<Map<String, Map<String, dynamic>?>> productsByIdStream(
+      List<String> ids) {
+    final list = ids.take(30).toList();
+    if (list.isEmpty) return Stream.value(const {});
+    return _db
+        .collection(Col.products)
+        .where(FieldPath.documentId, whereIn: list)
+        .snapshots()
+        .map((s) {
+      final found = {for (final d in s.docs) d.id: d.data()};
+      return {for (final id in list) id: found[id]};
+    });
   }
 
   static Stream<List<BranchModel>> branchesStream(String companyId) => _db
@@ -1605,117 +1734,38 @@ class FS {
           s.docs.map((d) => ContractModel.fromMap(d.id, d.data())).toList());
 
   // ── Admin: usuários e pedidos ──────────────────────────────────
-  static Stream<QuerySnapshot> adminUsersStream({int limit = 50}) => _db
-      .collection(Col.users)
-      .orderBy('createdAt', descending: true)
-      .limit(limit)
-      .snapshots();
-  static Stream<QuerySnapshot> adminOrdersStream({int limit = 50}) => _db
-      .collection(Col.orders)
-      .orderBy('createdAt', descending: true)
-      .limit(limit)
-      .snapshots();
-  static Stream<QuerySnapshot> pendingProvidersStream() => _db
-      .collection(Col.providers)
-      .where('verified', isEqualTo: false)
-      .snapshots();
-  static Stream<QuerySnapshot> pendingCompaniesStream() => _db
-      .collection(Col.companies)
-      .where('verified', isEqualTo: false)
-      .snapshots();
-
-  // Dashboard KPIs em tempo real (Vol.6: usuários ativos, novos
-  // cadastros, faturamento, serviços concluídos). Usa .count() do
-  // Firestore, que agrega no servidor sem baixar os documentos.
-  static Future<Map<String, dynamic>> fetchDashboardKpis() async {
-    try {
-      final usersCount = await _db.collection(Col.users).count().get();
-      final providersCount = await _db
-          .collection(Col.providers)
-          .where('verified', isEqualTo: true)
-          .count()
-          .get();
-      final completedOrders = await _db
-          .collection(Col.orders)
-          .where('status', isEqualTo: 'completed')
-          .get();
-      final revenue = completedOrders.docs.fold<double>(
-          0, (sum, d) => sum + ((d.data()['price'] as num?)?.toDouble() ?? 0));
-      final weekAgo = DateTime.now().subtract(const Duration(days: 7));
-      final newUsers = await _db
-          .collection(Col.users)
-          .where('createdAt', isGreaterThan: Timestamp.fromDate(weekAgo))
-          .count()
-          .get();
-      return {
-        'totalUsers': usersCount.count ?? 0,
-        'totalProviders': providersCount.count ?? 0,
-        'revenue': revenue,
-        'completedOrders': completedOrders.docs.length,
-        'newUsersThisWeek': newUsers.count ?? 0,
-      };
-    } catch (e) {
-      // Sem zeros falsos: a tela mostra que os números não carregaram.
-      debugPrint('Erro ao buscar KPIs do dashboard: $e');
-      rethrow;
-    }
+  // Consultas das listas do painel: paginadas por cursor na tela
+  // (limit + startAfterDocument, ver admin_paging.dart), sem snapshots
+  // da coleção inteira. O filtro por tipo é feito NA CONSULTA (índice
+  // users: type + createdAt desc), não entre os mais recentes baixados.
+  static Query<Map<String, dynamic>> adminUsersQuery({String? type}) {
+    Query<Map<String, dynamic>> q = _db.collection(Col.users);
+    if (type != null) q = q.where('type', isEqualTo: type);
+    return q.orderBy('createdAt', descending: true);
   }
 
-  // Relatório financeiro real (Vol.6: Financeiro — comissões,
-  // repasses, saques, estornos, assinaturas). Agrega orders (receita
-  // bruta, comissão) e transactions (PIX, estornos).
-  static Future<Map<String, dynamic>> fetchFinancialReport() async {
-    try {
-      final completed = await _db
-          .collection(Col.orders)
-          .where('status', isEqualTo: 'completed')
-          .get();
-      final grossRevenue = completed.docs.fold<double>(
-          0, (sum, d) => sum + ((d.data()['price'] as num?)?.toDouble() ?? 0));
-      // Comissão de cada pedido: a registrada no repasse; senão a taxa
-      // gravada no pedido (financeTerms); pedidos antigos sem registro: 15%.
-      final commission = completed.docs.fold<double>(0, (sum, d) {
-        final m = d.data();
-        final price = (m['price'] as num?)?.toDouble() ?? 0;
-        final recorded = (m['commission'] as num?)?.toDouble();
-        final bps = (m['financeTerms'] as Map?)?['commissionBps'] as num?;
-        return sum + (recorded ?? (bps != null ? price * bps / 10000 : price * AppConst.commission));
-      });
-      final netToProviders = grossRevenue - commission;
+  static Query<Map<String, dynamic>> adminOrdersQuery() =>
+      _db.collection(Col.orders).orderBy('createdAt', descending: true);
+  // Sem orderBy: o cursor segue a ordem do id do documento.
+  static Query<Map<String, dynamic>> pendingProvidersQuery() =>
+      _db.collection(Col.providers).where('verified', isEqualTo: false);
+  static Query<Map<String, dynamic>> pendingCompaniesQuery() =>
+      _db.collection(Col.companies).where('verified', isEqualTo: false);
 
-      // Reembolsos confirmados (coleção refunds, em centavos). Antes lia um
-      // campo de pedido que nada grava, e o total ficava sempre em R$ 0.
-      final refundAgg = await _db
-          .collection('refunds')
-          .where('status', isEqualTo: 'approved')
-          .aggregate(sum('amountCents'))
-          .get();
-      final refunds = (refundAgg.getSum('amountCents') ?? 0) / 100;
+  // Dashboard KPIs (Vol.6: usuários, novos cadastros, GMV, serviços
+  // concluídos): agregados no servidor (callable adminDashboardStats, com
+  // count()/sum() do Firestore). Valor que não pôde ser calculado vem null
+  // (lista `unavailable`) e a tela mostra "indisponível", nunca zero falso.
+  static Future<Map<String, dynamic>> fetchDashboardKpis() =>
+      CloudFn.call('adminDashboardStats');
 
-      // Recargas confirmadas (Fase 3: tipo 'recharge', em centavos).
-      final pixTx = await _db
-          .collection(Col.transactions)
-          .where('type', isEqualTo: 'recharge')
-          .get();
-      final pixTotal = pixTx.docs.fold<double>(0, (sum, d) {
-        final m = d.data();
-        final c = (m['amountCents'] as num?)?.toDouble();
-        return sum + (c != null ? c / 100 : ((m['amount'] as num?)?.toDouble() ?? 0));
-      });
-
-      return {
-        'grossRevenue': grossRevenue,
-        'commission': commission,
-        'netToProviders': netToProviders,
-        'pixProcessed': pixTotal,
-        'refunds': refunds,
-        'completedCount': completed.docs.length,
-      };
-    } catch (e) {
-      debugPrint('Erro ao buscar relatório financeiro: $e');
-      rethrow;
-    }
-  }
+  // Relatório financeiro (Vol.6): agregado no servidor (callable
+  // adminFinancialReport; exige perfil master/financeiro). [periodDays]
+  // null = desde o início. Valores em reais; `ordersWithoutCommission` =
+  // concluídos antigos sem repasse registrado (comissão parcial).
+  static Future<Map<String, dynamic>> fetchFinancialReport({int? periodDays}) =>
+      CloudFn.call('adminFinancialReport',
+          {if (periodDays != null) 'periodDays': periodDays});
 
   // Suspensão no servidor: desativa o Auth, revoga tokens e grava status.
   static Future<void> suspendUser(String uid, {String? adminName}) async {
@@ -1725,6 +1775,16 @@ class FS {
 
   static Future<void> reactivateUser(String uid, {String? adminName}) async {
     await CloudFn.call('setUserSuspended', {'userId': uid, 'suspended': false});
+  }
+
+  // Lojas do Mercado aguardando aprovação: só lojas aprovadas e ativas
+  // vendem (vitrine, carrinho e createMarketOrder conferem no servidor).
+  static Query<Map<String, dynamic>> pendingStoresQuery() =>
+      _db.collection(Col.stores).where('verified', isEqualTo: false);
+
+  static Future<void> approveStore(String id, {String? adminName}) async {
+    await _db.collection(Col.stores).doc(id).update({'verified': true});
+    await logAdminAction('Aprovou loja', target: id, adminName: adminName);
   }
 
   static Future<void> approveCompany(String id, {String? adminName}) async {
@@ -1759,25 +1819,22 @@ class FS {
       .snapshots()
       .map((s) =>
           s.docs.map((d) => BannerModel.fromMap(d.id, d.data())).toList());
-  static Stream<QuerySnapshot> adminBannersStream() =>
-      _db.collection(Col.banners).orderBy('order').snapshots();
+  static Query<Map<String, dynamic>> adminBannersQuery() =>
+      _db.collection(Col.banners).orderBy('order');
 
   static Future<void> createCoupon(Map<String, dynamic> data) =>
       _db.collection(Col.coupons).add(
           {...data, 'active': true, 'createdAt': FieldValue.serverTimestamp()});
-  static Stream<QuerySnapshot> adminCouponsStream() => _db
-      .collection(Col.coupons)
-      .orderBy('createdAt', descending: true)
-      .snapshots();
+  static Query<Map<String, dynamic>> adminCouponsQuery() =>
+      _db.collection(Col.coupons).orderBy('createdAt', descending: true);
 
   // ── Admin: atendimento / tickets (Vol.6) ───────────────────────
-  static Stream<List<TicketModel>> adminTicketsStream({String? status}) {
-    Query q =
+  // Paginada na tela (índice support: status + createdAt desc).
+  static Query<Map<String, dynamic>> adminTicketsQuery({String? status}) {
+    Query<Map<String, dynamic>> q =
         _db.collection(Col.support).orderBy('createdAt', descending: true);
     if (status != null) q = q.where('status', isEqualTo: status);
-    return q.snapshots().map((s) => s.docs
-        .map((d) => TicketModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-        .toList());
+    return q;
   }
 
   static Future<void> updateTicketStatus(String id, String status,
@@ -1789,7 +1846,7 @@ class FS {
 
   // ── Denúncias (Vol.20: Administração) ──────────────────────────
   // Qualquer usuário pode denunciar outro (prestador, cliente ou
-  // conteúdo). O admin modera pelo painel (ver reportsStream abaixo).
+  // conteúdo). O admin modera pelo painel (ver reportsQuery abaixo).
   static Future<void> createReport({
     required String targetId,
     required String targetName,
@@ -1810,13 +1867,12 @@ class FS {
     });
   }
 
-  static Stream<List<ReportModel>> reportsStream({ReportStatus? status}) {
-    Query q =
+  // Paginada na tela (índice reports: status + createdAt desc).
+  static Query<Map<String, dynamic>> reportsQuery({ReportStatus? status}) {
+    Query<Map<String, dynamic>> q =
         _db.collection(Col.reports).orderBy('createdAt', descending: true);
     if (status != null) q = q.where('status', isEqualTo: status.name);
-    return q.snapshots().map((s) => s.docs
-        .map((d) => ReportModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-        .toList());
+    return q;
   }
 
   static Future<void> updateReportStatus(String id, ReportStatus status,
@@ -1892,13 +1948,8 @@ class FS {
         target: 'platform', adminName: adminName, details: data);
   }
 
-  static Stream<List<AuditLogModel>> auditLogStream({int limit = 100}) => _db
-      .collection(Col.auditLogs)
-      .orderBy('timestamp', descending: true)
-      .limit(limit)
-      .snapshots()
-      .map((s) =>
-          s.docs.map((d) => AuditLogModel.fromMap(d.id, d.data())).toList());
+  static Query<Map<String, dynamic>> auditLogQuery() =>
+      _db.collection(Col.auditLogs).orderBy('timestamp', descending: true);
 
   // ── Favoritos (Vol.2/Vol.5: coleção favorites) ─────────────────
   static Future<bool> toggleFavorite(String providerId) async {
@@ -2386,7 +2437,22 @@ class AiSvc {
 }
 
 class PushSvc {
+  // Token atual deste aparelho (logout limpa o legado se for o mesmo).
+  static String? _token;
+  static String? _registeredUid;
+  // Toque que chegou antes da tela inicial (app encerrado): espera o splash.
+  static bool _appReady = false;
+  static ({String route, Map<String, dynamic>? args})? _pending;
+
+  /// Web: só com chave VAPID e Firebase real; sem isso, desligado em silêncio.
+  static bool get _webOn => webPushEnabled(
+        vapidKey: fcmVapidKey,
+        firebasePlaceholder: FirebaseBootstrap.hasPlaceholderKeys,
+        emulator: FirebaseBootstrap.shouldUseEmulator,
+      );
+
   static Future<void> init() async {
+    if (kIsWeb && !_webOn) return;
     try {
       await FirebaseMessaging.instance
           .requestPermission(alert: true, badge: true, sound: true);
@@ -2398,29 +2464,43 @@ class PushSvc {
     // Sem google-services real / emulador, FCM pode falhar — nao derruba o app.
     if (!kIsWeb) {
       try {
-        await initLocalNotificationsPlugin((_, __) {}, onTap: (payload) {
-          try {
-            if (payload != null) _open(Map<String, dynamic>.from(jsonDecode(payload) as Map));
-          } catch (_) {}
-        });
-        FirebaseMessaging.onMessage.listen((msg) {
-          if (msg.notification != null) {
-            _show(msg.notification!.title ?? 'Carajás 360',
-                msg.notification!.body ?? '', msg.data);
-          }
-        });
+        await initLocalNotificationsPlugin((_, __) {},
+            onTap: (payload) => _openTarget(pushTargetFromPayload(payload)));
+        // Aviso local (mostrado com o app aberto) tocado depois de fechar o app.
+        final launch = await localNotificationLaunchPayload();
+        if (launch != null) _openTarget(pushTargetFromPayload(launch));
       } catch (e) {
         debugPrint('FCM/local notifications: $e');
       }
     }
     try {
+      // App aberto: Android/iOS mostram aviso local (payload = data); Web, faixa no app.
+      FirebaseMessaging.onMessage.listen((msg) {
+        final n = msg.notification;
+        if (n == null) return;
+        if (kIsWeb) {
+          _inApp(n.title, n.body, msg.data);
+        } else {
+          _show(n.title ?? 'Carajás 360', n.body ?? '', msg.data);
+        }
+      });
       // Toque no aviso (app em segundo plano ou fechado) abre a tela certa.
       FirebaseMessaging.onMessageOpenedApp.listen((m) => _open(m.data));
       final first = await FirebaseMessaging.instance.getInitialMessage();
       if (first != null) _open(first.data);
-      // Token trocado pelo sistema: atualiza para não perder avisos.
+      if (kIsWeb) {
+        // Clique tratado pelo web/firebase-messaging-sw.js.
+        final p = takeWebPushLaunchPayload();
+        if (p != null) _openTarget(pushTargetFromPayload(p));
+        listenWebPushClicks((p) => _openTarget(pushTargetFromPayload(p)));
+      }
+      // Token trocado pelo sistema: atualiza só o documento deste aparelho.
       FirebaseMessaging.instance.onTokenRefresh.listen((t) {
-        if (AuthService.isAuth) FS.updateFcmToken(t).catchError((_) {});
+        if (AuthService.isAuth) _register(t).catchError((_) {});
+      });
+      // Sessão restaurada (app reaberto): registra/migra este aparelho.
+      FirebaseAuth.instance.authStateChanges().listen((u) {
+        if (u != null && u.uid != _registeredUid) unawaited(saveToken(u.uid));
       });
     } catch (e) {
       debugPrint('FCM handlers: $e');
@@ -2428,36 +2508,76 @@ class PushSvc {
   }
 
   /// Leva ao destino do aviso (mesmo mapa das notificações do app).
-  static void _open(Map<String, dynamic> data) {
-    final t = notificationTarget(data['type'] as String?, {
-      if ((data['route'] ?? '') != '') 'route': data['route'],
-      if ((data['id'] ?? '') != '') 'id': data['id'],
-    });
-    final nav = rootNavigatorKey.currentState;
-    if (t == null || nav == null) return;
-    if (!AuthService.isAuth) return; // a retomada pós-login cuida disso
-    nav.pushNamed(t.route, arguments: t.args);
+  static void _open(Map<String, dynamic> data) => _openTarget(pushTarget(data));
+
+  static void _openTarget(({String route, Map<String, dynamic>? args})? t) {
+    if (t == null) return;
+    if (!_appReady) {
+      _pending = t;
+      return;
+    }
+    // Sem sessão: a retomada pós-login cuida disso.
+    if (!AuthService.isAuth) {
+      AuthResume.set(t.route, t.args);
+      return;
+    }
+    rootNavigatorKey.currentState?.pushNamed(t.route, arguments: t.args);
+  }
+
+  /// Splash chama depois de abrir a tela inicial: libera o toque pendente.
+  static void appReady() {
+    _appReady = true;
+    final t = _pending;
+    _pending = null;
+    _openTarget(t);
   }
 
   static Future<void> saveToken(String uid) async {
+    if (kIsWeb && !_webOn) return;
     try {
-      final t = await FirebaseMessaging.instance.getToken();
-      if (t != null) await FS.updateFcmToken(t);
+      final t = await FirebaseMessaging.instance
+          .getToken(vapidKey: kIsWeb ? fcmVapidKey : null);
+      if (t != null) await _register(t);
+      _registeredUid = uid;
     } catch (e) {
       debugPrint('FCM token: $e');
     }
   }
 
-  /// Logout: tira o token do perfil e invalida o do aparelho.
+  static Future<void> _register(String token) async {
+    _token = token;
+    await FS.saveDeviceToken(
+        await PushDevice.id(), token, PushDevice.platformName());
+  }
+
+  /// Logout: tira só o documento deste aparelho e invalida o token local.
   static Future<void> forget() async {
+    final token = _token;
+    _token = null;
+    _registeredUid = null;
+    if (kIsWeb && !_webOn) return;
     try {
-      if (AuthService.isAuth) await FS.clearFcmToken();
+      if (AuthService.isAuth) {
+        await FS.removeDeviceToken(await PushDevice.id(), token);
+      }
     } catch (e) {
       debugPrint('FCM clear: $e');
     }
     try {
       await FirebaseMessaging.instance.deleteToken();
     } catch (_) {}
+  }
+
+  static void _inApp(String? title, String? body, Map<String, dynamic> data) {
+    final ctx = rootNavigatorKey.currentContext;
+    if (ctx == null) return;
+    final t = pushTarget(data);
+    ScaffoldMessenger.maybeOf(ctx)?.showSnackBar(SnackBar(
+      content: Text([title, body].whereType<String>().join(' — ')),
+      action: t == null
+          ? null
+          : SnackBarAction(label: 'Abrir', onPressed: () => _openTarget(t)),
+    ));
   }
 
   static Future<void> _show(String title, String body, [Map<String, dynamic>? data]) async {

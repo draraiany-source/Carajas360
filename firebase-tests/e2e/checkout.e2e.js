@@ -65,10 +65,10 @@ const cartItems = async (uid) => ((await db.doc(`carts/${uid}`).get()).data() ||
   const owner = await signUp(`dono${Date.now()}@t.dev`);
   const email = `cliente${Date.now()}@t.dev`;
   const cli = await signUp(email);
-  await db.doc('stores/e2e_a').set({ ownerId: owner.uid, name: 'Mercado Alfa', active: true, deliveryFeeCents: 700, pickupEnabled: true, deliveryEnabled: true });
-  await db.doc('stores/e2e_b').set({ ownerId: owner.uid, name: 'Farmácia Beta', active: true, deliveryFeeCents: 300, pickupEnabled: true, deliveryEnabled: true });
-  await db.doc('products/e2e_arroz').set({ storeId: 'e2e_a', storeName: 'Mercado Alfa', name: 'Arroz E2E 5kg', price: 25, stock: 10, active: true, category: 'market', emoji: '🌾', rating: 5, createdAt: new Date() });
-  await db.doc('products/e2e_vitamina').set({ storeId: 'e2e_b', storeName: 'Farmácia Beta', name: 'Vitamina E2E', price: 10, stock: 10, active: true, category: 'pharmacy', emoji: '💊', rating: 5, createdAt: new Date() });
+  await db.doc('stores/e2e_a').set({ ownerId: owner.uid, name: 'Mercado Alfa', active: true, verified: true, deliveryFeeCents: 700, pickupEnabled: true, deliveryEnabled: true });
+  await db.doc('stores/e2e_b').set({ ownerId: owner.uid, name: 'Farmácia Beta', active: true, verified: true, deliveryFeeCents: 300, pickupEnabled: true, deliveryEnabled: true });
+  await db.doc('products/e2e_arroz').set({ storeId: 'e2e_a', storeName: 'Mercado Alfa', name: 'Arroz E2E 5kg', price: 25, stock: 10, active: true, storeActive: true, category: 'market', emoji: '🌾', rating: 5, createdAt: new Date() });
+  await db.doc('products/e2e_vitamina').set({ storeId: 'e2e_b', storeName: 'Farmácia Beta', name: 'Vitamina E2E', price: 10, stock: 10, active: true, storeActive: true, category: 'pharmacy', emoji: '💊', rating: 5, createdAt: new Date() });
 
   const srv = serve(WEB, 8098);
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH, args: ['--no-sandbox'] });

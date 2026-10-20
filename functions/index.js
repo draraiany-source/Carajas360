@@ -260,6 +260,7 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
   }
 
   let needsRefund = false;
+  const nowMs = await clock.nowMs(db);
   const result = await db.runTransaction(async (tx) => {
     const orderRef = db.collection('orders').doc(orderId);
     const snap = await tx.get(orderRef);
@@ -273,6 +274,11 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
 
     if (!policy.actorMayPerform(action, auth.uid, order.clientId, order.providerId || null)) {
       throw httpsError('permission-denied', 'Sem permissão para esta ação');
+    }
+    // Prazo de aceite (orderExpiry): relido nesta transação, o prestador não
+    // age sobre pendente vencido; o cliente ainda pode cancelar.
+    if (from === 'pending' && !isClient && policy.isExpired(order, nowMs)) {
+      throw httpsError('failed-precondition', 'Este pedido expirou');
     }
     if (action === 'accept') {
       if (isClient) throw httpsError('permission-denied', 'O cliente não pode aceitar o próprio pedido');
@@ -709,33 +715,9 @@ exports.switchProfileType = functions.region(REGION).https.onCall(async (data, c
   return { ok: true, type: next };
 });
 
-exports.sendPushNotification = functions.firestore
-  .document('notifications/{notifId}')
-  .onCreate(async (snap) => {
-    const { userId, title, body, type, link } = snap.data();
-    if (!userId) return null;
-    const userDoc = await db.collection('users').doc(userId).get();
-    const fcmToken = userDoc.data()?.fcmToken;
-    if (!fcmToken) return null;
-    try {
-      await admin.messaging().send({
-        token: fcmToken,
-        notification: { title, body },
-        // Destino do toque no aviso (mesmo mapa das notificações do app).
-        data: { type: String(type || ''), route: String((link && link.route) || ''), id: String((link && link.id) || '') },
-        android: { notification: { icon: 'ic_launcher', color: '#0B3D91' } },
-        apns: { payload: { aps: { badge: 1, sound: 'default' } } },
-      });
-    } catch (e) {
-      // Push é melhor-esforço: a notificação já está salva no Firestore.
-      console.warn('sendPushNotification', userId, e.code || e.message);
-      // Token inválido (app desinstalado/logout em outro aparelho): limpa.
-      if (/registration-token-not-registered|invalid-registration-token/.test(String(e.code || ''))) {
-        await userDoc.ref.update({ fcmToken: FieldValue.delete() }).catch(() => {});
-      }
-    }
-    return null;
-  });
+// Pendência 3: push para todos os aparelhos do usuário (users/{uid}/devices)
+// com reserva no token legado users.fcmToken — ver push.js.
+Object.assign(exports, require('./push')({ functions, admin, db, FieldValue }));
 
 /**
  * Avaliação: revalida no servidor (cliente participante, pedido
@@ -992,7 +974,7 @@ exports.onChatMessageCreated = functions.firestore
     }
     const pub = await db.collection('publicProfiles').doc(String(m.senderId)).get();
     const name = (pub.exists && pub.data().name) || 'Nova mensagem';
-    const text = m.mediaUrl && !m.text ? '📎 Anexo' : String(m.text || '').slice(0, 80);
+    const text = (m.mediaPath || m.mediaUrl) && !m.text ? '📎 Anexo' : String(m.text || '').slice(0, 80);
     await notifySafe(to, `💬 ${name}`, text || 'Você recebeu uma mensagem.', 'chat');
     return null;
   });
@@ -1072,6 +1054,8 @@ exports.onAuthUserDeleted = functions.auth.user().onDelete(async (user) => {
     db.collection('carts').doc(uid).delete().catch(() => {}),
     del(db.collection('favorites').where('userId', '==', uid)),
     del(db.collection('notifications').where('userId', '==', uid)),
+    // Pendência 3: aparelhos de push (tokens) da conta.
+    del(db.collection('users').doc(uid).collection('devices')),
   ]);
   // Auditoria 3: o perfil de prestador fica (histórico de pedidos aponta
   // para ele), mas sem dados pessoais; avaliações escritas pela pessoa
@@ -1096,8 +1080,13 @@ exports.onAuthUserDeleted = functions.auth.user().onDelete(async (user) => {
   return null;
 });
 
+// Prazo de aceite de pedidos pendentes (expiresAt, expiração, migração).
+const orderExpiry = require('./orderExpiry')({ db, FieldValue, Timestamp, notifySafe });
+
 /** Aviso único ao prestador por nova solicitação direta (antes: app + chat = 2 avisos). */
 exports.onServiceOrderCreated = functions.firestore.document('orders/{orderId}').onCreate(async (snap) => {
+  // Prazo de aceite gravado pelo servidor (antes de qualquer retorno).
+  try { await orderExpiry.stamp(snap); } catch (e) { console.error('stampExpiry', snap.id, e && e.message); }
   const o = snap.data() || {};
   if (o.status !== 'pending' || !o.providerId || o.providerId === o.clientId) return null;
   // Texto fixo (o título é do cliente) e limite por cliente: o aviso não
@@ -1199,26 +1188,13 @@ exports.requestProviderReview = functions.region(REGION).https.onCall(async (dat
   return { ok: true, status: 'pending_review' };
 });
 
-exports.cleanupOldOrders = functions.pubsub.schedule('every 24 hours').onRun(async () => {
-  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
-  const oldOrders = await db.collection('orders')
-    .where('status', '==', 'pending')
-    .where('createdAt', '<', cutoff)
-    .get();
-  let i = 0;
-  let batch = db.batch();
-  for (const doc of oldOrders.docs) {
-    const ps = doc.data().paymentStatus || 'unpaid';
-    if (ps !== 'unpaid') continue; // pago/pendente: tratado pelo suporte, nunca cancelado em silêncio
-    batch.update(doc.ref, { status: 'cancelled', cancelReason: 'Expirado automaticamente' });
-    i += 1;
-    if (i >= 400) {
-      await batch.commit();
-      batch = db.batch();
-      i = 0;
-    }
-  }
-  if (i > 0) await batch.commit();
+/**
+ * Expira pedidos pendentes sem aceite após o prazo (expiresAt; antigos:
+ * createdAt + 7 dias). Mesmo nome de antes (cleanupOldOrders) para não
+ * trocar a função agendada; a regra está em functions/orderExpiry.js.
+ */
+exports.cleanupOldOrders = functions.pubsub.schedule('every 60 minutes').onRun(async () => {
+  await orderExpiry.expireJob();
   return null;
 });
 
@@ -1241,7 +1217,12 @@ const payments = require('./payments')({
 });
 const paymentsInternals = payments.__internals;
 delete payments.__internals;
-const jobs = { autoConfirmServiceOrders: autoConfirmServiceOrdersJob, ...paymentsInternals.jobs };
+const jobs = {
+  autoConfirmServiceOrders: autoConfirmServiceOrdersJob,
+  expireServiceOrders: orderExpiry.expireJob,
+  backfillOrderExpiry: () => orderExpiry.backfillJob(),
+  ...paymentsInternals.jobs,
+};
 Object.assign(exports, payments);
 
 // ── Resolve Carajás (Fase 4) ──
@@ -1257,6 +1238,12 @@ const schedule = require('./schedule')({
   payments: paymentsInternals, maintenanceGuard,
 });
 Object.assign(jobs, schedule.__internals.jobs);
+
+// ── Mercado: storeActive nos produtos e totalProducts das lojas (servidor) ──
+const market = require('./market')({ functions, db, FieldValue, FieldPath, requireAuth, isAdmin, httpsError, REGION });
+Object.assign(jobs, market.__internals.jobs);
+delete market.__internals;
+Object.assign(exports, market);
 delete schedule.__internals;
 
 /**
@@ -1284,7 +1271,15 @@ exports.adminRunMaintenance = functions.region(REGION).https.onCall(async (data,
 });
 Object.assign(exports, schedule);
 
+// ── Painel admin: indicadores e relatório por agregação no servidor ──
+Object.assign(exports, require('./adminStats')({ functions, db, requireAuth, isAdmin, httpsError, REGION }));
+
 // ── Perfil público mínimo (Fase 6: chat e identificação) ──
 Object.assign(exports, require('./profiles')({
   functions, db, FieldValue, requireAuth, isAdmin, httpsError, REGION,
+}));
+
+// ── Anexos do chat (LGPD): caminho privado + URL assinada curta ──
+Object.assign(exports, require('./chatMedia')({
+  functions, admin, db, FieldValue, requireAuth, isAdmin, httpsError, REGION, enforceRateLimit, cleanId,
 }));

@@ -41,12 +41,16 @@ test('empresa não aprovada (com contato) só para o dono e a equipe; aprovada �
 });
 
 test('anexo do chat só do Storage do app, na pasta da própria conversa', async () => {
+  // pend3 (LGPD): download URL com token não é mais aceita; o anexo é o
+  // caminho no Storage (ver pend3_chatmedia.rules.test.js).
   const m = (mediaUrl) => ({ senderId: 'a', senderName: 'A', text: '📷 Foto', read: false, createdAt: serverTimestamp(), mediaUrl });
+  const p = (mediaPath) => ({ senderId: 'a', senderName: 'A', text: '📷 Foto', read: false, createdAt: serverTimestamp(), mediaPath, mediaType: 'image' });
   const col = collection(as('a'), 'chatRooms/a_b/messages');
-  await assertSucceeds(addDoc(col, m('https://firebasestorage.googleapis.com/v0/b/proj.appspot.com/o/chat_media%2Fa_b%2F1.jpg?alt=media&token=t')));
-  await assertSucceeds(addDoc(col, m('http://127.0.0.1:9199/v0/b/proj.appspot.com/o/chat_media%2Fa_b%2F2.jpg?alt=media')));
+  await assertSucceeds(addDoc(col, p('chat_media/a_b/a_1.jpg')));
   await assertSucceeds(addDoc(col, m(null)));
+  await assertFails(addDoc(col, m('https://firebasestorage.googleapis.com/v0/b/proj.appspot.com/o/chat_media%2Fa_b%2F1.jpg?alt=media&token=t')), 'URL com token');
+  await assertFails(addDoc(col, m('http://127.0.0.1:9199/v0/b/proj.appspot.com/o/chat_media%2Fa_b%2F2.jpg?alt=media')), 'URL do emulador');
   await assertFails(addDoc(col, m('https://golpe.example.com/premio.jpg')), 'link externo');
-  await assertFails(addDoc(col, m('https://firebasestorage.googleapis.com/v0/b/proj.appspot.com/o/chat_media%2Fc_d%2F1.jpg')), 'outra conversa');
-  await assertFails(addDoc(col, m('https://firebasestorage.googleapis.com/v0/b/proj.appspot.com/o/users%2Fb%2Fdoc.jpg')), 'outra pasta');
+  await assertFails(addDoc(col, p('chat_media/c_d/a_1.jpg')), 'outra conversa');
+  await assertFails(addDoc(col, p('users/b/doc.jpg')), 'outra pasta');
 });

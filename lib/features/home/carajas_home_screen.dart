@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/modules/platform_modules.dart';
 import '../../core/utils/chat_nav.dart';
+import '../../core/utils/memo.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -34,6 +35,13 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     return buf.toString();
   }
+
+  // Assinaturas criadas uma vez (por usuário, cidade e "puxar para
+  // atualizar"), não a cada rebuild — a de notificações ficava dentro do
+  // builder do perfil e era recriada a cada atualização dele.
+  final _header = Memo<Stream<UserModel?>>();
+  final _notifs = Memo<Stream<List<NotifModel>>>();
+  final _near = Memo<Stream<List<ProviderModel>>>();
 
   @override
   void initState() {
@@ -123,7 +131,8 @@ class _HomeScreenState extends State<HomeScreen> {
         child: CustomScrollView(slivers: [
           SliverToBoxAdapter(
             child: StreamBuilder<UserModel?>(
-              stream: uid != null ? FS.userStream(uid) : const Stream.empty(),
+              stream: _header.of('$uid-$_refreshTick',
+                  () => uid != null ? FS.userStream(uid) : const Stream.empty()),
               builder: (_, snap) {
                 final user = snap.data;
                 return GradHeader(
@@ -167,7 +176,8 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ),
                           StreamBuilder<List<NotifModel>>(
-                            stream: FS.notifStream(),
+                            stream: _notifs.of(
+                                '$uid-$_refreshTick', FS.notifStream),
                             builder: (_, nSnap) {
                               final unread = (nSnap.data ?? [])
                                   .where((n) => !n.read)
@@ -315,7 +325,10 @@ class _HomeScreenState extends State<HomeScreen> {
             // Sem filtro de cidade no servidor: busca mais e filtra aqui.
             child: StreamBuilder<List<ProviderModel>>(
               key: ValueKey('near-$_city-$_refreshTick'),
-              stream: FS.providersStream(limit: 30),
+              // Mesma chave do StreamBuilder: um stream novo para cada
+              // StreamBuilder novo (cidade/atualizar).
+              stream: _near.of('near-$_city-$_refreshTick',
+                  () => FS.providersStream(limit: 30)),
               builder: (_, snap) {
                 final cityKey = _cityKey(_city);
                 final list = (snap.data ?? [])

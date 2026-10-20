@@ -3,6 +3,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/security/order_policy.dart';
 import '../../core/utils/chat_nav.dart';
+import '../../core/utils/memo.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import 'cart_service.dart';
@@ -19,6 +20,12 @@ class MarketOrderScreen extends StatefulWidget {
 }
 
 class _MarketOrderScreenState extends State<MarketOrderScreen> {
+  // Assinaturas criadas uma vez (por pedido / tentativa ativa), não a cada
+  // rebuild: _busy e cada atualização do pedido recriavam o histórico e a
+  // tentativa de pagamento.
+  final _order = Memo<Stream<MarketOrder?>>();
+  final _events = Memo<Stream<List<Map<String, dynamic>>>>();
+  final _attempt = Memo<Stream<PaymentAttempt?>>();
   bool _busy = false;
   bool _cartCleaned = false;
 
@@ -122,7 +129,8 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Pedido')),
         body: StreamBuilder<MarketOrder?>(
-          stream: PaymentsApi.orderStream(widget.orderId),
+          stream: _order.of(
+              widget.orderId, () => PaymentsApi.orderStream(widget.orderId)),
           builder: (context, s) {
             if (s.hasError) return QueryErrorView(error: s.error);
             if (!s.hasData) return const Center(child: CircularProgressIndicator());
@@ -218,7 +226,7 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
       const SizedBox(height: 12),
       const Text('Histórico', style: TextStyle(fontWeight: FontWeight.w700)),
       StreamBuilder<List<Map<String, dynamic>>>(
-          stream: PaymentsApi.orderEvents(o.id),
+          stream: _events.of(o.id, () => PaymentsApi.orderEvents(o.id)),
           builder: (_, s) => Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -232,7 +240,8 @@ class _MarketOrderScreenState extends State<MarketOrderScreen> {
   }
 
   Widget _activeAttempt(MarketOrder o) => StreamBuilder<PaymentAttempt?>(
-      stream: PaymentsApi.attemptStream(o.activeAttemptId!),
+      stream: _attempt.of(o.activeAttemptId,
+          () => PaymentsApi.attemptStream(o.activeAttemptId!)),
       builder: (_, s) {
         final a = s.data;
         if (a == null || !a.active) return const SizedBox.shrink();
@@ -286,8 +295,15 @@ String marketAddressLine(Map<String, dynamic> a) {
 }
 
 /// Histórico de pedidos do Mercado do cliente.
-class MyMarketOrdersScreen extends StatelessWidget {
+class MyMarketOrdersScreen extends StatefulWidget {
   const MyMarketOrdersScreen({super.key});
+  @override
+  State<MyMarketOrdersScreen> createState() => _MyMarketOrdersScreenState();
+}
+
+class _MyMarketOrdersScreenState extends State<MyMarketOrdersScreen> {
+  // Uma assinatura por usuário logado (não a cada rebuild).
+  final _orders = Memo<Stream<List<MarketOrder>>>();
   @override
   Widget build(BuildContext context) {
     final uid = AuthService.uid;
@@ -296,7 +312,7 @@ class MyMarketOrdersScreen extends StatelessWidget {
       body: uid == null
           ? const Center(child: Text('Faça login para ver seus pedidos.'))
           : StreamBuilder<List<MarketOrder>>(
-              stream: PaymentsApi.myOrders(uid),
+              stream: _orders.of(uid, () => PaymentsApi.myOrders(uid)),
               builder: (_, s) {
                 if (s.hasError) return QueryErrorView(error: s.error);
                 if (!s.hasData) return const Center(child: CircularProgressIndicator());
@@ -320,8 +336,15 @@ class MyMarketOrdersScreen extends StatelessWidget {
 
 /// Pedidos recebidos pela loja (dono): avança preparo/envio/entrega.
 /// A entrega libera o valor líquido como SALDO INTERNO da loja.
-class StoreOrdersScreen extends StatelessWidget {
+class StoreOrdersScreen extends StatefulWidget {
   const StoreOrdersScreen({super.key});
+  @override
+  State<StoreOrdersScreen> createState() => _StoreOrdersScreenState();
+}
+
+class _StoreOrdersScreenState extends State<StoreOrdersScreen> {
+  // Uma assinatura por usuário logado (não a cada rebuild).
+  final _orders = Memo<Stream<List<MarketOrder>>>();
   static const _payoutNote =
       'O repasse é liberado quando o cliente confirmar o recebimento (ou em 7 dias).';
   static const _next = {
@@ -361,7 +384,7 @@ class StoreOrdersScreen extends StatelessWidget {
       body: uid == null
           ? const Center(child: Text('Faça login.'))
           : StreamBuilder<List<MarketOrder>>(
-              stream: PaymentsApi.storeOrders(uid),
+              stream: _orders.of(uid, () => PaymentsApi.storeOrders(uid)),
               builder: (context, s) {
                 if (s.hasError) return QueryErrorView(error: s.error);
                 if (!s.hasData) return const Center(child: CircularProgressIndicator());

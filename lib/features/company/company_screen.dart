@@ -241,9 +241,27 @@ class _RegisterCompanyFormState extends State<_RegisterCompanyForm> {
 }
 
 // ── Dashboard da empresa (quando já existe) ─────────────────────
-class _CompanyDashboard extends StatelessWidget {
+class _CompanyDashboard extends StatefulWidget {
   final CompanyModel company;
   const _CompanyDashboard({required this.company});
+
+  @override
+  State<_CompanyDashboard> createState() => _CompanyDashboardState();
+}
+
+class _CompanyDashboardState extends State<_CompanyDashboard> {
+  CompanyModel get company => widget.company;
+
+  // Contagem da equipe: assinatura criada uma vez por empresa.
+  late Stream<List<EmployeeModel>> _team = FS.employeesStream(company.id);
+
+  @override
+  void didUpdateWidget(_CompanyDashboard old) {
+    super.didUpdateWidget(old);
+    if (old.company.id != widget.company.id) {
+      _team = FS.employeesStream(company.id);
+    }
+  }
 
   @override
   Widget build(BuildContext context) => CustomScrollView(slivers: [
@@ -310,7 +328,7 @@ class _CompanyDashboard extends StatelessWidget {
                   // Conta a equipe real (atualiza ao voltar da tela de equipe).
                   Expanded(
                       child: StreamBuilder<List<EmployeeModel>>(
-                          stream: FS.employeesStream(company.id),
+                          stream: _team,
                           builder: (_, snap) => Row(children: [
                                 StatCard(
                                     key: const Key('company-team-count'),
@@ -409,9 +427,19 @@ class _CompanyDashboard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 // EQUIPE (Vol.15: Empresas — Funcionários)
 // ─────────────────────────────────────────────────────────────
-class _EmployeesScreen extends StatelessWidget {
+class _EmployeesScreen extends StatefulWidget {
   final String companyId;
   const _EmployeesScreen({required this.companyId});
+
+  @override
+  State<_EmployeesScreen> createState() => _EmployeesScreenState();
+}
+
+class _EmployeesScreenState extends State<_EmployeesScreen> {
+  String get companyId => widget.companyId;
+
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<EmployeeModel>> _employees = FS.employeesStream(companyId);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -425,7 +453,7 @@ class _EmployeesScreen extends StatelessWidget {
             backgroundColor: AppColors.secondary,
             child: const Icon(Icons.add)),
         body: StreamBuilder<List<EmployeeModel>>(
-          stream: FS.employeesStream(companyId),
+          stream: _employees,
           builder: (_, snap) {
             if (snap.hasError) return QueryErrorView(error: snap.error);
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
@@ -532,9 +560,19 @@ class _EmployeesScreen extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 // FILIAIS (Vol.15: Empresas — Filiais)
 // ─────────────────────────────────────────────────────────────
-class _BranchesScreen extends StatelessWidget {
+class _BranchesScreen extends StatefulWidget {
   final String companyId;
   const _BranchesScreen({required this.companyId});
+
+  @override
+  State<_BranchesScreen> createState() => _BranchesScreenState();
+}
+
+class _BranchesScreenState extends State<_BranchesScreen> {
+  String get companyId => widget.companyId;
+
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<BranchModel>> _branches = FS.branchesStream(companyId);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -548,7 +586,7 @@ class _BranchesScreen extends StatelessWidget {
             backgroundColor: AppColors.secondary,
             child: const Icon(Icons.add)),
         body: StreamBuilder<List<BranchModel>>(
-          stream: FS.branchesStream(companyId),
+          stream: _branches,
           builder: (_, snap) {
             if (snap.hasError) return QueryErrorView(error: snap.error);
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
@@ -669,9 +707,19 @@ class _BranchesScreen extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 // CONTRATOS (Vol.15: Empresas — Contratos)
 // ─────────────────────────────────────────────────────────────
-class _ContractsScreen extends StatelessWidget {
+class _ContractsScreen extends StatefulWidget {
   final String companyId;
   const _ContractsScreen({required this.companyId});
+
+  @override
+  State<_ContractsScreen> createState() => _ContractsScreenState();
+}
+
+class _ContractsScreenState extends State<_ContractsScreen> {
+  String get companyId => widget.companyId;
+
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<ContractModel>> _contracts = FS.contractsStream(companyId);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -685,7 +733,7 @@ class _ContractsScreen extends StatelessWidget {
             backgroundColor: AppColors.secondary,
             child: const Icon(Icons.add)),
         body: StreamBuilder<List<ContractModel>>(
-          stream: FS.contractsStream(companyId),
+          stream: _contracts,
           builder: (_, snap) {
             if (snap.hasError) return QueryErrorView(error: snap.error);
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());
