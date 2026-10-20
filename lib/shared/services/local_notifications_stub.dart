@@ -10,3 +10,5 @@ Future<void> showLocalNotification({
   required String body,
   String? payload,
 }) async {}
+
+Future<String?> localNotificationLaunchPayload() async => null;

@@ -20,6 +20,8 @@ class _ProviderServicesState extends State<ProviderServicesScreen> {
   Set<String>? _selected;
   String? _providerId;
   bool _saving = false;
+  // Criado uma vez: cada marcação faz setState e recriava a assinatura.
+  late final Stream<ProviderModel?> _provider = FS.myProviderStream();
 
   Future<void> _save() async {
     final sel = _selected;
@@ -56,7 +58,7 @@ class _ProviderServicesState extends State<ProviderServicesScreen> {
           ),
         ),
         body: StreamBuilder<ProviderModel?>(
-          stream: FS.myProviderStream(),
+          stream: _provider,
           builder: (_, snap) {
             if (snap.hasError) return QueryErrorView(error: snap.error);
             if (!snap.hasData && snap.connectionState == ConnectionState.waiting) {

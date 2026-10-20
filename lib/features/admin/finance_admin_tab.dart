@@ -6,12 +6,35 @@ import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../checkout/payments_api.dart';
 import '../provider/money_parse.dart';
+import 'admin_paging.dart';
 
 /// Painel financeiro (admin master/financeiro). Leitura protegida pelas
 /// regras (isFinanceAdmin); alterações passam por Cloud Functions que
 /// validam limites e registram auditoria.
-class FinanceAdminTab extends StatelessWidget {
+class FinanceAdminTab extends StatefulWidget {
   const FinanceAdminTab({super.key});
+  @override
+  State<FinanceAdminTab> createState() => _FinanceAdminTabState();
+}
+
+class _FinanceAdminTabState extends State<FinanceAdminTab> {
+  // Listas paginadas por cursor (50 por página, "Carregar mais"); criadas
+  // uma vez e descartadas no dispose.
+  static Query<Map<String, dynamic>> _q(String col) => FirebaseFirestore.instance
+      .collection(col)
+      .orderBy(col == 'paymentAttempts' ? 'updatedAt' : 'createdAt', descending: true);
+  final _orders = pagedQuery(() => _q('marketOrders'))..loadMore();
+  final _attempts = pagedQuery(() => _q('paymentAttempts'))..loadMore();
+  final _refunds = pagedQuery(() => _q('refunds'))..loadMore();
+  final _issues = pagedQuery(() => _q('financialIssues'))..loadMore();
+
+  @override
+  void dispose() {
+    for (final c in [_orders, _attempts, _refunds, _issues]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
@@ -28,7 +51,7 @@ class FinanceAdminTab extends StatelessWidget {
         Expanded(
             child: TabBarView(children: [
           const _ConfigPane(),
-          _list('marketOrders', (d) {
+          _list(_orders, (d) {
             final o = MarketOrder.fromMap(d.id, d.data());
             return ListTile(
               dense: true,
@@ -37,10 +60,15 @@ class FinanceAdminTab extends StatelessWidget {
                   '${o.id}\n${orderStatusLabel[o.status] ?? o.status} · ${paymentStatusLabel[o.paymentStatus] ?? o.paymentStatus}'
                   '${o.refundedCents > 0 ? ' · reembolsado ${brl(o.refundedCents)}' : ''}'),
               isThreeLine: true,
-              trailing: o.isPaid ? _RefundButton(order: o) : null,
+              trailing: o.isPaid
+                  ? _RefundButton(order: o, onDone: () {
+                      _orders.refresh();
+                      _refunds.refresh();
+                    })
+                  : null,
             );
           }),
-          _list('paymentAttempts', (d) {
+          _list(_attempts, (d) {
             final a = d.data();
             return ListTile(
                 dense: true,
@@ -48,14 +76,14 @@ class FinanceAdminTab extends StatelessWidget {
                 subtitle: Text('${d.id} → ${a['targetKind']}/${a['targetId']}\n${a['statusDetail'] ?? ''}${a['divergent'] == true ? ' ⚠️ divergente' : ''}'),
                 isThreeLine: true);
           }),
-          _list('refunds', (d) {
+          _list(_refunds, (d) {
             final r = d.data();
             return ListTile(
                 dense: true,
                 title: Text('${brl((r['amountCents'] as num?)?.toInt() ?? 0)} · ${r['status']}'),
                 subtitle: Text('${r['targetId']} · ${r['reason'] ?? ''}'));
           }),
-          _list('financialIssues', (d) {
+          _list(_issues, (d) {
             final r = d.data();
             return ListTile(
                 dense: true,
@@ -68,25 +96,19 @@ class FinanceAdminTab extends StatelessWidget {
         ])),
       ]));
 
-  static Widget _list(String col,
+  static Widget _list(PagedList<QueryDocumentSnapshot<Map<String, dynamic>>> c,
           Widget Function(QueryDocumentSnapshot<Map<String, dynamic>>) row) =>
-      StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection(col)
-              .orderBy(col == 'paymentAttempts' ? 'updatedAt' : 'createdAt', descending: true)
-              .limit(50)
-              .snapshots(),
-          builder: (_, s) {
-            if (s.hasError) return QueryErrorView(error: s.error);
-            if (!s.hasData) return const Center(child: CircularProgressIndicator());
-            if (s.data!.docs.isEmpty) return const Center(child: Text('Nada por aqui.'));
-            return ListView(children: s.data!.docs.map(row).toList());
-          });
+      PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+          controller: c,
+          padding: EdgeInsets.zero,
+          empty: const Center(child: Text('Nada por aqui.')),
+          itemBuilder: (_, d) => row(d));
 }
 
 class _RefundButton extends StatelessWidget {
   final MarketOrder order;
-  const _RefundButton({required this.order});
+  final VoidCallback? onDone;
+  const _RefundButton({required this.order, this.onDone});
 
   @override
   Widget build(BuildContext context) => IconButton(
@@ -123,6 +145,7 @@ class _RefundButton extends StatelessWidget {
           if (context.mounted) {
             snack(context, 'Reembolso solicitado — aguardando confirmação do gateway', bg: AppColors.secondary);
           }
+          onDone?.call();
         } on CloudCallException catch (e) {
           if (context.mounted) snack(context, e.message, bg: AppColors.error);
         }
@@ -142,6 +165,8 @@ class _ConfigPaneState extends State<_ConfigPane> {
   final _maxInst = TextEditingController();
   final _reservation = TextEditingController();
   bool _loaded = false, _saving = false;
+  // Assinado uma vez (não a cada rebuild).
+  final _config = FirebaseFirestore.instance.collection('config').doc('finance').snapshots();
 
   @override
   void dispose() {
@@ -172,7 +197,7 @@ class _ConfigPaneState extends State<_ConfigPane> {
 
   @override
   Widget build(BuildContext context) => StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-      stream: FirebaseFirestore.instance.collection('config').doc('finance').snapshots(),
+      stream: _config,
       builder: (_, s) {
         if (s.hasError) return QueryErrorView(error: s.error);
         final d = s.data?.data() ?? const {};
@@ -213,6 +238,7 @@ class _ReconcilePaneState extends State<_ReconcilePane> {
   final _uid = TextEditingController();
   String? _out;
   bool _busy = false;
+  final _runs = FirebaseFirestore.instance.collection('reconciliationRuns').orderBy('at', descending: true).limit(20).snapshots();
 
   @override
   void dispose() {
@@ -248,7 +274,7 @@ class _ReconcilePaneState extends State<_ReconcilePane> {
         const Divider(height: 32),
         const Text('Execuções recentes', style: TextStyle(fontWeight: FontWeight.w700)),
         StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-            stream: FirebaseFirestore.instance.collection('reconciliationRuns').orderBy('at', descending: true).limit(20).snapshots(),
+            stream: _runs,
             builder: (_, s) {
               if (s.hasError) return QueryErrorView(error: s.error);
               return Column(children: [

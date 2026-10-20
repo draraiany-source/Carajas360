@@ -38,6 +38,10 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
   StreamSubscription<List<OrderModel>>? _newOrdersSub;
   // null = primeira carga (não alertar). Compara ids, não a contagem.
   Set<String>? _lastPendingIds;
+  // Assinaturas do cabeçalho criadas uma vez (não a cada rebuild).
+  late final Stream<ProviderModel?> _myProvider = FS.myProviderStream();
+  late final Stream<List<OrderModel>> _completed =
+      FS.providerOrdersStream(statuses: const [OrderStatus.completed]);
 
   @override
   void initState() {
@@ -134,7 +138,7 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                       // ── Estilo Uber/iFood: ficar online/offline. Offline sai da
                       // busca na hora (providersStream filtra active == true).
                       StreamBuilder<ProviderModel?>(
-                        stream: FS.myProviderStream(),
+                        stream: _myProvider,
                         builder: (_, snap) {
                           final prov = snap.data;
                           // Só prestador verificado pode ficar online.
@@ -248,8 +252,7 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
                       ),
                       // ── Ganhos do dia, no padrão dos apps de motorista/entregador.
                       StreamBuilder<List<OrderModel>>(
-                        stream: FS.providerOrdersStream(
-                            statuses: const [OrderStatus.completed]),
+                        stream: _completed,
                         builder: (_, snap) {
                           if (snap.hasError) {
                             return const Text('Não foi possível carregar seus ganhos agora.',
@@ -322,7 +325,7 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
       );
 }
 
-class _OrderList extends StatelessWidget {
+class _OrderList extends StatefulWidget {
   final List<OrderStatus> statuses;
   final List<OrderModel> demo;
   final String emptyEmoji, emptyTitle, emptySub;
@@ -334,8 +337,23 @@ class _OrderList extends StatelessWidget {
       required this.emptySub});
 
   @override
+  State<_OrderList> createState() => _OrderListState();
+}
+
+class _OrderListState extends State<_OrderList> {
+  List<OrderStatus> get statuses => widget.statuses;
+  List<OrderModel> get demo => widget.demo;
+  String get emptyEmoji => widget.emptyEmoji;
+  String get emptyTitle => widget.emptyTitle;
+  String get emptySub => widget.emptySub;
+
+  // Uma assinatura por aba, criada uma vez (os status de cada aba são fixos).
+  late final Stream<List<OrderModel>> _orders =
+      FS.providerOrdersStream(statuses: statuses);
+
+  @override
   Widget build(BuildContext context) => StreamBuilder<List<OrderModel>>(
-        stream: FS.providerOrdersStream(statuses: statuses),
+        stream: _orders,
         builder: (_, snap) {
           if (snap.hasError) return QueryErrorView(error: snap.error);
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());
@@ -556,7 +574,9 @@ class _OrderList extends StatelessWidget {
 // aprova quem enviou); "Completar depois" segue sem enviar nada.
 // ─────────────────────────────────────────────────────────────
 class ProviderOnboardingScreen extends StatefulWidget {
-  const ProviderOnboardingScreen({super.key});
+  /// Aberta pelo Perfil ("Quero ser prestador"): ao sair, volta ao Perfil.
+  final bool fromProfile;
+  const ProviderOnboardingScreen({super.key, this.fromProfile = false});
   @override
   State<ProviderOnboardingScreen> createState() => _ProviderOnboardingState();
 }
@@ -588,6 +608,10 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
   }
 
   bool get _canSubmit => _documentBytes != null && _selfieBytes != null;
+
+  void _leave() => widget.fromProfile
+      ? Navigator.pop(context)
+      : Navigator.pushReplacementNamed(context, Routes.main);
 
   Future<void> _submit() async {
     if (!_canSubmit) {
@@ -635,12 +659,21 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
         certificates: _certificates,
         serviceAreas: areas,
       );
+      // Pelo Perfil, recusado que reenviou documentos volta para a fila
+      // (o servidor ignora quando não está recusado).
+      if (widget.fromProfile) {
+        try {
+          await FS.requestProviderReview();
+        } catch (e) {
+          debugPrint('requestProviderReview: $e');
+        }
+      }
 
       if (mounted) {
         snack(context,
             '✅ Documentos enviados! Aguarde a aprovação do administrador.',
             bg: AppColors.secondary);
-        Navigator.pushReplacementNamed(context, Routes.main);
+        _leave();
       }
     } catch (e) {
       if (mounted) {
@@ -798,8 +831,7 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
                       )),
                   const SizedBox(height: 8),
                   TextButton(
-                      onPressed: () =>
-                          Navigator.pushReplacementNamed(context, Routes.main),
+                      onPressed: _leave,
                       child: const Text('Completar depois',
                           style: TextStyle(color: AppColors.textLight))),
                   const SizedBox(height: 30),
@@ -842,8 +874,9 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
 }
 
 // ── Ações do pedido pendente (estilo iFood) ──
-// O servidor ainda não expira pedidos: o tempo é só informativo e
-// "Aceitar"/"Recusar" seguem habilitados.
+// O servidor grava o prazo (expiresAt, 7 dias) e recusa a resposta depois
+// dele. Aqui o prazo só é exibido e, vencido no relógio do aparelho,
+// desabilita os botões; quem decide é o servidor.
 class _PendingActions extends StatefulWidget {
   final OrderModel order;
   const _PendingActions({required this.order});
@@ -927,8 +960,12 @@ class _PendingActionsState extends State<_PendingActions> {
 
   @override
   Widget build(BuildContext context) {
-    final mins = DateTime.now().difference(widget.order.createdAt).inMinutes;
-    final urgent = mins >= 10;
+    final now = DateTime.now();
+    final mins = now.difference(widget.order.createdAt).inMinutes;
+    final expired = widget.order.isExpiredAt(now);
+    final urgent = expired || mins >= 10;
+    final expiry =
+        OrderModel.expiryLabel(widget.order.expiresAtOrDefault, now);
     return Column(children: [
       // Informativo: há quanto tempo o pedido chegou.
       Container(
@@ -943,7 +980,9 @@ class _PendingActionsState extends State<_PendingActions> {
           const SizedBox(width: 6),
           Flexible(
             child: Text(
-                '${mins < 1 ? 'Recebido agora' : 'Recebido há $mins min'} · responda o quanto antes',
+                expired
+                    ? '⌛ Expirado · prazo de resposta encerrado'
+                    : '${mins < 1 ? 'Recebido agora' : 'Recebido há $mins min'} · $expiry',
                 key: const Key('pending-info'),
                 style: TextStyle(
                     fontSize: 12,
@@ -956,7 +995,7 @@ class _PendingActionsState extends State<_PendingActions> {
       Row(children: [
         Expanded(
             child: OutlinedButton(
-                onPressed: _busy ? null : _decline,
+                onPressed: _busy || expired ? null : _decline,
                 style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 10),
                     side: const BorderSide(color: AppColors.error)),
@@ -965,13 +1004,14 @@ class _PendingActionsState extends State<_PendingActions> {
         const SizedBox(width: 8),
         Expanded(
             child: ElevatedButton(
-                onPressed: _busy ? null : _accept,
+                key: const Key('pending-accept'),
+                onPressed: _busy || expired ? null : _accept,
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.secondary,
                     padding: const EdgeInsets.symmetric(vertical: 10)),
-                child: const Text('Aceitar',
-                    style:
-                        TextStyle(fontSize: 13, fontWeight: FontWeight.w700)))),
+                child: Text(expired ? 'Expirado' : 'Aceitar',
+                    style: const TextStyle(
+                        fontSize: 13, fontWeight: FontWeight.w700)))),
       ]),
     ]);
   }
@@ -990,13 +1030,21 @@ class _PaymentTag extends StatelessWidget {
 }
 
 // ── Resumo semanal de ganhos com gráfico de barras (Flutter puro) ──
-class WeeklyEarnings extends StatelessWidget {
+class WeeklyEarnings extends StatefulWidget {
   const WeeklyEarnings({super.key});
 
   @override
+  State<WeeklyEarnings> createState() => _WeeklyEarningsState();
+}
+
+class _WeeklyEarningsState extends State<WeeklyEarnings> {
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<OrderModel>> _completed =
+      FS.providerOrdersStream(statuses: const [OrderStatus.completed]);
+
+  @override
   Widget build(BuildContext context) => StreamBuilder<List<OrderModel>>(
-        stream:
-            FS.providerOrdersStream(statuses: const [OrderStatus.completed]),
+        stream: _completed,
         builder: (_, snap) {
           if (snap.hasError) {
             return const Padding(

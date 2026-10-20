@@ -136,3 +136,42 @@ class Cart {
     return Cart(out);
   }
 }
+
+// ── Disponibilidade (loja desativada/não aprovada, produto removido) ──
+// O servidor recusa o pedido de qualquer forma; aqui o carrinho mostra o
+// motivo e bloqueia "Finalizar" antes de o cliente tentar.
+
+/// Motivo de a loja não vender (null = disponível). `store` é o documento
+/// atual da loja (null = loja excluída).
+String? storeUnavailableReason(Map<String, dynamic>? store) {
+  if (store == null) return 'Esta loja não existe mais.';
+  if (store['active'] != true) {
+    return 'Esta loja está desativada e não aceita pedidos no momento.';
+  }
+  if (store['verified'] != true) {
+    return 'Esta loja ainda não foi aprovada e não aceita pedidos.';
+  }
+  return null;
+}
+
+/// Ids dos itens indisponíveis. Loja indisponível = todos. `products`
+/// traz o documento atual de cada produto (null = excluído); produto
+/// ainda não carregado (fora do mapa) não é marcado.
+Set<String> unavailableProductIds(List<CartLine> lines,
+    Map<String, dynamic>? store, Map<String, Map<String, dynamic>?> products) {
+  if (storeUnavailableReason(store) != null) {
+    return lines.map((l) => l.productId).toSet();
+  }
+  final out = <String>{};
+  for (final l in lines) {
+    if (!products.containsKey(l.productId)) continue;
+    final p = products[l.productId];
+    if (p == null ||
+        p['active'] != true ||
+        p['storeActive'] == false ||
+        p['storeId'] != l.storeId) {
+      out.add(l.productId);
+    }
+  }
+  return out;
+}

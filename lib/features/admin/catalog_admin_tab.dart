@@ -451,9 +451,17 @@ class _CatalogPreviewState extends State<_CatalogPreview> {
 
 /// Questionários versionados de um grupo/serviço. Nesta fase: estrutura e
 /// gestão. A aplicação nas solicitações acontece na fase do Resolve.
-class QuestionnaireAdminScreen extends StatelessWidget {
+class QuestionnaireAdminScreen extends StatefulWidget {
   final CatalogNode node;
   const QuestionnaireAdminScreen({super.key, required this.node});
+  @override
+  State<QuestionnaireAdminScreen> createState() => _QuestionnaireAdminScreenState();
+}
+
+class _QuestionnaireAdminScreenState extends State<QuestionnaireAdminScreen> {
+  CatalogNode get node => widget.node;
+  // Assinado uma vez (não a cada rebuild); poucos por serviço.
+  late final _list = CatalogAdmin.questionnaires(widget.node.id);
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -472,7 +480,7 @@ class QuestionnaireAdminScreen extends StatelessWidget {
               fg: AppColors.primary),
           Expanded(
             child: StreamBuilder<List<Map<String, dynamic>>>(
-              stream: CatalogAdmin.questionnaires(node.id),
+              stream: _list,
               builder: (_, snap) {
                 if (snap.hasError) return QueryErrorView(error: snap.error);
                 if (!snap.hasData) return const Center(child: CircularProgressIndicator());

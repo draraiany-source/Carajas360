@@ -20,16 +20,25 @@ Color ticketStatusColor(TicketStatus s) => switch (s) {
       TicketStatus.closed => AppColors.textLight,
     };
 
-class MyTicketsScreen extends StatelessWidget {
+class MyTicketsScreen extends StatefulWidget {
   /// Para testes: lista injetada no lugar do Firestore.
   final Stream<List<TicketModel>>? stream;
   const MyTicketsScreen({super.key, this.stream});
 
   @override
+  State<MyTicketsScreen> createState() => _MyTicketsScreenState();
+}
+
+class _MyTicketsScreenState extends State<MyTicketsScreen> {
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<TicketModel>> _tickets =
+      widget.stream ?? FS.myTicketsStream();
+
+  @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Meus chamados')),
         body: StreamBuilder<List<TicketModel>>(
-          stream: stream ?? FS.myTicketsStream(),
+          stream: _tickets,
           builder: (context, snap) {
             if (snap.hasError) return QueryErrorView(error: snap.error);
             if (!snap.hasData) {

@@ -350,9 +350,20 @@ class AppointmentsScreen extends StatelessWidget {
       );
 }
 
-class _ApptList extends StatelessWidget {
+class _ApptList extends StatefulWidget {
   final bool asProvider;
   const _ApptList({required this.asProvider});
+
+  @override
+  State<_ApptList> createState() => _ApptListState();
+}
+
+class _ApptListState extends State<_ApptList> {
+  bool get asProvider => widget.asProvider;
+
+  // Criado uma vez por aba (não a cada rebuild).
+  late final Stream<List<Map<String, dynamic>>> _appts =
+      FS.appointmentsStream(asProvider: asProvider);
 
   Future<void> _act(BuildContext context, AppointmentModel a, String action) async {
     String? reason;
@@ -508,7 +519,7 @@ class _ApptList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => StreamBuilder<List<Map<String, dynamic>>>(
-        stream: FS.appointmentsStream(asProvider: asProvider),
+        stream: _appts,
         builder: (context, snap) {
           if (snap.hasError) return QueryErrorView(error: snap.error);
           if (!snap.hasData) return const Center(child: CircularProgressIndicator());

@@ -8,15 +8,24 @@ import '../../shared/widgets/widgets.dart';
 
 /// Perfil público de empresa (somente verificadas e ativas). Mostra
 /// apenas dados públicos: nome, cidade, descrição e serviços.
-class CompanyPublicScreen extends StatelessWidget {
+class CompanyPublicScreen extends StatefulWidget {
   final String companyId;
   const CompanyPublicScreen({super.key, required this.companyId});
+
+  @override
+  State<CompanyPublicScreen> createState() => _CompanyPublicScreenState();
+}
+
+class _CompanyPublicScreenState extends State<CompanyPublicScreen> {
+  // Lido uma vez (antes, a cada rebuild).
+  late final Future<DocumentSnapshot<Map<String, dynamic>>> _company =
+      FirebaseFirestore.instance.collection('companies').doc(widget.companyId).get();
 
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('Empresa')),
         body: FutureBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          future: FirebaseFirestore.instance.collection('companies').doc(companyId).get(),
+          future: _company,
           builder: (_, snap) {
             if (snap.hasError) return QueryErrorView(error: snap.error);
             if (!snap.hasData) return const Center(child: CircularProgressIndicator());

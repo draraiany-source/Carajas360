@@ -21,7 +21,8 @@ const PLACEHOLDER = /COLE_SUA|COLE_SEU|NUMERO|:HASH|AQUI|PLACEHOLDER/i;
 
 const rows = [];
 // mobile = item só do app Android/iOS (não bloqueia --deploy).
-const add = (area, item, ok, detail, mobile = false) => rows.push({ area, item, ok, detail, mobile });
+// optional = recurso opcional (ex.: push web): aparece como OPC. e não bloqueia.
+const add = (area, item, ok, detail, mobile = false, optional = false) => rows.push({ area, item, ok, detail, mobile, optional });
 const read = (rel) => { try { return fs.readFileSync(path.join(ROOT, rel), 'utf8'); } catch (_) { return null; } };
 const fileItem = (area, rel, why, mobile = false) => {
   const t = read(rel);
@@ -55,6 +56,16 @@ add('App', 'config/env/hml.json', Boolean(envOk), env == null ? 'ausente (copiar
   : !envJson ? 'JSON inválido' : PLACEHOLDER.test(env) ? 'modelo'
   : envJson.APP_ENV !== 'hml' ? `APP_ENV precisa ser "hml" (está "${envJson.APP_ENV}")`
   : String(envJson.USE_FIREBASE_EMULATOR || '') === 'true' ? 'USE_FIREBASE_EMULATOR não pode ser true' : 'preenchido');
+// Pendência 3: push web é OPCIONAL (Android/iOS não dependem dele). Sem a
+// chave VAPID o app desliga o push web em silêncio; sem a config gerada o
+// service worker não carrega o Firebase.
+const vapid = String((envJson && envJson.FCM_VAPID_KEY) || '').trim();
+add('Push web (opcional)', 'FCM_VAPID_KEY em config/env/hml.json', Boolean(vapid) && !PLACEHOLDER.test(vapid),
+  vapid ? (PLACEHOLDER.test(vapid) ? 'modelo' : 'preenchida') : 'vazia — Console → Cloud Messaging → Web Push certificates (par de chaves do projeto hml)', false, true);
+const swCfg = read('build/web/firebase-messaging-config.js');
+add('Push web (opcional)', 'build/web/firebase-messaging-config.js', swCfg != null && swCfg.includes(`"projectId": "${project}"`),
+  swCfg == null ? 'ausente — após o build: node tool/gen_web_push_config.js --env hml'
+    : swCfg.includes(`"projectId": "${project}"`) ? `config web do projeto ${project}` : 'desligado ou de outro projeto (gere com --env hml)', false, true);
 const fenv = read(`functions/.env.${project}`);
 const need = ['PAYMENTS_GATEWAY', 'PAYMENTS_ENV', 'PROD_PROJECT_IDS', 'PAYMENTS_WEBHOOK_URL', 'MP_TEST_USER_CREDENTIALS'];
 if (fenv == null) add('Functions', `functions/.env.${project}`, false, `ausente — copiar de .env.example (${need.join(', ')})`);
@@ -74,9 +85,11 @@ add('Maps', 'MAPS_API_KEY (android/local.properties / ios MapsKey.xcconfig)', /M
 
 const pad = (s, n) => String(s).padEnd(n);
 console.log(`Configuração de homologação — projeto ${project}\n`);
-for (const r of rows) console.log(`${r.ok === true ? 'OK    ' : r.ok === false ? 'FALTA ' : 'VERIF.'} ${pad(r.area, 26)} ${pad(r.item, 64)} ${r.detail}`);
-const pending = rows.filter((r) => r.ok === false && !(deployOnly && r.mobile)).length;
+for (const r of rows) console.log(`${r.ok === true ? 'OK    ' : r.ok === false ? (r.optional ? 'OPC.  ' : 'FALTA ') : 'VERIF.'} ${pad(r.area, 26)} ${pad(r.item, 64)} ${r.detail}`);
+const pending = rows.filter((r) => r.ok === false && !r.optional && !(deployOnly && r.mobile)).length;
+const optionalPending = rows.filter((r) => r.ok === false && r.optional).length;
 const mobileOnly = deployOnly ? rows.filter((r) => r.ok === false && r.mobile).length : 0;
 console.log(`\n${pending} item(ns) pendente(s)${deployOnly ? ' para implantar web/backend' : ''}; ${rows.filter((r) => r.ok === null).length} a verificar no console.`);
 if (mobileOnly) console.log(`${mobileOnly} item(ns) só do app móvel (não bloqueiam --deploy).`);
+if (optionalPending) console.log(`${optionalPending} item(ns) opcional(is) pendente(s) (OPC.: push web; não bloqueiam).`);
 process.exit(pending ? 1 : 0);

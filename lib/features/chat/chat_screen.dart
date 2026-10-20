@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audioplayers/audioplayers.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -10,6 +12,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_assets.dart';
+import '../../core/security/order_policy.dart' show CloudCallException;
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
@@ -233,14 +236,15 @@ class _ChatState extends State<ChatScreen> {
           source: source, imageQuality: 80, maxWidth: 1600);
       if (picked == null) return;
       if (mounted) snack(context, 'Enviando imagem...', bg: AppColors.primary);
-      final url = await FS.uploadChatMedia(
+      final path = await FS.uploadChatMedia(
           await picked.readAsBytes(), picked.name, widget.roomId);
-      if (url != null) {
+      if (path != null) {
         await FS.sendMessage(
             roomId: widget.roomId,
             senderName: _myName,
             text: '📷 Foto',
-            mediaUrl: url);
+            mediaPath: path,
+            mediaType: 'image');
         _scrollBottom();
       } else if (mounted) {
         snack(context, 'Falha ao enviar imagem. Verifique sua conexão.',
@@ -278,13 +282,16 @@ class _ChatState extends State<ChatScreen> {
       final fileName = picked.name;
       if (mounted)
         snack(context, 'Enviando documento...', bg: AppColors.primary);
-      final url = await FS.uploadChatMedia(bytes, fileName, widget.roomId);
-      if (url != null) {
+      final path = await FS.uploadChatMedia(bytes, fileName, widget.roomId);
+      if (path != null) {
         await FS.sendMessage(
             roomId: widget.roomId,
             senderName: _myName,
             text: '📄 $fileName',
-            mediaUrl: url);
+            mediaPath: path,
+            mediaType: 'document',
+            mediaName:
+                fileName.length > 200 ? fileName.substring(0, 200) : fileName);
         _scrollBottom();
       } else if (mounted) {
         snack(context, 'Falha ao enviar documento. Verifique sua conexão.',
@@ -383,14 +390,15 @@ class _ChatState extends State<ChatScreen> {
       }
       return;
     }
-    final url = await FS.uploadChatMedia(
+    final path = await FS.uploadChatMedia(
         Uint8List.fromList(bytes), 'audio.m4a', widget.roomId);
-    if (url != null) {
+    if (path != null) {
       await FS.sendMessage(
           roomId: widget.roomId,
           senderName: _myName,
           text: '🎤 Mensagem de voz',
-          mediaUrl: url);
+          mediaPath: path,
+          mediaType: 'audio');
       _scrollBottom();
     } else if (mounted) {
       snack(context, 'Falha ao enviar áudio. Verifique sua conexão.',
@@ -691,10 +699,32 @@ class _ChatState extends State<ChatScreen> {
     }
   }
 
+  // LGPD: o anexo abre por URL temporária do servidor (getChatMediaUrl),
+  // nunca pelo link antigo com token gravado na mensagem.
+  Future<String?> _mediaUrl(MessageModel msg) async {
+    try {
+      return await FS.chatMediaUrl(widget.roomId, msg.id);
+    } on CloudCallException catch (e) {
+      if (mounted) snack(context, chatMediaErrorText(e), bg: AppColors.error);
+    } catch (_) {
+      if (mounted) {
+        snack(context, 'Não foi possível abrir o anexo. Verifique sua conexão.',
+            bg: AppColors.error);
+      }
+    }
+    return null;
+  }
+
+  Future<void> _openMedia(MessageModel msg) async {
+    final url = await _mediaUrl(msg);
+    if (url != null) await _openUrl(url);
+  }
+
   Widget _mediaContent(MessageModel msg, bool isMe) {
-    if (msg.text.startsWith('📄')) {
+    final kind = msg.mediaKind;
+    if (kind == 'document') {
       return InkWell(
-        onTap: () => _openUrl(msg.mediaUrl!),
+        onTap: () => _openMedia(msg),
         child: Container(
           width: 180,
           padding: const EdgeInsets.all(10),
@@ -707,7 +737,7 @@ class _ChatState extends State<ChatScreen> {
                 color: isMe ? Colors.white : AppColors.primary, size: 28),
             const SizedBox(width: 8),
             Expanded(
-                child: Text(msg.text.replaceFirst('📄 ', ''),
+                child: Text(msg.mediaName ?? msg.text.replaceFirst('📄 ', ''),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
@@ -717,27 +747,10 @@ class _ChatState extends State<ChatScreen> {
         ),
       );
     }
-    if (msg.text.startsWith('🎤')) {
-      return _AudioBubble(url: msg.mediaUrl!, isMe: isMe);
+    if (kind == 'audio') {
+      return _AudioBubble(resolve: () => _mediaUrl(msg), isMe: isMe);
     }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(12),
-      child: CachedNetworkImage(
-        imageUrl: msg.mediaUrl!,
-        width: 180,
-        height: 180,
-        fit: BoxFit.cover,
-        placeholder: (_, __) => const SizedBox(
-            width: 180,
-            height: 180,
-            child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-        errorWidget: (_, __, ___) => const SizedBox(
-            width: 180,
-            height: 100,
-            child: Center(
-                child: Icon(Icons.broken_image_outlined, color: Colors.grey))),
-      ),
-    );
+    return _ChatImage(roomId: widget.roomId, msg: msg, onOpen: _openMedia);
   }
 
   Widget _bubble(MessageModel msg) {
@@ -844,7 +857,7 @@ class _ChatState extends State<ChatScreen> {
                                             : AppColors.textLight)),
                               ]),
                         ),
-                      if (msg.mediaUrl != null)
+                      if (msg.hasMedia)
                         _mediaContent(msg, isMe)
                       else if (chatLocationUrl(msg.text) != null)
                         InkWell(
@@ -1012,9 +1025,11 @@ class _ChatState extends State<ChatScreen> {
 // AUDIO BUBBLE (Vol.3: Chat — reprodução de mensagens de voz)
 // ─────────────────────────────────────────────────────────────
 class _AudioBubble extends StatefulWidget {
-  final String url;
+  // URL temporária pedida ao servidor na hora de tocar (null = falhou e o
+  // erro já foi avisado).
+  final Future<String?> Function() resolve;
   final bool isMe;
-  const _AudioBubble({required this.url, required this.isMe});
+  const _AudioBubble({required this.resolve, required this.isMe});
   @override
   State<_AudioBubble> createState() => _AudioBubbleState();
 }
@@ -1022,17 +1037,19 @@ class _AudioBubble extends StatefulWidget {
 class _AudioBubbleState extends State<_AudioBubble> {
   final _player = AudioPlayer();
   bool _playing = false;
+  StreamSubscription<void>? _completeSub;
 
   @override
   void initState() {
     super.initState();
-    _player.onPlayerComplete.listen((_) {
+    _completeSub = _player.onPlayerComplete.listen((_) {
       if (mounted) setState(() => _playing = false);
     });
   }
 
   @override
   void dispose() {
+    _completeSub?.cancel();
     _player.dispose();
     super.dispose();
   }
@@ -1042,7 +1059,9 @@ class _AudioBubbleState extends State<_AudioBubble> {
       if (_playing) {
         await _player.pause();
       } else {
-        await _player.play(UrlSource(widget.url));
+        final url = await widget.resolve();
+        if (url == null) return;
+        await _player.play(UrlSource(url));
       }
       if (mounted) setState(() => _playing = !_playing);
     } catch (_) {
@@ -1089,4 +1108,84 @@ class _AudioBubbleState extends State<_AudioBubble> {
               color: widget.isMe ? Colors.white70 : AppColors.textLight),
         ]),
       );
+}
+
+/// Texto em português para falhas ao pedir a URL do anexo.
+String chatMediaErrorText(CloudCallException e) => switch (e.code) {
+      'permission-denied' => 'Você não tem mais acesso a esta conversa.',
+      'not-found' => 'Este anexo não está mais disponível.',
+      'unauthenticated' => 'Sua sessão expirou. Entre novamente.',
+      'resource-exhausted' => 'Muitos anexos abertos. Aguarde um pouco.',
+      _ => 'Não foi possível abrir o anexo. Tente novamente.',
+    };
+
+// Imagem do chat: pede a URL temporária e guarda o arquivo no cache pelo
+// id da mensagem (a URL assinada muda a cada renovação).
+class _ChatImage extends StatefulWidget {
+  final String roomId;
+  final MessageModel msg;
+  final Future<void> Function(MessageModel) onOpen;
+  const _ChatImage(
+      {required this.roomId, required this.msg, required this.onOpen});
+  @override
+  State<_ChatImage> createState() => _ChatImageState();
+}
+
+class _ChatImageState extends State<_ChatImage> {
+  late Future<String> _url = FS.chatMediaUrl(widget.roomId, widget.msg.id);
+
+  void _retry() {
+    FS.forgetChatMediaUrl(widget.roomId, widget.msg.id);
+    setState(() => _url = FS.chatMediaUrl(widget.roomId, widget.msg.id));
+  }
+
+  Widget _broken(String text) => InkWell(
+      onTap: _retry,
+      child: SizedBox(
+          width: 180,
+          height: 100,
+          child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            const Icon(Icons.broken_image_outlined, color: Colors.grey),
+            const SizedBox(height: 4),
+            Text(text,
+                textAlign: TextAlign.center,
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          ])));
+
+  @override
+  Widget build(BuildContext context) => FutureBuilder<String>(
+      future: _url,
+      builder: (context, snap) {
+        if (snap.hasError) {
+          final e = snap.error;
+          return _broken(e is CloudCallException
+              ? chatMediaErrorText(e)
+              : 'Imagem indisponível. Toque para tentar de novo.');
+        }
+        if (!snap.hasData) {
+          return const SizedBox(
+              width: 180,
+              height: 180,
+              child: Center(child: CircularProgressIndicator(strokeWidth: 2)));
+        }
+        return GestureDetector(
+            onTap: () => widget.onOpen(widget.msg),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: CachedNetworkImage(
+                imageUrl: snap.data!,
+                cacheKey: 'chat_media/${widget.roomId}/${widget.msg.id}',
+                width: 180,
+                height: 180,
+                fit: BoxFit.cover,
+                placeholder: (_, __) => const SizedBox(
+                    width: 180,
+                    height: 180,
+                    child: Center(
+                        child: CircularProgressIndicator(strokeWidth: 2))),
+                errorWidget: (_, __, ___) =>
+                    _broken('Imagem indisponível. Toque para tentar de novo.'),
+              ),
+            ));
+      });
 }

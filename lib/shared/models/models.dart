@@ -470,6 +470,20 @@ class OrderModel {
   final int? commissionBps;
   /// Prestador marcou como concluído; falta o cliente confirmar.
   final bool awaitingClientConfirmation;
+  /// Prazo de aceite gravado pelo servidor (functions/orderExpiry.js).
+  /// Pedido antigo sem o campo: use [expiresAtOrDefault].
+  final DateTime? expiresAt;
+  /// Cancelado pela expiração automática (servidor).
+  final bool expired;
+
+  /// Prazo para o prestador aceitar (mesmo do servidor:
+  /// orderPolicy.PENDING_EXPIRY_MS).
+  static const pendingExpiry = Duration(days: 7);
+
+  /// Fonte única do prazo no app (espelha orderPolicy.expiresAtMs):
+  /// expiresAt gravado; antigo sem o campo: createdAt + 7 dias.
+  static DateTime expiryOf(DateTime createdAt, DateTime? expiresAt) =>
+      expiresAt ?? createdAt.add(pendingExpiry);
 
   const OrderModel({
     required this.id,
@@ -490,7 +504,36 @@ class OrderModel {
     this.completedAt,
     this.commissionBps,
     this.awaitingClientConfirmation = false,
+    this.expiresAt,
+    this.expired = false,
   });
+
+  DateTime get expiresAtOrDefault => expiryOf(createdAt, expiresAt);
+
+  /// Texto do prazo para o prestador: "Expira em 2 d 5 h" … "Expirado".
+  static String expiryLabel(DateTime expiresAt, DateTime now) {
+    final left = expiresAt.difference(now);
+    if (left <= Duration.zero) return 'Expirado';
+    if (left.inDays >= 1) {
+      final h = left.inHours % 24;
+      return 'Expira em ${left.inDays} d${h > 0 ? ' $h h' : ''}';
+    }
+    if (left.inHours >= 1) {
+      final m = left.inMinutes % 60;
+      return 'Expira em ${left.inHours} h${m > 0 ? ' $m min' : ''}';
+    }
+    return 'Expira em ${left.inMinutes < 1 ? 1 : left.inMinutes} min';
+  }
+
+  /// Pendente com prazo vencido no relógio do aparelho. Só desabilita
+  /// botões; quem decide é o servidor.
+  bool isExpiredAt(DateTime now) =>
+      status == OrderStatus.pending && !now.isBefore(expiresAtOrDefault);
+
+  /// Expirado (cancelado pela tarefa) ou pendente já vencido.
+  bool get isExpired =>
+      (status == OrderStatus.cancelled && expired) ||
+      isExpiredAt(DateTime.now());
 
   /// Data em que o ganho conta: conclusão; pedidos antigos sem o campo usam a criação.
   DateTime get earnedAt => completedAt ?? createdAt;
@@ -505,6 +548,7 @@ class OrderModel {
   bool get isPaid => paymentStatus == 'paid';
 
   String get statusLabel {
+    if (isExpired) return '⌛ Expirado';
     switch (status) {
       case OrderStatus.pending:
         return '⏳ Aguardando';
@@ -542,14 +586,39 @@ class OrderModel {
         completedAt: (m['completedAt'] as Timestamp?)?.toDate(),
         commissionBps: ((m['financeTerms'] as Map?)?['commissionBps'] as num?)?.toInt(),
         awaitingClientConfirmation: m['awaitingClientConfirmation'] == true,
+        expiresAt: (m['expiresAt'] as Timestamp?)?.toDate(),
+        expired: m['expired'] == true ||
+            m['cancelReason'] == 'Expirado automaticamente',
       );
+}
+
+/// Caminho no Storage de uma download URL antiga do chat
+/// (`.../v0/b/<bucket>/o/chat_media%2F<sala>%2F<arquivo>?...&token=...`).
+/// Só serve para achar o anexo; o link com token nunca é aberto.
+String? chatMediaPathFromUrl(String? url) {
+  if (url == null) return null;
+  final m = RegExp(r'^https?://[^/]+/(?:v0/)?b/[^/]+/o/([^?#]+)').firstMatch(url);
+  if (m == null) return null;
+  String path;
+  try {
+    path = Uri.decodeComponent(m.group(1)!);
+  } catch (_) {
+    return null;
+  }
+  return RegExp(r'^chat_media/[A-Za-z0-9_-]+/[A-Za-z0-9._-]+$').hasMatch(path) &&
+          !path.contains('..')
+      ? path
+      : null;
 }
 
 class MessageModel {
   final String id, senderId, senderName, text;
   final bool read;
   final DateTime createdAt;
+  /// Legado: download URL com token (mensagens antigas não migradas).
   final String? mediaUrl;
+  /// Anexo (LGPD): caminho no Storage + tipo (image/document/audio).
+  final String? mediaPath, mediaType, mediaName;
   final String? replyToText, replyToSender; // mensagem citada
   final bool deleted; // apagada para todos
 
@@ -561,9 +630,25 @@ class MessageModel {
       this.read = false,
       required this.createdAt,
       this.mediaUrl,
+      this.mediaPath,
+      this.mediaType,
+      this.mediaName,
       this.replyToText,
       this.replyToSender,
       this.deleted = false});
+
+  /// Caminho do anexo: formato novo ou extraído da URL antiga.
+  String? get storagePath => mediaPath ?? chatMediaPathFromUrl(mediaUrl);
+  bool get hasMedia => storagePath != null;
+
+  /// Tipo do anexo; mensagens antigas usam o prefixo do texto.
+  String get mediaKind =>
+      mediaType ??
+      (text.startsWith('📄')
+          ? 'document'
+          : text.startsWith('🎤')
+              ? 'audio'
+              : 'image');
 
   factory MessageModel.fromMap(String id, Map<String, dynamic> m) =>
       MessageModel(
@@ -574,6 +659,9 @@ class MessageModel {
         read: m['read'] ?? false,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
         mediaUrl: m['mediaUrl'],
+        mediaPath: m['mediaPath'],
+        mediaType: m['mediaType'],
+        mediaName: m['mediaName'],
         replyToText: m['replyToText'],
         replyToSender: m['replyToSender'],
         deleted: m['deleted'] ?? false,
@@ -1021,6 +1109,9 @@ class ProductModel {
   final double rating;
   final int totalReviews;
   final bool active;
+  // Loja ativa e aprovada (só o servidor grava; null = produto antigo
+  // ainda não reconciliado). Nunca vai no toMap.
+  final bool? storeActive;
   final DateTime createdAt;
 
   const ProductModel({
@@ -1038,8 +1129,12 @@ class ProductModel {
     this.rating = 0,
     this.totalReviews = 0,
     this.active = true,
+    this.storeActive,
     required this.createdAt,
   });
+
+  /// Pode aparecer na vitrine? Loja inativa/não aprovada = não.
+  bool get storeAvailable => storeActive != false;
 
   /// Preço efetivo: usa a promoção quando houver.
   double get finalPrice => promoPrice ?? price;
@@ -1064,6 +1159,7 @@ class ProductModel {
         rating: (m['rating'] as num?)?.toDouble() ?? 0,
         totalReviews: m['totalReviews'] ?? 0,
         active: m['active'] ?? true,
+        storeActive: m['storeActive'] as bool?,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       );
 

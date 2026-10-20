@@ -91,7 +91,9 @@ function quoteMarketOrder({ items, products, store, coupon, deliveryMode, config
   const errors = [];
   const cfg = { ...DEFAULT_FINANCE_CONFIG, ...(config || {}) };
   if (!store) errors.push('loja não encontrada');
-  else if (store.active === false) errors.push('loja indisponível');
+  // Loja desativada ou ainda não aprovada pelo admin não vende.
+  else if (store.active !== true) errors.push('esta loja está desativada e não aceita pedidos no momento');
+  else if (store.verified !== true) errors.push('esta loja ainda não foi aprovada e não aceita pedidos');
   if (!Array.isArray(items) || items.length === 0) errors.push('carrinho vazio');
   if (Array.isArray(items) && items.length > 50) errors.push('máximo de 50 itens por pedido');
   const seen = new Set();

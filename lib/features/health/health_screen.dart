@@ -8,6 +8,7 @@ import 'health_booking.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/utils/chat_nav.dart';
+import '../../core/utils/memo.dart';
 import '../../core/catalog/catalog.dart';
 import '../../core/catalog/catalog_service.dart';
 import '../../core/catalog/catalog_widgets.dart';
@@ -46,6 +47,10 @@ class _HealthState extends State<HealthScreen> {
   }
 
   static const _modes = [null, 'online', 'presential', 'home_care'];
+
+  // Busca refeita só quando a consulta ou o "tentar de novo" mudam (mesma
+  // chave do FutureBuilder), não a cada rebuild.
+  final _results = Memo<Future<ProviderPage>>();
 
   /// Consulta real na vertical Saúde: "Todos" = toda a categoria Saúde;
   /// especialidade = grupo do catálogo; modalidade e nome filtram de fato.
@@ -228,7 +233,8 @@ class _HealthState extends State<HealthScreen> {
           SliverToBoxAdapter(
               child: FutureBuilder<ProviderPage>(
             key: ValueKey('${_query.key}|$_tick'),
-            future: ProviderSearch().fetch(_query, pageSize: 20),
+            future: _results.of('${_query.key}|$_tick',
+                () => ProviderSearch().fetch(_query, pageSize: 20)),
             builder: (_, snap) {
               if (snap.hasError) {
                 return QueryErrorView(

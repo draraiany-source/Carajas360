@@ -4,7 +4,7 @@ const assert = require('node:assert');
 const f = require('./financeCore');
 
 const now = Date.UTC(2026, 9, 10);
-const store = { id: 's1', active: true, deliveryFeeCents: 700 };
+const store = { id: 's1', active: true, verified: true, deliveryFeeCents: 700 };
 const products = {
   p1: { storeId: 's1', name: 'Arroz', price: 22.9, stock: 5, active: true },
   p2: { storeId: 's1', name: 'Feijão', price: 10, promoPrice: 8.5, stock: 1, active: true },
@@ -35,6 +35,9 @@ test('cotação valida estoque, loja, ativo, quantidade e repetição', () => {
   for (const s of ['estoque insuficiente', 'outra loja', 'indisponível', 'quantidade inválida', 'repetido']) assert.ok(msg.includes(s), s);
   assert.ok(!f.quoteMarketOrder({ items: [], products, store, now }).ok);
   assert.ok(!f.quoteMarketOrder({ items: [{ productId: 'p1', qty: 1 }], products, store: { ...store, active: false }, now }).ok);
+  // Loja não aprovada (ou sem o campo active) também não vende.
+  assert.match(f.quoteMarketOrder({ items: [{ productId: 'p1', qty: 1 }], products, store: { ...store, verified: false }, now }).errors.join(), /não foi aprovada/);
+  assert.match(f.quoteMarketOrder({ items: [{ productId: 'p1', qty: 1 }], products, store: { ...store, active: undefined }, now }).errors.join(), /desativada/);
   assert.strictEqual(f.quoteMarketOrder({ items: [{ productId: 'p1', qty: 1 }], products, store, deliveryMode: 'pickup', now }).deliveryFeeCents, 0);
 });
 

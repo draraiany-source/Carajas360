@@ -93,6 +93,11 @@ class _RentalScreenState extends State<RentalScreen>
   late final TabController _tab =
       TabController(length: 2, vsync: this, initialIndex: widget.initialTab);
   String _query = '';
+  // Um listener por aba, criado uma vez (a busca filtra no cliente e fazia
+  // rebuild a cada tecla, recriando a assinatura).
+  late final Map<RentalKind, Stream<List<RentalModel>>> _streams = {
+    for (final k in RentalKind.values) k: FS.rentalsStream(kind: k),
+  };
 
   @override
   void dispose() {
@@ -175,7 +180,7 @@ class _RentalScreenState extends State<RentalScreen>
       );
 
   Widget _list(RentalKind kind) => StreamBuilder<List<RentalModel>>(
-        stream: FS.rentalsStream(kind: kind),
+        stream: _streams[kind],
         builder: (_, snap) {
           if (snap.hasError) return QueryErrorView(error: snap.error);
           if (snap.connectionState == ConnectionState.waiting) {
@@ -525,8 +530,16 @@ class RentalDetailScreen extends StatelessWidget {
 }
 
 // ── Meus anúncios ────────────────────────────────────────────
-class MyRentalsScreen extends StatelessWidget {
+class MyRentalsScreen extends StatefulWidget {
   const MyRentalsScreen({super.key});
+
+  @override
+  State<MyRentalsScreen> createState() => _MyRentalsScreenState();
+}
+
+class _MyRentalsScreenState extends State<MyRentalsScreen> {
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<RentalModel>> _mine = FS.myRentalsStream();
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -541,7 +554,7 @@ class MyRentalsScreen extends StatelessWidget {
           child: const Icon(Icons.add),
         ),
         body: StreamBuilder<List<RentalModel>>(
-          stream: FS.myRentalsStream(),
+          stream: _mine,
           builder: (_, snap) {
             if (snap.hasError) return QueryErrorView(error: snap.error);
             if (snap.connectionState == ConnectionState.waiting) {
@@ -1375,8 +1388,17 @@ class _BookingSheetState extends State<_BookingSheet> {
 }
 
 // ── Minhas reservas ──────────────────────────────────────────
-class MyBookingsScreen extends StatelessWidget {
+class MyBookingsScreen extends StatefulWidget {
   const MyBookingsScreen({super.key});
+
+  @override
+  State<MyBookingsScreen> createState() => _MyBookingsScreenState();
+}
+
+class _MyBookingsScreenState extends State<MyBookingsScreen> {
+  // Criados uma vez (não a cada rebuild).
+  late final Stream<List<BookingModel>> _made = FS.myBookingsStream();
+  late final Stream<List<BookingModel>> _received = FS.receivedBookingsStream();
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
@@ -1395,8 +1417,8 @@ class MyBookingsScreen extends StatelessWidget {
             ),
           ),
           body: TabBarView(children: [
-            _list(FS.myBookingsStream(), owner: false),
-            _list(FS.receivedBookingsStream(), owner: true),
+            _list(_made, owner: false),
+            _list(_received, owner: true),
           ]),
         ),
       );

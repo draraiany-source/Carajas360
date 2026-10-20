@@ -324,6 +324,9 @@ jobs:
         run: |
           flutter pub get
           flutter build web --release --dart-define=APP_ENV=hml
+          # Push web: config do Firebase hml para o service worker. Com valores
+          # de exemplo o arquivo sai desligado (código 2), sem falhar o build.
+          node tool/gen_web_push_config.js --env hml --out build/web || [ $? -eq 2 ]
 
       - uses: actions/upload-artifact@v4
         with:

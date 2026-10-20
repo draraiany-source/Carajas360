@@ -17,14 +17,22 @@ import '../checkout/payments_api.dart';
 // ─────────────────────────────────────────────────────────────
 // FAVORITES SCREEN (Vol.3/Vol.5: coleção favorites)
 // ─────────────────────────────────────────────────────────────
-class FavoritesScreen extends StatelessWidget {
+class FavoritesScreen extends StatefulWidget {
   const FavoritesScreen({super.key});
+
+  @override
+  State<FavoritesScreen> createState() => _FavoritesScreenState();
+}
+
+class _FavoritesScreenState extends State<FavoritesScreen> {
+  // Criado uma vez (não a cada rebuild).
+  late final Stream<List<ProviderModel>> _favs = FS.favoritesStream();
 
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(title: const Text('⭐ Favoritos')),
         body: StreamBuilder<List<ProviderModel>>(
-          stream: FS.favoritesStream(),
+          stream: _favs,
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return ListView.builder(
@@ -109,6 +117,16 @@ class MyOrdersScreen extends StatefulWidget {
 
 class _MyOrdersState extends State<MyOrdersScreen> {
   OrderStatus? _filter;
+  // Refeito só quando o filtro muda (não a cada rebuild).
+  late Stream<List<OrderModel>> _orders = FS.orderHistoryStream(status: _filter);
+
+  void _setFilter(OrderStatus? status) {
+    if (status == _filter) return;
+    setState(() {
+      _filter = status;
+      _orders = FS.orderHistoryStream(status: status);
+    });
+  }
 
   static final _demo = [
     OrderModel(
@@ -239,7 +257,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                   ])),
           Expanded(
               child: StreamBuilder<List<OrderModel>>(
-            stream: FS.orderHistoryStream(status: _filter),
+            stream: _orders,
             builder: (_, snap) {
               if (snap.hasError) return QueryErrorView(error: snap.error);
               final orders = DemoData.orEmpty(
@@ -309,9 +327,14 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                           ]),
                           const SizedBox(height: 10),
                           Row(children: [
+                            // Expirado (servidor ou prazo vencido): cor de cancelado.
                             AppTag(o.statusLabel,
-                                bg: _statusBg(o.status),
-                                fg: _statusFg(o.status)),
+                                bg: _statusBg(o.isExpired
+                                    ? OrderStatus.cancelled
+                                    : o.status),
+                                fg: _statusFg(o.isExpired
+                                    ? OrderStatus.cancelled
+                                    : o.status)),
                             const Spacer(),
                             if (o.status == OrderStatus.pending ||
                                 o.status == OrderStatus.accepted)
@@ -407,7 +430,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
     return Padding(
         padding: const EdgeInsets.only(right: 8),
         child: GestureDetector(
-          onTap: () => setState(() => _filter = status),
+          onTap: () => _setFilter(status),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),

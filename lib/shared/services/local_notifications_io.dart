@@ -36,3 +36,10 @@ Future<void> showLocalNotification({
     payload: payload,
   );
 }
+
+/// Payload da notificação local que abriu o app (estava encerrado).
+Future<String?> localNotificationLaunchPayload() async {
+  final d = await _plugin.getNotificationAppLaunchDetails();
+  if (d == null || !d.didNotificationLaunchApp) return null;
+  return d.notificationResponse?.payload;
+}

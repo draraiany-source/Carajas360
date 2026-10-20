@@ -7,11 +7,14 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'admin_forms.dart';
+import 'admin_paging.dart';
+import 'data_migrations.dart';
 import 'catalog_admin_tab.dart';
 import 'finance_admin_tab.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
+import '../../core/utils/query_errors.dart';
 import '../../shared/models/models.dart';
 import '../../core/security/order_policy.dart';
 import '../../shared/services/firebase_service.dart';
@@ -45,11 +48,20 @@ class _AdminState extends State<AdminScreen>
     'Configurações'
   ];
 
+  late Future<Map<String, dynamic>> _kpis;
+
   @override
   void initState() {
     super.initState();
     _tab = TabController(length: _tabs.length, vsync: this);
+    _kpis = FS.fetchDashboardKpis();
   }
+
+  Widget _refreshKpis() => IconButton(
+      key: const Key('admin-kpis-refresh'),
+      tooltip: 'Atualizar indicadores',
+      icon: const Icon(Icons.refresh_rounded, color: Colors.white70, size: 20),
+      onPressed: () => setState(() => _kpis = FS.fetchDashboardKpis()));
 
   @override
   void dispose() {
@@ -90,31 +102,41 @@ class _AdminState extends State<AdminScreen>
                                         color: Colors.white, size: 20)))),
                           ]),
                       const SizedBox(height: 12),
+                      // Indicadores agregados no servidor (sem ler coleções
+                      // inteiras). Criado uma vez; "atualizar" refaz a chamada.
                       FutureBuilder<Map<String, dynamic>>(
-                        future: FS.fetchDashboardKpis(),
+                        future: _kpis,
                         builder: (_, snap) {
                           final k = snap.data;
                           final loading =
                               snap.connectionState == ConnectionState.waiting;
                           if (snap.hasError) {
-                            return const Text(
-                                '⚠️ Indicadores indisponíveis (falha na consulta). Os números não são exibidos para não mostrar zeros falsos.',
-                                style: TextStyle(color: Colors.white, fontSize: 12));
+                            return Row(children: [
+                              const Expanded(
+                                  child: Text(
+                                      '⚠️ Indicadores indisponíveis (falha na consulta). Os números não são exibidos para não mostrar zeros falsos.',
+                                      style: TextStyle(
+                                          color: Colors.white, fontSize: 12))),
+                              _refreshKpis(),
+                            ]);
                           }
+                          // null = o servidor não conseguiu calcular.
+                          String v(String key, [String Function(num)? f]) {
+                            if (loading) return '…';
+                            final n = k?[key];
+                            if (n is! num) return 'indisponível';
+                            return f != null ? f(n) : '$n';
+                          }
+
                           return Row(children: [
-                            _kpi(loading ? '…' : '${k?['totalUsers'] ?? 0}',
-                                'Usuários'),
+                            _kpi(v('totalUsers'), 'Usuários'),
                             const SizedBox(width: 8),
-                            _kpi(loading ? '…' : '${k?['totalProviders'] ?? 0}',
-                                'Prestadores'),
+                            _kpi(v('totalProviders'), 'Prestadores'),
                             const SizedBox(width: 8),
-                            _kpi(
-                                loading
-                                    ? '…'
-                                    : PaySvc.fmt(
-                                        (k?['revenue'] as double?) ?? 0),
+                            _kpi(v('revenue', (n) => PaySvc.fmt(n.toDouble())),
                                 // Soma dos serviços concluídos (GMV), não receita da plataforma.
                                 'Volume de serviços (GMV)'),
+                            _refreshKpis(),
                           ]);
                         },
                       ),
@@ -154,11 +176,13 @@ class _AdminState extends State<AdminScreen>
               color: Colors.white.withOpacity(0.15),
               borderRadius: BorderRadius.circular(14)),
           child: Column(children: [
-            Text(val,
-                style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w900,
-                    fontSize: 18)),
+            FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(val,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 18))),
             const SizedBox(height: 2),
             Text(lbl,
                 style: const TextStyle(color: Colors.white70, fontSize: 10))
@@ -175,6 +199,29 @@ class _UsersTab extends StatefulWidget {
 
 class _UsersTabState extends State<_UsersTab> {
   String _filter = 'all';
+  // Filtro por tipo na própria consulta, paginada (50 por página).
+  late PagedList<QueryDocumentSnapshot<Map<String, dynamic>>> _users =
+      _usersFor(_filter);
+
+  PagedList<QueryDocumentSnapshot<Map<String, dynamic>>> _usersFor(String f) =>
+      pagedQuery(() => FS.adminUsersQuery(type: f == 'all' ? null : f))
+        ..loadMore();
+
+  void _setFilter(String f) {
+    if (f == _filter) return;
+    final old = _users;
+    setState(() {
+      _filter = f;
+      _users = _usersFor(f);
+    });
+    old.dispose();
+  }
+
+  @override
+  void dispose() {
+    _users.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => Column(children: [
@@ -195,7 +242,8 @@ class _UsersTabState extends State<_UsersTab> {
                     Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: GestureDetector(
-                            onTap: () => setState(() => _filter = f[0]),
+                            key: Key('users-filter-${f[0]}'),
+                            onTap: () => _setFilter(f[0]),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(
@@ -219,82 +267,54 @@ class _UsersTabState extends State<_UsersTab> {
                             ))),
                 ])),
         Expanded(
-            child: StreamBuilder<QuerySnapshot>(
-          stream: FS.adminUsersStream(limit: 50),
-          builder: (_, s) {
-            if (s.hasError) {
-              return QueryErrorView(
-                  error: s.error, onRetry: () => setState(() {}));
-            }
-            if (!s.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-            var docs = s.data?.docs ?? [];
-            // Filtro local: só entre os 50 cadastros mais recentes.
-            final partial = _filter != 'all';
-            if (_filter != 'all')
-              docs = docs
-                  .where((d) => (d.data() as Map)['type'] == _filter)
-                  .toList();
-            if (docs.isEmpty)
-              return EmptyState(
-                  emoji: '👥',
-                  title: partial ? 'Nenhum deste tipo' : 'Sem usuários',
-                  subtitle: partial
-                      ? 'Nenhum entre os 50 cadastros mais recentes.'
-                      : 'Aguardando cadastros');
-            return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: docs.length + (partial ? 1 : 0),
-                itemBuilder: (_, i) {
-                  if (partial && i == 0) {
-                    return const Padding(
-                        padding: EdgeInsets.only(bottom: 8),
-                        child: Text(
-                            'Filtro aplicado aos 50 cadastros mais recentes.',
-                            style: TextStyle(
-                                fontSize: 11, color: AppColors.textLight)));
-                  }
-                  if (partial) i -= 1;
-                  final d = docs[i].data() as Map<String, dynamic>;
-                  final isActive = d['status'] != 'suspended';
-                  return Container(
-                      margin: const EdgeInsets.only(bottom: 8),
-                      decoration: AppDecorations.card(r: 14),
-                      child: ListTile(
-                        leading: AppAvatar(
-                            name: d['name'] ?? '?',
-                            size: 40,
-                            bg: _typeColor(d['type']),
-                            r: 12),
-                        title: Text(
-                            d['name']?.toString().isNotEmpty == true
-                                ? d['name']
-                                : '—',
-                            style: const TextStyle(
-                                fontWeight: FontWeight.w700, fontSize: 14)),
-                        subtitle: Text(
-                            '${_typeLabel(d['type'])} · ${d['city'] ?? 'sem cidade'}',
-                            style: const TextStyle(fontSize: 11)),
-                        trailing: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                                color: isActive
-                                    ? AppColors.secondary.withOpacity(0.1)
-                                    : AppColors.error.withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(8)),
-                            child: Text(isActive ? 'ativo' : 'suspenso',
-                                style: TextStyle(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.w700,
-                                    color: isActive
-                                        ? AppColors.secondary
-                                        : AppColors.error))),
-                        onTap: () => _userActions(
-                            context, docs[i].id, d['name'] ?? '', isActive),
-                      ));
-                });
+            child: PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+          key: ValueKey('users-$_filter'),
+          controller: _users,
+          empty: EmptyState(
+              emoji: '👥',
+              title: _filter != 'all' ? 'Nenhum deste tipo' : 'Sem usuários',
+              subtitle: _filter != 'all'
+                  ? 'Nenhum cadastro deste tipo.'
+                  : 'Aguardando cadastros'),
+          itemBuilder: (context, doc) {
+            final d = doc.data();
+            final isActive = d['status'] != 'suspended';
+            return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: AppDecorations.card(r: 14),
+                child: ListTile(
+                  leading: AppAvatar(
+                      name: d['name'] ?? '?',
+                      size: 40,
+                      bg: _typeColor(d['type']),
+                      r: 12),
+                  title: Text(
+                      d['name']?.toString().isNotEmpty == true
+                          ? d['name']
+                          : '—',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 14)),
+                  subtitle: Text(
+                      '${_typeLabel(d['type'])} · ${d['city'] ?? 'sem cidade'}',
+                      style: const TextStyle(fontSize: 11)),
+                  trailing: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                          color: isActive
+                              ? AppColors.secondary.withOpacity(0.1)
+                              : AppColors.error.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8)),
+                      child: Text(isActive ? 'ativo' : 'suspenso',
+                          style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w700,
+                              color: isActive
+                                  ? AppColors.secondary
+                                  : AppColors.error))),
+                  onTap: () =>
+                      _userActions(context, doc.id, d['name'] ?? '', isActive),
+                ));
           },
         )),
       ]);
@@ -350,6 +370,7 @@ class _UsersTabState extends State<_UsersTab> {
                             await FS.suspendUser(uid);
                             if (context.mounted) {
                               Navigator.pop(context);
+                              _users.refresh();
                               snack(context, 'Conta suspensa',
                                   bg: AppColors.error);
                             }
@@ -370,6 +391,7 @@ class _UsersTabState extends State<_UsersTab> {
                             await FS.reactivateUser(uid);
                             if (context.mounted) {
                               Navigator.pop(context);
+                              _users.refresh();
                               snack(context, 'Conta reativada',
                                   bg: AppColors.secondary);
                             }
@@ -387,10 +409,31 @@ class _UsersTabState extends State<_UsersTab> {
 // ═══════════════════════════════════════════════════════════════
 // 2. VALIDAÇÃO DE PROFISSIONAIS E EMPRESAS
 // ═══════════════════════════════════════════════════════════════
-class _ValidationTab extends StatelessWidget {
+class _ValidationTab extends StatefulWidget {
+  @override
+  State<_ValidationTab> createState() => _ValidationTabState();
+}
+
+class _ValidationTabState extends State<_ValidationTab> {
+  // Filas paginadas (sem snapshots da coleção inteira). Recusados saem da
+  // fila até pedirem nova análise (filtro local, não afeta o cursor).
+  final _providers = pagedQuery(FS.pendingProvidersQuery,
+      keep: (d) => providerAwaitingReview(d.data()))
+    ..loadMore();
+  final _companies = pagedQuery(FS.pendingCompaniesQuery)..loadMore();
+  final _stores = pagedQuery(FS.pendingStoresQuery)..loadMore();
+
+  @override
+  void dispose() {
+    _providers.dispose();
+    _companies.dispose();
+    _stores.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => DefaultTabController(
-      length: 2,
+      length: 3,
       child: Column(children: [
         Container(
             color: Colors.white,
@@ -398,36 +441,28 @@ class _ValidationTab extends StatelessWidget {
                 labelColor: AppColors.primary,
                 unselectedLabelColor: AppColors.textLight,
                 indicatorColor: AppColors.primary,
-                tabs: [Tab(text: '🔧 Prestadores'), Tab(text: '🏢 Empresas')])),
+                tabs: [
+                  Tab(text: '🔧 Prestadores'),
+                  Tab(text: '🏢 Empresas'),
+                  Tab(text: '🛍️ Lojas')
+                ])),
         Expanded(
             child: TabBarView(children: [
           _pendingProviders(context),
-          _pendingCompanies(context)
+          _pendingCompanies(context),
+          _pendingStores(context)
         ])),
       ]));
 
   Widget _pendingProviders(BuildContext context) =>
-      StreamBuilder<QuerySnapshot>(
-        stream: FS.pendingProvidersStream(),
-        builder: (_, s) {
-          if (s.hasError) return QueryErrorView(error: s.error);
-          if (!s.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          // Recusados saem da fila até pedirem nova análise.
-          final docs = (s.data?.docs ?? [])
-              .where((d) => providerAwaitingReview(d.data() as Map<String, dynamic>))
-              .toList();
-          if (docs.isEmpty)
-            return const EmptyState(
-                emoji: '✅',
-                title: 'Sem pendências',
-                subtitle: 'Nenhum cadastro aguardando análise');
-          return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: docs.length,
-              itemBuilder: (_, i) {
-                final d = docs[i].data() as Map<String, dynamic>;
+      PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+          controller: _providers,
+          empty: const EmptyState(
+              emoji: '✅',
+              title: 'Sem pendências',
+              subtitle: 'Nenhum cadastro aguardando análise'),
+          itemBuilder: (context, doc) {
+                final d = doc.data();
                 return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     decoration: AppDecorations.card(r: 14),
@@ -466,7 +501,7 @@ class _ValidationTab extends StatelessWidget {
                             Expanded(
                                 child: OutlinedButton(
                                     onPressed: () =>
-                                        _viewDocuments(context, docs[i].id, d),
+                                        _viewDocuments(context, doc.id, d),
                                     style: OutlinedButton.styleFrom(
                                         padding: const EdgeInsets.symmetric(
                                             vertical: 10)),
@@ -476,7 +511,7 @@ class _ValidationTab extends StatelessWidget {
                             Expanded(
                                 child: OutlinedButton(
                                     onPressed: () =>
-                                        _reject(context, docs[i].id, d['name'] ?? ''),
+                                        _reject(context, doc.id, d['name'] ?? ''),
                                     style: OutlinedButton.styleFrom(
                                         foregroundColor: AppColors.error,
                                         side: const BorderSide(color: AppColors.error),
@@ -489,7 +524,8 @@ class _ValidationTab extends StatelessWidget {
                                 child: ElevatedButton(
                                     onPressed: () async {
                                       try {
-                                        await FS.reviewProvider(docs[i].id, approve: true);
+                                        await FS.reviewProvider(doc.id, approve: true);
+                                        _providers.remove(doc.id);
                                         if (context.mounted)
                                           snack(context, '✅ Prestador aprovado!',
                                               bg: AppColors.secondary);
@@ -508,9 +544,7 @@ class _ValidationTab extends StatelessWidget {
                                             fontWeight: FontWeight.w700)))),
                           ]),
                         ]));
-              });
-        },
-      );
+          });
 
   /// Recusa com motivo (enviado ao prestador, que pode pedir nova análise).
   Future<void> _reject(BuildContext context, String providerId, String name) async {
@@ -543,6 +577,7 @@ class _ValidationTab extends StatelessWidget {
     if (reason == null) return;
     try {
       await FS.reviewProvider(providerId, approve: false, reason: reason);
+      _providers.remove(providerId);
       if (context.mounted) snack(context, 'Cadastro recusado. O prestador foi avisado.');
     } on CloudCallException catch (e) {
       if (context.mounted) snack(context, e.message, bg: AppColors.error);
@@ -550,24 +585,14 @@ class _ValidationTab extends StatelessWidget {
   }
 
   Widget _pendingCompanies(BuildContext context) =>
-      StreamBuilder<QuerySnapshot>(
-        stream: FS.pendingCompaniesStream(),
-        builder: (_, s) {
-          if (s.hasError) return QueryErrorView(error: s.error);
-          if (!s.hasData) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          final docs = s.data?.docs ?? [];
-          if (docs.isEmpty)
-            return const EmptyState(
-                emoji: '✅',
-                title: 'Sem pendências',
-                subtitle: 'Todas as empresas aprovadas');
-          return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: docs.length,
-              itemBuilder: (_, i) {
-                final d = docs[i].data() as Map<String, dynamic>;
+      PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+          controller: _companies,
+          empty: const EmptyState(
+              emoji: '✅',
+              title: 'Sem pendências',
+              subtitle: 'Todas as empresas aprovadas'),
+          itemBuilder: (context, doc) {
+                final d = doc.data();
                 return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     decoration: AppDecorations.card(r: 14),
@@ -591,9 +616,10 @@ class _ValidationTab extends StatelessWidget {
                                     fontSize: 11, color: AppColors.textLight)),
                           ])),
                       ElevatedButton(
-                          onPressed: () => adminRun(
-                              context, () => FS.approveCompany(docs[i].id),
-                              done: '✅ Empresa aprovada!'),
+                          onPressed: () => adminRun(context, () async {
+                                await FS.approveCompany(doc.id);
+                                _companies.remove(doc.id);
+                              }, done: '✅ Empresa aprovada!'),
                           style: ElevatedButton.styleFrom(
                               backgroundColor: AppColors.secondary,
                               padding: const EdgeInsets.symmetric(
@@ -602,21 +628,75 @@ class _ValidationTab extends StatelessWidget {
                               style: TextStyle(
                                   fontSize: 12, fontWeight: FontWeight.w700))),
                     ]));
-              });
-        },
-      );
+          });
+
+  Widget _pendingStores(BuildContext context) =>
+      PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+          controller: _stores,
+          empty: const EmptyState(
+              emoji: '✅',
+              title: 'Sem pendências',
+              subtitle: 'Todas as lojas aprovadas'),
+          itemBuilder: (context, doc) {
+            final d = doc.data();
+            return Container(
+                key: Key('pending-store-${doc.id}'),
+                margin: const EdgeInsets.only(bottom: 8),
+                decoration: AppDecorations.card(r: 14),
+                padding: const EdgeInsets.all(14),
+                child: Row(children: [
+                  AppAvatar(
+                      name: d['name'] ?? '?',
+                      size: 44,
+                      bg: AppColors.secondary,
+                      r: 12),
+                  const SizedBox(width: 12),
+                  Expanded(
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                        Text(d['name'] ?? '—',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 14)),
+                        Text(
+                            [d['category'], d['city']]
+                                .whereType<String>()
+                                .where((s) => s.isNotEmpty)
+                                .join(' · '),
+                            style: const TextStyle(
+                                fontSize: 11, color: AppColors.textLight)),
+                      ])),
+                  ElevatedButton(
+                      onPressed: () => adminRun(context, () async {
+                            await FS.approveStore(doc.id);
+                            _stores.remove(doc.id);
+                          },
+                              confirm:
+                                  'Aprovar a loja "${d['name'] ?? ''}"? Ela passa a vender no Mercado.',
+                              done: '✅ Loja aprovada!'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.secondary,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 14, vertical: 8)),
+                      child: const Text('Aprovar',
+                          style: TextStyle(
+                              fontSize: 12, fontWeight: FontWeight.w700))),
+                ]));
+          });
 
   // Documentação privada (providers/{id}/private/verification). Os
   // arquivos são abertos por URL temporária gerada no servidor.
   void _viewDocuments(BuildContext context, String providerId,
       Map<String, dynamic> providerData) {
+    // Uma leitura por abertura (não a cada rebuild da folha).
+    final verification = FS.getProviderVerification(providerId);
     showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         builder: (sheetCtx) => Padding(
               padding: const EdgeInsets.all(20),
               child: FutureBuilder<ProviderVerification?>(
-                future: FS.getProviderVerification(providerId),
+                future: verification,
                 builder: (_, snap) {
                   final v = snap.data;
                   final files = <MapEntry<String, String>>[
@@ -701,51 +781,82 @@ class _ValidationTab extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════
 // 4. FINANCEIRO (comissões, repasses, saques, estornos, assinaturas)
 // ═══════════════════════════════════════════════════════════════
-class _FinancialTab extends StatelessWidget {
+class _FinancialTab extends StatefulWidget {
+  @override
+  State<_FinancialTab> createState() => _FinancialTabState();
+}
+
+class _FinancialTabState extends State<_FinancialTab> {
+  // Período do relatório em dias (null = desde o início).
+  int? _days;
+  late Future<Map<String, dynamic>> _report = FS.fetchFinancialReport();
+
+  void _load(int? days) => setState(() {
+        _days = days;
+        _report = FS.fetchFinancialReport(periodDays: days);
+      });
+
+  // null = o servidor não conseguiu calcular: "indisponível", nunca R$ 0.
+  static String _money(Object? v) =>
+      v is num ? PaySvc.fmt(v.toDouble()) : 'indisponível';
+
   @override
   Widget build(BuildContext context) => FutureBuilder<Map<String, dynamic>>(
-        future: FS.fetchFinancialReport(),
+        future: _report,
         builder: (_, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (snap.hasError) return QueryErrorView(error: snap.error);
+          if (snap.hasError) {
+            final e = snap.error;
+            return EmptyState(
+                emoji: '⚠️',
+                title: 'Relatório indisponível',
+                subtitle: e is CloudCallException
+                    ? e.message
+                    : friendlyQueryError(e),
+                actionLabel: 'Tentar novamente',
+                onAction: () => _load(_days));
+          }
           final r = snap.data ?? {};
+          final missing = (r['ordersWithoutCommission'] as num?)?.toInt();
           final rows = [
             [
               '💰',
               'Volume de serviços (GMV) — concluídos',
-              PaySvc.fmt((r['grossRevenue'] as double?) ?? 0),
+              _money(r['grossRevenue']),
               AppColors.secondary
             ],
             [
               '📊',
-              'Comissão da plataforma (taxa de cada pedido)',
-              PaySvc.fmt((r['commission'] as double?) ?? 0),
+              'Comissão da plataforma (registrada no repasse)',
+              _money(r['commission']),
               AppColors.primary
             ],
             [
               '🏦',
               'Repasses a prestadores',
-              PaySvc.fmt((r['netToProviders'] as double?) ?? 0),
+              _money(r['netToProviders']),
               AppColors.secondary
             ],
             [
               '💳',
               'Recargas de carteira confirmadas',
-              PaySvc.fmt((r['pixProcessed'] as double?) ?? 0),
+              _money(r['pixProcessed']),
               AppColors.pix
             ],
             [
               '↩️',
               'Reembolsos aprovados',
-              PaySvc.fmt((r['refunds'] as double?) ?? 0),
+              _money(r['refunds']),
               AppColors.error
             ],
             [
               '✅',
               'Serviços concluídos',
-              '${r['completedCount'] ?? 0}',
+              r['completedCount'] is num
+                  ? '${r['completedCount']}'
+                  : 'indisponível',
               AppColors.gold
             ],
           ];
@@ -754,9 +865,28 @@ class _FinancialTab extends StatelessWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('Visão geral',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 16)),
+                    Row(children: [
+                      const Expanded(
+                          child: Text('Visão geral',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.w800, fontSize: 16))),
+                      IconButton(
+                          key: const Key('finance-report-refresh'),
+                          tooltip: 'Atualizar',
+                          icon: const Icon(Icons.refresh_rounded),
+                          onPressed: () => _load(_days)),
+                    ]),
+                    Wrap(spacing: 8, children: [
+                      for (final p in const [
+                        [null, 'Todo o período'],
+                        [30, '30 dias'],
+                        [7, '7 dias']
+                      ])
+                        ChoiceChip(
+                            label: Text(p[1] as String),
+                            selected: _days == p[0],
+                            onSelected: (_) => _load(p[0] as int?)),
+                    ]),
                     const SizedBox(height: 10),
                     for (final row in rows)
                       Container(
@@ -774,6 +904,16 @@ class _FinancialTab extends StatelessWidget {
                                     fontWeight: FontWeight.w800,
                                     color: row[3] as Color)),
                           )),
+                    if (missing != null && missing > 0)
+                      Text(
+                          'Comissão e repasses parciais: $missing serviço(s) concluído(s) antigo(s) sem repasse registrado não entram nesses totais.',
+                          key: const Key('finance-commission-partial'),
+                          style: const TextStyle(
+                              fontSize: 11, color: AppColors.warning)),
+                    Text(
+                        'Calculado no servidor${_days != null ? ' · últimos $_days dias (concluídos, recargas e reembolsos pela data de cada evento)' : ''}.',
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textLight)),
                     const SizedBox(height: 16),
                     const Text('Ações rápidas',
                         style: TextStyle(
@@ -899,7 +1039,22 @@ class _FinancialTab extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════
 // 5. MARKETING (banners, cupons, campanhas, push)
 // ═══════════════════════════════════════════════════════════════
-class _MarketingTab extends StatelessWidget {
+class _MarketingTab extends StatefulWidget {
+  @override
+  State<_MarketingTab> createState() => _MarketingTabState();
+}
+
+class _MarketingTabState extends State<_MarketingTab> {
+  final _bannerList = pagedQuery(FS.adminBannersQuery)..loadMore();
+  final _couponList = pagedQuery(FS.adminCouponsQuery)..loadMore();
+
+  @override
+  void dispose() {
+    _bannerList.dispose();
+    _couponList.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) => DefaultTabController(
       length: 2,
@@ -923,33 +1078,20 @@ class _MarketingTab extends StatelessWidget {
   // "Em breve" para não sugerir que aparecem na home.
   Widget _banners(BuildContext context) => Scaffold(
         backgroundColor: Colors.transparent,
-        body: StreamBuilder<QuerySnapshot>(
-            stream: FS.adminBannersStream(),
-            builder: (_, s) {
-              if (s.hasError) return QueryErrorView(error: s.error);
-              final docs = s.data?.docs ?? [];
-              const soon = InfoBanner(
-                  key: Key('banners-soon'),
-                  icon: '🚧',
-                  text: 'Em breve — banners ainda não são exibidos no app.',
-                  bg: Color(0xFFFFF8E1),
-                  fg: AppColors.textDark);
-              if (docs.isEmpty)
-                return const Column(children: [
-                  soon,
-                  Expanded(
-                      child: EmptyState(
-                          emoji: '🖼️',
-                          title: 'Sem banners',
-                          subtitle: 'A exibição de banners na home chega em breve.')),
-                ]);
-              return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: docs.length + 1,
-                  itemBuilder: (_, j) {
-                    if (j == 0) return soon;
-                    final i = j - 1;
-                    final d = docs[i].data() as Map<String, dynamic>;
+        body: PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+            controller: _bannerList,
+            header: const InfoBanner(
+                key: Key('banners-soon'),
+                icon: '🚧',
+                text: 'Em breve — banners ainda não são exibidos no app.',
+                bg: Color(0xFFFFF8E1),
+                fg: AppColors.textDark),
+            empty: const EmptyState(
+                emoji: '🖼️',
+                title: 'Sem banners',
+                subtitle: 'A exibição de banners na home chega em breve.'),
+            itemBuilder: (context, doc) {
+                    final d = doc.data();
                     return Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         decoration: AppDecorations.card(r: 14),
@@ -977,12 +1119,13 @@ class _MarketingTab extends StatelessWidget {
                               tooltip: 'Excluir banner',
                               icon: const Icon(Icons.delete_outline,
                                   color: AppColors.error),
-                              onPressed: () => adminRun(
-                                  context, () => FS.deleteBanner(docs[i].id),
+                              onPressed: () => adminRun(context, () async {
+                                    await FS.deleteBanner(doc.id);
+                                    _bannerList.remove(doc.id);
+                                  },
                                   confirm: 'Excluir este banner?',
                                   done: 'Banner excluído.')),
                         ));
-                  });
             }),
       );
 
@@ -994,21 +1137,14 @@ class _MarketingTab extends StatelessWidget {
             backgroundColor: AppColors.primary,
             mini: true,
             child: const Icon(Icons.add, color: Colors.white)),
-        body: StreamBuilder<QuerySnapshot>(
-            stream: FS.adminCouponsStream(),
-            builder: (_, s) {
-              if (s.hasError) return QueryErrorView(error: s.error);
-              final docs = s.data?.docs ?? [];
-              if (docs.isEmpty)
-                return const EmptyState(
-                    emoji: '🎟️',
-                    title: 'Sem cupons',
-                    subtitle: 'Crie cupons promocionais');
-              return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: docs.length,
-                  itemBuilder: (_, i) {
-                    final d = docs[i].data() as Map<String, dynamic>;
+        body: PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+            controller: _couponList,
+            empty: const EmptyState(
+                emoji: '🎟️',
+                title: 'Sem cupons',
+                subtitle: 'Crie cupons promocionais'),
+            itemBuilder: (context, doc) {
+                    final d = doc.data();
                     return Container(
                         margin: const EdgeInsets.only(bottom: 8),
                         decoration: AppDecorations.card(r: 14),
@@ -1038,26 +1174,29 @@ class _MarketingTab extends StatelessWidget {
                           trailing: Tooltip(
                             message: 'Ativo',
                             child: Switch(
-                                key: Key('coupon-active-${docs[i].id}'),
+                                key: Key('coupon-active-${doc.id}'),
                                 value: d['active'] == true,
-                                onChanged: (v) => adminRun(
-                                    context,
-                                    () => FirebaseFirestore.instance
-                                        .collection(Col.coupons)
-                                        .doc(docs[i].id)
-                                        .update({'active': v}),
+                                onChanged: (v) => adminRun(context, () async {
+                                      await FirebaseFirestore.instance
+                                          .collection(Col.coupons)
+                                          .doc(doc.id)
+                                          .update({'active': v});
+                                      // Lista paginada (sem tempo real): recarrega.
+                                      await _couponList.refresh();
+                                    },
                                     done: v ? 'Cupom ativado.' : 'Cupom desativado.')),
                           ),
                         ));
-                  });
             }),
       );
 
-  void _newCoupon(BuildContext context) {
-    showModalBottomSheet(
+  Future<void> _newCoupon(BuildContext context) async {
+    await showModalBottomSheet(
         context: context,
         isScrollControlled: true,
         builder: (_) => const _NewCouponSheet());
+    // Cupom novo aparece no topo (createdAt desc).
+    if (mounted) _couponList.refresh();
   }
 }
 
@@ -1242,6 +1381,36 @@ class _SupportTab extends StatefulWidget {
 
 class _SupportTabState extends State<_SupportTab> {
   String? _statusFilter;
+  // Recriado só quando o filtro muda.
+  late PagedList<QueryDocumentSnapshot<Map<String, dynamic>>> _tickets =
+      _ticketsFor(null);
+
+  PagedList<QueryDocumentSnapshot<Map<String, dynamic>>> _ticketsFor(
+          String? status) =>
+      pagedQuery(() => FS.adminTicketsQuery(status: status))..loadMore();
+
+  void _setFilter(String? f) {
+    if (f == _statusFilter) return;
+    final old = _tickets;
+    setState(() {
+      _statusFilter = f;
+      _tickets = _ticketsFor(f);
+    });
+    old.dispose();
+  }
+
+  @override
+  void dispose() {
+    _tickets.dispose();
+    super.dispose();
+  }
+
+  // Ação no chamado e recarga da lista (sem tempo real).
+  Future<void> _ticketAction(Future<void> Function() run, {String? done}) =>
+      adminRun(context, () async {
+        await run();
+        await _tickets.refresh();
+      }, done: done);
 
   @override
   Widget build(BuildContext context) => Column(children: [
@@ -1262,7 +1431,7 @@ class _SupportTabState extends State<_SupportTab> {
                     Padding(
                         padding: const EdgeInsets.only(right: 8),
                         child: GestureDetector(
-                            onTap: () => setState(() => _statusFilter = f[0]),
+                            onTap: () => _setFilter(f[0]),
                             child: AnimatedContainer(
                               duration: const Duration(milliseconds: 200),
                               padding: const EdgeInsets.symmetric(
@@ -1286,20 +1455,15 @@ class _SupportTabState extends State<_SupportTab> {
                             ))),
                 ])),
         Expanded(
-            child: StreamBuilder<List<TicketModel>>(
-          stream: FS.adminTicketsStream(status: _statusFilter),
-          builder: (_, s) {
-            final tickets = s.data ?? [];
-            if (tickets.isEmpty)
-              return const EmptyState(
-                  emoji: '🎧',
-                  title: 'Sem chamados',
-                  subtitle: 'Nenhum chamado nesta categoria');
-            return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: tickets.length,
-                itemBuilder: (_, i) {
-                  final t = tickets[i];
+            child: PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+          key: ValueKey('tickets-$_statusFilter'),
+          controller: _tickets,
+          empty: const EmptyState(
+              emoji: '🎧',
+              title: 'Sem chamados',
+              subtitle: 'Nenhum chamado nesta categoria'),
+          itemBuilder: (context, doc) {
+                  final t = TicketModel.fromMap(doc.id, doc.data());
                   return InkWell(
                       borderRadius: BorderRadius.circular(14),
                       onTap: () => Navigator.push(
@@ -1336,8 +1500,7 @@ class _SupportTabState extends State<_SupportTab> {
                               if (t.status != TicketStatus.inProgress)
                                 Expanded(
                                     child: OutlinedButton(
-                                        onPressed: () => adminRun(
-                                            context,
+                                        onPressed: () => _ticketAction(
                                             () => FS.updateTicketStatus(
                                                 t.id, 'inProgress')),
                                         style: OutlinedButton.styleFrom(
@@ -1349,8 +1512,7 @@ class _SupportTabState extends State<_SupportTab> {
                                 const SizedBox(width: 8),
                               Expanded(
                                   child: ElevatedButton(
-                                      onPressed: () => adminRun(
-                                          context,
+                                      onPressed: () => _ticketAction(
                                           () => FS.updateTicketStatus(
                                               t.id, 'resolved'),
                                           done: 'Chamado resolvido.'),
@@ -1374,7 +1536,6 @@ class _SupportTabState extends State<_SupportTab> {
                                         ? AppColors.primary
                                         : AppColors.textLight)),
                           ])));
-                });
           },
         )),
       ]);
@@ -1386,22 +1547,35 @@ class _SupportTabState extends State<_SupportTab> {
 // ═══════════════════════════════════════════════════════════════
 // DENÚNCIAS (Vol.20: Administração — moderação de conteúdo/usuários)
 // ═══════════════════════════════════════════════════════════════
-class _ReportsTab extends StatelessWidget {
+class _ReportsTab extends StatefulWidget {
   @override
-  Widget build(BuildContext context) => StreamBuilder<List<ReportModel>>(
-        stream: FS.reportsStream(),
-        builder: (_, snap) {
-          final reports = snap.data ?? [];
-          if (reports.isEmpty)
-            return const EmptyState(
-                emoji: '🚩',
-                title: 'Sem denúncias',
-                subtitle: 'Denúncias de usuários aparecerão aqui');
-          return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: reports.length,
-              itemBuilder: (_, i) {
-                final r = reports[i];
+  State<_ReportsTab> createState() => _ReportsTabState();
+}
+
+class _ReportsTabState extends State<_ReportsTab> {
+  final _reports = pagedQuery(FS.reportsQuery)..loadMore();
+
+  @override
+  void dispose() {
+    _reports.dispose();
+    super.dispose();
+  }
+
+  Future<void> _set(String id, ReportStatus st) => adminRun(context, () async {
+        await FS.updateReportStatus(id, st);
+        await _reports.refresh();
+      });
+
+  @override
+  Widget build(BuildContext context) =>
+      PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+          controller: _reports,
+          empty: const EmptyState(
+              emoji: '🚩',
+              title: 'Sem denúncias',
+              subtitle: 'Denúncias de usuários aparecerão aqui'),
+          itemBuilder: (context, doc) {
+                final r = ReportModel.fromMap(doc.id, doc.data());
                 return Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   decoration: AppDecorations.card(r: 16),
@@ -1440,10 +1614,8 @@ class _ReportsTab extends StatelessWidget {
                                 if (r.status == ReportStatus.pending)
                                   Expanded(
                                       child: OutlinedButton(
-                                          onPressed: () => adminRun(
-                                              context,
-                                              () => FS.updateReportStatus(
-                                                  r.id, ReportStatus.reviewing)),
+                                          onPressed: () => _set(
+                                              r.id, ReportStatus.reviewing),
                                           style: OutlinedButton.styleFrom(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -1453,10 +1625,8 @@ class _ReportsTab extends StatelessWidget {
                                 if (r.status == ReportStatus.reviewing) ...[
                                   Expanded(
                                       child: OutlinedButton(
-                                          onPressed: () => adminRun(
-                                              context,
-                                              () => FS.updateReportStatus(
-                                                  r.id, ReportStatus.dismissed)),
+                                          onPressed: () => _set(
+                                              r.id, ReportStatus.dismissed),
                                           style: OutlinedButton.styleFrom(
                                               padding:
                                                   const EdgeInsets.symmetric(
@@ -1466,10 +1636,8 @@ class _ReportsTab extends StatelessWidget {
                                   const SizedBox(width: 8),
                                   Expanded(
                                       child: ElevatedButton(
-                                          onPressed: () => adminRun(
-                                              context,
-                                              () => FS.updateReportStatus(
-                                                  r.id, ReportStatus.resolved)),
+                                          onPressed: () => _set(
+                                              r.id, ReportStatus.resolved),
                                           style: ElevatedButton.styleFrom(
                                               backgroundColor:
                                                   AppColors.secondary,
@@ -1482,27 +1650,33 @@ class _ReportsTab extends StatelessWidget {
                               ])),
                       ]),
                 );
-              });
-        },
-      );
+          });
 }
 
-class _AuditTab extends StatelessWidget {
+class _AuditTab extends StatefulWidget {
   @override
-  Widget build(BuildContext context) => StreamBuilder<List<AuditLogModel>>(
-        stream: FS.auditLogStream(),
-        builder: (_, s) {
-          final logs = s.data ?? [];
-          if (logs.isEmpty)
-            return const EmptyState(
-                emoji: '📜',
-                title: 'Sem registros',
-                subtitle: 'As ações administrativas aparecerão aqui');
-          return ListView.builder(
-              padding: const EdgeInsets.all(16),
-              itemCount: logs.length,
-              itemBuilder: (_, i) {
-                final l = logs[i];
+  State<_AuditTab> createState() => _AuditTabState();
+}
+
+class _AuditTabState extends State<_AuditTab> {
+  final _logs = pagedQuery(FS.auditLogQuery)..loadMore();
+
+  @override
+  void dispose() {
+    _logs.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      PagedListView<QueryDocumentSnapshot<Map<String, dynamic>>>(
+          controller: _logs,
+          empty: const EmptyState(
+              emoji: '📜',
+              title: 'Sem registros',
+              subtitle: 'As ações administrativas aparecerão aqui'),
+          itemBuilder: (context, doc) {
+                final l = AuditLogModel.fromMap(doc.id, doc.data());
                 return Container(
                     margin: const EdgeInsets.only(bottom: 8),
                     decoration: AppDecorations.card(r: 14),
@@ -1526,9 +1700,7 @@ class _AuditTab extends StatelessWidget {
                           style: const TextStyle(
                               fontSize: 10, color: AppColors.textLight)),
                     ));
-              });
-        },
-      );
+          });
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -1545,6 +1717,8 @@ class _SettingsTabState extends State<_SettingsTab> {
   final _maintenanceMsgCtrl = TextEditingController();
   bool _maintenanceMode = false;
   bool _loaded = false, _saving = false;
+  // Assinado uma vez (não a cada rebuild); cancelado pelo StreamBuilder.
+  final _config = FS.platformConfigStream();
 
   @override
   void dispose() {
@@ -1597,7 +1771,7 @@ class _SettingsTabState extends State<_SettingsTab> {
 
   @override
   Widget build(BuildContext context) => StreamBuilder<Map<String, dynamic>>(
-        stream: FS.platformConfigStream(),
+        stream: _config,
         builder: (_, snap) {
           if (!snap.hasData)
             return const Center(child: CircularProgressIndicator());
@@ -1679,6 +1853,8 @@ class _SettingsTabState extends State<_SettingsTab> {
                         )),
                     const SizedBox(height: 24),
                     const BookingConfigCard(),
+                    const SizedBox(height: 24),
+                    const DataMigrationsCard(),
                   ]));
         },
       );
@@ -1697,6 +1873,7 @@ class _BookingConfigCardState extends State<BookingConfigCard> {
   final _hold = TextEditingController();
   final _max = TextEditingController();
   bool _loaded = false, _saving = false;
+  final _config = FS.bookingConfigStream();
 
   @override
   void dispose() {
@@ -1728,7 +1905,7 @@ class _BookingConfigCardState extends State<BookingConfigCard> {
 
   @override
   Widget build(BuildContext context) => StreamBuilder<Map<String, dynamic>>(
-        stream: FS.bookingConfigStream(),
+        stream: _config,
         builder: (context, snap) {
           final d = snap.data;
           if (d != null && !_loaded) {

@@ -15,11 +15,48 @@ import '../health/health_booking.dart';
 /// Perfil público do prestador (Fase 6): só dados públicos de
 /// `providers/{id}` (aprovado) e avaliações públicas. Nunca lê o perfil
 /// privado em `users/`.
-class ProviderProfileScreen extends StatelessWidget {
+class ProviderProfileScreen extends StatefulWidget {
   final String providerId;
   /// Especialidade escolhida na busca: preservada na contratação.
   final String? category;
   const ProviderProfileScreen({super.key, required this.providerId, this.category});
+
+  @override
+  State<ProviderProfileScreen> createState() => _ProviderProfileScreenState();
+}
+
+class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
+  String get providerId => widget.providerId;
+  String? get category => widget.category;
+
+  // Assinaturas criadas uma vez por prestador: antes, cada atualização do
+  // documento do prestador recriava as de favorito e de avaliações.
+  late Stream<DocumentSnapshot<Map<String, dynamic>>> _provider;
+  late Stream<bool> _favorite;
+  late Stream<QuerySnapshot<Map<String, dynamic>>> _reviews;
+
+  void _subscribe() {
+    _provider = FirebaseFirestore.instance.collection(Col.providers).doc(providerId).snapshots();
+    _favorite = FS.isFavoriteStream(providerId);
+    _reviews = FirebaseFirestore.instance
+        .collection(Col.reviews)
+        .where('providerId', isEqualTo: providerId)
+        .orderBy('createdAt', descending: true)
+        .limit(10)
+        .snapshots();
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _subscribe();
+  }
+
+  @override
+  void didUpdateWidget(ProviderProfileScreen old) {
+    super.didUpdateWidget(old);
+    if (old.providerId != widget.providerId) _subscribe();
+  }
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -27,7 +64,7 @@ class ProviderProfileScreen extends StatelessWidget {
             leading: BackButton(onPressed: () => safeBack(context)),
             title: const Text('Profissional')),
         body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance.collection(Col.providers).doc(providerId).snapshots(),
+          stream: _provider,
           builder: (context, snap) {
             if (snap.hasError) {
               return const EmptyState(
@@ -69,7 +106,8 @@ class ProviderProfileScreen extends StatelessWidget {
         ])),
         if (!isMe && AuthService.isAuth)
           StreamBuilder<bool>(
-            stream: FS.isFavoriteStream(p.id),
+            // p.id == providerId (documento lido acima).
+            stream: _favorite,
             builder: (_, s) => IconButton(
               tooltip: s.data == true ? 'Remover dos favoritos' : 'Adicionar aos favoritos',
               icon: Icon(s.data == true ? Icons.favorite : Icons.favorite_border, color: AppColors.error),
@@ -129,12 +167,7 @@ class ProviderProfileScreen extends StatelessWidget {
       const SizedBox(height: 20),
       const Text('Avaliações recentes', style: TextStyle(fontWeight: FontWeight.w800)),
       StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-        stream: FirebaseFirestore.instance
-            .collection(Col.reviews)
-            .where('providerId', isEqualTo: p.id)
-            .orderBy('createdAt', descending: true)
-            .limit(10)
-            .snapshots(),
+        stream: _reviews,
         builder: (_, s) {
           if (s.hasError) return QueryErrorView(error: s.error);
           if (!s.hasData) return const Padding(padding: EdgeInsets.all(12), child: LinearProgressIndicator());

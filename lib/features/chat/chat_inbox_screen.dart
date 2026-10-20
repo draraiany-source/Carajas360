@@ -2,13 +2,22 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/auth/access_control.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/memo.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 
 /// Inbox unificado de conversas (reutiliza chatRooms existentes).
-class ChatInboxScreen extends StatelessWidget {
+class ChatInboxScreen extends StatefulWidget {
   const ChatInboxScreen({super.key});
+
+  @override
+  State<ChatInboxScreen> createState() => _ChatInboxScreenState();
+}
+
+class _ChatInboxScreenState extends State<ChatInboxScreen> {
+  // Uma assinatura por usuário logado (não a cada rebuild).
+  final _rooms = Memo<Stream<List<ChatRoomPreview>>>();
 
   @override
   Widget build(BuildContext context) {
@@ -25,7 +34,7 @@ class ChatInboxScreen extends StatelessWidget {
               onAction: () => loginAndResume(context),
             )
           : StreamBuilder<List<ChatRoomPreview>>(
-              stream: FS.chatRoomsStream(),
+              stream: _rooms.of(uid, FS.chatRoomsStream),
               builder: (_, snap) {
                 if (snap.hasError) return QueryErrorView(error: snap.error);
                 if (snap.connectionState == ConnectionState.waiting &&

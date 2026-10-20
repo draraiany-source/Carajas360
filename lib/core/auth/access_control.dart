@@ -4,6 +4,7 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../core/constants/app_constants.dart';
 import '../navigation/app_navigation.dart';
+import '../utils/memo.dart';
 
 /// Leva ao login guardando a rota atual para voltar a ela depois.
 Future<void> loginAndResume(BuildContext context) async {
@@ -37,9 +38,20 @@ abstract final class AccessControl {
   }
 }
 
-class AdminGate extends StatelessWidget {
+class AdminGate extends StatefulWidget {
   final Widget child;
   const AdminGate({super.key, required this.child});
+
+  @override
+  State<AdminGate> createState() => _AdminGateState();
+}
+
+class _AdminGateState extends State<AdminGate> {
+  Widget get child => widget.child;
+
+  // Verificado uma vez por usuário: antes, cada rebuild refazia a consulta e
+  // trocava o painel pelo indicador de carregamento (perdendo o estado dele).
+  final _isAdmin = Memo<Future<bool>>();
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +62,7 @@ class AdminGate extends StatelessWidget {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
     return FutureBuilder<bool>(
-      future: AccessControl.isAdmin(),
+      future: _isAdmin.of(AuthService.uid, AccessControl.isAdmin),
       builder: (context, snap) {
         if (snap.connectionState != ConnectionState.done) {
           return const Scaffold(

@@ -35,6 +35,8 @@ function parseChain(src) {
     filters.push({ field: m[1], kind: EQ.has(op) ? 'eq' : ARR.has(op) ? 'arr' : 'range' });
   }
   for (const m of src.matchAll(/\.orderBy\(\s*['"]([\w.]+)['"]\s*(?:,\s*(?:descending:\s*(true|false)|['"](asc|desc)['"]))?/g)) {
+    // __name__ crescente é implícito em todo índice (paginação por id).
+    if (m[1] === '__name__' && m[3] !== 'desc' && m[2] !== 'true') continue;
     orders.push({ field: m[1], dir: (m[2] === 'true' || m[3] === 'desc') ? 'DESCENDING' : 'ASCENDING' });
   }
   return { filters, orders };

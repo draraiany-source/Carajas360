@@ -50,6 +50,8 @@ class _SplashState extends State<SplashScreen>
     }
     Navigator.pushReplacementNamed(
         context, AuthService.isAuth ? Routes.main : Routes.onboarding);
+    // Push tocado com o app encerrado: abre o destino sobre a tela inicial.
+    PushSvc.appReady();
   }
 
   @override
