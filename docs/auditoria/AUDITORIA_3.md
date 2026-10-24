@@ -73,6 +73,8 @@ O relatório completo, com o inventário tela a tela, está em `RELATORIO_AUDITO
 
 ## Pendências
 
+> Atualização de 24/10/2026: estas pendências foram tratadas. Veja `PENDENCIAS_3.md` e `RELATORIO_PENDENCIAS_3.pdf` para saber o que foi testado, o que aguarda teste externo, o que depende de decisão de produto e o que está bloqueado.
+
 - **Push:**
   - um token por usuário;
   - na web, falta service worker e chave VAPID.
