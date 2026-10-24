@@ -996,11 +996,13 @@ class _PendingActionsState extends State<_PendingActions> {
         Expanded(
             child: OutlinedButton(
                 onPressed: _busy || expired ? null : _decline,
+                // Desabilitado (expirado/enviando) não pode parecer ativo.
                 style: OutlinedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(vertical: 10),
-                    side: const BorderSide(color: AppColors.error)),
-                child: const Text('Recusar',
-                    style: TextStyle(fontSize: 13, color: AppColors.error)))),
+                    foregroundColor: AppColors.error,
+                    side: BorderSide(
+                        color: expired ? AppColors.border : AppColors.error)),
+                child: const Text('Recusar', style: TextStyle(fontSize: 13)))),
         const SizedBox(width: 8),
         Expanded(
             child: ElevatedButton(
