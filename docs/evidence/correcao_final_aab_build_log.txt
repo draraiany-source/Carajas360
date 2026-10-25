@@ -1,0 +1,48 @@
+Resolving dependencies...
+Downloading packages...
+  cached_network_image 3.4.1 (4.0.2 available)
+  cached_network_image_platform_interface 4.1.1 (5.0.2 available)
+  cached_network_image_web 1.3.1 (2.0.2 available)
+  clock 1.1.2 (1.1.3 available)
+  code_assets 1.2.1 (2.1.0 available)
+  cross_file 0.3.5+5 (0.4.0 available)
+  dbus 0.7.15 (0.8.0 available)
+  file_picker 12.0.0-beta.7 (13.1.0 available)
+  google_maps_flutter_android 2.19.13 (2.20.0 available)
+  google_maps_flutter_web 0.6.3+1 (0.6.4 available)
+  google_sign_in_ios 6.3.3 (6.3.5 available)
+  gsettings 0.2.8 (0.2.9 available)
+  hooks 2.0.2 (2.2.0 available)
+  image_picker_ios 0.8.13+7 (0.8.13+8 available)
+  matcher 0.12.19 (0.12.20 available)
+  material_color_utilities 0.13.0 (0.13.1 available)
+  meta 1.18.0 (1.19.0 available)
+  objective_c 9.5.0 (9.6.0 available)
+  octo_image 2.1.0 (2.1.1 available)
+  qr 3.0.2 (4.0.0 available)
+  record_linux 2.1.1 (2.1.2 available)
+  record_use 0.6.0 (1.1.1 available)
+  shimmer 3.0.0 (4.0.0 available)
+  stack_trace 1.12.1 (1.12.2 available)
+  test_api 0.7.11 (0.7.14 available)
+  vector_math 2.2.0 (2.4.3 available)
+Got dependencies!
+26 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Running Gradle task 'bundleRelease'...                          
+WARNING: Your Android app project: app located at: C:\Users\Lenovo\Desktop\CARAJAS360\android\app\build.gradle
+applies the Kotlin Gradle Plugin, which will cause build failures in future versions of Flutter. 
+Please migrate your app to Built-in Kotlin using this guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers
+
+WARNING: Your app uses the following plugins that apply Kotlin Gradle Plugin (KGP): cloud_functions, firebase_analytics, firebase_auth, firebase_core, firebase_crashlytics, firebase_storage
+Future versions of Flutter will fail to build if your app uses plugins that apply KGP.
+
+Please check the changelogs of these plugins and upgrade to a version that supports Built-in Kotlin.
+If no such version exists, report the issue to the plugin. If necessary, here is a guide on filing 
+an issue against a plugin: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-app-developers#report-incompatible-kotlin-gradle-plugin-usage-to-plugin-authors
+
+If you are a plugin author, please migrate your plugin to Built-in Kotlin using this guide: https://docs.flutter.dev/release/breaking-changes/migrate-to-built-in-kotlin/for-plugin-authors
+Font asset "MaterialIcons-Regular.otf" was tree-shaken, reducing it from 1645184 to 30140 bytes (98.2% reduction). Tree-shaking can be disabled by providing the --no-tree-shake-icons flag when building your app.
+Running Gradle task 'bundleRelease'...                            383,8s
+√ Built build\app\outputs\bundle\release\app-release.aab (73.4MB)
+EXIT_CODE=0
