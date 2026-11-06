@@ -17,6 +17,16 @@ void main() {
       );
     });
 
+    test('short words do not match as query prefix', () {
+      expect(UniversalSearch.fuzzyMatch('Banho e tosa', 'eletric'), isFalse);
+      expect(
+          UniversalSearch.fuzzyMatch(
+              'Ele atende de segunda a sexta', 'eletric'),
+          isFalse);
+      expect(UniversalSearch.fuzzyMatch('Serviço elétrico', 'eletric'), isTrue);
+      expect(UniversalSearch.fuzzyMatch('Eletricista', 'eletrcista'), isTrue);
+    });
+
     test('finds vertical Automoveis', () {
       final hits = UniversalSearch.search(query: 'automoveis');
       expect(hits.any((h) => h.kind == UniversalHitKind.vertical), isTrue);
@@ -76,7 +86,8 @@ void main() {
     });
 
     test('parseVerticalDocs builds overlay', () {
-      final docs = ServiceTaxonomy.verticals.take(2).map((v) => v.toMap()).toList();
+      final docs =
+          ServiceTaxonomy.verticals.take(2).map((v) => v.toMap()).toList();
       final parsed = TaxonomyRepository.parseVerticalDocs(docs);
       expect(parsed.length, 2);
       TaxonomyRepository.applyDocs(docs);

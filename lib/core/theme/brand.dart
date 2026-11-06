@@ -1,4 +1,20 @@
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
+
+import 'app_colors.dart';
+
+/// Permite arrastar listas horizontais com mouse no desktop/web.
+class BrandDragScrollBehavior extends MaterialScrollBehavior {
+  const BrandDragScrollBehavior();
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
+}
 
 /// Identidade visual oficial Carajás 360 (verde-esmeralda, branco e dourado).
 /// Base do design system da modernização; telas migradas usam estas cores.
@@ -27,4 +43,28 @@ abstract final class Brand {
     begin: Alignment.topCenter,
     end: Alignment.bottomCenter,
   );
+
+  static bool isDark(BuildContext context) =>
+      Theme.of(context).brightness == Brightness.dark;
+
+  static Color surface(BuildContext context) =>
+      isDark(context) ? AppColors.darkSurface : white;
+
+  static Color ink(BuildContext context) =>
+      isDark(context) ? AppColors.darkTextHigh : text;
+
+  static Color inkMuted(BuildContext context) =>
+      isDark(context) ? AppColors.darkTextLow : textMuted;
+
+  static Color line(BuildContext context) =>
+      isDark(context) ? AppColors.darkBorder : border;
+
+  static List<BoxShadow> shadow(BuildContext context) => [
+        BoxShadow(
+          color: (isDark(context) ? Colors.black : greenDark)
+              .withValues(alpha: isDark(context) ? 0.3 : 0.06),
+          blurRadius: 18,
+          offset: const Offset(0, 6),
+        ),
+      ];
 }

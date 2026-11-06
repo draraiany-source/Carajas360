@@ -1,0 +1,49 @@
+{
+  "url": "http://localhost:8765/",
+  "startedAt": "2026-11-06T18:53:57.898Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "screenshots": [],
+      "checks": [
+        {
+          "target": "Página 2",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_pagina_2.png"
+        },
+        {
+          "target": "Próxima página",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_proxima_pagina.png"
+        }
+      ]
+    }
+  ],
+  "finishedAt": "2026-11-06T18:54:52.158Z"
+}

@@ -39,7 +39,7 @@ const enableSemantics = () => evaluate(
 const labels = () => evaluate(
   `(()=>{const lab=${LAB};return [...document.querySelectorAll('flt-semantics')].map(lab).filter(Boolean)})()`);
 const rectOf = (label, nth = 0) => evaluate(
-  `(()=>{const lab=${LAB};const n=[...document.querySelectorAll('flt-semantics')].filter(x=>lab(x)===${JSON.stringify(label)}).at(${nth});if(!n)return null;const r=n.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  `(()=>{const lab=${LAB};const n=[...document.querySelectorAll('flt-semantics')].filter(x=>lab(x)===${JSON.stringify(label)}).at(${nth})??[...document.querySelectorAll('flt-semantics input[aria-label]')].filter(x=>x.getAttribute('aria-label')===${JSON.stringify(label)}).at(${nth});if(!n)return null;const r=n.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
 
 async function clickAt({ x, y }) {
   for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {
@@ -76,6 +76,20 @@ async function load(width, height, mobile) {
   await sleep(800);
 }
 
+async function clickLabel(label, nth = 0, ms = 10000) {
+  let rect = null;
+  await waitFor(async () => (rect = await rectOf(label, nth)) != null, ms);
+  if (!rect) return false;
+  await clickAt(rect);
+  await sleep(900);
+  return true;
+}
+// Recarrega e executa os passos de preparação do viewport (ex.: abrir uma aba).
+async function loadVp(vp) {
+  await load(vp.width, vp.height, vp.mobile);
+  for (const s of vp.setup ?? []) await clickLabel(s.label, s.nth ?? 0, 15000);
+}
+
 const defaultTargets = [];
 const targets = targetsFile
   ? JSON.parse(fs.readFileSync(targetsFile, 'utf8'))
@@ -104,17 +118,18 @@ async function run() {
   const report = { url, startedAt: new Date().toISOString(), viewports: [] };
   for (const vp of targets.viewports ?? []) {
     wheelX = vp.scrollX ?? Math.round(vp.width / 2);
-    await load(vp.width, vp.height, vp.mobile);
+    await loadVp(vp);
     const homeMarker = vp.homeMarker;
     const res = { name: vp.name, width: vp.width, height: vp.height,
       screenshots: [], checks: [] };
     await waitFor(async () => (await labels()).includes(homeMarker), 15000);
+    if (vp.dumpLabels) res.labels = await labels();
     for (let s = 0; s < (vp.scrollShots ?? 1); s++) {
       const f = `${vp.name}_home_${s + 1}.png`;
       await shot(f); res.screenshots.push(f);
       await wheel(vp.scrollStep ?? 700);
     }
-    await load(vp.width, vp.height, vp.mobile);
+    await loadVp(vp);
     const backMarker = vp.backMarker ?? homeMarker;
     for (const t of vp.targets ?? []) {
       const atHome = async () => (await labels()).includes(homeMarker);
@@ -125,15 +140,27 @@ async function run() {
       const rect = await rectOf(t.label, t.nth ?? 0);
       if (!rect) {
         res.checks.push({ target: t.label, nth: t.nth ?? 0, result: 'NOT FOUND' });
-        await load(vp.width, vp.height, vp.mobile);
+        await loadVp(vp);
         continue;
       }
       await clickAt(rect);
+      if (t.type) {
+        await sleep(700);
+        await send('Input.insertText', { text: t.type });
+        await sleep(1200);
+      }
+      for (const s of t.then ?? []) {
+        await sleep(700);
+        if (!(await clickLabel(s.label, s.nth ?? 0, 6000))) {
+          res.checks.push({ target: t.label, step: s.label, result: 'STEP NOT FOUND' });
+        }
+      }
       let opened = await waitFor(async () => {
         const l = await labels();
-        return t.expectAny
+        const none = (t.expectNone ?? []).every((e) => !l.some((x) => x.includes(e)));
+        return none && (t.expectAny
           ? t.expectAny.some((e) => l.some((x) => x.includes(e)))
-          : !l.includes(homeMarker);
+          : !l.includes(homeMarker));
       }, 8000);
       await sleep(600);
       const seen = (await labels()).slice(0, 8).map((s) => s.replace(/\s+/g, ' ').slice(0, 80));
@@ -156,7 +183,7 @@ async function run() {
       }
       res.checks.push({ target: t.label, nth: t.nth ?? 0,
         result: opened ? 'PASS' : 'FAIL', back, seen, screenshot: shotName });
-      await load(vp.width, vp.height, vp.mobile);
+      await loadVp(vp);
     }
     report.viewports.push(res);
   }

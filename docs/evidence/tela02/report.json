@@ -1,0 +1,351 @@
+{
+  "url": "http://localhost:8765/",
+  "startedAt": "2026-11-06T19:17:38.968Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "screenshots": [
+        "desktop_home_1.png",
+        "desktop_home_2.png",
+        "desktop_home_3.png"
+      ],
+      "checks": [
+        {
+          "target": "Serviço, categoria ou profissional...",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_busca_eletric.png"
+        },
+        {
+          "target": "Elétrica",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_categoria_eletrica.png"
+        },
+        {
+          "target": "Limpeza",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Saúde e Bem-estar",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Todos",
+            "Online",
+            "Presencial",
+            "Home Care",
+            "Médico",
+            "Psicólogo",
+            "Fisioterapeuta"
+          ],
+          "screenshot": "desktop_categoria_saude.png"
+        },
+        {
+          "target": "Mais categorias",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Carajás 360",
+            "?",
+            "Serviços",
+            "Saúde",
+            "Entregas",
+            "Mercado",
+            "Aluguel"
+          ],
+          "screenshot": "desktop_mais_categorias.png"
+        },
+        {
+          "target": "Avaliação",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_filtro_avaliacao.png"
+        },
+        {
+          "target": "Preço",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_filtro_preco.png"
+        },
+        {
+          "target": "Atendimento",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_filtro_atendimento.png"
+        },
+        {
+          "target": "Mais relevantes",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_ordenar_preco.png"
+        },
+        {
+          "target": "Ver em lista",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_lista.png"
+        },
+        {
+          "target": "Página 2",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_pagina_2.png"
+        },
+        {
+          "target": "Conversar com Carlos Eletricista",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NO BACK BUTTON",
+          "seen": [
+            "Celular",
+            "E-mail",
+            "Número de celular",
+            "Enviar código SMS",
+            "G Continuar com Google"
+          ],
+          "screenshot": "desktop_conversar_visitante.png"
+        },
+        {
+          "target": "Favoritar",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NO BACK BUTTON",
+          "seen": [
+            "Celular",
+            "E-mail",
+            "Número de celular",
+            "Enviar código SMS",
+            "G Continuar com Google"
+          ],
+          "screenshot": "desktop_favoritar_visitante.png"
+        },
+        {
+          "target": "Solicitar serviço",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Entrar"
+          ],
+          "screenshot": "desktop_solicitar.png"
+        }
+      ]
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "screenshots": [
+        "mobile_home_1.png",
+        "mobile_home_2.png",
+        "mobile_home_3.png",
+        "mobile_home_4.png"
+      ],
+      "checks": [
+        {
+          "target": "Serviço, categoria ou profissional...",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Explorar Serviços Encontre rapidamente o serviço ideal na sua região.",
+            "Limpar busca",
+            "Sugestões",
+            "Diarista",
+            "Serviços e categorias Diarista Serviço · Limpeza doméstica",
+            "Todos",
+            "Construção e Reforma",
+            "Elétrica"
+          ],
+          "screenshot": "mobile_busca.png"
+        },
+        {
+          "target": "Hidráulica",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Explorar Serviços Encontre rapidamente o serviço ideal na sua região.",
+            "Todos",
+            "Construção e Reforma",
+            "Elétrica",
+            "Hidráulica",
+            "Limpeza",
+            "Beleza e Estética",
+            "Saúde e Bem-estar"
+          ],
+          "screenshot": "mobile_categoria_hidraulica.png"
+        },
+        {
+          "target": "Avaliação",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Explorar Serviços Encontre rapidamente o serviço ideal na sua região.",
+            "Todos",
+            "Construção e Reforma",
+            "Elétrica",
+            "Hidráulica",
+            "Limpeza",
+            "Beleza e Estética",
+            "Saúde e Bem-estar"
+          ]
+        },
+        {
+          "target": "Ver em lista",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Explorar Serviços Encontre rapidamente o serviço ideal na sua região.",
+            "Todos",
+            "Construção e Reforma",
+            "Elétrica",
+            "Hidráulica",
+            "Limpeza",
+            "Beleza e Estética",
+            "Saúde e Bem-estar"
+          ],
+          "screenshot": "mobile_lista.png"
+        },
+        {
+          "target": "Solicitar serviço",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Entrar"
+          ],
+          "screenshot": "mobile_solicitar.png"
+        },
+        {
+          "target": "Início",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Mensagens",
+            "Notificações",
+            "Minha conta",
+            "Cidade: Canaã dos Carajás. Alterar cidade",
+            "Buscar serviços",
+            "Buscar serviços agora",
+            "Solicitar serviço",
+            "Ver todas"
+          ]
+        }
+      ]
+    }
+  ],
+  "finishedAt": "2026-11-06T19:23:08.764Z"
+}

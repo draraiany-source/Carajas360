@@ -1,0 +1,20 @@
+{
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "mobile": false,
+      "setup": [{ "label": "Explorar Serviços" }],
+      "homeMarker": "Todos",
+      "backMarker": "Divulgue seu Serviço",
+      "scrollShots": 0,
+      "scrollStep": 700,
+      "scrollX": 900,
+      "targets": [
+        { "label": "Página 2", "scroll": 3, "inPlace": true, "shot": "pagina_2", "expectAny": ["Página 2"] },
+        { "label": "Próxima página", "scroll": 3, "inPlace": true, "shot": "proxima_pagina", "expectAny": ["Próxima página"] }
+      ]
+    }
+  ]
+}

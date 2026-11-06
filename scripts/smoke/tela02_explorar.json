@@ -1,0 +1,51 @@
+{
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "mobile": false,
+      "setup": [{ "label": "Explorar Serviços" }],
+      "homeMarker": "Todos",
+      "backMarker": "Divulgue seu Serviço",
+      "scrollShots": 3,
+      "scrollStep": 700,
+      "scrollX": 900,
+      "targets": [
+        { "label": "Serviço, categoria ou profissional...", "type": "eletric", "inPlace": true, "shot": "busca_eletric", "expectAny": ["Carlos Eletricista"], "expectNone": ["Ana Encanamentos", "Banho e tosa"] },
+        { "label": "Elétrica", "inPlace": true, "shot": "categoria_eletrica", "expectAny": ["Carlos Eletricista"], "expectNone": ["Ana Encanamentos"] },
+        { "label": "Limpeza", "inPlace": true, "expectAny": ["Lívia Limpeza"], "expectNone": ["Carlos Eletricista"] },
+        { "label": "Saúde e Bem-estar", "shot": "categoria_saude", "expectAny": ["Voltar"] },
+        { "label": "Mais categorias", "shot": "mais_categorias", "expectAny": ["Voltar"] },
+        { "label": "Avaliação", "then": [{ "label": "4,5 ou mais" }], "inPlace": true, "shot": "filtro_avaliacao", "expectAny": ["Avaliação 4.5+"] },
+        { "label": "Preço", "then": [{ "label": "Preço inicial até R$ 100" }], "inPlace": true, "shot": "filtro_preco", "expectAny": ["Até R$ 100"] },
+        { "label": "Atendimento", "then": [{ "label": "Online" }], "inPlace": true, "shot": "filtro_atendimento", "expectAny": ["Online"] },
+        { "label": "Mais relevantes", "then": [{ "label": "Menor preço" }], "inPlace": true, "shot": "ordenar_preco", "expectAny": ["Menor preço"] },
+        { "label": "Ver em lista", "inPlace": true, "shot": "lista", "expectAny": ["Solicitar"] },
+        { "label": "Página 2", "scroll": 3, "inPlace": true, "shot": "pagina_2", "expectAny": ["Página 2"] },
+        { "label": "Conversar com Carlos Eletricista", "shot": "conversar_visitante" },
+        { "label": "Favoritar", "nth": 0, "shot": "favoritar_visitante" },
+        { "label": "Solicitar serviço", "nth": 0, "shot": "solicitar" }
+      ]
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "mobile": true,
+      "setup": [{ "label": "Explorar" }],
+      "homeMarker": "Todos",
+      "backMarker": "Navegação principal",
+      "scrollShots": 4,
+      "scrollStep": 600,
+      "targets": [
+        { "label": "Serviço, categoria ou profissional...", "type": "diarista", "inPlace": true, "shot": "busca", "expectAny": ["Lívia Limpeza"], "expectNone": ["Carlos Eletricista"] },
+        { "label": "Hidráulica", "inPlace": true, "shot": "categoria_hidraulica", "expectAny": ["Ana Encanamentos"], "expectNone": ["Carlos Eletricista"] },
+        { "label": "Avaliação", "then": [{ "label": "4,5 ou mais" }], "inPlace": true, "expectAny": ["Avaliação 4.5+"] },
+        { "label": "Ver em lista", "inPlace": true, "shot": "lista", "expectAny": ["Solicitar"] },
+        { "label": "Solicitar serviço", "nth": 0, "shot": "solicitar" },
+        { "label": "Início", "inPlace": true, "expectAny": ["Buscar serviços"] }
+      ]
+    }
+  ]
+}

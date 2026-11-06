@@ -1,5 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
-import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/app_colors.dart';
@@ -7,12 +5,12 @@ import '../../core/theme/brand.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/modules/platform_modules.dart';
 import '../../core/catalog/homolog_catalog.dart';
-import '../../core/utils/chat_nav.dart';
 import '../../core/utils/provider_entry.dart';
-import '../../core/utils/tap_guard.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../../shared/widgets/brand_categories.dart';
+import '../../shared/widgets/brand_provider_card.dart';
 import '../../shared/widgets/brand_wordmark.dart';
 import '../../shared/widgets/micro_interactions.dart';
 
@@ -39,33 +37,6 @@ List<BoxShadow> _softShadow(BuildContext context) => [
         offset: const Offset(0, 6),
       ),
     ];
-
-/// Atalho de categoria: abre a [SearchScreen] por grupo ou categoria existentes.
-class _HomeCategory {
-  final String label;
-  final IconData icon;
-  final String? group, category, route;
-  const _HomeCategory(this.label, this.icon,
-      {this.group, this.category, this.route});
-}
-
-const _homeCategories = <_HomeCategory>[
-  _HomeCategory('Construção e Reforma', Icons.foundation_rounded,
-      group: 'Casa'),
-  _HomeCategory('Elétrica', Icons.bolt_rounded, category: 'eletricista'),
-  _HomeCategory('Hidráulica', Icons.plumbing_rounded, category: 'encanador'),
-  _HomeCategory('Limpeza', Icons.cleaning_services_rounded, group: 'Limpeza'),
-  _HomeCategory('Beleza e Estética', Icons.content_cut_rounded,
-      group: 'Beleza'),
-  _HomeCategory('Saúde e Bem-estar', Icons.favorite_rounded,
-      route: Routes.health),
-  _HomeCategory('Veículos e Oficinas', Icons.directions_car_rounded,
-      group: 'Automóveis'),
-  _HomeCategory('Agro e Rural', Icons.agriculture_rounded, group: 'Agro'),
-  _HomeCategory(
-      'Máquinas e Equipamentos', Icons.precision_manufacturing_rounded,
-      group: 'Máquinas'),
-];
 
 /// Home da plataforma Carajás 360.
 /// O hub de Serviços permanece em [ServicesHubScreen].
@@ -102,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.pushNamed(context, m.route!);
   }
 
-  void _openCategory(_HomeCategory c) {
+  void _openCategory(BrandCategory c) {
     if (c.route != null) {
       _go(c.route!);
       return;
@@ -391,7 +362,7 @@ class _HomeScreenState extends State<HomeScreen> {
         SizedBox(
           height: 40,
           child: ScrollConfiguration(
-            behavior: const _DragScrollBehavior(),
+            behavior: const BrandDragScrollBehavior(),
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: EdgeInsets.symmetric(horizontal: pad),
@@ -417,19 +388,6 @@ class _HomeScreenState extends State<HomeScreen> {
       const SliverToBoxAdapter(child: SizedBox(height: 100)),
     ]);
   }
-}
-
-/// Permite arrastar listas horizontais com mouse no desktop/web.
-class _DragScrollBehavior extends MaterialScrollBehavior {
-  const _DragScrollBehavior();
-
-  @override
-  Set<PointerDeviceKind> get dragDevices => {
-        PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
-        PointerDeviceKind.trackpad,
-        PointerDeviceKind.stylus,
-      };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -954,9 +912,9 @@ class _CategoryTile extends StatelessWidget {
 }
 
 List<Widget> _categoryTiles(
-        ValueChanged<_HomeCategory> onTap, VoidCallback onMore) =>
+        ValueChanged<BrandCategory> onTap, VoidCallback onMore) =>
     [
-      for (final c in _homeCategories)
+      for (final c in brandCategories)
         _CategoryTile(label: c.label, icon: c.icon, onTap: () => onTap(c)),
       _CategoryTile(
           label: 'Mais categorias',
@@ -966,7 +924,7 @@ List<Widget> _categoryTiles(
     ];
 
 class _CategoryGrid extends StatelessWidget {
-  final ValueChanged<_HomeCategory> onTap;
+  final ValueChanged<BrandCategory> onTap;
   final VoidCallback onMore;
   const _CategoryGrid({required this.onTap, required this.onMore});
 
@@ -990,7 +948,7 @@ class _CategoryGrid extends StatelessWidget {
 
 class _CategoryStrip extends StatelessWidget {
   final double pad;
-  final ValueChanged<_HomeCategory> onTap;
+  final ValueChanged<BrandCategory> onTap;
   final VoidCallback onMore;
   const _CategoryStrip(
       {required this.pad, required this.onTap, required this.onMore});
@@ -1364,38 +1322,6 @@ class _ModuleCard extends StatelessWidget {
 // Profissionais
 // ─────────────────────────────────────────────────────────────
 
-void _requestProvider(BuildContext context, ProviderModel p) =>
-    Navigator.pushNamed(
-      context,
-      Routes.requestService,
-      arguments: {
-        'providerId': p.id,
-        'providerName': p.name,
-        'category': p.categories.isNotEmpty ? p.categories.first : '',
-      },
-    );
-
-Future<void> _chatProvider(BuildContext context, ProviderModel p) async {
-  if (AuthService.uid == null) {
-    snack(context, 'Entre na conta para conversar com profissionais.');
-    Navigator.pushNamed(context, Routes.login);
-    return;
-  }
-  try {
-    await ChatNav.open(
-      context,
-      otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
-      otherName: p.name,
-      otherPhoto: p.photoUrl,
-    );
-  } catch (_) {
-    if (context.mounted) {
-      snack(context, 'Não foi possível abrir a conversa agora.',
-          bg: AppColors.error);
-    }
-  }
-}
-
 /// Resolve carregamento, erro e vazio do stream de profissionais.
 class _ProvidersStream extends StatelessWidget {
   final Stream<List<ProviderModel>> stream;
@@ -1471,7 +1397,7 @@ class _FeaturedRow extends StatelessWidget {
                 Expanded(
                   child: i < list.length
                       ? FadeSlideIn(
-                          index: i, child: _ProviderCard(provider: list[i]))
+                          index: i, child: BrandProviderCard(provider: list[i]))
                       : const SizedBox.shrink(),
                 ),
               ],
@@ -1556,7 +1482,7 @@ class _ProviderGrid extends StatelessWidget {
                 width: w,
                 height: 318,
                 child: FadeSlideIn(
-                    index: i, child: _ProviderCard(provider: list[i])),
+                    index: i, child: BrandProviderCard(provider: list[i])),
               ),
           ],
         );
@@ -1581,248 +1507,9 @@ class _ProviderCarousel extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (_, i) => FadeSlideIn(
           index: i,
-          child: SizedBox(width: 212, child: _ProviderCard(provider: list[i])),
+          child:
+              SizedBox(width: 212, child: BrandProviderCard(provider: list[i])),
         ),
-      ),
-    );
-  }
-}
-
-String _categoryName(ProviderModel p) => p.categories.isNotEmpty
-    ? (Categories.byId(p.categories.first)?.name ?? p.categories.first)
-    : 'Profissional';
-
-class _ProviderPhoto extends StatelessWidget {
-  final ProviderModel provider;
-  const _ProviderPhoto({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final initial = Container(
-      decoration: const BoxDecoration(gradient: Brand.heroGradient),
-      alignment: Alignment.center,
-      child: Text(
-        provider.name.isNotEmpty ? provider.name[0].toUpperCase() : '?',
-        style: const TextStyle(
-            color: Colors.white, fontSize: 40, fontWeight: FontWeight.w800),
-      ),
-    );
-    final url = provider.photoUrl;
-    if (url == null || url.isEmpty) return initial;
-    return CachedNetworkImage(
-      imageUrl: url,
-      fit: BoxFit.cover,
-      placeholder: (_, __) => initial,
-      errorWidget: (_, __, ___) => initial,
-    );
-  }
-}
-
-class _RoundIconButton extends StatelessWidget {
-  final IconData icon;
-  final Color color;
-  final String tooltip;
-  final VoidCallback onTap;
-  const _RoundIconButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.color = Brand.green,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      excludeFromSemantics: true,
-      child: Semantics(
-        button: true,
-        label: tooltip,
-        excludeSemantics: true,
-        onTap: onTap,
-        child: Material(
-          color: Colors.white.withValues(alpha: 0.95),
-          shape: const CircleBorder(),
-          elevation: 1,
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: SizedBox(
-                width: 34,
-                height: 34,
-                child: Icon(icon, size: 18, color: color)),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FavoriteButton extends StatelessWidget {
-  final String providerId;
-  const _FavoriteButton({required this.providerId});
-
-  @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<bool>(
-      stream: FS.isFavoriteStream(providerId),
-      builder: (_, snap) {
-        final isFav = snap.data ?? false;
-        return _RoundIconButton(
-          icon: isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-          color: isFav ? AppColors.error : Brand.green,
-          tooltip: isFav ? 'Remover dos favoritos' : 'Favoritar',
-          onTap: () async {
-            if (AuthService.uid == null) {
-              snack(context, 'Entre na conta para salvar favoritos.');
-              Navigator.pushNamed(context, Routes.login);
-              return;
-            }
-            final nowFav = await FS.toggleFavorite(providerId);
-            if (!context.mounted) return;
-            snack(context,
-                nowFav ? 'Adicionado aos favoritos' : 'Removido dos favoritos',
-                bg: nowFav ? Brand.green : AppColors.textLight);
-          },
-        );
-      },
-    );
-  }
-}
-
-class _ProviderCard extends StatelessWidget {
-  final ProviderModel provider;
-  const _ProviderCard({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = provider;
-    final price = p.minPrice != null
-        ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(2).replaceAll('.', ',')}'
-        : 'Valor sob consulta';
-    void request() => _requestProvider(context, p);
-    return TapScale(
-      onTap: TapGuard.wrap(request),
-      child: Container(
-        decoration: BoxDecoration(
-          color: _cardColor(context),
-          borderRadius: BorderRadius.circular(18),
-          border: Border.all(color: _borderColor(context)),
-          boxShadow: _softShadow(context),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(
-            height: 124,
-            child: Stack(children: [
-              Positioned.fill(child: _ProviderPhoto(provider: p)),
-              Positioned(
-                right: 8,
-                top: 8,
-                child: Row(children: [
-                  _RoundIconButton(
-                      icon: Icons.chat_bubble_outline_rounded,
-                      tooltip: 'Conversar com ${p.name}',
-                      onTap: () => _chatProvider(context, p)),
-                  const SizedBox(width: 6),
-                  _FavoriteButton(providerId: p.id),
-                ]),
-              ),
-            ]),
-          ),
-          Expanded(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Flexible(
-                      child: Text(p.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 14.5,
-                              fontWeight: FontWeight.w800,
-                              color: _textHigh(context))),
-                    ),
-                    if (p.verified) ...[
-                      const SizedBox(width: 4),
-                      const Tooltip(
-                        message: 'Perfil verificado',
-                        child: Icon(Icons.verified_rounded,
-                            size: 16, color: Brand.green),
-                      ),
-                    ],
-                  ]),
-                  const SizedBox(height: 2),
-                  Text(_categoryName(p),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 12, color: _textLow(context))),
-                  const SizedBox(height: 6),
-                  Row(children: [
-                    const Icon(Icons.star_rounded, size: 16, color: Brand.gold),
-                    const SizedBox(width: 2),
-                    Text(
-                        p.totalReviews > 0
-                            ? p.rating.toStringAsFixed(1)
-                            : 'Novo',
-                        style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w800,
-                            color: _textHigh(context))),
-                    if (p.totalReviews > 0)
-                      Text(' (${p.totalReviews})',
-                          style: TextStyle(
-                              fontSize: 11.5, color: _textLow(context))),
-                  ]),
-                  if (p.city != null && p.city!.isNotEmpty) ...[
-                    const SizedBox(height: 4),
-                    Row(children: [
-                      Icon(Icons.location_on_outlined,
-                          size: 14, color: _textLow(context)),
-                      const SizedBox(width: 3),
-                      Expanded(
-                        child: Text(p.city!,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                                fontSize: 11.5, color: _textLow(context))),
-                      ),
-                    ]),
-                  ],
-                  const Spacer(),
-                  Text(price,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w700,
-                          color: _isDark(context) ? Brand.gold : Brand.green)),
-                  const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: TapGuard.wrap(request),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Brand.green,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        minimumSize: const Size(0, 38),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(11)),
-                      ),
-                      child: const Text('Solicitar serviço',
-                          style: TextStyle(
-                              fontSize: 12.5, fontWeight: FontWeight.w800)),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ]),
       ),
     );
   }

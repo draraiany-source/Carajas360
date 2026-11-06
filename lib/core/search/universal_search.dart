@@ -55,7 +55,8 @@ abstract final class UniversalSearch {
     if (a == b) return 0;
     if (a.isEmpty) return b.length;
     if (b.isEmpty) return a.length;
-    final m = List.generate(a.length + 1, (_) => List<int>.filled(b.length + 1, 0));
+    final m =
+        List.generate(a.length + 1, (_) => List<int>.filled(b.length + 1, 0));
     for (var i = 0; i <= a.length; i++) {
       m[i][0] = i;
     }
@@ -82,7 +83,9 @@ abstract final class UniversalSearch {
     if (h.contains(n)) return true;
     for (final token in h.split(' ')) {
       if (token.isEmpty) continue;
-      if (token.startsWith(n) || n.startsWith(token)) return true;
+      if (token.startsWith(n)) return true;
+      // Palavras curtas ("e", "de", "ele") não podem casar como prefixo da busca.
+      if (token.length >= 4 && n.startsWith(token)) return true;
       final maxDist = n.length <= 4 ? 1 : 2;
       if ((token.length - n.length).abs() <= maxDist &&
           levenshtein(token, n) <= maxDist) {
@@ -144,7 +147,8 @@ abstract final class UniversalSearch {
         }
         for (final s in g.services) {
           if (!s.active) continue;
-          final ss = max(_score(s.name, q), _score(s.categoryId.replaceAll('_', ' '), q));
+          final ss = max(
+              _score(s.name, q), _score(s.categoryId.replaceAll('_', ' '), q));
           if (ss > 0) {
             hits.add(UniversalHit(
               kind: UniversalHitKind.service,
