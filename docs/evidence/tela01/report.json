@@ -1,0 +1,812 @@
+{
+  "url": "http://localhost:8765/",
+  "startedAt": "2026-11-06T17:02:44.702Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "screenshots": [
+        "desktop_home_1.png",
+        "desktop_home_2.png",
+        "desktop_home_3.png",
+        "desktop_home_4.png"
+      ],
+      "checks": [
+        {
+          "target": "Explorar Serviços",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_tab_explorar.png"
+        },
+        {
+          "target": "Pedidos",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Mensagens",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Minha Conta",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Favoritos",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Entrar"
+          ],
+          "screenshot": "desktop_favoritos.png"
+        },
+        {
+          "target": "Planos e Assinaturas",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Entrar"
+          ]
+        },
+        {
+          "target": "Divulgue seu Serviço",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NO BACK BUTTON",
+          "seen": [
+            "Cliente Contratar serviços",
+            "Prestador Oferecer serviços",
+            "Entregador Fazer entregas",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro"
+          ],
+          "screenshot": "desktop_cadastro_visitante.png"
+        },
+        {
+          "target": "Ajuda e Suporte",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Entrar"
+          ]
+        },
+        {
+          "target": "Buscar serviços",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca so profissionais",
+            "🏠 Casa / Reformas",
+            "🧹 Limpeza / Domésticos",
+            "🌿 Jardim",
+            "🔌 Assistência Técnica",
+            "🚗 Automóveis",
+            "🩺 Saúde"
+          ],
+          "screenshot": "desktop_busca.png"
+        },
+        {
+          "target": "Cidade: Canaã dos Carajás. Alterar cidade",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Dialog",
+            "Dismiss",
+            "Canaã dos Carajás",
+            "Parauapebas",
+            "Marabá",
+            "Ourilândia do Norte",
+            "Água Azul do Norte",
+            "Curionópolis"
+          ],
+          "screenshot": "desktop_cidade.png"
+        },
+        {
+          "target": "Notificações",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Entrar"
+          ]
+        },
+        {
+          "target": "Mensagens",
+          "nth": 1,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Entrar",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Buscar serviços agora",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca so profissionais",
+            "🏠 Casa / Reformas",
+            "🧹 Limpeza / Domésticos",
+            "🌿 Jardim",
+            "🔌 Assistência Técnica",
+            "🚗 Automóveis",
+            "🩺 Saúde"
+          ]
+        },
+        {
+          "target": "Solicitar serviço",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Meus pedidos",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro",
+            "Diarista"
+          ],
+          "screenshot": "desktop_resolve.png"
+        },
+        {
+          "target": "Anunciar agora",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NO BACK BUTTON",
+          "seen": [
+            "Cliente Contratar serviços",
+            "Prestador Oferecer serviços",
+            "Entregador Fazer entregas",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro"
+          ]
+        },
+        {
+          "target": "Categoria Construção e Reforma",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca inteligente com IA",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro",
+            "C Carlos Eletricista A partir de R$ 80 Eletricista Canaã dos Carajás ★ 4.9 🥈 Pr"
+          ],
+          "screenshot": "desktop_categoria_casa.png"
+        },
+        {
+          "target": "Categoria Elétrica",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca inteligente com IA",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro",
+            "C Carlos Eletricista A partir de R$ 80 Eletricista Canaã dos Carajás ★ 4.9 🥈 Pr"
+          ]
+        },
+        {
+          "target": "Categoria Hidráulica",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca inteligente com IA",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro",
+            "A Ana Encanamentos A partir de R$ 70 Encanador Canaã dos Carajás ★ 4.8 🥈 Prata "
+          ]
+        },
+        {
+          "target": "Categoria Limpeza",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca inteligente com IA",
+            "Diarista",
+            "Faxineira",
+            "R Rosa Faxina Total A partir de R$ 55 Faxineira Parauapebas ★ 4.7 🥈 Prata Prese",
+            "Contratar",
+            "L Lívia Limpeza A partir de R$ 50 Diarista Canaã dos Carajás ★ 4.6 🥈 Prata Pres",
+            "Contratar"
+          ]
+        },
+        {
+          "target": "Categoria Beleza e Estética",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca inteligente com IA",
+            "Cabeleireiro",
+            "Manicure/Pedicure",
+            "Esteticista",
+            "Massagem",
+            "S Studio Beleza Maya A partir de R$ 45 Cabeleireiro Canaã dos Carajás ★ 4.9 🥈 P",
+            "Contratar"
+          ]
+        },
+        {
+          "target": "Categoria Saúde e Bem-estar",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Todos",
+            "Online",
+            "Presencial",
+            "Home Care",
+            "Médico",
+            "Psicólogo",
+            "Fisioterapeuta"
+          ],
+          "screenshot": "desktop_categoria_saude.png"
+        },
+        {
+          "target": "Categoria Veículos e Oficinas",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca inteligente com IA",
+            "Autoelétrico",
+            "Bateria Automotiva",
+            "Alternador",
+            "Partida",
+            "Iluminação Automotiva",
+            "Alarme Automotivo"
+          ]
+        },
+        {
+          "target": "Categoria Agro e Rural",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca inteligente com IA",
+            "Agrônomo",
+            "Tratorista",
+            "Operador de Colheitadeira",
+            "Operador de Escavadeira",
+            "Operador de Pá Carregadeira",
+            "Operador de Motoniveladora"
+          ]
+        },
+        {
+          "target": "Categoria Máquinas e Equipamentos",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca inteligente com IA",
+            "Aluguel de Trator",
+            "Aluguel de Escavadeira",
+            "Aluguel de Retroescavadeira",
+            "Aluguel de Pá Carregadeira",
+            "Aluguel de Motoniveladora",
+            "Caminhão Basculante"
+          ]
+        },
+        {
+          "target": "Mais categorias",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Carajás 360",
+            "?",
+            "Serviços",
+            "Saúde",
+            "Entregas",
+            "Mercado",
+            "Aluguel"
+          ]
+        },
+        {
+          "target": "Ver todas",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Carajás 360",
+            "?",
+            "Serviços",
+            "Saúde",
+            "Entregas",
+            "Mercado",
+            "Aluguel"
+          ]
+        },
+        {
+          "target": "Pedir orçamento",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Meus pedidos",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro",
+            "Diarista"
+          ]
+        },
+        {
+          "target": "Acompanhe seus pedidos",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Mensagens",
+          "nth": 2,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Meus favoritos",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Entrar"
+          ]
+        },
+        {
+          "target": "Ver todos",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Carajás 360",
+            "?",
+            "Serviços",
+            "Saúde",
+            "Entregas",
+            "Mercado",
+            "Aluguel"
+          ]
+        },
+        {
+          "target": "Conversar com Carlos Eletricista",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NO BACK BUTTON",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Favoritar",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NO BACK BUTTON",
+          "seen": [
+            "Celular",
+            "E-mail",
+            "Número de celular",
+            "Enviar código SMS",
+            "G Continuar com Google"
+          ]
+        },
+        {
+          "target": "Solicitar serviço",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Entrar"
+          ],
+          "screenshot": "desktop_solicitar_profissional.png"
+        },
+        {
+          "target": "Trocar cidade",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ]
+        },
+        {
+          "target": "Serviços",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Carajás 360",
+            "?",
+            "Serviços",
+            "Saúde",
+            "Entregas",
+            "Mercado",
+            "Aluguel"
+          ]
+        },
+        {
+          "target": "Saúde",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Todos",
+            "Online",
+            "Presencial",
+            "Home Care",
+            "Médico",
+            "Psicólogo",
+            "Fisioterapeuta"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "screenshots": [
+        "mobile_home_1.png",
+        "mobile_home_2.png",
+        "mobile_home_3.png",
+        "mobile_home_4.png",
+        "mobile_home_5.png",
+        "mobile_home_6.png"
+      ],
+      "checks": [
+        {
+          "target": "Mensagens",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Entrar",
+            "Navegação principal",
+            "Início",
+            "Explorar",
+            "Pedidos",
+            "Mensagens",
+            "Perfil"
+          ]
+        },
+        {
+          "target": "Notificações",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Entrar"
+          ]
+        },
+        {
+          "target": "Minha conta",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Entrar",
+            "Navegação principal",
+            "Início",
+            "Explorar",
+            "Pedidos",
+            "Mensagens",
+            "Perfil"
+          ]
+        },
+        {
+          "target": "Cidade: Canaã dos Carajás. Alterar cidade",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Dialog",
+            "Dismiss",
+            "Canaã dos Carajás",
+            "Parauapebas",
+            "Marabá",
+            "Ourilândia do Norte",
+            "Água Azul do Norte",
+            "Curionópolis"
+          ],
+          "screenshot": "mobile_cidade.png"
+        },
+        {
+          "target": "Buscar serviços",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca so profissionais",
+            "🏠 Casa / Reformas",
+            "🧹 Limpeza / Domésticos",
+            "🌿 Jardim",
+            "🔌 Assistência Técnica",
+            "🚗 Automóveis",
+            "🩺 Saúde"
+          ]
+        },
+        {
+          "target": "Buscar serviços agora",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca so profissionais",
+            "🏠 Casa / Reformas",
+            "🧹 Limpeza / Domésticos",
+            "🌿 Jardim",
+            "🔌 Assistência Técnica",
+            "🚗 Automóveis",
+            "🩺 Saúde"
+          ]
+        },
+        {
+          "target": "Solicitar serviço",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Meus pedidos",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro",
+            "Diarista"
+          ]
+        },
+        {
+          "target": "Categoria Construção e Reforma",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Busca inteligente com IA",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro",
+            "C Carlos Eletricista A partir de R$ 80 Eletricista Canaã dos Carajás ★ 4.9 🥈 Pr"
+          ]
+        },
+        {
+          "target": "Ver todas",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "Carajás 360",
+            "?",
+            "Serviços",
+            "Saúde",
+            "Entregas",
+            "Mercado",
+            "Aluguel"
+          ]
+        },
+        {
+          "target": "Anunciar agora",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NO BACK BUTTON",
+          "seen": [
+            "Cliente Contratar serviços",
+            "Prestador Oferecer serviços",
+            "Entregador Fazer entregas",
+            "Eletricista",
+            "Encanador",
+            "Pedreiro",
+            "Pintor",
+            "Marceneiro"
+          ]
+        },
+        {
+          "target": "Explorar",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Busca so profissionais",
+            "🏠 Casa / Reformas",
+            "🧹 Limpeza / Domésticos",
+            "🌿 Jardim",
+            "🔌 Assistência Técnica",
+            "🚗 Automóveis",
+            "🩺 Saúde",
+            "💅 Beleza"
+          ]
+        },
+        {
+          "target": "Pedidos",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Entrar",
+            "Navegação principal",
+            "Início",
+            "Explorar",
+            "Pedidos",
+            "Mensagens",
+            "Perfil"
+          ]
+        },
+        {
+          "target": "Perfil",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Entrar",
+            "Navegação principal",
+            "Início",
+            "Explorar",
+            "Pedidos",
+            "Mensagens",
+            "Perfil"
+          ]
+        }
+      ]
+    }
+  ],
+  "finishedAt": "2026-11-06T17:13:48.262Z"
+}

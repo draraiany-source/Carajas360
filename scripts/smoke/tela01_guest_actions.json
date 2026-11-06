@@ -1,0 +1,17 @@
+{
+  "viewports": [
+    {
+      "name": "desktop_guest",
+      "width": 1440,
+      "height": 900,
+      "mobile": false,
+      "homeMarker": "Anunciar agora",
+      "backMarker": "Divulgue seu Serviço",
+      "scrollShots": 0,
+      "targets": [
+        { "label": "Conversar com Carlos Eletricista", "scroll": 1, "shot": "conversar_visitante" },
+        { "label": "Favoritar", "nth": 0, "scroll": 1 }
+      ]
+    }
+  ]
+}

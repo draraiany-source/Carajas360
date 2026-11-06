@@ -795,7 +795,8 @@ class _LoginState extends State<LoginScreen>
 }
 
 class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+  final bool asProvider;
+  const RegisterScreen({super.key, this.asProvider = false});
   @override
   State<RegisterScreen> createState() => _RegState();
 }
@@ -811,7 +812,8 @@ class _RegState extends State<RegisterScreen>
   final _phone = TextEditingController();
   final _city = TextEditingController();
   final _state = TextEditingController();
-  UserType _type = UserType.client;
+  late UserType _type =
+      widget.asProvider ? UserType.provider : UserType.client;
   bool _loading = false, _terms = false, _passVis = false, _pass2Vis = false;
   final _selectedCats = <String>{};
 

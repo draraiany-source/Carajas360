@@ -7,6 +7,9 @@ import 'package:flutter/services.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/theme/app_colors.dart';
+import 'core/theme/brand.dart';
+import 'core/utils/provider_entry.dart';
+import 'shared/widgets/brand_wordmark.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'shared/widgets/micro_interactions.dart';
@@ -161,7 +164,9 @@ class Carajas360App extends StatelessWidget {
               case Routes.login:
                 return _route(const LoginScreen());
               case Routes.register:
-                return _route(const RegisterScreen());
+                final ra = settings.arguments as Map<String, dynamic>?;
+                return _route(
+                    RegisterScreen(asProvider: ra?['asProvider'] == true));
               case Routes.main:
                 return _route(const MainNav());
               case Routes.search:
@@ -253,7 +258,9 @@ class Carajas360App extends StatelessWidget {
                     title: 'Área do prestador',
                     child: ProviderHomeScreen()));
               case Routes.providerOnboarding:
-                return _route(const ProviderOnboardingScreen());
+                final oa = settings.arguments as Map<String, dynamic>?;
+                return _route(ProviderOnboardingScreen(
+                    allowBack: oa?['allowBack'] == true));
               case Routes.servicesHub:
                 return _route(const ServicesHubScreen());
               case Routes.serviceMarketplace:
@@ -342,6 +349,14 @@ class _MainNavState extends State<MainNav> {
     (Icons.person_outline_rounded, 'Perfil'),
   ];
 
+  static const _sidebarTabs = [
+    (Icons.home_rounded, 'Início'),
+    (Icons.explore_rounded, 'Explorar Serviços'),
+    (Icons.receipt_long_rounded, 'Pedidos'),
+    (Icons.chat_bubble_outline_rounded, 'Mensagens'),
+    (Icons.person_outline_rounded, 'Minha Conta'),
+  ];
+
   final List<Widget?> _tabs = List<Widget?>.filled(5, null);
 
   @override
@@ -363,7 +378,7 @@ class _MainNavState extends State<MainNav> {
 
   Widget _tab(int i) {
     return _tabs[i] ??= switch (i) {
-      0 => const HomeScreen(),
+      0 => HomeScreen(onSelectTab: (t) => setState(() => _idx = t)),
       1 => const UniversalSearchScreen(),
       2 => const MyOrdersScreen(),
       3 => const ChatInboxScreen(),
@@ -383,54 +398,13 @@ class _MainNavState extends State<MainNav> {
 
     if (wide) {
       return Scaffold(
+        backgroundColor: isDark ? AppColors.darkBackground : Brand.background,
         body: Row(
           children: [
-            NavigationRail(
-              selectedIndex: _idx,
-              onDestinationSelected: (i) => setState(() => _idx = i),
-              extended: MediaQuery.sizeOf(context).width >= 1100,
-              backgroundColor:
-                  isDark ? AppColors.darkSurface : AppColors.white,
-              selectedIconTheme: IconThemeData(
-                  color: isDark ? AppColors.primaryLight : AppColors.primary),
-              unselectedIconTheme: IconThemeData(
-                  color:
-                      isDark ? AppColors.darkTextLow : AppColors.textLight),
-              selectedLabelTextStyle: TextStyle(
-                  fontWeight: FontWeight.w800,
-                  fontSize: 13,
-                  color: isDark ? AppColors.primaryLight : AppColors.primary),
-              unselectedLabelTextStyle: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  fontSize: 13,
-                  color:
-                      isDark ? AppColors.darkTextLow : AppColors.textLight),
-              labelType: MediaQuery.sizeOf(context).width >= 1100
-                  ? NavigationRailLabelType.none
-                  : NavigationRailLabelType.all,
-              leading: Padding(
-                padding: const EdgeInsets.fromLTRB(12, 16, 12, 24),
-                child: Text(
-                  AppInfo.name,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w800,
-                    fontSize: 16,
-                    color: isDark ? AppColors.primaryLight : AppColors.primary,
-                  ),
-                ),
-              ),
-              destinations: [
-                for (final d in _destinations)
-                  NavigationRailDestination(
-                    icon: Icon(d.$1),
-                    selectedIcon: Icon(d.$1),
-                    label: Text(d.$2),
-                  ),
-              ],
-            ),
-            VerticalDivider(
-              width: 1,
-              color: isDark ? AppColors.darkDivider : AppColors.divider,
+            _BrandSidebar(
+              selected: _idx,
+              tabs: _sidebarTabs,
+              onTab: (i) => setState(() => _idx = i),
             ),
             Expanded(child: body),
           ],
@@ -479,8 +453,10 @@ class _MainNavState extends State<MainNav> {
     final isDark = scheme.brightness == Brightness.dark;
     return Semantics(
       button: true,
-      selected: sel,
+      selected: sel ? true : null,
       label: label,
+      excludeSemantics: true,
+      onTap: () => setState(() => _idx = i),
       child: GestureDetector(
         onTap: () => setState(() => _idx = i),
         child: AnimatedContainer(
@@ -490,15 +466,15 @@ class _MainNavState extends State<MainNav> {
           decoration: BoxDecoration(
               color: sel
                   ? (isDark
-                      ? AppColors.primaryLight.withValues(alpha: 0.18)
-                      : AppColors.primarySoft)
+                      ? Brand.gold.withValues(alpha: 0.16)
+                      : Brand.greenLight)
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(16)),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(icon,
                 size: sel ? 24 : 22,
                 color: sel
-                    ? (isDark ? AppColors.primaryLight : AppColors.primary)
+                    ? (isDark ? Brand.gold : Brand.green)
                     : (isDark ? AppColors.darkTextLow : AppColors.textLight)),
             const SizedBox(height: 3),
             Text(label,
@@ -506,11 +482,148 @@ class _MainNavState extends State<MainNav> {
                     fontSize: 10,
                     fontWeight: sel ? FontWeight.w800 : FontWeight.w500,
                     color: sel
-                        ? (isDark ? AppColors.primaryLight : AppColors.primary)
+                        ? (isDark ? Brand.gold : Brand.green)
                         : (isDark
                             ? AppColors.darkTextLow
                             : AppColors.textLight))),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Menu lateral (web/desktop): abas principais e atalhos para rotas existentes.
+class _BrandSidebar extends StatelessWidget {
+  final int selected;
+  final List<(IconData, String)> tabs;
+  final ValueChanged<int> onTab;
+  const _BrandSidebar(
+      {required this.selected, required this.tabs, required this.onTab});
+
+  static const _links = [
+    (Icons.favorite_border_rounded, 'Favoritos', Routes.favorites),
+    (
+      Icons.workspace_premium_outlined,
+      'Planos e Assinaturas',
+      Routes.carajasPro
+    ),
+    (Icons.campaign_outlined, 'Divulgue seu Serviço', null),
+    (Icons.help_outline_rounded, 'Ajuda e Suporte', Routes.support),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      label: 'Menu principal',
+      child: Container(
+        width: 240,
+        decoration: const BoxDecoration(gradient: Brand.sidebarGradient),
+        child: SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Padding(
+                padding: EdgeInsets.fromLTRB(24, 28, 20, 28),
+                child: BrandWordmark(size: 27, onDark: true),
+              ),
+              Expanded(
+                child: ListView(
+                  padding: const EdgeInsets.symmetric(horizontal: 14),
+                  children: [
+                    for (var i = 0; i < tabs.length; i++)
+                      _SidebarItem(
+                        icon: tabs[i].$1,
+                        label: tabs[i].$2,
+                        selected: selected == i,
+                        onTap: () => onTab(i),
+                      ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      child: Divider(
+                          height: 1,
+                          color: Colors.white.withValues(alpha: 0.14)),
+                    ),
+                    for (final l in _links)
+                      _SidebarItem(
+                        icon: l.$1,
+                        label: l.$2,
+                        selected: false,
+                        onTap: () => l.$3 == null
+                            ? openProviderEntry(context)
+                            : Navigator.pushNamed(context, l.$3!),
+                      ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 12, 20, 22),
+                child: Text(
+                  'Serviços locais de Canaã dos Carajás e região.',
+                  style: TextStyle(
+                      fontSize: 11.5,
+                      height: 1.4,
+                      color: Colors.white.withValues(alpha: 0.6)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SidebarItem extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _SidebarItem(
+      {required this.icon,
+      required this.label,
+      required this.selected,
+      required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final fg = selected ? Brand.greenDark : Colors.white;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Semantics(
+        button: true,
+        // Flutter web anuncia `selected: false` como item atual (aria-current).
+        selected: selected ? true : null,
+        label: label,
+        excludeSemantics: true,
+        onTap: onTap,
+        child: Material(
+          color: selected ? Brand.gold : Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            hoverColor: Colors.white.withValues(alpha: 0.08),
+            onTap: onTap,
+            child: Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              child: Row(children: [
+                Icon(icon, size: 21, color: fg),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          fontSize: 14,
+                          color: fg,
+                          fontWeight:
+                              selected ? FontWeight.w800 : FontWeight.w600)),
+                ),
+              ]),
+            ),
+          ),
         ),
       ),
     );

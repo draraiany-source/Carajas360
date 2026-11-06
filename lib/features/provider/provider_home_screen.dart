@@ -424,7 +424,9 @@ class _OrderList extends StatelessWidget {
 // documentos — a UI deixa isso claro para o prestador.
 // ─────────────────────────────────────────────────────────────
 class ProviderOnboardingScreen extends StatefulWidget {
-  const ProviderOnboardingScreen({super.key});
+  /// Falso no fluxo pós-cadastro, onde o envio de documentos é obrigatório.
+  final bool allowBack;
+  const ProviderOnboardingScreen({super.key, this.allowBack = false});
   @override
   State<ProviderOnboardingScreen> createState() => _ProviderOnboardingState();
 }
@@ -501,7 +503,7 @@ class _ProviderOnboardingState extends State<ProviderOnboardingScreen> {
   Widget build(BuildContext context) => Scaffold(
         appBar: AppBar(
             title: const Text('Complete seu cadastro'),
-            automaticallyImplyLeading: false),
+            automaticallyImplyLeading: widget.allowBack),
         body: LoadingOverlay(
             loading: _loading,
             child: SingleChildScrollView(
