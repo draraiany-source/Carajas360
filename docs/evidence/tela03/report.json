@@ -1,0 +1,223 @@
+{
+  "url": "http://localhost:8765/",
+  "startedAt": "2026-11-07T01:33:41.704Z",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "screenshots": [
+        "desktop_home_1.png",
+        "desktop_home_2.png"
+      ],
+      "checks": [
+        {
+          "target": "Serviços",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Voltar",
+            "Perfil verificado Carlos Eletricista Eletricista 4,9 (128 avaliações) Canaã dos ",
+            "Solicitar serviço",
+            "Conversar no chat",
+            "Favoritar",
+            "Sobre",
+            "Serviços",
+            "Avaliações (128)"
+          ],
+          "screenshot": "desktop_aba_servicos.png"
+        },
+        {
+          "target": "Avaliações (128)",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Voltar",
+            "Perfil verificado Carlos Eletricista Eletricista 4,9 (128 avaliações) Canaã dos ",
+            "Solicitar serviço",
+            "Conversar no chat",
+            "Favoritar",
+            "Sobre",
+            "Serviços",
+            "Avaliações (128)"
+          ],
+          "screenshot": "desktop_aba_avaliacoes.png"
+        },
+        {
+          "target": "Área de atendimento",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Voltar",
+            "Perfil verificado Carlos Eletricista Eletricista 4,9 (128 avaliações) Canaã dos ",
+            "Solicitar serviço",
+            "Conversar no chat",
+            "Favoritar",
+            "Sobre",
+            "Serviços",
+            "Avaliações (128)"
+          ],
+          "screenshot": "desktop_aba_area.png"
+        },
+        {
+          "target": "Solicitar orçamento",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Voltar",
+            "Perfil verificado Carlos Eletricista Eletricista 4,9 (128 avaliações) Canaã dos ",
+            "Solicitar serviço",
+            "Conversar no chat",
+            "Favoritar",
+            "Sobre",
+            "Serviços",
+            "Avaliações (128)"
+          ],
+          "screenshot": "desktop_orcamento_vazio.png"
+        },
+        {
+          "target": "Descreva o que você precisa",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "🔐",
+            "Faça login para continuar",
+            "Esta área precisa de uma conta. Seus dados não são exibidos sem autenticação.",
+            "Entrar"
+          ],
+          "screenshot": "desktop_orcamento_enviar.png"
+        },
+        {
+          "target": "Solicitar serviço",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "🔐",
+            "Faça login para continuar",
+            "Esta área precisa de uma conta. Seus dados não são exibidos sem autenticação.",
+            "Entrar"
+          ],
+          "screenshot": "desktop_solicitar.png"
+        },
+        {
+          "target": "Conversar no chat",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NO BACK BUTTON",
+          "seen": [
+            "Carajás 360",
+            "Tudo que você precisa na região, em um só lugar.",
+            "Celular",
+            "E-mail",
+            "Número de celular",
+            "Enviar código SMS",
+            "ou",
+            "G Continuar com Google"
+          ],
+          "screenshot": "desktop_conversar_visitante.png"
+        },
+        {
+          "target": "Favoritar",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NO BACK BUTTON",
+          "seen": [
+            "Carajás 360",
+            "Tudo que você precisa na região, em um só lugar.",
+            "Celular",
+            "E-mail",
+            "Número de celular",
+            "Enviar código SMS",
+            "ou",
+            "G Continuar com Google"
+          ],
+          "screenshot": "desktop_favoritar_visitante.png"
+        },
+        {
+          "target": "Voltar",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Menu principal Carajás 360 Serviços locais de Canaã dos Carajás e região.",
+            "Início",
+            "Explorar Serviços",
+            "Pedidos",
+            "Mensagens",
+            "Minha Conta",
+            "Favoritos",
+            "Planos e Assinaturas"
+          ],
+          "screenshot": "desktop_voltar_explorar.png"
+        }
+      ],
+      "labels": [
+        "Voltar",
+        "Perfil verificado\nCarlos Eletricista\nEletricista\n4,9  (128 avaliações)\nCanaã dos Carajás\nProfissional verificado\nAtendimento presencial\nAtendimento online",
+        "Solicitar serviço",
+        "Conversar no chat",
+        "Favoritar",
+        "Sobre",
+        "Serviços",
+        "Avaliações (128)",
+        "Área de atendimento",
+        "Sobre o profissional\nInstalações e reparos residenciais.\nNo Carajás 360 desde janeiro de 2025\n128 avaliações de clientes\nAtende em Canaã dos Carajás",
+        "Orçamento rápido\nVocê revisa o pedido antes de enviar. Nenhuma cobrança é feita nesta etapa.",
+        "500 characters remaining",
+        "Solicitar orçamento"
+      ]
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "screenshots": [
+        "mobile_home_1.png",
+        "mobile_home_2.png",
+        "mobile_home_3.png",
+        "mobile_home_4.png"
+      ],
+      "checks": [
+        {
+          "target": "Solicitar serviço",
+          "nth": 0,
+          "result": "PASS",
+          "back": "PASS",
+          "seen": [
+            "Voltar",
+            "🔐",
+            "Faça login para continuar",
+            "Esta área precisa de uma conta. Seus dados não são exibidos sem autenticação.",
+            "Entrar"
+          ],
+          "screenshot": "mobile_solicitar.png"
+        },
+        {
+          "target": "Voltar",
+          "nth": 0,
+          "result": "PASS",
+          "back": "NOT APPLICABLE",
+          "seen": [
+            "Explorar Serviços Encontre rapidamente o serviço ideal na sua região.",
+            "Todos",
+            "Construção e Reforma",
+            "Elétrica",
+            "Hidráulica",
+            "Limpeza",
+            "Beleza e Estética",
+            "Saúde e Bem-estar"
+          ]
+        }
+      ]
+    }
+  ],
+  "finishedAt": "2026-11-07T01:37:12.294Z"
+}

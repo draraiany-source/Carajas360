@@ -1,0 +1,49 @@
+{
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 900,
+      "mobile": false,
+      "setup": [
+        { "label": "Explorar Serviços" },
+        { "label": "Perfil verificado\nC\nCarlos Eletricista\nEletricista\n4.9\n (128)\nCanaã dos Carajás\nA partir de R$ 80,00" }
+      ],
+      "homeMarker": "Solicitar orçamento",
+      "backMarker": "Solicitar orçamento",
+      "dumpLabels": true,
+      "scrollShots": 2,
+      "scrollStep": 600,
+      "scrollX": 700,
+      "targets": [
+        { "label": "Serviços", "inPlace": true, "shot": "aba_servicos", "expectAny": ["Serviços oferecidos"] },
+        { "label": "Avaliações (128)", "inPlace": true, "shot": "aba_avaliacoes", "expectAny": ["Nota média"] },
+        { "label": "Área de atendimento", "inPlace": true, "shot": "aba_area", "expectAny": ["Atende no local do cliente", "Atende online"] },
+        { "label": "Solicitar orçamento", "inPlace": true, "shot": "orcamento_vazio", "expectAny": ["Descreva o que você precisa para pedir o orçamento."] },
+        { "label": "Descreva o que você precisa", "type": "Troca de tomada na cozinha", "then": [{ "label": "Solicitar orçamento" }], "shot": "orcamento_enviar", "expectAny": ["Entrar"] },
+        { "label": "Solicitar serviço", "shot": "solicitar", "expectAny": ["Entrar"] },
+        { "label": "Conversar no chat", "shot": "conversar_visitante", "expectAny": ["E-mail"] },
+        { "label": "Favoritar", "shot": "favoritar_visitante", "expectAny": ["E-mail"] },
+        { "label": "Voltar", "inPlace": true, "shot": "voltar_explorar", "expectAny": ["Todos"] }
+      ]
+    },
+    {
+      "name": "mobile",
+      "width": 390,
+      "height": 844,
+      "mobile": true,
+      "setup": [
+        { "label": "Explorar" },
+        { "label": "Perfil verificado\nC\nCarlos Eletricista\nEletricista\n4.9\n (128)\nCanaã dos Carajás\nA partir de R$ 80,00" }
+      ],
+      "homeMarker": "Solicitar orçamento",
+      "backMarker": "Solicitar orçamento",
+      "scrollShots": 4,
+      "scrollStep": 600,
+      "targets": [
+        { "label": "Solicitar serviço", "shot": "solicitar", "expectAny": ["Entrar"] },
+        { "label": "Voltar", "inPlace": true, "expectAny": ["Todos"] }
+      ]
+    }
+  ]
+}

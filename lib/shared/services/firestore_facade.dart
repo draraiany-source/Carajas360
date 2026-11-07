@@ -116,7 +116,11 @@ class FS {
     if (_bypassLocalOnly && target == DevBypassAuth.uid) {
       return Stream.value(DevBypassAuth.mockUser);
     }
-    return _db.collection(Col.users).doc(target).snapshots().asyncMap((s) async {
+    return _db
+        .collection(Col.users)
+        .doc(target)
+        .snapshots()
+        .asyncMap((s) async {
       if (!s.exists) return null;
       final data = Map<String, dynamic>.from(s.data()!);
       if (target == _uid) {
@@ -184,11 +188,13 @@ class FS {
           if (v is List) {
             return MapEntry(
                 k,
-                v.map((e) => e is Map
-                    ? safe(Map<String, dynamic>.from(e))
-                    : e is Timestamp
-                        ? e.toDate().toIso8601String()
-                        : e).toList());
+                v
+                    .map((e) => e is Map
+                        ? safe(Map<String, dynamic>.from(e))
+                        : e is Timestamp
+                            ? e.toDate().toIso8601String()
+                            : e)
+                    .toList());
           }
           return MapEntry(k, v);
         });
@@ -212,7 +218,8 @@ class FS {
 
   // Upload de foto de perfil do usuário (Vol.3: Cadastro de
   // Clientes). Usa bytes (putData) para funcionar no Web e no mobile.
-  static Future<String?> uploadUserPhoto(Uint8List bytes, String fileName) async {
+  static Future<String?> uploadUserPhoto(
+      Uint8List bytes, String fileName) async {
     if (_uid == null) return null;
     try {
       final ext = _extOf(fileName);
@@ -292,11 +299,39 @@ class FS {
       return q
           .snapshots()
           .map((s) => s.docs
-              .map((d) => ProviderModel.fromMap(
-                  d.id, d.data() as Map<String, dynamic>))
+              .map((d) =>
+                  ProviderModel.fromMap(d.id, d.data() as Map<String, dynamic>))
               .toList())
           .asBroadcastStream();
     });
+  }
+
+  static Stream<ProviderModel?> providerStream(String providerId) {
+    if (HomologCatalog.enabled) {
+      final match = HomologCatalog.providers().where((p) => p.id == providerId);
+      return Stream<ProviderModel?>.value(match.isEmpty ? null : match.first)
+          .asBroadcastStream();
+    }
+    return _db
+        .collection(Col.providers)
+        .doc(providerId)
+        .snapshots()
+        .map((d) => d.exists ? ProviderModel.fromMap(d.id, d.data()!) : null);
+  }
+
+  /// Avaliações públicas do profissional, mais recentes primeiro.
+  /// A ordenação é feita no cliente para não exigir índice composto.
+  static Stream<List<ReviewModel>> providerReviewsStream(String providerId,
+      {int limit = 30}) {
+    if (HomologCatalog.enabled) return _emptyList<ReviewModel>();
+    return _db
+        .collection(Col.reviews)
+        .where('providerId', isEqualTo: providerId)
+        .limit(limit)
+        .snapshots()
+        .map((s) =>
+            s.docs.map((d) => ReviewModel.fromMap(d.id, d.data())).toList()
+              ..sort((a, b) => b.createdAt.compareTo(a.createdAt)));
   }
 
   // Cria o perfil de prestador (coleção providers) vinculado ao usuário
@@ -401,8 +436,8 @@ class FS {
         code: 'permission-denied');
   }
 
-  static Future<Map<String, dynamic>> _transition(
-      String orderId, String action, {Map<String, dynamic>? extra}) async {
+  static Future<Map<String, dynamic>> _transition(String orderId, String action,
+      {Map<String, dynamic>? extra}) async {
     return CloudFn.call('transitionOrder', {
       'orderId': orderId,
       'action': action,
@@ -422,12 +457,12 @@ class FS {
   static Stream<List<OrderModel>> myOrdersStream() {
     if (_bypassLocalOnly) return _emptyList<OrderModel>();
     return _db
-      .collection(Col.orders)
-      .where('clientId', isEqualTo: _uid)
-      .orderBy('createdAt', descending: true)
-      .snapshots()
-      .map((s) =>
-          s.docs.map((d) => OrderModel.fromMap(d.id, d.data())).toList());
+        .collection(Col.orders)
+        .where('clientId', isEqualTo: _uid)
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .map((s) =>
+            s.docs.map((d) => OrderModel.fromMap(d.id, d.data())).toList());
   }
 
   // ── Pedidos do lado do Prestador (Vol.3: Perfil do Profissional) ─
@@ -632,22 +667,23 @@ class FS {
   static Stream<WalletModel?> walletStream() {
     if (_bypassLocalOnly) return Stream.value(null);
     return _db
-      .collection(Col.wallets)
-      .doc(_uid)
-      .snapshots()
-      .map((s) => s.exists ? WalletModel.fromMap(s.data()!) : null);
+        .collection(Col.wallets)
+        .doc(_uid)
+        .snapshots()
+        .map((s) => s.exists ? WalletModel.fromMap(s.data()!) : null);
   }
 
   static Stream<List<TransactionModel>> txStream() {
     if (_bypassLocalOnly) return _emptyList<TransactionModel>();
     return _db
-      .collection(Col.transactions)
-      .where('userId', isEqualTo: _uid)
-      .orderBy('createdAt', descending: true)
-      .limit(30)
-      .snapshots()
-      .map((s) =>
-          s.docs.map((d) => TransactionModel.fromMap(d.id, d.data())).toList());
+        .collection(Col.transactions)
+        .where('userId', isEqualTo: _uid)
+        .orderBy('createdAt', descending: true)
+        .limit(30)
+        .snapshots()
+        .map((s) => s.docs
+            .map((d) => TransactionModel.fromMap(d.id, d.data()))
+            .toList());
   }
 
   static Future<bool> credit(double amount, String desc, String icon) async {
@@ -752,13 +788,13 @@ class FS {
   static Stream<List<NotifModel>> notifStream() {
     if (_bypassLocalOnly) return _emptyList<NotifModel>();
     return _db
-      .collection(Col.notifications)
-      .where('userId', isEqualTo: _uid)
-      .orderBy('createdAt', descending: true)
-      .limit(50)
-      .snapshots()
-      .map((s) =>
-          s.docs.map((d) => NotifModel.fromMap(d.id, d.data())).toList());
+        .collection(Col.notifications)
+        .where('userId', isEqualTo: _uid)
+        .orderBy('createdAt', descending: true)
+        .limit(50)
+        .snapshots()
+        .map((s) =>
+            s.docs.map((d) => NotifModel.fromMap(d.id, d.data())).toList());
   }
 
   static Future<void> markNotifRead(String id) =>
@@ -1005,7 +1041,8 @@ class FS {
   static Stream<List<RentalModel>> rentalsStream(
       {RentalKind? kind, String? category}) {
     if (HomologCatalog.enabled) {
-      return Stream.value(HomologCatalog.rentals(kind: kind, category: category));
+      return Stream.value(
+          HomologCatalog.rentals(kind: kind, category: category));
     }
     Query<Map<String, dynamic>> q =
         _db.collection(Col.rentals).where('active', isEqualTo: true);
@@ -1254,8 +1291,7 @@ class FS {
   // bruta, comissão) e transactions (PIX, estornos).
   static Future<Map<String, dynamic>> fetchFinancialReport() async {
     try {
-      final cfgSnap =
-          await _db.collection('config').doc('platform').get();
+      final cfgSnap = await _db.collection('config').doc('platform').get();
       final cfgRate = (cfgSnap.data()?['commissionRate'] as num?)?.toDouble();
       final rate = (cfgRate != null && cfgRate >= 0 && cfgRate <= 0.30)
           ? cfgRate
@@ -1271,8 +1307,7 @@ class FS {
       final commission = completed.docs.fold<double>(0, (sum, d) {
         final snap = (d.data()['commission'] as num?)?.toDouble();
         if (snap != null) return sum + snap;
-        return sum +
-            ((d.data()['price'] as num?)?.toDouble() ?? 0) * rate;
+        return sum + ((d.data()['price'] as num?)?.toDouble() ?? 0) * rate;
       });
       final netToProviders = grossRevenue - commission;
 
@@ -1732,9 +1767,8 @@ class FS {
         .where('clientId', isEqualTo: _uid)
         .orderBy('createdAt', descending: true)
         .snapshots()
-        .map((s) => s.docs
-            .map((d) => ResolveRequest.fromMap(d.id, d.data()))
-            .toList());
+        .map((s) =>
+            s.docs.map((d) => ResolveRequest.fromMap(d.id, d.data())).toList());
   }
 
   static Stream<ResolveRequest?> resolveRequestStream(String id) {
@@ -1754,11 +1788,15 @@ class FS {
         pricingMode: 'requestQuote',
       ));
     }
-    return _db.collection(Col.resolveRequests).doc(id).snapshots().map(
-        (s) => s.exists ? ResolveRequest.fromMap(s.id, s.data()!) : null);
+    return _db
+        .collection(Col.resolveRequests)
+        .doc(id)
+        .snapshots()
+        .map((s) => s.exists ? ResolveRequest.fromMap(s.id, s.data()!) : null);
   }
 
-  static Stream<List<ResolveProposal>> resolveProposalsStream(String requestId) {
+  static Stream<List<ResolveProposal>> resolveProposalsStream(
+      String requestId) {
     if (HomologCatalog.enabled && requestId.startsWith('hrq_')) {
       return Stream.value([
         ResolveProposal(
@@ -1866,7 +1904,8 @@ class FS {
           id: 'hrq_opp_4',
           clientId: 'homolog_client',
           clientName: 'Cliente',
-          description: 'Faxina completa em apartamento 2 quartos, pós-obra leve.',
+          description:
+              'Faxina completa em apartamento 2 quartos, pós-obra leve.',
           category: 'diarista',
           groupId: 'limpeza_dom',
           city: 'Marabá',
@@ -1899,14 +1938,11 @@ class FS {
       q = q.where('category', isEqualTo: category);
     }
     return q.snapshots().map((s) {
-      var list = s.docs
-          .map((d) => ResolveRequest.fromMap(d.id, d.data()))
-          .toList();
+      var list =
+          s.docs.map((d) => ResolveRequest.fromMap(d.id, d.data())).toList();
       if (city != null && city.isNotEmpty) {
         final c = city.toLowerCase();
-        list = list
-            .where((r) => r.city.toLowerCase().contains(c))
-            .toList();
+        list = list.where((r) => r.city.toLowerCase().contains(c)).toList();
       }
       return list;
     });
@@ -1967,7 +2003,9 @@ class FS {
       'matchedProviderId': providerId,
       'matchedProposalId': proposalId,
     });
-    await pushNotif(providerId, '✅ Proposta aceita!',
+    await pushNotif(
+        providerId,
+        '✅ Proposta aceita!',
         'Sua proposta Resolve foi aceita. Fale com o cliente no chat.',
         'resolve');
   }

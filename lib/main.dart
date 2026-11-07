@@ -16,6 +16,7 @@ import 'shared/widgets/micro_interactions.dart';
 import 'core/constants/app_constants.dart';
 import 'core/utils/firebase_bootstrap.dart';
 import 'shared/services/firebase_service.dart';
+import 'shared/models/models.dart' show ProviderModel;
 
 import 'package:carajas_360/features/auth/auth_screen.dart';
 import 'package:carajas_360/features/home/home_screen.dart'
@@ -43,6 +44,7 @@ import 'package:carajas_360/features/admin/admin_screen.dart';
 import 'package:carajas_360/features/company/company_screen.dart';
 import 'package:carajas_360/features/orders/orders_screen.dart';
 import 'package:carajas_360/features/provider/provider_home_screen.dart';
+import 'package:carajas_360/features/provider/provider_profile_screen.dart';
 import 'package:carajas_360/core/auth/access_control.dart';
 import 'core/auth/dev_bypass_auth.dart';
 
@@ -171,11 +173,10 @@ class Carajas360App extends StatelessWidget {
                 return _route(const MainNav());
               case Routes.search:
                 final sa = settings.arguments as Map<String, dynamic>?;
-                return _route(
-                    SearchScreen(
-                      initialCategory: sa?['category'] as String?,
-                      initialGroup: sa?['group'] as String?,
-                    ));
+                return _route(SearchScreen(
+                  initialCategory: sa?['category'] as String?,
+                  initialGroup: sa?['group'] as String?,
+                ));
               case Routes.chat:
                 final a = settings.arguments as Map<String, dynamic>?;
                 return _route(RequireAuth(
@@ -194,7 +195,8 @@ class Carajas360App extends StatelessWidget {
                     deliveryId: a?['deliveryId'],
                     orderId: a?['orderId']));
               case Routes.wallet:
-                return _route(const RequireAuth(title: 'Carteira', child: WalletScreen()));
+                return _route(const RequireAuth(
+                    title: 'Carteira', child: WalletScreen()));
               case Routes.health:
                 return _route(const HealthScreen());
               case Routes.marketplace:
@@ -229,13 +231,16 @@ class Carajas360App extends StatelessWidget {
                   ),
                 ));
               case Routes.support:
-                return _route(const RequireAuth(title: 'Suporte', child: SupportScreen()));
+                return _route(const RequireAuth(
+                    title: 'Suporte', child: SupportScreen()));
               case Routes.coupons:
                 return _route(const CouponsScreen());
               case Routes.aiAssistant:
-                return _route(const RequireAuth(title: 'Assistente', child: AiAssistantScreen()));
+                return _route(const RequireAuth(
+                    title: 'Assistente', child: AiAssistantScreen()));
               case Routes.companyProfile:
-                return _route(const RequireAuth(title: 'Empresa', child: CompanyProfileScreen()));
+                return _route(const RequireAuth(
+                    title: 'Empresa', child: CompanyProfileScreen()));
               case Routes.favorites:
                 return _route(const RequireAuth(
                     title: 'Favoritos', child: FavoritesScreen()));
@@ -250,13 +255,19 @@ class Carajas360App extends StatelessWidget {
                     providerId: a?['providerId'] ?? '',
                     providerName: a?['providerName'] ?? 'Profissional',
                     category: a?['category'] ?? '',
+                    initialDescription: a?['description'] as String?,
                     providerColor: a?['providerColor'] ?? AppColors.primary,
                   ),
                 ));
+              case Routes.providerProfile:
+                final a = settings.arguments as Map<String, dynamic>?;
+                return _route(ProviderProfileScreen(
+                  providerId: a?['providerId'] as String? ?? '',
+                  initial: a?['provider'] as ProviderModel?,
+                ));
               case Routes.providerHome:
                 return _route(const RequireAuth(
-                    title: 'Área do prestador',
-                    child: ProviderHomeScreen()));
+                    title: 'Área do prestador', child: ProviderHomeScreen()));
               case Routes.providerOnboarding:
                 final oa = settings.arguments as Map<String, dynamic>?;
                 return _route(ProviderOnboardingScreen(
@@ -278,8 +289,7 @@ class Carajas360App extends StatelessWidget {
                 return _route(const ResolveScreen());
               case Routes.assistedRequest:
                 return _route(const RequireAuth(
-                    title: 'Pedido assistido',
-                    child: AssistedRequestScreen()));
+                    title: 'Pedido assistido', child: AssistedRequestScreen()));
               case Routes.resolveDetail:
                 final a = settings.arguments as Map<String, dynamic>?;
                 final rid = a?['id'] as String? ?? '';
@@ -292,8 +302,7 @@ class Carajas360App extends StatelessWidget {
                     child: ResolveDetailScreen(requestId: rid)));
               case Routes.resolveOpportunities:
                 return _route(const RequireAuth(
-                    title: 'Oportunidades',
-                    child: OpportunitiesHubScreen()));
+                    title: 'Oportunidades', child: OpportunitiesHubScreen()));
               case Routes.creditPackages:
                 return _route(const RequireAuth(
                     title: 'Creditos', child: CreditPackagesScreen()));
@@ -422,13 +431,12 @@ class _MainNavState extends State<MainNav> {
               color: isDark ? AppColors.darkSurface : AppColors.white,
               border: Border(
                   top: BorderSide(
-                      color: isDark
-                          ? AppColors.darkDivider
-                          : AppColors.divider)),
+                      color:
+                          isDark ? AppColors.darkDivider : AppColors.divider)),
               boxShadow: [
                 BoxShadow(
-                    color: AppColors.navy
-                        .withValues(alpha: isDark ? 0.35 : 0.06),
+                    color:
+                        AppColors.navy.withValues(alpha: isDark ? 0.35 : 0.06),
                     blurRadius: 24,
                     offset: const Offset(0, -8))
               ]),
@@ -439,8 +447,8 @@ class _MainNavState extends State<MainNav> {
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
                   for (var i = 0; i < _destinations.length; i++)
-                    _navItem(i, _destinations[i].$1, _destinations[i].$2,
-                        scheme),
+                    _navItem(
+                        i, _destinations[i].$1, _destinations[i].$2, scheme),
                 ]),
           )),
         ),
@@ -606,8 +614,7 @@ class _SidebarItem extends StatelessWidget {
             hoverColor: Colors.white.withValues(alpha: 0.08),
             onTap: onTap,
             child: Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               child: Row(children: [
                 Icon(icon, size: 21, color: fg),
                 const SizedBox(width: 12),

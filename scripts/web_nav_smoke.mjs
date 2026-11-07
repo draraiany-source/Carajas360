@@ -33,13 +33,13 @@ const evaluate = async (expression) => {
   return r.result?.value;
 };
 
-const LAB = `(n)=>(n.getAttribute('aria-label')||[...n.childNodes].filter(c=>c.nodeType===3).map(c=>c.textContent).join('')||'').trim()`;
+const LAB = `(n)=>(n.getAttribute('aria-label')||[...n.childNodes].filter(c=>c.nodeType===3).map(c=>c.textContent).join('')||(n.querySelector('flt-semantics')?'':n.textContent)||'').trim()`;
 const enableSemantics = () => evaluate(
   `document.querySelector('flt-semantics-placeholder')?.click(); document.querySelectorAll('flt-semantics').length`);
 const labels = () => evaluate(
   `(()=>{const lab=${LAB};return [...document.querySelectorAll('flt-semantics')].map(lab).filter(Boolean)})()`);
 const rectOf = (label, nth = 0) => evaluate(
-  `(()=>{const lab=${LAB};const n=[...document.querySelectorAll('flt-semantics')].filter(x=>lab(x)===${JSON.stringify(label)}).at(${nth})??[...document.querySelectorAll('flt-semantics input[aria-label]')].filter(x=>x.getAttribute('aria-label')===${JSON.stringify(label)}).at(${nth});if(!n)return null;const r=n.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
+  `(()=>{const lab=${LAB};const n=[...document.querySelectorAll('flt-semantics')].filter(x=>lab(x)===${JSON.stringify(label)}).at(${nth})??[...document.querySelectorAll('flt-semantics input[aria-label],flt-semantics textarea[aria-label]')].filter(x=>x.getAttribute('aria-label').includes(${JSON.stringify(label)})).at(${nth});if(!n)return null;const r=n.getBoundingClientRect();return {x:r.x+r.width/2,y:r.y+r.height/2}})()`);
 
 async function clickAt({ x, y }) {
   for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) {

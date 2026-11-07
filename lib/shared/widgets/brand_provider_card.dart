@@ -12,7 +12,8 @@ import 'widgets.dart';
 import 'micro_interactions.dart';
 
 /// Abre a solicitação direta ao profissional.
-void requestProviderService(BuildContext context, ProviderModel p) =>
+void requestProviderService(BuildContext context, ProviderModel p,
+        {String? description}) =>
     Navigator.pushNamed(
       context,
       Routes.requestService,
@@ -20,7 +21,16 @@ void requestProviderService(BuildContext context, ProviderModel p) =>
         'providerId': p.id,
         'providerName': p.name,
         'category': p.categories.isNotEmpty ? p.categories.first : '',
+        if (description != null && description.trim().isNotEmpty)
+          'description': description.trim(),
       },
+    );
+
+void openProviderProfile(BuildContext context, ProviderModel p) =>
+    Navigator.pushNamed(
+      context,
+      Routes.providerProfile,
+      arguments: {'providerId': p.id, 'provider': p},
     );
 
 /// Conversa com o profissional (visitante é levado ao login).
@@ -115,6 +125,20 @@ class _RoundIconButton extends StatelessWidget {
   }
 }
 
+/// Alterna o favorito (visitante é levado ao login).
+Future<void> toggleProviderFavorite(
+    BuildContext context, String providerId) async {
+  if (AuthService.uid == null) {
+    snack(context, 'Entre na conta para salvar favoritos.');
+    Navigator.pushNamed(context, Routes.login);
+    return;
+  }
+  final nowFav = await FS.toggleFavorite(providerId);
+  if (!context.mounted) return;
+  snack(context, nowFav ? 'Adicionado aos favoritos' : 'Removido dos favoritos',
+      bg: nowFav ? Brand.green : AppColors.textLight);
+}
+
 class BrandFavoriteButton extends StatelessWidget {
   final String providerId;
   const BrandFavoriteButton({super.key, required this.providerId});
@@ -129,18 +153,7 @@ class BrandFavoriteButton extends StatelessWidget {
           icon: isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
           color: isFav ? AppColors.error : Brand.green,
           tooltip: isFav ? 'Remover dos favoritos' : 'Favoritar',
-          onTap: () async {
-            if (AuthService.uid == null) {
-              snack(context, 'Entre na conta para salvar favoritos.');
-              Navigator.pushNamed(context, Routes.login);
-              return;
-            }
-            final nowFav = await FS.toggleFavorite(providerId);
-            if (!context.mounted) return;
-            snack(context,
-                nowFav ? 'Adicionado aos favoritos' : 'Removido dos favoritos',
-                bg: nowFav ? Brand.green : AppColors.textLight);
-          },
+          onTap: () => toggleProviderFavorite(context, providerId),
         );
       },
     );
@@ -160,7 +173,7 @@ class BrandProviderCard extends StatelessWidget {
         : 'Valor sob consulta';
     void request() => requestProviderService(context, p);
     return TapScale(
-      onTap: TapGuard.wrap(request),
+      onTap: TapGuard.wrap(() => openProviderProfile(context, p)),
       child: Container(
         decoration: BoxDecoration(
           color: Brand.surface(context),

@@ -77,13 +77,12 @@ class FavoritesScreen extends StatelessWidget {
                     photo: p.photoUrl,
                     providerId: p.id,
                     onTap: () => Navigator.pushNamed(
-                            context, Routes.requestService,
-                            arguments: {
+                        context, Routes.requestService,
+                        arguments: {
                           'providerId': p.id,
                           'providerName': p.name,
-                          'category': p.categories.isNotEmpty
-                              ? p.categories.first
-                              : ''
+                          'category':
+                              p.categories.isNotEmpty ? p.categories.first : ''
                         }),
                     onChat: () => ChatNav.open(context,
                         otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
@@ -160,170 +159,162 @@ class _MyOrdersState extends State<MyOrdersScreen> {
       );
     }
     return Scaffold(
-        appBar: CarajasAppBar(
-          title: '📋 Meus Pedidos',
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  Navigator.pushNamed(context, Routes.myResolve),
-              child: const Text('Resolve'),
-            ),
-          ],
-        ),
-        body: Column(children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-            child: Material(
-              color: AppColors.secondary.withValues(alpha: 0.1),
+      appBar: CarajasAppBar(
+        title: '📋 Meus Pedidos',
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pushNamed(context, Routes.myResolve),
+            child: const Text('Resolve'),
+          ),
+        ],
+      ),
+      body: Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: Material(
+            color: AppColors.secondary.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(14),
+            child: InkWell(
               borderRadius: BorderRadius.circular(14),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () =>
-                    Navigator.pushNamed(context, Routes.myResolve),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  child: Row(children: [
-                    Text('⚡', style: TextStyle(fontSize: 18)),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Pedidos Resolve — propostas e orçamentos abertos',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 13),
-                      ),
+              onTap: () => Navigator.pushNamed(context, Routes.myResolve),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                child: Row(children: [
+                  Text('⚡', style: TextStyle(fontSize: 18)),
+                  SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Pedidos Resolve — propostas e orçamentos abertos',
+                      style:
+                          TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                     ),
-                    Icon(Icons.chevron_right_rounded,
-                        color: AppColors.secondary),
-                  ]),
-                ),
+                  ),
+                  Icon(Icons.chevron_right_rounded, color: AppColors.secondary),
+                ]),
               ),
             ),
           ),
-          SizedBox(
-              height: 46,
-              child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  children: [
-                    _filterChip('Todos', null),
-                    _filterChip('Aguardando', OrderStatus.pending),
-                    _filterChip('Em andamento', OrderStatus.inProgress),
-                    _filterChip('Concluídos', OrderStatus.completed),
-                    _filterChip('Cancelados', OrderStatus.cancelled),
-                  ])),
-          Expanded(
-              child: StreamBuilder<List<OrderModel>>(
-            stream: FS.orderHistoryStream(status: _filter),
-            builder: (_, snap) {
-              if (snap.connectionState == ConnectionState.waiting &&
-                  !snap.hasData) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              if (snap.hasError) {
-                return const EmptyState(
-                    emoji: '⚠️',
-                    title: 'Falha ao carregar pedidos',
-                    subtitle: 'Verifique a conexão e tente novamente.');
-              }
-              final orders = DemoData.orEmpty(
-                  snap.data,
-                  _demo
-                      .where((o) => _filter == null || o.status == _filter)
-                      .toList());
-              if (orders.isEmpty)
-                return const EmptyState(
-                    emoji: '📋',
-                    title: 'Nenhum pedido',
-                    subtitle: 'Seus pedidos aparecerão aqui',
-                    asset: AppAssets.ilListaVazia);
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: orders.length,
-                itemBuilder: (_, i) {
-                  final o = orders[i];
-                  final cat = Categories.byId(o.category);
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: AppDecorations.card(r: 16),
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                    color: (cat?.color ?? AppColors.primary)
-                                        .withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(12)),
-                                alignment: Alignment.center,
-                                child: Text(cat?.emoji ?? '🔧',
-                                    style: const TextStyle(fontSize: 20))),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                  Text(o.title,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14)),
-                                  Text(fmtDate(o.createdAt),
-                                      style: const TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textLight)),
-                                ])),
-                            if (o.price != null)
-                              Text(PaySvc.fmt(o.price!),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: AppColors.secondary)),
-                          ]),
-                          const SizedBox(height: 10),
-                          Row(children: [
-                            AppTag(o.statusLabel,
-                                bg: _statusBg(o.status),
-                                fg: _statusFg(o.status)),
-                            const Spacer(),
-                            if (o.status == OrderStatus.pending ||
-                                o.status == OrderStatus.accepted)
-                              TextButton(
-                                  onPressed: () =>
-                                      _confirmCancel(context, o.id),
-                                  child: const Text('Cancelar',
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.error))),
-                            if (o.status == OrderStatus.inProgress)
-                              TextButton(
-                                  onPressed: () => Navigator.pushNamed(
-                                          context, Routes.gps, arguments: {
-                                        'ctx': 'servico',
-                                        'orderId': o.id
-                                      }),
-                                  child: const Text('Rastrear',
-                                      style: TextStyle(fontSize: 12))),
-                            if (o.status == OrderStatus.completed &&
-                                !o.reviewed)
-                              TextButton(
-                                  onPressed: () => Navigator.pushNamed(
-                                      context, Routes.reviews,
-                                      arguments: {'orderId': o.id}),
-                                  child: const Text('Avaliar',
-                                      style: TextStyle(fontSize: 12))),
-                          ]),
+        ),
+        SizedBox(
+            height: 46,
+            child: ListView(
+                scrollDirection: Axis.horizontal,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                children: [
+                  _filterChip('Todos', null),
+                  _filterChip('Aguardando', OrderStatus.pending),
+                  _filterChip('Em andamento', OrderStatus.inProgress),
+                  _filterChip('Concluídos', OrderStatus.completed),
+                  _filterChip('Cancelados', OrderStatus.cancelled),
+                ])),
+        Expanded(
+            child: StreamBuilder<List<OrderModel>>(
+          stream: FS.orderHistoryStream(status: _filter),
+          builder: (_, snap) {
+            if (snap.connectionState == ConnectionState.waiting &&
+                !snap.hasData) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snap.hasError) {
+              return const EmptyState(
+                  emoji: '⚠️',
+                  title: 'Falha ao carregar pedidos',
+                  subtitle: 'Verifique a conexão e tente novamente.');
+            }
+            final orders = DemoData.orEmpty(
+                snap.data,
+                _demo
+                    .where((o) => _filter == null || o.status == _filter)
+                    .toList());
+            if (orders.isEmpty)
+              return const EmptyState(
+                  emoji: '📋',
+                  title: 'Nenhum pedido',
+                  subtitle: 'Seus pedidos aparecerão aqui',
+                  asset: AppAssets.ilListaVazia);
+            return ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: orders.length,
+              itemBuilder: (_, i) {
+                final o = orders[i];
+                final cat = Categories.byId(o.category);
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  decoration: AppDecorations.card(r: 16),
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Container(
+                              width: 42,
+                              height: 42,
+                              decoration: BoxDecoration(
+                                  color: (cat?.color ?? AppColors.primary)
+                                      .withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12)),
+                              alignment: Alignment.center,
+                              child: Text(cat?.emoji ?? '🔧',
+                                  style: const TextStyle(fontSize: 20))),
+                          const SizedBox(width: 12),
+                          Expanded(
+                              child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                Text(o.title,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w700,
+                                        fontSize: 14)),
+                                Text(fmtDate(o.createdAt),
+                                    style: const TextStyle(
+                                        fontSize: 11,
+                                        color: AppColors.textLight)),
+                              ])),
+                          if (o.price != null)
+                            Text(PaySvc.fmt(o.price!),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 14,
+                                    color: AppColors.secondary)),
                         ]),
-                  );
-                },
-              );
-            },
-          )),
-        ]),
-      );
+                        const SizedBox(height: 10),
+                        Row(children: [
+                          AppTag(o.statusLabel,
+                              bg: _statusBg(o.status), fg: _statusFg(o.status)),
+                          const Spacer(),
+                          if (o.status == OrderStatus.pending ||
+                              o.status == OrderStatus.accepted)
+                            TextButton(
+                                onPressed: () => _confirmCancel(context, o.id),
+                                child: const Text('Cancelar',
+                                    style: TextStyle(
+                                        fontSize: 12, color: AppColors.error))),
+                          if (o.status == OrderStatus.inProgress)
+                            TextButton(
+                                onPressed: () => Navigator.pushNamed(
+                                        context, Routes.gps, arguments: {
+                                      'ctx': 'servico',
+                                      'orderId': o.id
+                                    }),
+                                child: const Text('Rastrear',
+                                    style: TextStyle(fontSize: 12))),
+                          if (o.status == OrderStatus.completed && !o.reviewed)
+                            TextButton(
+                                onPressed: () => Navigator.pushNamed(
+                                    context, Routes.reviews,
+                                    arguments: {'orderId': o.id}),
+                                child: const Text('Avaliar',
+                                    style: TextStyle(fontSize: 12))),
+                        ]),
+                      ]),
+                );
+              },
+            );
+          },
+        )),
+      ]),
+    );
   }
 
   Widget _filterChip(String label, OrderStatus? status) {
@@ -431,12 +422,14 @@ class _MyOrdersState extends State<MyOrdersScreen> {
 // ─────────────────────────────────────────────────────────────
 class RequestServiceScreen extends StatefulWidget {
   final String providerId, providerName, category;
+  final String? initialDescription;
   final Color providerColor;
   const RequestServiceScreen(
       {super.key,
       required this.providerId,
       required this.providerName,
       required this.category,
+      this.initialDescription,
       this.providerColor = AppColors.primary});
   @override
   State<RequestServiceScreen> createState() => _RequestServiceState();
@@ -456,6 +449,7 @@ class _RequestServiceState extends State<RequestServiceScreen> {
   @override
   void initState() {
     super.initState();
+    _description.text = widget.initialDescription?.trim() ?? '';
     final uid = AuthService.uid;
     if (uid == null) return;
     FS.userStream(uid).first.then((u) {

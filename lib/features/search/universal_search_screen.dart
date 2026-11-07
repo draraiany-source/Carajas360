@@ -1136,93 +1136,103 @@ class _ProviderRow extends StatelessWidget {
     final price = p.minPrice != null
         ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(2).replaceAll('.', ',')}'
         : 'Valor sob consulta';
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Brand.surface(context),
+    return Material(
+      color: Brand.surface(context),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Brand.line(context)),
-      ),
-      child: Row(children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(12),
-          child: SizedBox(
-              width: 72, height: 72, child: BrandProviderPhoto(provider: p)),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(children: [
-                Flexible(
-                  child: Text(p.name,
+        onTap: TapGuard.wrap(() => openProviderProfile(context, p)),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Brand.line(context)),
+          ),
+          child: Row(children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: SizedBox(
+                  width: 72,
+                  height: 72,
+                  child: BrandProviderPhoto(provider: p)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    Flexible(
+                      child: Text(p.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w800,
+                              color: Brand.ink(context))),
+                    ),
+                    if (p.verified) ...[
+                      const SizedBox(width: 4),
+                      const Icon(Icons.verified_rounded,
+                          size: 16, color: Brand.green),
+                    ],
+                  ]),
+                  Text(
+                      [
+                        providerCategoryName(p),
+                        if (p.city != null && p.city!.isNotEmpty) p.city!,
+                      ].join(' · '),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w800,
-                          color: Brand.ink(context))),
-                ),
-                if (p.verified) ...[
-                  const SizedBox(width: 4),
-                  const Icon(Icons.verified_rounded,
-                      size: 16, color: Brand.green),
+                          fontSize: 12, color: Brand.inkMuted(context))),
+                  const SizedBox(height: 4),
+                  Row(children: [
+                    const Icon(Icons.star_rounded, size: 15, color: Brand.gold),
+                    const SizedBox(width: 2),
+                    Text(
+                        p.totalReviews > 0
+                            ? '${p.rating.toStringAsFixed(1)} (${p.totalReviews})'
+                            : 'Novo',
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: Brand.ink(context))),
+                    const SizedBox(width: 10),
+                    Flexible(
+                      child: Text(price,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w700,
+                              color: Brand.green)),
+                    ),
+                  ]),
                 ],
-              ]),
-              Text(
-                  [
-                    providerCategoryName(p),
-                    if (p.city != null && p.city!.isNotEmpty) p.city!,
-                  ].join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      TextStyle(fontSize: 12, color: Brand.inkMuted(context))),
-              const SizedBox(height: 4),
-              Row(children: [
-                const Icon(Icons.star_rounded, size: 15, color: Brand.gold),
-                const SizedBox(width: 2),
-                Text(
-                    p.totalReviews > 0
-                        ? '${p.rating.toStringAsFixed(1)} (${p.totalReviews})'
-                        : 'Novo',
-                    style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: Brand.ink(context))),
-                const SizedBox(width: 10),
-                Flexible(
-                  child: Text(price,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w700,
-                          color: Brand.green)),
-                ),
-              ]),
-            ],
-          ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            BrandFavoriteButton(providerId: p.id),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              onPressed:
+                  TapGuard.wrap(() => requestProviderService(context, p)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Brand.green,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                minimumSize: const Size(0, 40),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(11)),
+              ),
+              child: const Text('Solicitar',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+            ),
+          ]),
         ),
-        const SizedBox(width: 8),
-        BrandFavoriteButton(providerId: p.id),
-        const SizedBox(width: 8),
-        ElevatedButton(
-          onPressed: TapGuard.wrap(() => requestProviderService(context, p)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Brand.green,
-            foregroundColor: Colors.white,
-            elevation: 0,
-            minimumSize: const Size(0, 40),
-            padding: const EdgeInsets.symmetric(horizontal: 14),
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(11)),
-          ),
-          child: const Text('Solicitar',
-              style: TextStyle(fontWeight: FontWeight.w800)),
-        ),
-      ]),
+      ),
     );
   }
 }

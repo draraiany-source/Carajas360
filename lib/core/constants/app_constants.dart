@@ -92,6 +92,7 @@ abstract class Routes {
   static const favorites = '/favorites';
   static const myOrders = '/my-orders';
   static const requestService = '/request-service';
+  static const providerProfile = '/provider-profile';
   static const providerHome = '/provider-home';
   static const providerOnboarding = '/provider-onboarding';
   static const servicesHub = '/services-hub';
