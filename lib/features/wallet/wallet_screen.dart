@@ -594,18 +594,22 @@ class PixScreen extends StatefulWidget {
   final String desc;
   final bool isRecharge;
   final Future<void> Function()? onPaid;
+
+  /// Pedido de serviço sendo pago; o valor cobrado é o do pedido no backend.
+  final String? orderId;
   const PixScreen(
       {super.key,
       required this.amount,
       required this.desc,
       this.isRecharge = false,
-      this.onPaid});
+      this.onPaid,
+      this.orderId});
   @override
   State<PixScreen> createState() => _PixState();
 }
 
 class _PixState extends State<PixScreen> {
-  bool _loading = true, _paid = false;
+  bool _loading = true, _paid = false, _unavailable = false;
   String? _code;
   String? _paymentId;
   bool _polling = false;
@@ -633,7 +637,8 @@ class _PixState extends State<PixScreen> {
         amount: widget.amount,
         description: widget.desc,
         email: email,
-        orderId: 'order_${DateTime.now().millisecondsSinceEpoch}',
+        orderId:
+            widget.orderId ?? 'order_${DateTime.now().millisecondsSinceEpoch}',
         userId: _uid.isNotEmpty ? _uid : null,
         purpose: widget.isRecharge ? 'wallet_recharge' : 'order');
 
@@ -650,18 +655,11 @@ class _PixState extends State<PixScreen> {
       _countdownStart();
       _startPolling();
     } else {
-      // Sem gateway: não auto-credita (evita abuso em produção/demo).
+      // Sem gateway não há código PIX válido para mostrar.
       setState(() {
         _loading = false;
-        _code =
-            '00020126580014BR.GOV.BCB.PIX0136${_uid.isNotEmpty ? _uid : 'demo'}@carajas360.local5204000053039865802BR5925Carajas 3606009SAO PAULO62070503***6304ABCD';
+        _unavailable = true;
       });
-      _countdownStart();
-      if (mounted) {
-        snack(context,
-            'Pagamentos PIX ainda não configurados. Configure o gateway para confirmar recargas.',
-            bg: AppColors.warning);
-      }
     }
   }
 
@@ -733,7 +731,9 @@ class _PixState extends State<PixScreen> {
                             ? 'Pagamento confirmado!'
                             : _loading
                                 ? 'Gerando QR Code...'
-                                : 'Aguardando pagamento...',
+                                : _unavailable
+                                    ? 'PIX indisponível'
+                                    : 'Aguardando pagamento...',
                         style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.w700,
@@ -756,9 +756,31 @@ class _PixState extends State<PixScreen> {
                     child: CircularProgressIndicator(color: AppColors.pix))
               else if (_paid)
                 _success()
+              else if (_unavailable)
+                _unavailableCard()
               else
                 _qr(),
             ])),
+      );
+
+  Widget _unavailableCard() => Container(
+        decoration: AppDecorations.card(r: 20),
+        padding: const EdgeInsets.all(20),
+        child: Column(children: [
+          const Icon(Icons.info_outline_rounded,
+              color: AppColors.warning, size: 36),
+          const SizedBox(height: 12),
+          const Text(
+              'O pagamento por PIX não está ativo neste ambiente. Nenhuma cobrança foi feita.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, height: 1.4)),
+          const SizedBox(height: 16),
+          SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Voltar'))),
+        ]),
       );
 
   Widget _qr() => Column(children: [
@@ -884,8 +906,15 @@ class CardPaymentScreen extends StatefulWidget {
   final double amount;
   final String desc;
   final Future<void> Function()? onPaid;
+
+  /// Pedido de serviço sendo pago; o valor cobrado é o do pedido no backend.
+  final String? orderId;
   const CardPaymentScreen(
-      {super.key, required this.amount, required this.desc, this.onPaid});
+      {super.key,
+      required this.amount,
+      required this.desc,
+      this.onPaid,
+      this.orderId});
   @override
   State<CardPaymentScreen> createState() => _CardPaymentState();
 }
@@ -943,13 +972,22 @@ class _CardPaymentState extends State<CardPaymentScreen> {
       amount: widget.amount,
       description: widget.desc,
       email: user?.email ?? '',
-      orderId: DateTime.now().millisecondsSinceEpoch.toString(),
+      orderId:
+          widget.orderId ?? DateTime.now().millisecondsSinceEpoch.toString(),
       cardToken: token,
       installments: _installments,
       docNumber: _doc.text.replaceAll(RegExp(r'\D'), ''),
     );
 
-    if (result == null || result['status'] != 'approved') {
+    if (result == null) {
+      setState(() {
+        _loading = false;
+        _error =
+            'Não foi possível processar o cartão agora. Nenhuma cobrança foi feita.';
+      });
+      return;
+    }
+    if (result['status'] != 'approved') {
       setState(() {
         _loading = false;
         _error =

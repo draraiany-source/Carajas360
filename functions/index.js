@@ -85,6 +85,35 @@ async function assertFinancialKillSwitchOff() {
   return cfg;
 }
 
+async function readPlatformConfig() {
+  const cfgSnap = await db.collection('config').doc('platform').get();
+  return cfgSnap.exists ? cfgSnap.data() || {} : {};
+}
+
+async function commissionRateFromConfig() {
+  const cfg = await readPlatformConfig();
+  const r = Number(cfg.commissionRate);
+  return Number.isFinite(r) && r >= 0 && r <= 0.30 ? r : policy.COMMISSION_RATE;
+}
+
+const PAYMENT_BLOCK_MESSAGES = {
+  already_paid: 'Pedido já pago',
+  no_provider: 'O pedido ainda não tem profissional',
+  order_not_payable: 'O pedido não pode ser pago nesta etapa',
+  no_price: 'O profissional ainda não informou o valor',
+  order_missing: 'Pedido não encontrado',
+};
+
+function assertOrderPayable(order) {
+  const reason = policy.paymentBlockReason(order);
+  if (reason) {
+    throw httpsError(
+      reason === 'already_paid' ? 'already-exists' : 'failed-precondition',
+      PAYMENT_BLOCK_MESSAGES[reason] || 'Pagamento não permitido',
+    );
+  }
+}
+
 function getAnthropicKey() {
   return process.env.ANTHROPIC_API_KEY || '';
 }
@@ -308,6 +337,26 @@ async function loadConfirmedPayment(tx, order, orderId) {
   return { paymentId: String(paymentId), payment: paySnap.data() };
 }
 
+/** Repasse ao profissional dentro da transação; libera a custódia. */
+async function releasePayoutInTx(tx, order, orderId, updates, actorUid) {
+  const { paymentId, payment } = await loadConfirmedPayment(tx, order, orderId);
+  const payout = await applyOfficialPayout(tx, {
+    order: { ...order, ...updates, payoutProcessed: false },
+    orderId,
+    payment,
+    paymentId,
+    actorUid,
+  });
+  Object.assign(updates, payout.orderUpdates || {});
+  updates.escrowStatus = 'released';
+  updates.releasedAt = admin.firestore.FieldValue.serverTimestamp();
+  return payout.payoutProcessed || false;
+}
+
+function toDate(v) {
+  return v && v.toDate ? v.toDate() : (v instanceof Date ? v : null);
+}
+
 exports.transitionOrder = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
   const orderId = String(data && data.orderId || '');
@@ -316,6 +365,9 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
     throw httpsError('invalid-argument', 'orderId e action obrigatórios');
   }
   const adminUser = await isAdmin(auth);
+  const cfg = await readPlatformConfig();
+  const payoutsBlocked = cfg.financialKillSwitch === true;
+  const holdDays = policy.escrowHoldDays(cfg.escrowHoldDays);
 
   const result = await db.runTransaction(async (tx) => {
     const orderRef = db.collection('orders').doc(orderId);
@@ -330,21 +382,29 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
     )) {
       throw httpsError('permission-denied', 'Sem permissão para esta ação');
     }
+    if (action === 'accept' && !order.providerId) {
+      const provSnap = await tx.get(db.collection('providers').doc(auth.uid));
+      const prov = provSnap.exists ? provSnap.data() || {} : null;
+      if (!prov || prov.active === false || !(prov.verified === true || prov.approved === true)) {
+        throw httpsError('permission-denied', 'Somente profissionais aprovados podem aceitar pedidos');
+      }
+    }
 
     const updates = {
       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
     };
     let to = policy.targetStatus(action);
     let payoutProcessed = order.payoutProcessed || false;
+    const isClientActor = auth.uid === order.clientId;
 
     if (action === 'reopen') {
       if (!policy.adminReopenAllowed(from)) {
         throw httpsError('failed-precondition', 'Reabertura não permitida neste status');
       }
-      to = policy.adminReopenTarget(order);
-      if (!policy.isAllowedTransition(from, to)) {
-        throw httpsError('failed-precondition', 'Transição de status inválida');
+      if (paymentStatus === 'paid' || order.payoutProcessed) {
+        throw httpsError('failed-precondition', 'Pedido com pagamento não pode ser reaberto');
       }
+      to = policy.adminReopenTarget(order);
       updates.status = to;
       updates.reopenedAt = admin.firestore.FieldValue.serverTimestamp();
       updates.reopenedBy = auth.uid;
@@ -371,31 +431,40 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
       updates.heldAmount = hold.heldAmount;
       updates.releaseAt = admin.firestore.Timestamp.fromDate(hold.releaseAt);
       to = from;
-    } else if (action === 'releaseEscrow') {
-      const paidAt = order.paidAt && order.paidAt.toDate
-        ? order.paidAt.toDate()
-        : null;
-      const completedAt = order.completedAt && order.completedAt.toDate
-        ? order.completedAt.toDate()
-        : null;
-      const releaseAt = order.releaseAt && order.releaseAt.toDate
-        ? order.releaseAt.toDate()
-        : null;
+    } else if (action === 'releaseEscrow' || action === 'confirm') {
+      if (from !== 'completed') {
+        throw httpsError('failed-precondition', 'O serviço ainda não foi concluído');
+      }
+      if (payoutsBlocked) {
+        throw httpsError(
+          'failed-precondition',
+          'Operacoes financeiras temporariamente desativadas pelo Admin (kill switch).',
+        );
+      }
+      if (action === 'confirm') {
+        if (order.clientConfirmedAt) {
+          return { ok: true, already: true, status: from, previousStatus: from, payoutProcessed };
+        }
+        updates.clientConfirmedAt = admin.firestore.FieldValue.serverTimestamp();
+      }
       const release = policy.canReleaseEscrow({
         status: from,
         paymentStatus,
         payoutProcessed: order.payoutProcessed || false,
-        completedAt,
-        clientConfirmed: Boolean(order.clientConfirmedAt),
-        paidAt,
-        releaseAt,
+        completedAt: toDate(order.completedAt),
+        clientConfirmed: action === 'confirm' || Boolean(order.clientConfirmedAt),
+        paidAt: toDate(order.paidAt),
+        releaseAt: toDate(order.releaseAt),
         escrowStatus: order.escrowStatus,
       });
       if (!release.ok) {
+        if (action === 'confirm' && release.reason === 'already_released') {
+          tx.update(orderRef, updates);
+          return { ok: true, status: from, previousStatus: from, payoutProcessed: true };
+        }
         throw httpsError('failed-precondition', release.reason || 'Liberação não permitida');
       }
-      updates.escrowStatus = 'released';
-      updates.releasedAt = admin.firestore.FieldValue.serverTimestamp();
+      payoutProcessed = await releasePayoutInTx(tx, order, orderId, updates, auth.uid);
       to = from;
     } else {
       if (!to) {
@@ -407,12 +476,18 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
       updates.status = to;
 
       if (action === 'accept') {
+        const priceDecision = policy.acceptPriceDecision(order.price, data && data.price);
+        if (!priceDecision.ok) {
+          throw httpsError(
+            'invalid-argument',
+            priceDecision.reason === 'price_required'
+              ? 'Informe o valor do serviço para aceitar'
+              : 'Valor do serviço inválido',
+          );
+        }
+        if (priceDecision.price != null) updates.price = priceDecision.price;
         updates.providerId = order.providerId || auth.uid;
         updates.acceptedAt = admin.firestore.FieldValue.serverTimestamp();
-        const quoted = Number(data && data.price);
-        if (quoted > 0) {
-          updates.price = policy.round2(quoted);
-        }
       }
       if (action === 'start') {
         updates.startedAt = admin.firestore.FieldValue.serverTimestamp();
@@ -421,9 +496,24 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
         }
       }
       if (action === 'cancel' || action === 'decline') {
+        if (policy.cancelBlockReason(order, adminUser)) {
+          throw httpsError(
+            'failed-precondition',
+            'Pedido já pago: abra uma contestação para solicitar o estorno',
+          );
+        }
         updates.cancelReason = action === 'decline'
           ? 'Recusado pelo profissional'
           : ((data && data.reason) || 'Cancelado');
+      }
+      if (action === 'dispute') {
+        if (policy.disputeBlockReason(order)) {
+          throw httpsError('failed-precondition', 'O repasse deste pedido já foi feito; fale com o suporte');
+        }
+        updates.disputedAt = admin.firestore.FieldValue.serverTimestamp();
+        updates.disputedBy = auth.uid;
+        updates.disputeReason = String((data && data.reason) || '').slice(0, 500) || null;
+        if (paymentStatus === 'paid') updates.escrowStatus = 'disputed';
       }
       if (action === 'complete') {
         const block = policy.completeBlockReason(from, paymentStatus);
@@ -435,23 +525,17 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
               : 'Transição de status inválida',
           );
         }
+        const now = Date.now();
         updates.completedAt = admin.firestore.FieldValue.serverTimestamp();
-        if (order.escrowStatus && order.escrowStatus !== 'released') {
-          updates.escrowStatus = 'releasePending';
+        updates.completedBy = isClientActor ? 'client' : 'provider';
+        updates.escrowStatus = 'releasePending';
+        updates.releaseAt = admin.firestore.Timestamp.fromMillis(now + holdDays * 86400000);
+        if (isClientActor) {
+          updates.clientConfirmedAt = admin.firestore.FieldValue.serverTimestamp();
+          if (!order.payoutProcessed && !payoutsBlocked) {
+            payoutProcessed = await releasePayoutInTx(tx, order, orderId, updates, auth.uid);
+          }
         }
-      }
-
-      if (action === 'complete' && !order.payoutProcessed) {
-        const { paymentId, payment } = await loadConfirmedPayment(tx, order, orderId);
-        const payout = await applyOfficialPayout(tx, {
-          order: { ...order, ...updates, payoutProcessed: false },
-          orderId,
-          payment,
-          paymentId,
-          actorUid: auth.uid,
-        });
-        payoutProcessed = payout.payoutProcessed || false;
-        Object.assign(updates, payout.orderUpdates || {});
       }
     }
 
@@ -462,6 +546,7 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
       status: to,
       previousStatus: from,
       payoutProcessed,
+      paidOutNow: Boolean(payoutProcessed && !order.payoutProcessed),
       escrowStatus: updates.escrowStatus || order.escrowStatus || null,
     };
   });
@@ -481,6 +566,21 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
     }
     if (action === 'cancel' && o.providerId && o.providerId !== auth.uid) {
       await notify(o.providerId, '❌ Pedido cancelado', 'O cliente cancelou a solicitação.', 'order');
+    }
+    if (action === 'complete' && o.completedBy === 'provider' && o.clientId) {
+      await notify(
+        o.clientId,
+        'Serviço concluído pelo profissional',
+        'Confirme a conclusão em Meus pedidos ou abra uma contestação se algo deu errado.',
+        'order',
+      );
+    }
+    if ((action === 'confirm' || action === 'complete') && result.paidOutNow && o.providerId) {
+      await notify(o.providerId, '💰 Pagamento liberado', 'O valor do serviço foi creditado na sua carteira.', 'order');
+    }
+    if (action === 'dispute') {
+      const other = auth.uid === o.clientId ? o.providerId : o.clientId;
+      if (other) await notify(other, '⚠️ Pedido em contestação', 'O pedido foi contestado e será analisado pelo suporte.', 'order');
     }
   } catch (e) {
     audit.structuredLog('error', 'notify_after_transition', { message: e && e.message });
@@ -522,7 +622,8 @@ exports.transitionOrder = functions.region(REGION).https.onCall(async (data, con
       },
     });
   }
-  if (action === 'complete' && result.payoutProcessed) {
+  if ((action === 'complete' || action === 'confirm' || action === 'releaseEscrow')
+      && result.paidOutNow) {
     await audit.writeAudit(db, {
       actorId: auth.uid,
       actorType: adminUser ? 'admin' : 'user',
@@ -540,6 +641,7 @@ exports.processPayout = functions.region(REGION).https.onCall(async (data, conte
   if (!orderId) throw httpsError('invalid-argument', 'orderId obrigatório');
 
   const adminUser = await isAdmin(auth);
+  await assertFinancialKillSwitchOff();
   const payout = await db.runTransaction(async (tx) => {
     const orderRef = db.collection('orders').doc(orderId);
     const snap = await tx.get(orderRef);
@@ -551,18 +653,27 @@ exports.processPayout = functions.region(REGION).https.onCall(async (data, conte
     if (order.payoutProcessed) {
       return { ok: true, already: true, payoutProcessed: true };
     }
-    const { paymentId, payment } = await loadConfirmedPayment(tx, order, orderId);
-    const result = await applyOfficialPayout(tx, {
-      order,
-      orderId,
-      payment,
-      paymentId,
-      actorUid: auth.uid,
-    });
-    if (result.orderUpdates && Object.keys(result.orderUpdates).length) {
-      tx.update(orderRef, result.orderUpdates);
+    if (policy.normalizeStatus(order.status) !== 'completed') {
+      throw httpsError('failed-precondition', 'O serviço ainda não foi concluído');
     }
-    return result;
+    // Custódia: só libera com confirmação do cliente ou após o prazo.
+    const release = policy.canReleaseEscrow({
+      status: order.status,
+      paymentStatus: order.paymentStatus || 'unpaid',
+      payoutProcessed: false,
+      completedAt: toDate(order.completedAt),
+      clientConfirmed: Boolean(order.clientConfirmedAt),
+      paidAt: toDate(order.paidAt),
+      releaseAt: toDate(order.releaseAt),
+      escrowStatus: order.escrowStatus,
+    });
+    if (!release.ok) {
+      throw httpsError('failed-precondition', 'Repasse ainda não liberado: ' + release.reason);
+    }
+    const updates = {};
+    const done = await releasePayoutInTx(tx, order, orderId, updates, auth.uid);
+    tx.update(orderRef, updates);
+    return { ok: true, already: false, payoutProcessed: done };
   });
   await audit.writeAudit(db, {
     actorId: auth.uid,
@@ -578,6 +689,7 @@ exports.payOrderWithWallet = functions.region(REGION).https.onCall(async (data, 
   const auth = requireAuth(context);
   const orderId = String(data && data.orderId || '');
   if (!orderId) throw httpsError('invalid-argument', 'orderId obrigatório');
+  await assertFinancialKillSwitchOff();
 
   const paid = await db.runTransaction(async (tx) => {
     const orderRef = db.collection('orders').doc(orderId);
@@ -589,8 +701,8 @@ exports.payOrderWithWallet = functions.region(REGION).https.onCall(async (data, 
     if (!double.ok) {
       return { ok: true, already: true, paymentStatus: 'paid' };
     }
+    assertOrderPayable(order);
     const amount = Number(order.price);
-    if (!(amount > 0)) throw httpsError('failed-precondition', 'Pedido sem preço definido');
     const paymentId = `wallet_${orderId}`;
     const existingPay = await tx.get(db.collection('payments').doc(paymentId));
     if (existingPay.exists && existingPay.data().status === 'approved') {
@@ -619,6 +731,9 @@ exports.payOrderWithWallet = functions.region(REGION).https.onCall(async (data, 
       transactionId: paymentId,
       gatewayTransactionId: paymentId,
       paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      paymentMethod: 'wallet',
+      escrowStatus: 'held',
+      heldAmount: amount,
     });
     return { ok: true, already: false, paymentStatus: 'paid', id: paymentId };
   });
@@ -635,6 +750,7 @@ exports.payOrderWithWallet = functions.region(REGION).https.onCall(async (data, 
 exports.generatePix = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
   await enforceRateLimit(auth.uid, 'pix', 8, 60 * 60 * 1000);
+  await assertFinancialKillSwitchOff();
   const token = requirePaymentsGateway();
 
   const purpose = String(data && data.purpose || 'order');
@@ -653,10 +769,8 @@ exports.generatePix = functions.region(REGION).https.onCall(async (data, context
     if (!orderSnap.exists) throw httpsError('not-found', 'Pedido não encontrado');
     const order = orderSnap.data();
     if (order.clientId !== auth.uid) throw httpsError('permission-denied', 'Pedido de outro usuário');
-    const double = policy.rejectDoubleCharge(order);
-    if (!double.ok) throw httpsError('already-exists', 'Pedido já pago');
+    assertOrderPayable(order);
     amount = Number(order.price);
-    if (!(amount > 0)) throw httpsError('failed-precondition', 'Pedido sem preço definido');
     description = description || order.title || 'Pedido Carajás 360';
   } else {
     amount = Number(data && data.amount);
@@ -666,7 +780,7 @@ exports.generatePix = functions.region(REGION).https.onCall(async (data, context
     orderId = null;
   }
 
-  const platformFee = policy.round2(amount * policy.COMMISSION_RATE);
+  const platformFee = policy.round2(amount * await commissionRateFromConfig());
   const netAmount = policy.round2(amount - platformFee);
   const idempotency = `${auth.uid}:${purpose}:${orderId || 'wallet'}:${Math.floor(Date.now() / 60000)}`;
 
@@ -769,6 +883,9 @@ exports.checkPayment = functions.region(REGION).https.onCall(async (data, contex
           transactionId: String(id),
           gatewayTransactionId: String(id),
           paidAt: admin.firestore.FieldValue.serverTimestamp(),
+          paymentMethod: p.method || 'pix',
+          escrowStatus: 'held',
+          heldAmount: Number(p.amount) || 0,
         });
       }
       if (p.purpose === 'wallet_recharge' && p.userId && !p.walletCredited) {
@@ -787,6 +904,7 @@ exports.checkPayment = functions.region(REGION).https.onCall(async (data, contex
 exports.processCardPayment = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
   await enforceRateLimit(auth.uid, 'card', 8, 60 * 60 * 1000);
+  await assertFinancialKillSwitchOff();
   const token = requirePaymentsGateway();
   const cardToken = String(data && data.cardToken || '');
   if (!cardToken) throw httpsError('invalid-argument', 'Token do cartão ausente');
@@ -797,12 +915,10 @@ exports.processCardPayment = functions.region(REGION).https.onCall(async (data, 
   if (!orderSnap.exists) throw httpsError('not-found', 'Pedido não encontrado');
   const order = orderSnap.data();
   if (order.clientId !== auth.uid) throw httpsError('permission-denied', 'Pedido de outro usuário');
-  const double = policy.rejectDoubleCharge(order);
-  if (!double.ok) throw httpsError('already-exists', 'Pedido já pago');
+  assertOrderPayable(order);
   const amount = Number(order.price);
-  if (!(amount > 0)) throw httpsError('failed-precondition', 'Pedido sem preço definido');
 
-  const platformFee = policy.round2(amount * policy.COMMISSION_RATE);
+  const platformFee = policy.round2(amount * await commissionRateFromConfig());
   const netAmount = policy.round2(amount - platformFee);
   const email = String(data && data.email || '').trim();
   const installments = Number(data && data.installments || 1);
@@ -858,6 +974,9 @@ exports.processCardPayment = functions.region(REGION).https.onCall(async (data, 
       transactionId: String(id),
       gatewayTransactionId: String(id),
       paidAt: admin.firestore.FieldValue.serverTimestamp(),
+      paymentMethod: 'card',
+      escrowStatus: 'held',
+      heldAmount: amount,
     });
   } else {
     await db.collection('orders').doc(orderId).update({
@@ -1077,9 +1196,12 @@ exports.publishAssistedRequest = functions.region(REGION).https.onCall(async (da
   await db.runTransaction(async (tx) => {
     const again = await tx.get(idemRef);
     if (again.exists) return;
-    tx.set(reqRef, {
+    tx.set(reqRef.collection('private').doc('contact'), {
       clientId: auth.uid,
       clientName: String(user.name || '').slice(0, 80),
+    });
+    tx.set(reqRef, {
+      clientId: auth.uid,
       title: draft.title,
       description: draft.description,
       category: draft.categoryId,
@@ -1198,6 +1320,7 @@ exports.walletOp = functions.region(REGION).https.onCall(async (data, context) =
   if (op !== 'cashback' && !(value > 0)) {
     throw httpsError('invalid-argument', 'Valor inválido');
   }
+  await assertFinancialKillSwitchOff();
 
   if (op === 'cashback') {
     const orderId = String(data && data.orderId || '');
@@ -1528,6 +1651,11 @@ exports.deleteMyAccount = functions.region(REGION).https.onCall(async (data, con
         clientName: deletion.ANONYMOUS_NAME,
         address: null,
       });
+      batch.set(d.ref.collection('private').doc('contact'), {
+        clientName: deletion.ANONYMOUS_NAME,
+        address: null,
+        clientPhone: null,
+      }, { merge: true });
     });
     await batch.commit();
   }
@@ -1777,6 +1905,66 @@ exports.onResolveRequestMatchedNotify = functions.firestore
     return null;
   });
 
+/**
+ * Libera o repasse de pedidos concluídos cujo prazo de custódia venceu
+ * sem contestação nem confirmação do cliente.
+ */
+exports.releaseDueEscrows = functions.pubsub.schedule('every 6 hours').onRun(async () => {
+  const cfg = await readPlatformConfig();
+  if (cfg.financialKillSwitch === true) {
+    audit.structuredLog('info', 'release_due_escrows_skipped', { reason: 'kill_switch' });
+    return null;
+  }
+  const due = await db.collection('orders')
+    .where('releaseAt', '<=', admin.firestore.Timestamp.now())
+    .limit(100)
+    .get();
+  let released = 0;
+  for (const doc of due.docs) {
+    const o = doc.data() || {};
+    if (o.payoutProcessed || policy.normalizeStatus(o.status) !== 'completed') continue;
+    try {
+      const done = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(doc.ref);
+        const order = snap.data() || {};
+        if (order.payoutProcessed || policy.normalizeStatus(order.status) !== 'completed') return false;
+        const release = policy.canReleaseEscrow({
+          status: order.status,
+          paymentStatus: order.paymentStatus || 'unpaid',
+          payoutProcessed: false,
+          completedAt: toDate(order.completedAt),
+          clientConfirmed: Boolean(order.clientConfirmedAt),
+          paidAt: toDate(order.paidAt),
+          releaseAt: toDate(order.releaseAt),
+          escrowStatus: order.escrowStatus,
+        });
+        if (!release.ok) return false;
+        const updates = { updatedAt: admin.firestore.FieldValue.serverTimestamp() };
+        const ok = await releasePayoutInTx(tx, order, doc.id, updates, 'system');
+        tx.update(doc.ref, updates);
+        return ok;
+      });
+      if (done) {
+        released += 1;
+        await audit.writeAudit(db, {
+          actorId: 'system',
+          actorType: 'system',
+          action: audit.ACTIONS.PAYOUT,
+          target: doc.id,
+          details: { via: 'escrow_due' },
+        });
+        if (o.providerId) {
+          await notify(o.providerId, '💰 Pagamento liberado', 'O prazo de custódia terminou e o valor foi creditado na sua carteira.', 'order');
+        }
+      }
+    } catch (e) {
+      audit.structuredLog('error', 'release_due_escrow_failed', { orderId: doc.id, message: e && e.message });
+    }
+  }
+  audit.structuredLog('info', 'release_due_escrows', { candidates: due.size, released });
+  return null;
+});
+
 exports.cleanupOldOrders = functions.pubsub.schedule('every 24 hours').onRun(async () => {
   const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
   const oldOrders = await db.collection('orders')
@@ -1960,6 +2148,92 @@ exports.getDirections = functions.region(REGION).https.onCall(async (data, conte
   };
 });
 
+/**
+ * Cliente aceita uma proposta do Resolve: cria o pedido (preço da proposta,
+ * profissional da proposta) e fecha a solicitação. Idempotente por solicitação.
+ */
+exports.acceptResolveProposal = functions.region(REGION).https.onCall(async (data, context) => {
+  const auth = requireAuth(context);
+  await enforceRateLimit(auth.uid, 'accept_proposal', 20, 60 * 60 * 1000);
+  const requestId = String((data && data.requestId) || '');
+  const proposalId = String((data && data.proposalId) || '');
+  if (!requestId || !proposalId) {
+    throw httpsError('invalid-argument', 'requestId e proposalId obrigatorios');
+  }
+  const reqRef = db.collection('resolveRequests').doc(requestId);
+  const propRef = db.collection('resolveProposals').doc(proposalId);
+  const privRef = reqRef.collection('private').doc('contact');
+  const orderRef = db.collection('orders').doc(`resolve_${requestId}`);
+
+  const out = await db.runTransaction(async (tx) => {
+    const [reqSnap, propSnap, privSnap, orderSnap] = await Promise.all([
+      tx.get(reqRef), tx.get(propRef), tx.get(privRef), tx.get(orderRef),
+    ]);
+    if (!reqSnap.exists) throw httpsError('not-found', 'Solicitacao nao encontrada');
+    const req = reqSnap.data() || {};
+    if (req.clientId !== auth.uid) throw httpsError('permission-denied', 'Solicitacao de outro usuario');
+    if (orderSnap.exists) {
+      return { ok: true, already: true, orderId: orderRef.id };
+    }
+    if (String(req.status || 'open') !== 'open') {
+      throw httpsError('failed-precondition', 'A solicitacao nao esta mais aberta');
+    }
+    if (!propSnap.exists) throw httpsError('not-found', 'Proposta nao encontrada');
+    const prop = propSnap.data() || {};
+    if (prop.requestId !== requestId) throw httpsError('invalid-argument', 'Proposta de outra solicitacao');
+    if (!prop.providerId || prop.providerId === auth.uid) {
+      throw httpsError('invalid-argument', 'Proposta invalida');
+    }
+    const price = Number(prop.price);
+    if (!(price > 0) || price > policy.MAX_ORDER_PRICE) {
+      throw httpsError('failed-precondition', 'Proposta sem valor valido');
+    }
+    const priv = privSnap.exists ? privSnap.data() || {} : {};
+    const now = admin.firestore.FieldValue.serverTimestamp();
+    tx.set(orderRef, {
+      clientId: auth.uid,
+      providerId: prop.providerId,
+      category: String(req.category || ''),
+      title: String(req.title || req.description || 'Servico').slice(0, 80),
+      description: String(req.description || '').slice(0, 2000),
+      address: String(priv.address || req.address || '').slice(0, 300),
+      city: String(req.city || ''),
+      price: policy.round2(price),
+      deadlineDays: Number(prop.deadlineDays) || null,
+      status: 'accepted',
+      paymentStatus: 'unpaid',
+      payoutProcessed: false,
+      payoutStatus: 'none',
+      origin: 'resolve',
+      resolveRequestId: requestId,
+      proposalId,
+      urgent: false,
+      createdAt: now,
+      acceptedAt: now,
+    });
+    tx.update(propRef, { accepted: true, acceptedAt: now });
+    tx.update(reqRef, {
+      status: 'matched',
+      matchedProviderId: prop.providerId,
+      matchedProposalId: proposalId,
+      orderId: orderRef.id,
+      matchedAt: now,
+    });
+    return { ok: true, already: false, orderId: orderRef.id };
+  });
+
+  if (!out.already) {
+    await audit.writeAudit(db, {
+      actorId: auth.uid,
+      actorType: 'user',
+      action: 'resolve_proposal_accepted',
+      target: orderRef.id,
+      details: { requestId, proposalId },
+    });
+  }
+  return out;
+});
+
 /** FASE 2 — unlock lead por creditos (idempotente). Custo vem do config, nao do client. */
 exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
@@ -2017,7 +2291,8 @@ exports.unlockLeadContact = functions.region(REGION).https.onCall(async (data, c
     const reqRef = db.collection('resolveRequests').doc(requestId);
     const reqSnap = await tx.get(reqRef);
     if (!reqSnap.exists) throw httpsError('not-found', 'Solicitacao nao encontrada');
-    const req = reqSnap.data() || {};
+    const privSnap = await tx.get(reqRef.collection('private').doc('contact'));
+    const req = { ...(reqSnap.data() || {}), ...(privSnap.exists ? privSnap.data() || {} : {}) };
     if (String(req.status || 'open') !== 'open') {
       throw httpsError('failed-precondition', 'Solicitacao nao esta aberta');
     }

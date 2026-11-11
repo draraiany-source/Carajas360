@@ -402,8 +402,9 @@ class FS {
 
   static Future<String> createOrder(Map<String, dynamic> data) async {
     final sanitized = Map<String, dynamic>.from(data);
+    // O preço vem do profissional ao aceitar (transitionOrder).
     for (final k in OrderPolicy.sensitiveFields) {
-      if (k != 'providerId' && k != 'price') sanitized.remove(k);
+      if (k != 'providerId') sanitized.remove(k);
     }
     sanitized.remove('commission');
     sanitized.remove('platformFee');
@@ -424,10 +425,20 @@ class FS {
       'status': 'pending',
       'paymentStatus': 'unpaid',
       'payoutProcessed': false,
-      'payoutStatus': 'none',
       'createdAt': FieldValue.serverTimestamp()
     });
     return doc.id;
+  }
+
+  /// Cliente confirma que o serviço foi feito; libera o repasse.
+  static Future<void> confirmOrder(String orderId) async {
+    await _transition(orderId, 'confirm');
+  }
+
+  /// Cliente ou profissional contesta o pedido; bloqueia o repasse.
+  static Future<void> disputeOrder(String orderId,
+      {required String reason}) async {
+    await _transition(orderId, 'dispute', extra: {'reason': reason.trim()});
   }
 
   static Future<void> updateOrder(String orderId, Map<String, dynamic> data) {
@@ -710,6 +721,11 @@ class FS {
     }
   }
 
+  /// Igual a [payOrderWithWallet], mas propaga o motivo da recusa.
+  static Future<void> payOrderWithWalletOrThrow(String orderId) async {
+    await CloudFn.call('payOrderWithWallet', {'orderId': orderId});
+  }
+
   static Future<bool> switchProfileType(String type) async {
     try {
       await CloudFn.call('switchProfileType', {'type': type});
@@ -853,7 +869,6 @@ class FS {
       'status': 'pending',
       'paymentStatus': 'unpaid',
       'payoutProcessed': false,
-      'payoutStatus': 'none',
       'createdAt': FieldValue.serverTimestamp()
     });
     return doc.id;
@@ -1736,13 +1751,13 @@ class FS {
     if (HomologCatalog.enabled) {
       return 'hrq_${DateTime.now().millisecondsSinceEpoch}';
     }
-    final doc = await _db.collection(Col.resolveRequests).add({
+    final doc = _db.collection(Col.resolveRequests).doc();
+    final batch = _db.batch();
+    batch.set(doc, {
       'clientId': _uid,
-      'clientName': clientName ?? '',
       'description': description,
       'category': category,
       'city': city,
-      'address': address,
       'serviceId': serviceId,
       'groupId': groupId,
       'pricingMode': pricingMode,
@@ -1753,9 +1768,15 @@ class FS {
       'status': 'open',
       'proposalCount': 0,
       'leadMonetizationReady': true,
-      'leadFee': null,
       'createdAt': FieldValue.serverTimestamp(),
     });
+    // Nome e endereço só para o cliente e o profissional escolhido.
+    batch.set(doc.collection('private').doc('contact'), {
+      'clientId': _uid,
+      'clientName': clientName ?? '',
+      'address': address,
+    });
+    await batch.commit();
     return doc.id;
   }
 
@@ -1986,28 +2007,20 @@ class FS {
     return id;
   }
 
-  static Future<void> acceptResolveProposal({
+  /// Aceita a proposta no backend, que cria o pedido com o valor da
+  /// proposta. Retorna o id do pedido (null no modo homologação).
+  static Future<String?> acceptResolveProposal({
     required String requestId,
     required String proposalId,
-    required String providerId,
-    required String providerName,
   }) async {
     if (HomologCatalog.enabled && requestId.startsWith('hrq_')) {
-      return;
+      return null;
     }
-    await _db.collection(Col.resolveProposals).doc(proposalId).update({
-      'accepted': true,
+    final out = await CloudFn.call('acceptResolveProposal', {
+      'requestId': requestId,
+      'proposalId': proposalId,
     });
-    await _db.collection(Col.resolveRequests).doc(requestId).update({
-      'status': 'matched',
-      'matchedProviderId': providerId,
-      'matchedProposalId': proposalId,
-    });
-    await pushNotif(
-        providerId,
-        '✅ Proposta aceita!',
-        'Sua proposta Resolve foi aceita. Fale com o cliente no chat.',
-        'resolve');
+    return out['orderId']?.toString();
   }
 
   /// Lista salas do usuário autenticado (inbox unificado).

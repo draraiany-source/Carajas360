@@ -78,6 +78,8 @@ service cloud.firestore {
         request.resource.data.get('approved', false) == false &&
         request.resource.data.get('active', false) == false &&
         request.resource.data.get('plan', 'free') in ['free', ''] &&
+        request.resource.data.get('rating', 0) == 0 &&
+        request.resource.data.get('totalReviews', 0) == 0 &&
         request.resource.data.get('userId', providerId) == uid();
       allow update: if isAdmin() || (
         isOwner(providerId) &&
@@ -159,12 +161,19 @@ service cloud.firestore {
       allow read: if isAuth() &&
         (resource.data.clientId == uid() ||
          resource.data.ownerId == uid() || isAdmin());
-      allow create: if isAuth() && request.resource.data.clientId == uid();
+      allow create: if isAuth() && request.resource.data.clientId == uid() &&
+        request.resource.data.get('status', 'pending') == 'pending';
+      // Dono do anúncio confirma/recusa; cliente só cancela enquanto pendente.
       allow update: if isAuth() &&
-        (resource.data.ownerId == uid() ||
-         resource.data.clientId == uid() || isAdmin()) &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['price', 'total', 'clientId', 'ownerId', 'rentalId']);
+          .hasAny(['price', 'total', 'clientId', 'ownerId', 'rentalId']) && (
+          resource.data.ownerId == uid() || isAdmin() || (
+            resource.data.clientId == uid() &&
+            resource.data.status == 'pending' &&
+            request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status']) &&
+            request.resource.data.status == 'cancelled'
+          )
+        );
     }
 
     match /contracts/{contractId} {
@@ -191,13 +200,23 @@ service cloud.firestore {
         && request.resource.data.clientId == uid()
         && request.resource.data.status in ['pending', 'created']
         && request.resource.data.get('payoutProcessed', false) == false
-        && request.resource.data.get('paymentStatus', 'unpaid') in ['unpaid', 'pending']
+        && request.resource.data.get('paymentStatus', 'unpaid') == 'unpaid'
+        && request.resource.data.get('providerId', '') != uid()
         && !request.resource.data.keys().hasAny([
           'commission', 'platformFee', 'providerAmount', 'payoutStatus',
           'transactionId', 'gatewayTransactionId', 'cashbackGranted',
           'payoutProcessedAt', 'payoutTransactionId', 'walletId',
-          'commissionRate', 'commissionExempt', 'billingMode'
-        ]);
+          'commissionRate', 'commissionExempt', 'billingMode',
+          'paidAt', 'refunded', 'refundAmount',
+          'escrowStatus', 'heldAmount', 'releaseAt', 'releasedAt',
+          'clientConfirmedAt', 'completedAt', 'acceptedAt'
+        ])
+        // Serviço: preço vem do profissional. Carrinho do Mercado 360 mantém
+        // o total do app (módulo fora desta fase).
+        && (
+          request.resource.data.get('type', '') == 'marketplace' ||
+          !request.resource.data.keys().hasAny(['price', 'total', 'amount'])
+        );
       allow update: if isAdmin() || (
         isAuth() &&
         isOrderParty() &&
@@ -383,22 +402,42 @@ service cloud.firestore {
       allow write: if isAdmin();
     }
 
+    function isProvider() {
+      return isAuth() && exists(/databases/$(database)/documents/providers/$(uid()));
+    }
+
+    // Pedido aberto: texto e cidade são públicos para profissionais; nome,
+    // endereço e telefone ficam em private/contact.
     match /resolveRequests/{id} {
       allow get: if isAdmin() ||
         (isAuth() && resource.data.clientId == uid()) ||
         (isAuth() && resource.data.get('matchedProviderId', '') == uid()) ||
-        (isAuth() && resource.data.status == 'open');
+        (resource.data.status == 'open' && isProvider());
       allow list: if isAuth() && (
         isAdmin() ||
         resource.data.clientId == uid() ||
         resource.data.get('matchedProviderId', '') == uid() ||
-        resource.data.status == 'open'
+        (resource.data.status == 'open' && isProvider())
       );
-      allow create: if isAuth() && request.resource.data.clientId == uid();
+      allow create: if isAuth() &&
+        request.resource.data.clientId == uid() &&
+        request.resource.data.status == 'open' &&
+        !request.resource.data.keys().hasAny([
+          'address', 'clientName', 'clientPhone', 'matchedProviderId',
+          'matchedProposalId', 'orderId', 'leadFee', 'slotsRemaining'
+        ]);
+      // Aceite de proposta é feito pela Function acceptResolveProposal.
       allow update: if isAdmin() || (
         isAuth() && resource.data.clientId == uid() &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['clientId', 'leadFee'])
+          .hasAny([
+            'clientId', 'leadFee', 'matchedProviderId', 'matchedProposalId',
+            'orderId', 'slotsRemaining', 'proposalCount'
+          ]) &&
+        (
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['status']) ||
+          (resource.data.status == 'open' && request.resource.data.status == 'cancelled')
+        )
       ) || (
         isAuth() &&
         request.resource.data.diff(resource.data).affectedKeys()
@@ -407,6 +446,23 @@ service cloud.firestore {
           resource.data.proposalCount + 1
       );
       allow delete: if isAdmin();
+
+      match /private/{docId} {
+        allow read: if isAuth() && (
+          isAdmin() ||
+          get(/databases/$(database)/documents/resolveRequests/$(id)).data.clientId == uid() ||
+          get(/databases/$(database)/documents/resolveRequests/$(id)).data.get('matchedProviderId', '') == uid()
+        );
+        allow create: if isAuth() && docId == 'contact' &&
+          getAfter(/databases/$(database)/documents/resolveRequests/$(id)).data.clientId == uid() &&
+          request.resource.data.keys().hasOnly(['clientId', 'clientName', 'address', 'clientPhone']) &&
+          request.resource.data.clientId == uid();
+        allow update: if isAuth() &&
+          resource.data.clientId == uid() &&
+          request.resource.data.keys().hasOnly(['clientId', 'clientName', 'address', 'clientPhone']) &&
+          request.resource.data.clientId == uid();
+        allow delete: if isAdmin();
+      }
     }
 
     match /resolveProposals/{id} {
@@ -415,19 +471,52 @@ service cloud.firestore {
         isAdmin() ||
         get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == uid()
       );
-      allow create: if isAuth() && request.resource.data.providerId == uid();
+      // Só profissional cadastrado, em pedido aberto de outra pessoa, com
+      // valor positivo; nota e total de serviços iguais ao perfil.
+      allow create: if isProvider() &&
+        request.resource.data.providerId == uid() &&
+        request.resource.data.get('accepted', false) == false &&
+        request.resource.data.price is number &&
+        request.resource.data.price > 0 &&
+        request.resource.data.price <= 100000 &&
+        exists(/databases/$(database)/documents/resolveRequests/$(request.resource.data.requestId)) &&
+        get(/databases/$(database)/documents/resolveRequests/$(request.resource.data.requestId)).data.status == 'open' &&
+        get(/databases/$(database)/documents/resolveRequests/$(request.resource.data.requestId)).data.clientId != uid() &&
+        request.resource.data.get('rating', 0) ==
+          get(/databases/$(database)/documents/providers/$(uid())).data.get('rating', 0) &&
+        request.resource.data.get('totalServices', 0) ==
+          get(/databases/$(database)/documents/providers/$(uid())).data.get('totalReviews', 0);
       allow update: if isAdmin() || (
         isAuth() && resource.data.providerId == uid() &&
         resource.data.accepted != true &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['providerId', 'requestId', 'accepted'])
-      ) || (
-        isAuth() &&
-        get(/databases/$(database)/documents/resolveRequests/$(resource.data.requestId)).data.clientId == uid() &&
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['accepted']) &&
-        request.resource.data.accepted == true
+          .hasAny(['providerId', 'requestId', 'accepted', 'acceptedAt', 'rating', 'totalServices']) &&
+        (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['price']) ||
+          (request.resource.data.price is number &&
+           request.resource.data.price > 0 &&
+           request.resource.data.price <= 100000))
       );
       allow delete: if isAdmin();
+    }
+
+    match /serviceTaxonomy/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    match /leadUnlocks/{id} {
+      allow read: if isAuth() && (resource.data.professionalId == uid() || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    match /creditPurchases/{id} {
+      allow read: if isAuth() && (resource.data.userId == uid() || isAdmin());
+      allow create, update, delete: if false;
+    }
+
+    match /highlightPurchases/{id} {
+      allow read: if isAuth() && (resource.data.userId == uid() || isAdmin());
+      allow create, update, delete: if false;
     }
 
     // FASE 3: disputas — cliente cria; partes leem; so admin resolve.

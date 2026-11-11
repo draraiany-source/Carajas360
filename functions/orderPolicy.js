@@ -27,17 +27,26 @@ const ESCROW_STATUS_ALIASES = {
   releasepending: 'releasePending',
 };
 
+/**
+ * Transições pelas ações comuns. Reabrir pedido cancelado é exclusivo do
+ * admin (`reopen`) e não passa por esta tabela.
+ */
 const TRANSITIONS = {
   pending: ['accepted', 'cancelled'],
   accepted: ['inProgress', 'cancelled'],
   inProgress: ['awaitingPayment', 'completed', 'cancelled', 'disputed'],
   awaitingPayment: ['paid', 'completed', 'cancelled', 'disputed'],
-  paid: ['completed', 'refunded', 'disputed', 'cancelled'],
-  completed: ['refunded', 'cancelled'],
-  cancelled: ['refunded', 'pending', 'accepted'],
+  paid: ['completed', 'refunded', 'disputed'],
+  completed: ['refunded', 'disputed'],
+  cancelled: ['refunded'],
   disputed: ['cancelled', 'refunded'],
   refunded: [],
 };
+
+/** Status em que o cliente pode pagar o pedido. */
+const PAYABLE_STATUSES = ['accepted', 'inProgress', 'awaitingPayment'];
+
+const MAX_ORDER_PRICE = 100000;
 
 /** Escrow staging — Flutter client MUST NOT release funds. */
 const ESCROW_TRANSITIONS = {
@@ -64,6 +73,7 @@ const ACTIONS = {
   cancelDefinitive: 'cancelled',
   hold: null,
   releaseEscrow: null,
+  confirm: null,
 };
 
 const ESCROW_ACTIONS = new Set(['hold', 'releaseEscrow']);
@@ -167,7 +177,7 @@ function canReleaseEscrow({
   const clock = now instanceof Date ? now : (now ? new Date(now) : new Date());
   if (releaseAt) {
     const due = releaseAt instanceof Date ? releaseAt : new Date(releaseAt);
-    if (clock >= due) return { ok: true };
+    return clock >= due ? { ok: true } : { ok: false, reason: 'release_not_due' };
   }
 
   const autoBase = completedAt || paidAt;
@@ -197,7 +207,9 @@ function actorMayPerform(action, uid, clientId, providerId, isAdmin) {
   const isProvider = Boolean(providerId) && uid === providerId;
   switch (action) {
     case 'accept':
-      return !providerId || uid === providerId;
+      // Pedido sem profissional: qualquer profissional, exceto o próprio
+      // cliente (o cadastro de profissional é conferido no backend).
+      return providerId ? uid === providerId : uid !== clientId;
     case 'start':
     case 'decline':
     case 'requestPayment':
@@ -206,6 +218,8 @@ function actorMayPerform(action, uid, clientId, providerId, isAdmin) {
       return false;
     case 'refund':
       return false;
+    case 'confirm':
+      return isClient;
     case 'complete':
     case 'dispute':
     case 'cancel':
@@ -213,6 +227,54 @@ function actorMayPerform(action, uid, clientId, providerId, isAdmin) {
     default:
       return false;
   }
+}
+
+/** Preço proposto pelo profissional ao aceitar: obrigatório se o pedido não tem preço. */
+function acceptPriceDecision(currentPrice, quoted) {
+  const q = Number(quoted);
+  if (quoted != null && quoted !== '') {
+    if (!Number.isFinite(q) || q <= 0 || q > MAX_ORDER_PRICE) {
+      return { ok: false, reason: 'invalid_price' };
+    }
+    return { ok: true, price: round2(q) };
+  }
+  const c = Number(currentPrice);
+  if (Number.isFinite(c) && c > 0) return { ok: true, price: null };
+  return { ok: false, reason: 'price_required' };
+}
+
+/** Cancelamento por cliente/profissional não pode deixar dinheiro preso. */
+function cancelBlockReason(order, isAdmin) {
+  if (isAdmin) return null;
+  const ps = (order && order.paymentStatus) || 'unpaid';
+  if (ps === 'paid') return 'paid_requires_refund';
+  return null;
+}
+
+/** Pagamento só depois de aceito com preço e antes da conclusão. */
+function paymentBlockReason(order) {
+  if (!order) return 'order_missing';
+  if ((order.paymentStatus || 'unpaid') === 'paid') return 'already_paid';
+  if (!order.providerId) return 'no_provider';
+  const st = normalizeStatus(order.status);
+  if (!PAYABLE_STATUSES.includes(st)) return 'order_not_payable';
+  const price = Number(order.price);
+  if (!(price > 0)) return 'no_price';
+  return null;
+}
+
+/** Prazo de custódia: valor do Admin (1 a 30 dias) ou o padrão. */
+function escrowHoldDays(configValue) {
+  const n = Number(configValue);
+  if (Number.isFinite(n) && n >= 1 && n <= 30) return Math.floor(n);
+  return ESCROW_HOLD_DAYS;
+}
+
+/** Disputa depois da conclusão só enquanto o repasse não saiu. */
+function disputeBlockReason(order) {
+  const st = normalizeStatus(order && order.status);
+  if (st === 'completed' && order.payoutProcessed) return 'payout_already_done';
+  return null;
 }
 
 function completeBlockReason(currentStatus, paymentStatus) {
@@ -368,6 +430,13 @@ module.exports = {
   escrowHoldOnPaid,
   canReleaseEscrow,
   actorMayPerform,
+  acceptPriceDecision,
+  cancelBlockReason,
+  paymentBlockReason,
+  escrowHoldDays,
+  disputeBlockReason,
+  PAYABLE_STATUSES,
+  MAX_ORDER_PRICE,
   completeBlockReason,
   canPayout,
   rejectDoubleCharge,

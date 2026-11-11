@@ -341,6 +341,17 @@ class _OrderList extends StatelessWidget {
                             fg: o.status == OrderStatus.inProgress
                                 ? AppColors.info
                                 : AppColors.primary),
+                        const SizedBox(height: 4),
+                        Text(
+                            o.isPaid
+                                ? 'Pago pelo cliente: valor retido até a conclusão'
+                                : 'Aguardando pagamento do cliente (necessário para concluir)',
+                            style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: o.isPaid
+                                    ? AppColors.secondary
+                                    : AppColors.textLight)),
                       ],
                       const SizedBox(height: 12),
                       if (o.status == OrderStatus.pending)
@@ -388,7 +399,8 @@ class _OrderList extends StatelessWidget {
                                     try {
                                       await FS.completeOrder(o.id);
                                       if (context.mounted) {
-                                        snack(context, '✅ Serviço concluído!',
+                                        snack(context,
+                                            '✅ Serviço concluído. O valor é liberado quando o cliente confirmar ou ao fim do prazo de custódia.',
                                             bg: AppColors.secondary);
                                       }
                                     } on CloudCallException catch (e) {
@@ -711,6 +723,66 @@ class _PendingActionsState extends State<_PendingActions> {
     return left.isNegative ? Duration.zero : left;
   }
 
+  /// O profissional informa o valor ao aceitar; o cliente paga esse valor.
+  Future<void> _accept(BuildContext context) async {
+    final current = widget.order.price;
+    final ctrl = TextEditingController(
+        text: current != null ? current.toStringAsFixed(2) : '');
+    final price = await showDialog<double>(
+      context: context,
+      builder: (dialog) {
+        String? error;
+        return StatefulBuilder(
+          builder: (_, setLocal) => AlertDialog(
+            title: const Text('Aceitar pedido'),
+            content: Column(mainAxisSize: MainAxisSize.min, children: [
+              const Text(
+                  'Informe o valor total do serviço. O cliente verá e pagará este valor.',
+                  style: TextStyle(fontSize: 13)),
+              const SizedBox(height: 12),
+              TextField(
+                controller: ctrl,
+                autofocus: true,
+                keyboardType:
+                    const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                    prefixText: 'R\$ ', hintText: '0,00', errorText: error),
+              ),
+            ]),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(dialog),
+                  child: const Text('Voltar')),
+              TextButton(
+                  onPressed: () {
+                    final raw = ctrl.text.trim();
+                    final v = double.tryParse(raw.contains(',')
+                        ? raw.replaceAll('.', '').replaceAll(',', '.')
+                        : raw);
+                    if (v == null || v <= 0) {
+                      setLocal(() => error = 'Informe um valor válido');
+                      return;
+                    }
+                    Navigator.pop(dialog, v);
+                  },
+                  child: const Text('Aceitar')),
+            ],
+          ),
+        );
+      },
+    );
+    ctrl.dispose();
+    if (price == null) return;
+    try {
+      await FS.acceptOrder(widget.order.id, price: price);
+      if (context.mounted) {
+        snack(context, '✅ Pedido aceito!', bg: AppColors.secondary);
+      }
+    } on CloudCallException catch (e) {
+      if (context.mounted) snack(context, e.message, bg: AppColors.error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final left = _left;
@@ -767,12 +839,7 @@ class _PendingActionsState extends State<_PendingActions> {
             child: ElevatedButton(
                 onPressed: expired
                     ? null
-                    : () async {
-                        await FS.acceptOrder(widget.order.id);
-                        if (context.mounted)
-                          snack(context, '✅ Pedido aceito!',
-                              bg: AppColors.secondary);
-                      },
+                    : () => _accept(context),
                 style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.secondary,
                     padding: const EdgeInsets.symmetric(vertical: 10)),

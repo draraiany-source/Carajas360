@@ -22,8 +22,30 @@ void main() {
       expect(OrderPolicy.adminReopenAllowed('completed'), isFalse);
       expect(OrderPolicy.adminReopenTarget(), 'pending');
       expect(OrderPolicy.adminReopenTarget(providerId: 'p1'), 'accepted');
-      expect(OrderPolicy.isAllowedTransition('cancelled', 'pending'), isTrue);
-      expect(OrderPolicy.isAllowedTransition('cancelled', 'accepted'), isTrue);
+      // Só pela ação reopen do admin; as ações comuns não reabrem.
+      expect(OrderPolicy.isAllowedTransition('cancelled', 'pending'), isFalse);
+      expect(OrderPolicy.isAllowedTransition('cancelled', 'accepted'), isFalse);
+    });
+
+    test('concluído não volta para cancelado; pode ser contestado', () {
+      expect(OrderPolicy.isAllowedTransition('completed', 'cancelled'), isFalse);
+      expect(OrderPolicy.isAllowedTransition('paid', 'cancelled'), isFalse);
+      expect(OrderPolicy.isAllowedTransition('completed', 'disputed'), isTrue);
+    });
+
+    test('cliente não aceita o próprio pedido; só ele confirma', () {
+      expect(
+          OrderPolicy.actorMayPerform(
+              action: 'accept', uid: 'c1', clientId: 'c1', providerId: null),
+          isFalse);
+      expect(
+          OrderPolicy.actorMayPerform(
+              action: 'confirm', uid: 'c1', clientId: 'c1', providerId: 'p1'),
+          isTrue);
+      expect(
+          OrderPolicy.actorMayPerform(
+              action: 'confirm', uid: 'p1', clientId: 'c1', providerId: 'p1'),
+          isFalse);
     });
 
     test('cliente não troca providerId (campo sensível)', () {

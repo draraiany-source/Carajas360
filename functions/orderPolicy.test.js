@@ -11,8 +11,16 @@ describe('máquina de estados', () => {
     assert.equal(policy.isAllowedTransition('accepted', 'inProgress'), true);
     assert.equal(policy.isAllowedTransition('inProgress', 'completed'), true);
     assert.equal(policy.isAllowedTransition('completed', 'pending'), false);
-    assert.equal(policy.isAllowedTransition('cancelled', 'accepted'), true);
-    assert.equal(policy.isAllowedTransition('cancelled', 'pending'), true);
+    // Reabrir cancelado é só pelo admin (ação reopen), fora desta tabela.
+    assert.equal(policy.isAllowedTransition('cancelled', 'accepted'), false);
+    assert.equal(policy.isAllowedTransition('cancelled', 'pending'), false);
+    assert.equal(policy.adminReopenAllowed('cancelled'), true);
+  });
+
+  it('concluído não volta para cancelado; pago não cancela direto', () => {
+    assert.equal(policy.isAllowedTransition('completed', 'cancelled'), false);
+    assert.equal(policy.isAllowedTransition('paid', 'cancelled'), false);
+    assert.equal(policy.isAllowedTransition('completed', 'disputed'), true);
   });
 
   it('aliases created/in_progress/awaiting_payment', () => {
@@ -41,6 +49,13 @@ describe('ações por ator', () => {
     assert.equal(policy.actorMayPerform('accept', 'p1', 'c1', null), true);
     assert.equal(policy.actorMayPerform('accept', 'p1', 'c1', 'p1'), true);
     assert.equal(policy.actorMayPerform('accept', 'p2', 'c1', 'p1'), false);
+    // Cliente não aceita o próprio pedido aberto.
+    assert.equal(policy.actorMayPerform('accept', 'c1', 'c1', null), false);
+  });
+
+  it('confirm só pelo cliente', () => {
+    assert.equal(policy.actorMayPerform('confirm', 'c1', 'c1', 'p1'), true);
+    assert.equal(policy.actorMayPerform('confirm', 'p1', 'c1', 'p1'), false);
   });
 
   it('start só pelo prestador', () => {

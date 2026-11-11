@@ -305,19 +305,29 @@ class _ResolveDetailScreenState extends State<ResolveDetailScreen> {
                               (req.clientId == AuthService.uid ||
                                   widget.requestId.startsWith('hrq_')),
                           onAccept: () async {
-                            await FS.acceptResolveProposal(
-                              requestId: widget.requestId,
-                              proposalId: p.id,
-                              providerId: p.providerId,
-                              providerName: p.providerName,
-                            );
+                            final String? orderId;
+                            try {
+                              orderId = await FS.acceptResolveProposal(
+                                requestId: widget.requestId,
+                                proposalId: p.id,
+                              );
+                            } on CloudCallException catch (e) {
+                              if (context.mounted) {
+                                snack(context, e.message, bg: AppColors.error);
+                              }
+                              return;
+                            }
                             if (!context.mounted) return;
-                            snack(context, 'Proposta aceita!',
+                            if (orderId == null) {
+                              snack(context,
+                                  'Modo de demonstração: nenhum pedido foi criado.',
+                                  bg: AppColors.warning);
+                              return;
+                            }
+                            snack(context,
+                                'Proposta aceita! O pedido está em Meus pedidos, pronto para pagamento.',
                                 bg: AppColors.secondary);
-                            await ChatNav.open(context,
-                                otherUserId: p.providerId,
-                                otherName: p.providerName,
-                                otherPhoto: p.providerPhoto);
+                            Navigator.pushNamed(context, Routes.myOrders);
                           },
                           onChat: () => ChatNav.open(context,
                               otherUserId: p.providerId,

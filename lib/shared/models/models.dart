@@ -403,6 +403,17 @@ class OrderModel {
   final bool urgent, reviewed;
   final DateTime createdAt;
 
+  /// unpaid | pending | paid — gravado só pelo backend.
+  final String paymentStatus;
+  final bool payoutProcessed;
+  final String? escrowStatus;
+  final DateTime? releaseAt;
+  final bool clientConfirmed;
+
+  /// 'client' ou 'provider' — quem marcou a conclusão.
+  final String? completedBy;
+  final String? origin;
+
   const OrderModel({
     required this.id,
     required this.clientId,
@@ -416,7 +427,32 @@ class OrderModel {
     this.urgent = false,
     this.reviewed = false,
     required this.createdAt,
+    this.paymentStatus = 'unpaid',
+    this.payoutProcessed = false,
+    this.escrowStatus,
+    this.releaseAt,
+    this.clientConfirmed = false,
+    this.completedBy,
+    this.origin,
   });
+
+  bool get isPaid => paymentStatus == 'paid';
+
+  /// Cliente pode pagar: aceito com valor, antes da conclusão.
+  bool get canPay =>
+      !isPaid &&
+      (providerId?.isNotEmpty ?? false) &&
+      (price ?? 0) > 0 &&
+      (status == OrderStatus.accepted ||
+          status == OrderStatus.inProgress ||
+          status == OrderStatus.awaitingPayment);
+
+  /// Concluído pelo profissional, aguardando o cliente confirmar.
+  bool get awaitingClientConfirmation =>
+      status == OrderStatus.completed &&
+      !clientConfirmed &&
+      !payoutProcessed &&
+      escrowStatus != 'disputed';
 
   String get statusLabel {
     switch (status) {
@@ -454,6 +490,13 @@ class OrderModel {
         urgent: m['urgent'] ?? false,
         reviewed: m['reviewed'] ?? false,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        paymentStatus: (m['paymentStatus'] as String?) ?? 'unpaid',
+        payoutProcessed: m['payoutProcessed'] == true,
+        escrowStatus: m['escrowStatus'] as String?,
+        releaseAt: (m['releaseAt'] as Timestamp?)?.toDate(),
+        clientConfirmed: m['clientConfirmedAt'] != null,
+        completedBy: m['completedBy'] as String?,
+        origin: m['origin'] as String?,
       );
 
   static OrderStatus _parseOrderStatus(dynamic raw) {

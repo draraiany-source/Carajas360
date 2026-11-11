@@ -8,6 +8,7 @@ import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../wallet/wallet_screen.dart' show PixScreen, CardPaymentScreen;
 
 // ─────────────────────────────────────────────────────────────
 // FAVORITES SCREEN (Vol.3/Vol.5: coleção favorites)
@@ -279,12 +280,36 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                                     color: AppColors.secondary)),
                         ]),
                         const SizedBox(height: 10),
-                        Row(children: [
+                        _PaymentInfo(order: o),
+                        Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 4,
+                            children: [
                           AppTag(o.statusLabel,
                               bg: _statusBg(o.status), fg: _statusFg(o.status)),
-                          const Spacer(),
-                          if (o.status == OrderStatus.pending ||
-                              o.status == OrderStatus.accepted)
+                          if (o.canPay)
+                            TextButton(
+                                onPressed: () => _openPayment(context, o),
+                                child: const Text('Pagar',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800))),
+                          if (o.awaitingClientConfirmation) ...[
+                            TextButton(
+                                onPressed: () => _confirmService(context, o),
+                                child: const Text('Confirmar serviço',
+                                    style: TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w800))),
+                            TextButton(
+                                onPressed: () => _openDispute(context, o),
+                                child: const Text('Contestar',
+                                    style: TextStyle(
+                                        fontSize: 12, color: AppColors.error))),
+                          ],
+                          if (!o.isPaid &&
+                              (o.status == OrderStatus.pending ||
+                                  o.status == OrderStatus.accepted))
                             TextButton(
                                 onPressed: () => _confirmCancel(context, o.id),
                                 child: const Text('Cancelar',
@@ -387,6 +412,149 @@ class _MyOrdersState extends State<MyOrdersScreen> {
     }
   }
 
+  void _openPayment(BuildContext context, OrderModel o) {
+    showModalBottomSheet(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+          child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Pagar ${PaySvc.fmt(o.price!)}',
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                const Text(
+                    'O valor fica retido pela plataforma e só é liberado ao profissional depois que você confirmar o serviço ou quando terminar o prazo de custódia sem contestação.',
+                    style: TextStyle(
+                        fontSize: 12, color: AppColors.textLight, height: 1.4)),
+                const SizedBox(height: 12),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Text('👜', style: TextStyle(fontSize: 22)),
+                  title: const Text('Saldo da carteira'),
+                  onTap: () async {
+                    Navigator.pop(sheet);
+                    try {
+                      await FS.payOrderWithWalletOrThrow(o.id);
+                      if (context.mounted) {
+                        snack(context, 'Pagamento confirmado.',
+                            bg: AppColors.secondary);
+                      }
+                    } on CloudCallException catch (e) {
+                      if (context.mounted) {
+                        snack(context, e.message, bg: AppColors.error);
+                      }
+                    }
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Text('⚡', style: TextStyle(fontSize: 22)),
+                  title: const Text('PIX'),
+                  onTap: () {
+                    Navigator.pop(sheet);
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => PixScreen(
+                                amount: o.price!,
+                                desc: o.title,
+                                orderId: o.id)));
+                  },
+                ),
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Text('💳', style: TextStyle(fontSize: 22)),
+                  title: const Text('Cartão de crédito'),
+                  onTap: () {
+                    Navigator.pop(sheet);
+                    Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => CardPaymentScreen(
+                                amount: o.price!,
+                                desc: o.title,
+                                orderId: o.id)));
+                  },
+                ),
+              ]),
+        ),
+      ),
+    );
+  }
+
+  void _confirmService(BuildContext context, OrderModel o) => showDialog(
+      context: context,
+      builder: (dialog) => AlertDialog(
+            title: const Text('Confirmar serviço'),
+            content: const Text(
+                'Confirme apenas se o serviço foi feito. O valor retido será liberado ao profissional.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(dialog),
+                  child: const Text('Voltar')),
+              TextButton(
+                  onPressed: () async {
+                    Navigator.pop(dialog);
+                    try {
+                      await FS.confirmOrder(o.id);
+                      if (context.mounted) {
+                        snack(context, 'Serviço confirmado.',
+                            bg: AppColors.secondary);
+                      }
+                    } on CloudCallException catch (e) {
+                      if (context.mounted) {
+                        snack(context, e.message, bg: AppColors.error);
+                      }
+                    }
+                  },
+                  child: const Text('Confirmar')),
+            ],
+          ));
+
+  void _openDispute(BuildContext context, OrderModel o) {
+    final reason = TextEditingController();
+    showDialog(
+        context: context,
+        builder: (dialog) => AlertDialog(
+              title: const Text('Contestar pedido'),
+              content: TextField(
+                controller: reason,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                    hintText: 'Explique o que aconteceu'),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(dialog),
+                    child: const Text('Voltar')),
+                TextButton(
+                    onPressed: () async {
+                      if (reason.text.trim().isEmpty) return;
+                      Navigator.pop(dialog);
+                      try {
+                        await FS.disputeOrder(o.id, reason: reason.text);
+                        if (context.mounted) {
+                          snack(context,
+                              'Contestação registrada. O repasse fica bloqueado até a análise.',
+                              bg: AppColors.warning);
+                        }
+                      } on CloudCallException catch (e) {
+                        if (context.mounted) {
+                          snack(context, e.message, bg: AppColors.error);
+                        }
+                      }
+                    },
+                    child: const Text('Enviar',
+                        style: TextStyle(color: AppColors.error))),
+              ],
+            )).whenComplete(reason.dispose);
+  }
+
   void _confirmCancel(BuildContext context, String orderId) => showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -416,6 +584,47 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                       style: TextStyle(color: AppColors.error))),
             ],
           ));
+}
+
+/// Situação do pagamento e da custódia do pedido.
+class _PaymentInfo extends StatelessWidget {
+  final OrderModel order;
+  const _PaymentInfo({required this.order});
+
+  @override
+  Widget build(BuildContext context) {
+    final o = order;
+    String? text;
+    var color = AppColors.textLight;
+    if (o.payoutProcessed) {
+      text = 'Pagamento liberado ao profissional';
+      color = AppColors.secondary;
+    } else if (o.escrowStatus == 'disputed') {
+      text = 'Em contestação: repasse bloqueado até a análise';
+      color = AppColors.orange;
+    } else if (o.awaitingClientConfirmation) {
+      final due = o.releaseAt;
+      text = due != null
+          ? 'Concluído pelo profissional. Confirme ou conteste até ${fmtDate(due)}; depois disso o valor é liberado.'
+          : 'Concluído pelo profissional. Confirme o serviço ou conteste.';
+      color = AppColors.primary;
+    } else if (o.isPaid) {
+      text = 'Pago: valor retido até a conclusão do serviço';
+      color = AppColors.secondary;
+    } else if (o.status == OrderStatus.pending && o.providerId != null) {
+      text = 'Aguardando o profissional aceitar e informar o valor';
+    } else if (o.canPay) {
+      text = 'Valor informado pelo profissional. Pague para ele iniciar com segurança.';
+      color = AppColors.primary;
+    }
+    if (text == null) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Text(text,
+          style: TextStyle(
+              fontSize: 12, color: color, fontWeight: FontWeight.w600)),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────

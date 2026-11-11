@@ -96,14 +96,15 @@ abstract final class OrderPolicy {
   };
 
   /// Máquina de estados. pending ≈ created; inProgress ≈ in_progress.
+  /// Reabrir pedido cancelado é só pelo admin (`reopen`), fora desta tabela.
   static const transitions = <String, Set<String>>{
     'pending': {'accepted', 'cancelled'},
     'accepted': {'inProgress', 'cancelled'},
     'inProgress': {'awaitingPayment', 'completed', 'cancelled', 'disputed'},
     'awaitingPayment': {'paid', 'completed', 'cancelled', 'disputed'},
-    'paid': {'completed', 'refunded', 'disputed', 'cancelled'},
-    'completed': {'refunded', 'cancelled'},
-    'cancelled': {'refunded', 'pending', 'accepted'},
+    'paid': {'completed', 'refunded', 'disputed'},
+    'completed': {'refunded', 'disputed'},
+    'cancelled': {'refunded'},
     'disputed': {'cancelled', 'refunded'},
     'refunded': {},
   };
@@ -163,6 +164,7 @@ abstract final class OrderPolicy {
   static bool isKnownAction(String action) =>
       actions.containsKey(action) ||
       action == 'reopen' ||
+      action == 'confirm' ||
       escrowActions.contains(action);
 
   /// Admin reabre pedido cancelado → pending (sem prestador) ou accepted.
@@ -235,8 +237,10 @@ abstract final class OrderPolicy {
     }
 
     final clock = now ?? DateTime.now();
-    if (releaseAt != null && !clock.isBefore(releaseAt)) {
-      return const EscrowReleaseDecision.allow();
+    if (releaseAt != null) {
+      return clock.isBefore(releaseAt)
+          ? const EscrowReleaseDecision.deny('release_not_due')
+          : const EscrowReleaseDecision.allow();
     }
 
     // Regra: após conclusão / 3 dias sem contestação (fallback paidAt+3d).
@@ -277,9 +281,9 @@ abstract final class OrderPolicy {
         providerId != null && providerId.isNotEmpty && uid == providerId;
     switch (action) {
       case 'accept':
-        return providerId == null ||
-            providerId.isEmpty ||
-            uid == providerId;
+        return (providerId == null || providerId.isEmpty)
+            ? uid != clientId
+            : uid == providerId;
       case 'start':
       case 'decline':
       case 'requestPayment':
@@ -287,6 +291,8 @@ abstract final class OrderPolicy {
       case 'markPaid':
       case 'refund':
         return false;
+      case 'confirm':
+        return isClient;
       case 'complete':
       case 'dispute':
       case 'cancel':
