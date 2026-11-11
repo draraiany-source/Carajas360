@@ -303,7 +303,10 @@ class _MyOrdersState extends State<MyOrdersScreen> {
                             TextButton(
                                 onPressed: () => Navigator.pushNamed(
                                     context, Routes.reviews,
-                                    arguments: {'orderId': o.id}),
+                                    arguments: {
+                                      'orderId': o.id,
+                                      'providerId': o.providerId,
+                                    }),
                                 child: const Text('Avaliar',
                                     style: TextStyle(fontSize: 12))),
                         ]),

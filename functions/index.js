@@ -223,14 +223,13 @@ async function applyOfficialPayout(tx, {
   if (order.payoutProcessed) {
     return { ok: true, already: true, payoutProcessed: true, orderUpdates: {} };
   }
-  // FASE 3: taxa Admin (config/platform) ou snapshot no pedido; fallback 8%.
-  let commissionRate = order.commissionRate != null ? Number(order.commissionRate) : null;
-  if (commissionRate == null) {
-    const cfgSnap = await tx.get(db.collection('config').doc('platform'));
-    if (cfgSnap.exists) {
-      const cfg = cfgSnap.data() || {};
-      if (cfg.commissionRate != null) commissionRate = Number(cfg.commissionRate);
-    }
+  // Taxa definida pelo Admin (config/platform); fallback 8%. Campos de
+  // cobrança gravados no pedido vêm do cliente e não são confiáveis.
+  let commissionRate = null;
+  const cfgSnap = await tx.get(db.collection('config').doc('platform'));
+  if (cfgSnap.exists) {
+    const cfg = cfgSnap.data() || {};
+    if (cfg.commissionRate != null) commissionRate = Number(cfg.commissionRate);
   }
   const decision = policy.canPayout({
     status: 'completed',
@@ -244,8 +243,6 @@ async function applyOfficialPayout(tx, {
     gatewayStatus: payment && payment.status,
     paidAmount: payment && payment.amount,
     commissionRate,
-    billingMode: order.billingMode,
-    commissionExempt: order.commissionExempt === true,
   });
   if (!decision.ok) {
     throw httpsError('failed-precondition', 'Repasse recusado: ' + decision.reason);

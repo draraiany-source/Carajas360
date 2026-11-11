@@ -44,6 +44,14 @@ describe('firestore.rules — políticas críticas (auditoria estática)', () =>
     assert.match(rules, /allow create, update, delete: if false;/);
   });
 
+  it('cliente não define comissão ao criar pedido', () => {
+    const orders = rules.slice(rules.indexOf('match /orders/{orderId}'));
+    const create = orders.slice(0, orders.indexOf('allow update'));
+    for (const key of ['commissionRate', 'commissionExempt', 'billingMode']) {
+      assert.ok(create.includes(`'${key}'`), `${key} deve estar bloqueado`);
+    }
+  });
+
   it('catch-all recusa tudo', () => {
     assert.match(rules, /match \/\{document=\*\*\}/);
     assert.match(rules, /allow read, write: if false;/);

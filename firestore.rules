@@ -195,7 +195,8 @@ service cloud.firestore {
         && !request.resource.data.keys().hasAny([
           'commission', 'platformFee', 'providerAmount', 'payoutStatus',
           'transactionId', 'gatewayTransactionId', 'cashbackGranted',
-          'payoutProcessedAt', 'payoutTransactionId', 'walletId'
+          'payoutProcessedAt', 'payoutTransactionId', 'walletId',
+          'commissionRate', 'commissionExempt', 'billingMode'
         ]);
       allow update: if isAdmin() || (
         isAuth() &&
