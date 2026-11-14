@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 
-/// Identidade visual premium do Carajás 360.
-/// Azul confiança + verde conclusão — sem roxo/creme genéricos de IA.
+/// Paleta legada alinhada à marca (verde-esmeralda, branco e dourado).
+/// Os tons de [primary] espelham [Brand] para que telas antigas e novas
+/// tenham o mesmo cabeçalho, botões e destaques.
 abstract class AppColors {
-  static const primary = Color(0xFF0B3D91);
-  static const primaryLight = Color(0xFF1565C0);
-  static const primaryMid = Color(0xFF1E88E5);
-  static const primarySoft = Color(0xFFE8F1FC);
+  static const primary = Color(0xFF006B35);
+  static const primaryLight = Color(0xFF0B8A4A);
+  static const primaryMid = Color(0xFF0B8A4A);
+  static const primarySoft = Color(0xFFE7F5EB);
   static const secondary = Color(0xFF1B7A4E);
   static const secondaryLight = Color(0xFF2E9B68);
   static const success = Color(0xFF12B76A);
@@ -15,16 +16,16 @@ abstract class AppColors {
   static const info = Color(0xFF0E8F9E);
   static const health = Color(0xFF0F6B5C);
   static const delivery = Color(0xFFD4550A);
-  static const navy = Color(0xFF0A2540);
+  static const navy = Color(0xFF003D24);
   static const purple = Color(0xFF5B21B6);
   static const teal = Color(0xFF0E8F9E);
   static const orange = Color(0xFFD4550A);
   static const white = Color(0xFFFFFFFF);
-  static const background = Color(0xFFF3F6FA);
+  static const background = Color(0xFFF7FAF8);
   static const surface = Color(0xFFFFFFFF);
-  static const surfaceMuted = Color(0xFFEEF3F9);
-  static const border = Color(0xFFD8E0EA);
-  static const divider = Color(0xFFE6ECF2);
+  static const surfaceMuted = Color(0xFFEEF5F0);
+  static const border = Color(0xFFDCE6E0);
+  static const divider = Color(0xFFE6EEE9);
   static const textDark = Color(0xFF0F172A);
   static const textMedium = Color(0xFF334155);
   static const textLight = Color(0xFF64748B);
@@ -44,7 +45,7 @@ abstract class AppColors {
 
 abstract class AppGradients {
   static const splash = LinearGradient(
-      colors: [Color(0xFF0A2540), Color(0xFF0B3D91), Color(0xFF1B7A4E)],
+      colors: [Color(0xFF003D24), Color(0xFF006B35), Color(0xFF0B8A4A)],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight);
   static const primary = LinearGradient(
@@ -80,7 +81,7 @@ abstract class AppGradients {
       begin: Alignment.topLeft,
       end: Alignment.bottomRight);
   static const authHero = LinearGradient(
-      colors: [Color(0xFF071A33), Color(0xFF0B3D91), Color(0xFF0F5C45)],
+      colors: [Color(0xFF002A19), Color(0xFF006B35), Color(0xFF0B8A4A)],
       begin: Alignment.topCenter,
       end: Alignment.bottomCenter);
 }

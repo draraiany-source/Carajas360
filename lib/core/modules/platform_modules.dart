@@ -37,7 +37,7 @@ abstract class PlatformModules {
       subtitle: 'Profissionais da região',
       status: ModuleStatus.available,
       route: Routes.servicesHub,
-      accent: Color(0xFF0B3D91),
+      accent: Color(0xFF006B35),
     ),
     PlatformModule(
       id: 'jobs',

@@ -341,8 +341,8 @@ class ProvCard extends StatelessWidget {
                     AppTag(badge,
                         bg: const Color(0xFFE8F5E9), fg: AppColors.secondary),
                     if (isOnline == true)
-                      AppTag('Online',
-                          bg: const Color(0xFFE3F0FF), fg: AppColors.primary),
+                      AppTag('Atende online',
+                          bg: const Color(0xFFE7F5EB), fg: AppColors.primary),
                     if (isOnline == false)
                       AppTag('Presencial',
                           bg: const Color(0xFFFFF3E0), fg: AppColors.delivery),
@@ -353,33 +353,30 @@ class ProvCard extends StatelessWidget {
                         child: ElevatedButton(
                             onPressed: TapGuard.wrap(onTap),
                             style: ElevatedButton.styleFrom(
-                                backgroundColor: isOnline == true
-                                    ? AppColors.success
-                                    : AppColors.primary,
-                                minimumSize: const Size(0, 36),
+                                backgroundColor: AppColors.primary,
+                                minimumSize: const Size(0, 44),
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 8),
                                 shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(10))),
                             child: Text(
-                                ctaLabel ??
-                                    (isOnline == true
-                                        ? 'Online'
-                                        : 'Contratar'),
+                                ctaLabel ?? 'Contratar',
                                 style: const TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.w700,
                                     color: Colors.white)))),
                     const SizedBox(width: 8),
-                    GestureDetector(
-                        onTap: onChat,
-                        child: Container(
-                            padding: const EdgeInsets.all(9),
-                            decoration: BoxDecoration(
-                                color: AppColors.background,
-                                borderRadius: BorderRadius.circular(10)),
-                            child: const Icon(Icons.chat_bubble_outline,
-                                size: 20, color: AppColors.primary))),
+                    IconButton(
+                        onPressed: onChat,
+                        tooltip: 'Conversar com $name',
+                        constraints:
+                            const BoxConstraints(minWidth: 44, minHeight: 44),
+                        style: IconButton.styleFrom(
+                            backgroundColor: AppColors.background,
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10))),
+                        icon: const Icon(Icons.chat_bubble_outline,
+                            size: 20, color: AppColors.primary)),
                   ]),
                 ])),
           ]),

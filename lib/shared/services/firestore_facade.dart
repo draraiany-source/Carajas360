@@ -275,6 +275,9 @@ class FS {
   static final Map<String, Stream<List<ProviderModel>>> _providersStreamCache =
       {};
 
+  /// Descarta streams em cache (ex.: após erro de rede) para nova tentativa.
+  static void resetProvidersStreams() => _providersStreamCache.clear();
+
   static Stream<List<ProviderModel>> providersStream(
       {String? category, int limit = 20}) {
     if (HomologCatalog.enabled) {

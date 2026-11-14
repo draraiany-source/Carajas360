@@ -6,6 +6,11 @@ import '../utils/firebase_bootstrap.dart';
 abstract final class HomologCatalog {
   static bool get enabled => FirebaseBootstrap.hasPlaceholderKeys;
 
+  /// Perfil do seed de demonstração (não existe no Firestore).
+  static bool isDemoProvider(String id) =>
+      _seed.any((p) => p.id == id || p.userId == id) ||
+      _healthSeed.any((p) => p.id == id || p.userId == id);
+
   /// Pure filter used by [providers] and unit tests (no Firebase).
   static List<ProviderModel> matchProviders(
     List<ProviderModel> all, {

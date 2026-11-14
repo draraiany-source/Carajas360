@@ -14,6 +14,7 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../support/support_screens.dart';
+import '../../core/utils/provider_entry.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -24,13 +25,7 @@ class ProfileScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: uid == null
-          ? EmptyState(
-              emoji: '👤',
-              title: 'Não autenticado',
-              subtitle: 'Faça login para ver seu perfil',
-              actionLabel: 'Entrar',
-              onAction: () => Navigator.pushNamed(context, Routes.login),
-            )
+          ? _signedOut(context)
           : StreamBuilder<UserModel?>(
               stream: FS.userStream(uid),
               builder: (_, snap) {
@@ -148,7 +143,7 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '🔔',
                                   'Notificações',
-                                  '3 não lidas',
+                                  'Avisos de pedidos e mensagens',
                                   () => Navigator.pushNamed(
                                       context, Routes.notifications)),
                               _item(context, '🔐', 'Segurança', 'Alterar senha',
@@ -187,7 +182,7 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '🎟️',
                                   'Cupons',
-                                  'PROMO30 disponível',
+                                  'Ver cupons disponíveis',
                                   () => Navigator.pushNamed(
                                       context, Routes.coupons)),
                             ]),
@@ -210,7 +205,7 @@ class ProfileScreen extends StatelessWidget {
                                   context,
                                   '🏥',
                                   'Saúde',
-                                  '1 consulta agendada',
+                                  'Consultas e profissionais de saúde',
                                   () => Navigator.pushNamed(
                                       context, Routes.health)),
                               _item(
@@ -220,12 +215,25 @@ class ProfileScreen extends StatelessWidget {
                                   'Rastrear pedidos',
                                   () => Navigator.pushNamed(
                                       context, Routes.delivery)),
-                              _item(context, '🏆', 'Conquistas', '8 medalhas',
+                              _item(context, '🏆', 'Conquistas', 'Ver suas medalhas',
                                   () => _showBadges(context)),
                               _item(
                                   context,
+                                  '💎',
+                                  'Planos e assinaturas',
+                                  'Conheça os planos do Carajás 360',
+                                  () => Navigator.pushNamed(
+                                      context, Routes.carajasPro)),
+                              _item(
+                                  context,
+                                  '📣',
+                                  'Divulgue seu serviço',
+                                  'Cadastre-se como profissional',
+                                  () => openProviderEntry(context)),
+                              _item(
+                                  context,
                                   '❓',
-                                  'Suporte',
+                                  'Ajuda e suporte',
                                   'Central de ajuda',
                                   () => Navigator.pushNamed(
                                       context, Routes.support)),
@@ -418,6 +426,36 @@ class ProfileScreen extends StatelessWidget {
       }
     }
   }
+
+  Widget _signedOut(BuildContext context) => ListView(
+        padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
+        children: [
+          const EmptyState(
+            emoji: '👤',
+            title: 'Entre na sua conta',
+            subtitle: 'Acompanhe pedidos, mensagens e favoritos.',
+          ),
+          Center(
+            child: ElevatedButton(
+              onPressed: () => Navigator.pushNamed(context, Routes.login),
+              child: const Text('Entrar ou criar conta'),
+            ),
+          ),
+          const SizedBox(height: 16),
+          _section('Carajás 360', [
+            _item(context, '⭐', 'Favoritos', 'Profissionais salvos',
+                () => Navigator.pushNamed(context, Routes.favorites)),
+            _item(context, '💎', 'Planos e assinaturas',
+                'Conheça os planos do Carajás 360',
+                () => Navigator.pushNamed(context, Routes.carajasPro)),
+            _item(context, '📣', 'Divulgue seu serviço',
+                'Cadastre-se como profissional',
+                () => openProviderEntry(context)),
+            _item(context, '❓', 'Ajuda e suporte', 'Central de ajuda',
+                () => Navigator.pushNamed(context, Routes.support)),
+          ]),
+        ],
+      );
 
   Widget _section(String title, List<Widget> items) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [

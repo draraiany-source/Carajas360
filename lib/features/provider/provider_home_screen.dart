@@ -337,7 +337,7 @@ class _OrderList extends StatelessWidget {
                         AppTag(o.statusLabel,
                             bg: o.status == OrderStatus.inProgress
                                 ? const Color(0xFFE1F5FE)
-                                : const Color(0xFFE3F0FF),
+                                : const Color(0xFFE7F5EB),
                             fg: o.status == OrderStatus.inProgress
                                 ? AppColors.info
                                 : AppColors.primary),
@@ -797,7 +797,7 @@ class _PendingActionsState extends State<_PendingActions> {
         decoration: BoxDecoration(
           color: expired
               ? const Color(0xFFF5F5F5)
-              : (urgent ? const Color(0xFFFFEBEE) : const Color(0xFFE3F0FF)),
+              : (urgent ? const Color(0xFFFFEBEE) : const Color(0xFFE7F5EB)),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [

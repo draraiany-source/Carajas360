@@ -28,8 +28,7 @@ class CarajasAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final canPop = AppNav.canPop(context);
-    final showBack = implyLeading && canPop;
+    final showBack = implyLeading && AppNav.isInnerPage(context);
     return AppBar(
       elevation: 0,
       scrolledUnderElevation: 0,

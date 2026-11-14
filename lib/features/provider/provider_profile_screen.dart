@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/brand.dart';
 import '../../core/utils/tap_guard.dart';
+import '../../core/utils/app_nav.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/brand_provider_card.dart';
@@ -74,7 +75,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
-              return _NotFound(onBack: () => Navigator.maybePop(context));
+              return _NotFound(onBack: () => AppNav.safeBack(context));
             }
             return LayoutBuilder(builder: (context, c) {
               final wide = c.maxWidth >= 900;
@@ -157,7 +158,7 @@ class _Breadcrumb extends StatelessWidget {
     return Row(children: [
       IconButton(
         tooltip: 'Voltar',
-        onPressed: () => Navigator.maybePop(context),
+        onPressed: () => AppNav.safeBack(context),
         style: IconButton.styleFrom(
           backgroundColor: Brand.surface(context),
           side: BorderSide(color: Brand.line(context)),
@@ -212,7 +213,7 @@ class _Hero extends StatelessWidget {
                     fontWeight: FontWeight.w800,
                     color: Brand.ink(context))),
           ),
-          if (p.verified) ...[
+          if (providerShowsVerified(p)) ...[
             const SizedBox(width: 8),
             const Tooltip(
               message: 'Perfil verificado',
@@ -290,7 +291,7 @@ class _Highlights extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = provider;
     final items = <(IconData, String)>[
-      if (p.verified) (Icons.verified_user_outlined, 'Profissional verificado'),
+      if (providerShowsVerified(p)) (Icons.verified_user_outlined, 'Profissional verificado'),
       if (p.modalities.contains('presential'))
         (Icons.home_repair_service_outlined, 'Atendimento presencial'),
       if (p.modalities.contains('online'))

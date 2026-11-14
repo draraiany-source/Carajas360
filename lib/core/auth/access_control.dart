@@ -5,6 +5,7 @@ import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../core/constants/app_constants.dart';
 import 'dev_bypass_auth.dart';
+import 'sign_in_gate.dart';
 
 /// Autorização de rotas/telas sensíveis (claims + perfil).
 abstract final class AccessControl {
@@ -95,7 +96,7 @@ class AdminGate extends StatelessWidget {
   }
 }
 
-class RequireAuth extends StatelessWidget {
+class RequireAuth extends StatefulWidget {
   final Widget child;
   final String title;
   final String? subtitle;
@@ -107,23 +108,27 @@ class RequireAuth extends StatelessWidget {
   });
 
   @override
+  State<RequireAuth> createState() => _RequireAuthState();
+}
+
+class _RequireAuthState extends State<RequireAuth> {
+  Future<void> _signIn() async {
+    await ensureSignedIn(context);
+    if (mounted) setState(() {});
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (AuthService.isAuth) return child;
+    if (AuthService.isAuth) return widget.child;
     return Scaffold(
-      appBar: CarajasAppBar(title: title, implyLeading: true),
+      appBar: CarajasAppBar(title: widget.title, implyLeading: true),
       body: EmptyState(
         emoji: '🔐',
         title: 'Faça login para continuar',
-        subtitle: subtitle ??
+        subtitle: widget.subtitle ??
             'Esta área precisa de uma conta. Seus dados não são exibidos sem autenticação.',
         actionLabel: 'Entrar',
-        onAction: () {
-          final route = ModalRoute.of(context);
-          Navigator.pushNamed(context, Routes.login, arguments: {
-            'returnRoute': route?.settings.name,
-            'returnArgs': route?.settings.arguments,
-          });
-        },
+        onAction: _signIn,
       ),
     );
   }

@@ -7,9 +7,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/catalog/homolog_catalog.dart';
 import '../../core/catalog/service_taxonomy.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/modules/platform_modules.dart';
+import '../../core/search/provider_search.dart';
 import '../../core/search/universal_search.dart';
 import '../../core/theme/brand.dart';
-import '../../core/utils/tap_guard.dart';
+import '../../core/utils/app_nav.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/brand_categories.dart';
@@ -17,19 +19,18 @@ import '../../shared/widgets/brand_provider_card.dart';
 import '../../shared/widgets/widgets.dart';
 import '../services/service_marketplace_screen.dart';
 
-enum _Sort { relevance, rating, reviews, price }
-
-const _sortLabels = {
-  _Sort.relevance: 'Mais relevantes',
-  _Sort.rating: 'Melhor avaliados',
-  _Sort.reviews: 'Mais avaliados',
-  _Sort.price: 'Menor preço',
-};
-
-/// Explorar Serviços: busca universal + profissionais com filtros reais.
+/// Explorar Serviços: busca única de profissionais (aba Explorar,
+/// `/search` e `/universal-search`).
 class UniversalSearchScreen extends StatefulWidget {
   final String? initialQuery;
-  const UniversalSearchScreen({super.key, this.initialQuery});
+
+  /// Id estável de [Categories] (ex.: 'eletricista').
+  final String? initialCategory;
+
+  /// Grupo de [Categories] (ex.: 'Casa').
+  final String? initialGroup;
+  const UniversalSearchScreen(
+      {super.key, this.initialQuery, this.initialCategory, this.initialGroup});
 
   @override
   State<UniversalSearchScreen> createState() => _UniversalSearchScreenState();
@@ -43,20 +44,38 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
   List<UniversalHit> _hits = const [];
   List<String> _suggestions = const [];
   List<String> _history = const [];
-  late final Stream<List<ProviderModel>> _providers;
+
+  static const _pageStep = 100;
+  int _limit = _pageStep;
+  late Stream<List<ProviderModel>> _providers;
 
   BrandCategory? _category;
+  Set<String> _specialties = const {};
+  String? _city;
   double _minRating = 0;
   String? _modality;
   double? _maxPrice;
-  _Sort _sort = _Sort.relevance;
+  ProviderSort _sort = ProviderSort.relevance;
   bool _grid = true;
   int _page = 0;
+  bool _aiBusy = false;
+  int _aiRequest = 0;
 
   static const _historyKey = 'carajas360_universal_search_history_v1';
   static const _pageSize = 12;
   final _resultsKey = GlobalKey();
   final _scroll = ScrollController();
+
+  ProviderSearchCriteria get _criteria => ProviderSearchCriteria(
+        query: _q,
+        scopeIds: _category?.ids ?? const {},
+        specialties: _specialties,
+        city: _city,
+        minRating: _minRating,
+        modality: _modality,
+        maxPrice: _maxPrice,
+        sort: _sort,
+      );
 
   void _goToPage(int p) {
     setState(() => _page = p);
@@ -75,7 +94,9 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
   @override
   void initState() {
     super.initState();
-    _providers = FS.providersStream(limit: 100);
+    _providers = FS.providersStream(limit: _limit);
+    _category = BrandCategory.fromArgs(
+        category: widget.initialCategory, group: widget.initialGroup);
     _ctrl.text = widget.initialQuery ?? '';
     _q = _ctrl.text;
     _loadHistory();
@@ -89,6 +110,14 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
     _focus.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  void _reloadProviders({bool more = false}) {
+    if (!more) FS.resetProvidersStreams();
+    setState(() {
+      if (more) _limit += _pageStep;
+      _providers = FS.providersStream(limit: _limit);
+    });
   }
 
   Future<void> _loadHistory() async {
@@ -115,42 +144,6 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
     if (mounted) setState(() => _history = const []);
   }
 
-  List<CompanyModel> get _homologCompanies {
-    if (!HomologCatalog.enabled) return const [];
-    return [
-      CompanyModel(
-        id: 'hc1',
-        ownerId: 'hc1',
-        name: 'Construtora Serra Norte',
-        cnpj: '00.000.000/0001-00',
-        city: 'Canaa dos Carajas',
-        categories: const ['pedreiro', 'pintor'],
-        verified: true,
-        createdAt: DateTime(2025, 1, 1),
-      ),
-      CompanyModel(
-        id: 'hc2',
-        ownerId: 'hc2',
-        name: 'Auto Center Carajas',
-        cnpj: '00.000.000/0001-01',
-        city: 'Parauapebas',
-        categories: const ['mecanica_geral', 'funilaria'],
-        verified: true,
-        createdAt: DateTime(2025, 2, 1),
-      ),
-      CompanyModel(
-        id: 'hc3',
-        ownerId: 'hc3',
-        name: 'Agro Servicos PA',
-        cnpj: '00.000.000/0001-02',
-        city: 'Canaa dos Carajas',
-        categories: const ['tecnico_agricola'],
-        verified: true,
-        createdAt: DateTime(2025, 3, 1),
-      ),
-    ];
-  }
-
   void _onChanged(String v) {
     _debounce?.cancel();
     _debounce = Timer(const Duration(milliseconds: 180), () {
@@ -164,10 +157,12 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
     });
   }
 
-  /// Serviços, categorias e empresas da taxonomia; profissionais vêm do stream.
+  /// Serviços e categorias da taxonomia; profissionais vêm do stream.
   void _runSearch(String v) {
-    final hits = UniversalSearch.search(query: v, companies: _homologCompanies)
-        .where((h) => h.kind != UniversalHitKind.provider)
+    final hits = UniversalSearch.search(query: v)
+        .where((h) =>
+            h.kind != UniversalHitKind.provider &&
+            h.kind != UniversalHitKind.company)
         .take(8)
         .toList();
     if (!mounted) return;
@@ -178,11 +173,18 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
     _ctrl.text = s;
     _ctrl.selection =
         TextSelection.fromPosition(TextPosition(offset: s.length));
-    _onChanged(s);
+    _debounce?.cancel();
+    setState(() {
+      _q = s;
+      _page = 0;
+      _suggestions = const [];
+    });
+    _runSearch(s);
     _pushHistory(s);
   }
 
   void _clearQuery() {
+    _debounce?.cancel();
     _ctrl.clear();
     setState(() {
       _q = '';
@@ -190,6 +192,45 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
       _suggestions = const [];
       _page = 0;
     });
+  }
+
+  /// Sugere a especialidade pela descrição (IA). Respostas atrasadas de
+  /// pedidos anteriores são descartadas.
+  Future<void> _smartSearch() async {
+    final q = _ctrl.text.trim();
+    if (q.isEmpty) {
+      snack(context, 'Digite o que você precisa primeiro.');
+      _focus.requestFocus();
+      return;
+    }
+    final req = ++_aiRequest;
+    setState(() => _aiBusy = true);
+    final names = Categories.all
+        .where((c) => c.group != 'Saúde')
+        .map((c) => c.name)
+        .toList();
+    String? result;
+    try {
+      result = await AiSvc.smartSearchCategory(q, names);
+    } catch (_) {
+      result = null;
+    }
+    if (!mounted || req != _aiRequest) return;
+    setState(() => _aiBusy = false);
+    final match = (result == null || result.isEmpty)
+        ? null
+        : Categories.all.where((c) => c.name == result).firstOrNull;
+    if (match == null) {
+      snack(context,
+          'Não foi possível sugerir uma categoria agora. Escolha uma categoria abaixo.');
+      return;
+    }
+    setState(() {
+      _category = BrandCategory.fromArgs(category: match.id);
+      _specialties = const {};
+      _page = 0;
+    });
+    snack(context, 'Categoria sugerida: ${match.name}', bg: Brand.green);
   }
 
   Future<void> _openHit(UniversalHit hit) async {
@@ -233,22 +274,14 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
         }
         break;
       case UniversalHitKind.provider:
-        Navigator.pushNamed(context, Routes.requestService, arguments: {
-          'providerId': hit.id,
-          'providerName': hit.title,
-          'category': hit.categoryId ?? '',
-        });
-        return;
       case UniversalHitKind.company:
-        Navigator.pushNamed(context, Routes.companyProfile);
-        return;
       case UniversalHitKind.category:
         break;
     }
-    if (hit.categoryId != null) {
-      Navigator.pushNamed(context, Routes.search,
-          arguments: {'category': hit.categoryId});
-    }
+    final cat = hit.categoryId == null
+        ? null
+        : BrandCategory.fromArgs(category: hit.categoryId);
+    if (cat != null) _selectCategory(cat);
   }
 
   void _selectCategory(BrandCategory? c) {
@@ -258,76 +291,34 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
     }
     setState(() {
       _category = c;
+      _specialties = const {};
       _page = 0;
     });
   }
 
-  bool get _hasFilters =>
-      _category != null ||
-      _minRating > 0 ||
-      _modality != null ||
-      _maxPrice != null ||
-      _sort != _Sort.relevance;
+  void _toggleSpecialty(String id) {
+    setState(() {
+      final next = {..._specialties};
+      if (!next.remove(id)) next.add(id);
+      _specialties = next;
+      _page = 0;
+    });
+  }
 
   void _clearFilters() => setState(() {
         _category = null;
+        _specialties = const {};
+        _city = null;
         _minRating = 0;
         _modality = null;
         _maxPrice = null;
-        _sort = _Sort.relevance;
+        _sort = ProviderSort.relevance;
         _page = 0;
       });
 
-  bool _matchesCategory(ProviderModel p) {
-    final c = _category;
-    if (c == null) return true;
-    if (c.category != null) return p.categories.contains(c.category);
-    if (c.group != null) {
-      return p.categories.any((id) => Categories.byId(id)?.group == c.group);
-    }
-    return true;
-  }
-
-  bool _matchesQuery(ProviderModel p) {
-    final q = _q.trim();
-    if (q.isEmpty) return true;
-    final cats = p.categories.map((id) => Categories.byId(id)?.name ?? id);
-    final haystack = [p.name, ...cats, p.bio ?? '', p.city ?? ''].join(' ');
-    return q
-        .split(RegExp(r'\s+'))
-        .every((word) => UniversalSearch.fuzzyMatch(haystack, word));
-  }
-
-  List<ProviderModel> _apply(List<ProviderModel> all) {
-    final list = all.where((p) {
-      if (!_matchesCategory(p) || !_matchesQuery(p)) return false;
-      if (_minRating > 0 && (p.totalReviews == 0 || p.rating < _minRating)) {
-        return false;
-      }
-      if (_modality != null && !p.modalities.contains(_modality)) return false;
-      if (_maxPrice != null &&
-          (p.minPrice == null || p.minPrice! > _maxPrice!)) {
-        return false;
-      }
-      return true;
-    }).toList();
-    switch (_sort) {
-      case _Sort.relevance:
-        break;
-      case _Sort.rating:
-        list.sort((a, b) => b.rating.compareTo(a.rating));
-      case _Sort.reviews:
-        list.sort((a, b) => b.totalReviews.compareTo(a.totalReviews));
-      case _Sort.price:
-        list.sort((a, b) => (a.minPrice ?? double.infinity)
-            .compareTo(b.minPrice ?? double.infinity));
-    }
-    return list;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final canPop = ModalRoute.of(context)?.canPop ?? false;
+    final inner = AppNav.isInnerPage(context);
     return Scaffold(
       backgroundColor: Brand.isDark(context)
           ? Theme.of(context).scaffoldBackgroundColor
@@ -340,18 +331,23 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
           return StreamBuilder<List<ProviderModel>>(
             stream: _providers,
             builder: (context, snap) {
-              var all = snap.data ?? const <ProviderModel>[];
-              if (all.isEmpty && HomologCatalog.enabled) {
-                all = HomologCatalog.providers();
-              }
+              final all = snap.data ?? const <ProviderModel>[];
               final loading = snap.connectionState == ConnectionState.waiting &&
-                  all.isEmpty &&
-                  !HomologCatalog.enabled;
-              final results = _apply(all);
-              final pages = (results.length / _pageSize).ceil();
+                  !snap.hasData &&
+                  !snap.hasError;
+              final failed = snap.hasError && !snap.hasData;
+              final truncated =
+                  !HomologCatalog.enabled && snap.hasData && all.length >= _limit;
+              final criteria = _criteria;
+              final results = ProviderSearch.apply(all, criteria);
+              final pages =
+                  ProviderSearch.pageCount(results.length, _pageSize);
               final page = pages == 0 ? 0 : _page.clamp(0, pages - 1);
               final visible =
-                  results.skip(page * _pageSize).take(_pageSize).toList();
+                  ProviderSearch.pageSlice(results, page, _pageSize);
+              final specialties = _category == null
+                  ? const <String>[]
+                  : ProviderSearch.availableSpecialties(all, _category!.ids);
 
               Widget box(Widget child, {double top = 0, bool bleed = false}) =>
                   Center(
@@ -370,21 +366,33 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                 controller: _scroll,
                 padding: const EdgeInsets.only(bottom: 100),
                 children: [
-                  box(_Header(wide: wide, canPop: canPop), top: wide ? 20 : 12),
+                  box(_Header(wide: wide, showBack: inner),
+                      top: wide ? 20 : 12),
                   box(
                     _SearchBox(
                       controller: _ctrl,
                       focusNode: _focus,
-                      autofocus: canPop && widget.initialQuery == null,
+                      autofocus: inner &&
+                          widget.initialQuery == null &&
+                          _category == null,
+                      aiBusy: _aiBusy,
                       onChanged: _onChanged,
                       onSubmitted: (v) {
+                        _debounce?.cancel();
+                        setState(() {
+                          _q = v;
+                          _page = 0;
+                        });
                         _pushHistory(v);
                         _runSearch(v);
                       },
                       onClear: _clearQuery,
+                      onSmartSearch: _smartSearch,
                     ),
                     top: 16,
                   ),
+                  if (HomologCatalog.enabled)
+                    box(const _DemoNotice(), top: 12),
                   if (_q.trim().isEmpty && _history.isNotEmpty)
                     box(
                       _ChipLine(
@@ -392,7 +400,7 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                         items: _history.take(8).toList(),
                         icon: Icons.history_rounded,
                         onTap: _setQuery,
-                        action: 'Limpar',
+                        action: 'Limpar histórico',
                         onAction: _clearHistory,
                       ),
                       top: 12,
@@ -420,15 +428,32 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                     top: 18,
                     bleed: true,
                   ),
+                  if (specialties.length >= 2)
+                    box(
+                      _SpecialtyBar(
+                        pad: pad,
+                        ids: specialties,
+                        selected: _specialties,
+                        all: all,
+                        onToggle: _toggleSpecialty,
+                        onAll: () => setState(() {
+                          _specialties = const {};
+                          _page = 0;
+                        }),
+                      ),
+                      top: 12,
+                      bleed: true,
+                    ),
                   box(
                     _FilterBar(
                       wide: wide,
                       minRating: _minRating,
                       modality: _modality,
                       maxPrice: _maxPrice,
+                      city: _city,
                       sort: _sort,
                       grid: _grid,
-                      hasFilters: _hasFilters,
+                      hasFilters: criteria.hasFilters,
                       onRating: (v) => setState(() {
                         _minRating = v;
                         _page = 0;
@@ -441,40 +466,51 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                         _maxPrice = v;
                         _page = 0;
                       }),
-                      onSort: (v) => setState(() => _sort = v),
+                      onCity: (v) => setState(() {
+                        _city = v;
+                        _page = 0;
+                      }),
+                      onSort: (v) => setState(() {
+                        _sort = v;
+                        _page = 0;
+                      }),
                       onGrid: (v) => setState(() => _grid = v),
                       onClear: _clearFilters,
                     ),
                     top: 16,
                   ),
                   box(
-                    Text(
-                      key: _resultsKey,
-                      loading
-                          ? 'Carregando profissionais...'
-                          : '${results.length} ${results.length == 1 ? 'profissional encontrado' : 'profissionais encontrados'}'
-                              '${_q.trim().isNotEmpty ? ' para "${_q.trim()}"' : ''}',
-                      style: TextStyle(
-                          fontSize: 13.5,
-                          fontWeight: FontWeight.w700,
-                          color: Brand.inkMuted(context)),
+                    Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        key: _resultsKey,
+                        loading
+                            ? 'Carregando profissionais...'
+                            : failed
+                                ? 'Não foi possível carregar os profissionais.'
+                                : _countLabel(
+                                    total: results.length,
+                                    page: page,
+                                    pages: pages,
+                                    query: _q.trim(),
+                                    category: _category?.label),
+                        style: TextStyle(
+                            fontSize: 13.5,
+                            fontWeight: FontWeight.w700,
+                            color: Brand.inkMuted(context)),
+                      ),
                     ),
                     top: 16,
                   ),
                   box(
                     loading
                         ? const ShimCard()
-                        : snap.hasError && all.isEmpty
-                            ? const InfoBanner(
-                                icon: '⚠️',
-                                text:
-                                    'Não foi possível carregar os profissionais agora. Tente novamente em instantes.',
-                                bg: Brand.greenLight,
-                                fg: Brand.greenDark,
-                              )
+                        : failed
+                            ? _ErrorResults(onRetry: _reloadProviders)
                             : results.isEmpty
                                 ? _EmptyResults(
-                                    hasFilters: _hasFilters || _q.isNotEmpty,
+                                    hasFilters:
+                                        criteria.hasFilters || _q.isNotEmpty,
                                     onClear: () {
                                       _clearFilters();
                                       _clearQuery();
@@ -482,9 +518,11 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                                     onRequest: () => Navigator.pushNamed(
                                         context, Routes.resolve),
                                   )
-                                : _grid
-                                    ? _ResultsGrid(list: visible, wide: wide)
-                                    : _ResultsList(list: visible),
+                                : BrandProviderGrid(
+                                    list: visible,
+                                    highlight: criteria.effectiveIds,
+                                    asList: !_grid,
+                                  ),
                     top: 12,
                   ),
                   if (pages > 1)
@@ -496,6 +534,14 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                       ),
                       top: 20,
                     ),
+                  if (truncated)
+                    box(
+                      _LoadMore(
+                        loaded: all.length,
+                        onTap: () => _reloadProviders(more: true),
+                      ),
+                      top: 16,
+                    ),
                 ],
               );
             },
@@ -504,6 +550,26 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
       ),
     );
   }
+
+  static String _countLabel({
+    required int total,
+    required int page,
+    required int pages,
+    required String query,
+    String? category,
+  }) {
+    final noun = total == 1 ? 'profissional encontrado' : 'profissionais encontrados';
+    final parts = <String>['$total $noun'];
+    if (category != null) parts.add('em $category');
+    if (query.isNotEmpty) parts.add('para "$query"');
+    var s = parts.join(' ');
+    if (pages > 1) {
+      final from = page * _pageSize + 1;
+      final to = ((page + 1) * _pageSize).clamp(0, total);
+      s += ' · exibindo $from–$to';
+    }
+    return s;
+  }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -511,8 +577,8 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
 // ─────────────────────────────────────────────────────────────
 
 class _Header extends StatelessWidget {
-  final bool wide, canPop;
-  const _Header({required this.wide, required this.canPop});
+  final bool wide, showBack;
+  const _Header({required this.wide, required this.showBack});
 
   @override
   Widget build(BuildContext context) {
@@ -538,14 +604,14 @@ class _Header extends StatelessWidget {
           ),
         ),
         Row(children: [
-          if (canPop) ...[
+          if (showBack) ...[
             Material(
               color: Colors.white.withValues(alpha: 0.14),
               shape: const CircleBorder(),
               child: IconButton(
                 tooltip: 'Voltar',
                 icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                onPressed: () => Navigator.maybePop(context),
+                onPressed: () => AppNav.safeBack(context),
               ),
             ),
             const SizedBox(width: 14),
@@ -554,12 +620,15 @@ class _Header extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Explorar Serviços',
-                    style: TextStyle(
-                        color: Colors.white,
-                        fontSize: wide ? 28 : 22,
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: -0.5)),
+                Semantics(
+                  header: true,
+                  child: Text('Explorar Serviços',
+                      style: TextStyle(
+                          color: Colors.white,
+                          fontSize: wide ? 28 : 22,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5)),
+                ),
                 const SizedBox(height: 4),
                 Text('Encontre rapidamente o serviço ideal na sua região.',
                     style: TextStyle(
@@ -574,19 +643,52 @@ class _Header extends StatelessWidget {
   }
 }
 
+class _DemoNotice extends StatelessWidget {
+  const _DemoNotice();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Brand.goldLight,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Brand.gold.withValues(alpha: 0.6)),
+      ),
+      child: const Row(children: [
+        Icon(Icons.info_outline_rounded, size: 20, color: Color(0xFF7A5B00)),
+        SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            'Ambiente de homologação: os profissionais abaixo são de demonstração, '
+            'não são cadastros reais e não recebem pedidos.',
+            style: TextStyle(
+                fontSize: 12.5,
+                height: 1.35,
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF5C4400)),
+          ),
+        ),
+      ]),
+    );
+  }
+}
+
 class _SearchBox extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
-  final bool autofocus;
+  final bool autofocus, aiBusy;
   final ValueChanged<String> onChanged, onSubmitted;
-  final VoidCallback onClear;
+  final VoidCallback onClear, onSmartSearch;
   const _SearchBox({
     required this.controller,
     required this.focusNode,
     required this.autofocus,
+    required this.aiBusy,
     required this.onChanged,
     required this.onSubmitted,
     required this.onClear,
+    required this.onSmartSearch,
   });
 
   @override
@@ -612,7 +714,7 @@ class _SearchBox extends StatelessWidget {
             textInputAction: TextInputAction.search,
             style: TextStyle(fontSize: 15, color: Brand.ink(context)),
             decoration: InputDecoration(
-              hintText: 'Serviço, categoria ou profissional...',
+              hintText: 'Nome, serviço, especialidade ou cidade...',
               hintStyle:
                   TextStyle(color: Brand.inkMuted(context), fontSize: 14),
               border: InputBorder.none,
@@ -626,7 +728,7 @@ class _SearchBox extends StatelessWidget {
         ValueListenableBuilder<TextEditingValue>(
           valueListenable: controller,
           builder: (_, v, __) => v.text.isEmpty
-              ? const SizedBox(width: 12)
+              ? const SizedBox.shrink()
               : IconButton(
                   tooltip: 'Limpar busca',
                   icon:
@@ -634,6 +736,17 @@ class _SearchBox extends StatelessWidget {
                   onPressed: onClear,
                 ),
         ),
+        IconButton(
+          tooltip: 'Sugerir categoria com IA',
+          onPressed: aiBusy ? null : onSmartSearch,
+          icon: aiBusy
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.auto_awesome_rounded, color: Brand.goldDeep),
+        ),
+        const SizedBox(width: 6),
       ]),
     );
   }
@@ -672,7 +785,7 @@ class _ChipLine extends StatelessWidget {
             TextButton(
               onPressed: onAction,
               style: TextButton.styleFrom(
-                  foregroundColor: Brand.green, minimumSize: const Size(0, 32)),
+                  foregroundColor: Brand.green, minimumSize: const Size(0, 40)),
               child: Text(action!,
                   style: const TextStyle(fontWeight: FontWeight.w700)),
             ),
@@ -809,52 +922,50 @@ class _CategorySelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final sel = selected;
     final items = <(String, IconData, bool, VoidCallback)>[
-      (
-        'Todos',
-        Icons.grid_view_rounded,
-        selected == null,
-        () => onSelect(null)
-      ),
+      ('Todas', Icons.grid_view_rounded, sel == null, () => onSelect(null)),
+      if (sel != null && !brandCategories.contains(sel))
+        (sel.label, sel.icon, true, () => onSelect(sel)),
       for (final c in brandCategories)
-        (c.label, c.icon, selected == c, () => onSelect(c)),
+        (c.label, c.icon, sel == c, () => onSelect(c)),
       ('Mais categorias', Icons.add_rounded, false, onMore),
     ];
     return SizedBox(
-      height: 96,
+      height: 100,
       child: ScrollConfiguration(
         behavior: const BrandDragScrollBehavior(),
         child: ListView.separated(
           scrollDirection: Axis.horizontal,
-          padding: EdgeInsets.symmetric(horizontal: pad),
+          padding: EdgeInsets.symmetric(horizontal: pad, vertical: 2),
           itemCount: items.length,
           separatorBuilder: (_, __) => const SizedBox(width: 10),
           itemBuilder: (_, i) {
-            final (label, icon, sel, onTap) = items[i];
+            final (label, icon, isSel, onTap) = items[i];
             return Semantics(
               button: true,
-              selected: sel ? true : null,
-              label: label,
+              selected: isSel ? true : null,
+              label: isSel ? '$label, categoria selecionada' : label,
               excludeSemantics: true,
               onTap: onTap,
               child: Material(
-                color: sel ? Brand.goldLight : Brand.surface(context),
+                color: isSel ? Brand.green : Brand.surface(context),
                 borderRadius: BorderRadius.circular(16),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
                   onTap: onTap,
                   child: Container(
-                    width: 92,
+                    width: 96,
                     padding: const EdgeInsets.fromLTRB(6, 12, 6, 8),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(
-                          color: sel ? Brand.gold : Brand.line(context),
-                          width: sel ? 1.6 : 1),
+                          color: isSel ? Brand.gold : Brand.line(context),
+                          width: isSel ? 2 : 1),
                     ),
                     child: Column(children: [
                       Icon(icon,
-                          size: 26, color: sel ? Brand.goldDeep : Brand.green),
+                          size: 26, color: isSel ? Brand.gold : Brand.green),
                       const SizedBox(height: 6),
                       Expanded(
                         child: Text(label,
@@ -862,11 +973,13 @@ class _CategorySelector extends StatelessWidget {
                             textAlign: TextAlign.center,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                                fontSize: 11,
+                                fontSize: 11.5,
                                 height: 1.2,
                                 fontWeight:
-                                    sel ? FontWeight.w800 : FontWeight.w700,
-                                color: Brand.ink(context))),
+                                    isSel ? FontWeight.w800 : FontWeight.w700,
+                                color: isSel
+                                    ? Colors.white
+                                    : Brand.ink(context))),
                       ),
                     ]),
                   ),
@@ -880,9 +993,80 @@ class _CategorySelector extends StatelessWidget {
   }
 }
 
+/// Especialidades (subcategorias) da categoria ativa; múltipla escolha.
+class _SpecialtyBar extends StatelessWidget {
+  final double pad;
+  final List<String> ids;
+  final Set<String> selected;
+  final List<ProviderModel> all;
+  final ValueChanged<String> onToggle;
+  final VoidCallback onAll;
+  const _SpecialtyBar({
+    required this.pad,
+    required this.ids,
+    required this.selected,
+    required this.all,
+    required this.onToggle,
+    required this.onAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    int count(String id) =>
+        all.where((p) => p.active && p.categories.contains(id)).length;
+    Widget chip(String label, bool sel, VoidCallback onTap) => FilterChip(
+          label: Text(label),
+          selected: sel,
+          onSelected: (_) => onTap(),
+          showCheckmark: true,
+          checkmarkColor: Brand.greenDark,
+          selectedColor: Brand.goldLight,
+          backgroundColor: Brand.surface(context),
+          side: BorderSide(color: sel ? Brand.goldDeep : Brand.line(context)),
+          labelStyle: TextStyle(
+              fontSize: 12.5,
+              fontWeight: sel ? FontWeight.w800 : FontWeight.w600,
+              color: Brand.ink(context)),
+        );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: EdgeInsets.symmetric(horizontal: pad),
+          child: Text('Especialidades',
+              style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: Brand.ink(context))),
+        ),
+        const SizedBox(height: 6),
+        SizedBox(
+          height: 44,
+          child: ScrollConfiguration(
+            behavior: const BrandDragScrollBehavior(),
+            child: ListView(
+              scrollDirection: Axis.horizontal,
+              padding: EdgeInsets.symmetric(horizontal: pad),
+              children: [
+                chip('Todas', selected.isEmpty, onAll),
+                for (final id in ids) ...[
+                  const SizedBox(width: 8),
+                  chip('${ProviderSearch.categoryName(id)} (${count(id)})',
+                      selected.contains(id), () => onToggle(id)),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _FilterMenu<T> extends StatelessWidget {
   final IconData icon;
   final String label;
+  final String tooltip;
   final bool active;
   final T value;
   final List<(T, String)> options;
@@ -890,6 +1074,7 @@ class _FilterMenu<T> extends StatelessWidget {
   const _FilterMenu({
     required this.icon,
     required this.label,
+    required this.tooltip,
     required this.active,
     required this.value,
     required this.options,
@@ -899,7 +1084,7 @@ class _FilterMenu<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return PopupMenuButton<T>(
-      tooltip: label,
+      tooltip: tooltip,
       initialValue: value,
       onSelected: onSelected,
       position: PopupMenuPosition.under,
@@ -915,27 +1100,33 @@ class _FilterMenu<T> extends StatelessWidget {
             ]),
           ),
       ],
-      child: ExcludeSemantics(
-          child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
-        decoration: BoxDecoration(
-          color: active ? Brand.greenLight : Brand.surface(context),
-          borderRadius: BorderRadius.circular(22),
-          border: Border.all(color: active ? Brand.green : Brand.line(context)),
+      child: Semantics(
+        button: true,
+        label: '$tooltip: $label',
+        excludeSemantics: true,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 9),
+          decoration: BoxDecoration(
+            color: active ? Brand.greenLight : Brand.surface(context),
+            borderRadius: BorderRadius.circular(22),
+            border:
+                Border.all(color: active ? Brand.green : Brand.line(context)),
+          ),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(icon, size: 17, color: Brand.green),
+            const SizedBox(width: 6),
+            Text(label,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Brand.ink(context))),
+            const SizedBox(width: 2),
+            Icon(Icons.keyboard_arrow_down_rounded,
+                size: 18, color: Brand.inkMuted(context)),
+          ]),
         ),
-        child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 17, color: Brand.green),
-          const SizedBox(width: 6),
-          Text(label,
-              style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: Brand.ink(context))),
-          const SizedBox(width: 2),
-          Icon(Icons.keyboard_arrow_down_rounded,
-              size: 18, color: Brand.inkMuted(context)),
-        ]),
-      )),
+      ),
     );
   }
 }
@@ -943,13 +1134,13 @@ class _FilterMenu<T> extends StatelessWidget {
 class _FilterBar extends StatelessWidget {
   final bool wide, grid, hasFilters;
   final double minRating;
-  final String? modality;
+  final String? modality, city;
   final double? maxPrice;
-  final _Sort sort;
+  final ProviderSort sort;
   final ValueChanged<double> onRating;
-  final ValueChanged<String?> onModality;
+  final ValueChanged<String?> onModality, onCity;
   final ValueChanged<double?> onPrice;
-  final ValueChanged<_Sort> onSort;
+  final ValueChanged<ProviderSort> onSort;
   final ValueChanged<bool> onGrid;
   final VoidCallback onClear;
   const _FilterBar({
@@ -957,12 +1148,14 @@ class _FilterBar extends StatelessWidget {
     required this.minRating,
     required this.modality,
     required this.maxPrice,
+    required this.city,
     required this.sort,
     required this.grid,
     required this.hasFilters,
     required this.onRating,
     required this.onModality,
     required this.onPrice,
+    required this.onCity,
     required this.onSort,
     required this.onGrid,
     required this.onClear,
@@ -973,27 +1166,42 @@ class _FilterBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final filters = [
+      _FilterMenu<String>(
+        icon: Icons.location_on_outlined,
+        tooltip: 'Cidade',
+        label: city ?? 'Todas as cidades',
+        active: city != null,
+        value: city ?? '',
+        options: [
+          ('', 'Todas as cidades'),
+          for (final c in [...RegionCities.priority, ...RegionCities.nearby])
+            (c, c),
+        ],
+        onSelected: (v) => onCity(v.isEmpty ? null : v),
+      ),
       _FilterMenu<double>(
         icon: Icons.star_outline_rounded,
+        tooltip: 'Avaliação mínima',
         label: minRating > 0
-            ? 'Avaliação ${minRating.toStringAsFixed(1)}+'
+            ? 'Nota ${minRating.toStringAsFixed(1).replaceAll('.', ',')}+'
             : 'Avaliação',
         active: minRating > 0,
         value: minRating,
         options: const [
-          (0.0, 'Qualquer'),
-          (4.0, '4,0 ou mais'),
-          (4.5, '4,5 ou mais'),
+          (0.0, 'Qualquer avaliação'),
+          (4.0, 'Nota 4,0 ou mais'),
+          (4.5, 'Nota 4,5 ou mais'),
         ],
         onSelected: onRating,
       ),
       _FilterMenu<double>(
         icon: Icons.sell_outlined,
+        tooltip: 'Preço inicial',
         label: maxPrice != null ? 'Até ${_money(maxPrice!)}' : 'Preço',
         active: maxPrice != null,
         value: maxPrice ?? -1,
         options: const [
-          (-1.0, 'Qualquer'),
+          (-1.0, 'Qualquer preço'),
           (100.0, 'Preço inicial até R\$ 100'),
           (200.0, 'Preço inicial até R\$ 200'),
         ],
@@ -1001,26 +1209,30 @@ class _FilterBar extends StatelessWidget {
       ),
       _FilterMenu<String>(
         icon: Icons.event_available_outlined,
+        tooltip: 'Forma de atendimento',
         label: switch (modality) {
-          'online' => 'Online',
-          'presential' => 'Presencial',
+          'online' => 'Atende a distância',
+          'presential' => 'Atende presencialmente',
           _ => 'Atendimento',
         },
         active: modality != null,
         value: modality ?? '',
         options: const [
-          ('', 'Todos'),
-          ('presential', 'Presencial'),
-          ('online', 'Online'),
+          ('', 'Qualquer forma de atendimento'),
+          ('presential', 'Atende presencialmente'),
+          ('online', 'Atende a distância (online)'),
         ],
         onSelected: (v) => onModality(v.isEmpty ? null : v),
       ),
-      _FilterMenu<_Sort>(
+      _FilterMenu<ProviderSort>(
         icon: Icons.sort_rounded,
-        label: _sortLabels[sort]!,
-        active: sort != _Sort.relevance,
+        tooltip: 'Ordenar',
+        label: providerSortLabels[sort]!,
+        active: sort != ProviderSort.relevance,
         value: sort,
-        options: [for (final s in _Sort.values) (s, _sortLabels[s]!)],
+        options: [
+          for (final s in ProviderSort.values) (s, providerSortLabels[s]!)
+        ],
         onSelected: onSort,
       ),
       if (hasFilters)
@@ -1028,7 +1240,8 @@ class _FilterBar extends StatelessWidget {
           onPressed: onClear,
           icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
           label: const Text('Limpar filtros'),
-          style: TextButton.styleFrom(foregroundColor: Brand.green),
+          style: TextButton.styleFrom(
+              foregroundColor: Brand.green, minimumSize: const Size(0, 44)),
         ),
     ];
     final toggle = Container(
@@ -1083,156 +1296,75 @@ class _FilterBar extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────
-// Resultados
+// Estados de resultado
 // ─────────────────────────────────────────────────────────────
 
-class _ResultsGrid extends StatelessWidget {
-  final List<ProviderModel> list;
-  final bool wide;
-  const _ResultsGrid({required this.list, required this.wide});
+class _StateCard extends StatelessWidget {
+  final IconData icon;
+  final String title, text;
+  final List<Widget> actions;
+  const _StateCard(
+      {required this.icon,
+      required this.title,
+      required this.text,
+      required this.actions});
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      const gap = 14.0;
-      final minW = wide ? 210.0 : 158.0;
-      final cols = ((c.maxWidth + gap) / (minW + gap)).floor().clamp(1, 6);
-      final w = (c.maxWidth - gap * (cols - 1)) / cols;
-      return Wrap(
-        spacing: gap,
-        runSpacing: gap,
-        children: [
-          for (final p in list)
-            SizedBox(
-                width: w, height: 318, child: BrandProviderCard(provider: p)),
-        ],
-      );
-    });
-  }
-}
-
-class _ResultsList extends StatelessWidget {
-  final List<ProviderModel> list;
-  const _ResultsList({required this.list});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(children: [
-      for (final p in list) ...[
-        _ProviderRow(provider: p),
-        const SizedBox(height: 10),
-      ],
-    ]);
-  }
-}
-
-class _ProviderRow extends StatelessWidget {
-  final ProviderModel provider;
-  const _ProviderRow({required this.provider});
-
-  @override
-  Widget build(BuildContext context) {
-    final p = provider;
-    final price = p.minPrice != null
-        ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(2).replaceAll('.', ',')}'
-        : 'Valor sob consulta';
-    return Material(
-      color: Brand.surface(context),
-      borderRadius: BorderRadius.circular(16),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(16),
-        onTap: TapGuard.wrap(() => openProviderProfile(context, p)),
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Brand.line(context)),
-          ),
-          child: Row(children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: SizedBox(
-                  width: 72,
-                  height: 72,
-                  child: BrandProviderPhoto(provider: p)),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(children: [
-                    Flexible(
-                      child: Text(p.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w800,
-                              color: Brand.ink(context))),
-                    ),
-                    if (p.verified) ...[
-                      const SizedBox(width: 4),
-                      const Icon(Icons.verified_rounded,
-                          size: 16, color: Brand.green),
-                    ],
-                  ]),
-                  Text(
-                      [
-                        providerCategoryName(p),
-                        if (p.city != null && p.city!.isNotEmpty) p.city!,
-                      ].join(' · '),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 12, color: Brand.inkMuted(context))),
-                  const SizedBox(height: 4),
-                  Row(children: [
-                    const Icon(Icons.star_rounded, size: 15, color: Brand.gold),
-                    const SizedBox(width: 2),
-                    Text(
-                        p.totalReviews > 0
-                            ? '${p.rating.toStringAsFixed(1)} (${p.totalReviews})'
-                            : 'Novo',
-                        style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
-                            color: Brand.ink(context))),
-                    const SizedBox(width: 10),
-                    Flexible(
-                      child: Text(price,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: Brand.green)),
-                    ),
-                  ]),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            BrandFavoriteButton(providerId: p.id),
-            const SizedBox(width: 8),
-            ElevatedButton(
-              onPressed:
-                  TapGuard.wrap(() => requestProviderService(context, p)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Brand.green,
-                foregroundColor: Colors.white,
-                elevation: 0,
-                minimumSize: const Size(0, 40),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(11)),
-              ),
-              child: const Text('Solicitar',
-                  style: TextStyle(fontWeight: FontWeight.w800)),
-            ),
-          ]),
-        ),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: Brand.surface(context),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Brand.line(context)),
       ),
+      child: Column(children: [
+        Icon(icon, size: 40, color: Brand.green),
+        const SizedBox(height: 10),
+        Text(title,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w800,
+                color: Brand.ink(context))),
+        const SizedBox(height: 4),
+        Text(text,
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 13, color: Brand.inkMuted(context))),
+        const SizedBox(height: 14),
+        Wrap(
+          spacing: 10,
+          runSpacing: 10,
+          alignment: WrapAlignment.center,
+          children: actions,
+        ),
+      ]),
+    );
+  }
+}
+
+class _ErrorResults extends StatelessWidget {
+  final VoidCallback onRetry;
+  const _ErrorResults({required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return _StateCard(
+      icon: Icons.cloud_off_rounded,
+      title: 'Não foi possível carregar os profissionais',
+      text: 'Verifique sua conexão e tente novamente.',
+      actions: [
+        ElevatedButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded, size: 18),
+          label: const Text('Tentar novamente'),
+          style: ElevatedButton.styleFrom(
+              backgroundColor: Brand.green,
+              foregroundColor: Colors.white,
+              elevation: 0),
+        ),
+      ],
     );
   }
 }
@@ -1247,56 +1379,59 @@ class _EmptyResults extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        color: Brand.surface(context),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: Brand.line(context)),
-      ),
-      child: Column(children: [
-        const Icon(Icons.search_off_rounded, size: 40, color: Brand.green),
-        const SizedBox(height: 10),
-        Text('Nenhum profissional encontrado',
-            style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w800,
-                color: Brand.ink(context))),
-        const SizedBox(height: 4),
-        Text(
-            hasFilters
-                ? 'Ajuste os filtros ou descreva o que precisa para receber propostas.'
-                : 'Ainda não há profissionais cadastrados. Descreva o que precisa para receber propostas.',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Brand.inkMuted(context))),
-        const SizedBox(height: 14),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          alignment: WrapAlignment.center,
-          children: [
-            if (hasFilters)
-              OutlinedButton(
-                onPressed: onClear,
-                style: OutlinedButton.styleFrom(
-                    foregroundColor: Brand.green,
-                    side: const BorderSide(color: Brand.green)),
-                child: const Text('Limpar filtros'),
-              ),
-            ElevatedButton(
-              onPressed: onRequest,
-              style: ElevatedButton.styleFrom(
-                  backgroundColor: Brand.gold,
-                  foregroundColor: Brand.greenDark,
-                  elevation: 0),
-              child: const Text('Pedir orçamento',
-                  style: TextStyle(fontWeight: FontWeight.w800)),
-            ),
-          ],
+    return _StateCard(
+      icon: Icons.search_off_rounded,
+      title: 'Nenhum profissional encontrado',
+      text: hasFilters
+          ? 'Ajuste os filtros ou descreva o que precisa para receber propostas.'
+          : 'Ainda não há profissionais cadastrados. Descreva o que precisa para receber propostas.',
+      actions: [
+        if (hasFilters)
+          OutlinedButton(
+            onPressed: onClear,
+            style: OutlinedButton.styleFrom(
+                foregroundColor: Brand.green,
+                side: const BorderSide(color: Brand.green)),
+            child: const Text('Limpar busca e filtros'),
+          ),
+        ElevatedButton(
+          onPressed: onRequest,
+          style: ElevatedButton.styleFrom(
+              backgroundColor: Brand.gold,
+              foregroundColor: Brand.greenDark,
+              elevation: 0),
+          child: const Text('Pedir orçamento',
+              style: TextStyle(fontWeight: FontWeight.w800)),
         ),
-      ]),
+      ],
     );
+  }
+}
+
+class _LoadMore extends StatelessWidget {
+  final int loaded;
+  final VoidCallback onTap;
+  const _LoadMore({required this.loaded, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(children: [
+      Text(
+        'Os resultados consideram os $loaded profissionais mais bem avaliados carregados até agora.',
+        textAlign: TextAlign.center,
+        style: TextStyle(fontSize: 12.5, color: Brand.inkMuted(context)),
+      ),
+      const SizedBox(height: 8),
+      OutlinedButton.icon(
+        onPressed: onTap,
+        icon: const Icon(Icons.expand_more_rounded),
+        label: const Text('Carregar mais profissionais'),
+        style: OutlinedButton.styleFrom(
+            foregroundColor: Brand.green,
+            side: const BorderSide(color: Brand.green),
+            minimumSize: const Size(0, 44)),
+      ),
+    ]);
   }
 }
 
@@ -1329,8 +1464,8 @@ class _Pagination extends StatelessWidget {
                   borderRadius: BorderRadius.circular(10),
                   onTap: onTap,
                   child: Container(
-                    width: 38,
-                    height: 38,
+                    width: 44,
+                    height: 44,
                     alignment: Alignment.center,
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(10),
@@ -1356,7 +1491,7 @@ class _Pagination extends StatelessWidget {
           ),
         );
     return Center(
-      child: Wrap(children: [
+      child: Wrap(runSpacing: 6, children: [
         btn(const Icon(Icons.chevron_left_rounded),
             tip: 'Página anterior',
             onTap: page > 0 ? () => onPage(page - 1) : null),

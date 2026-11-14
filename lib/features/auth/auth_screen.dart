@@ -9,6 +9,7 @@ import '../../core/constants/app_assets.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/platform_info.dart';
 import '../../core/auth/dev_bypass_auth.dart';
+import '../../core/auth/sign_in_gate.dart';
 import '../../core/utils/perf_log.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
@@ -305,6 +306,11 @@ void _finishAuth(BuildContext context) {
   if (args is Map) {
     returnRoute = args['returnRoute'] as String?;
     returnArgs = args['returnArgs'];
+    final nav = Navigator.of(context);
+    if (args[loginPopOnSuccessArg] == true && nav.canPop()) {
+      nav.pop(true);
+      return;
+    }
   }
   if (returnRoute != null &&
       returnRoute.isNotEmpty &&

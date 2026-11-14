@@ -3,8 +3,11 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
-import '../../core/utils/chat_nav.dart';
 import '../../core/utils/demo_data.dart';
+import '../../core/auth/sign_in_gate.dart';
+import '../../core/catalog/homolog_catalog.dart';
+import '../../core/orders/service_request.dart';
+import '../../shared/widgets/brand_provider_card.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -40,65 +43,21 @@ class FavoritesScreen extends StatelessWidget {
                   emoji: '⭐',
                   title: 'Nenhum favorito ainda',
                   subtitle:
-                      'Toque no ícone de estrela em um profissional para salvá-lo aqui',
+                      'Toque no coração de um profissional para salvá-lo aqui',
                   asset: AppAssets.ilListaVazia);
-            return ListView.builder(
+            return SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              itemCount: favs.length,
-              itemBuilder: (_, i) {
-                final p = favs[i];
-                final catName = p.categories.isNotEmpty
-                    ? (Categories.byId(p.categories.first)?.name ??
-                        p.categories.first)
-                    : 'Profissional';
-                return Dismissible(
-                  key: Key(p.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: 20),
-                    margin: const EdgeInsets.only(bottom: 12),
-                    decoration: BoxDecoration(
-                        color: AppColors.error,
-                        borderRadius: BorderRadius.circular(16)),
-                    child:
-                        const Icon(Icons.delete_outline, color: Colors.white),
-                  ),
-                  onDismissed: (_) => FS.toggleFavorite(p.id),
-                  child: ProvCard(
-                    name: p.name,
-                    role: catName,
-                    badge: p.badge,
-                    price: p.minPrice != null
-                        ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
-                        : 'Consultar',
-                    rating: p.rating,
-                    reviews: p.totalReviews,
-                    isOnline: p.modalities.contains('online'),
-                    photo: p.photoUrl,
-                    providerId: p.id,
-                    onTap: () => Navigator.pushNamed(
-                        context, Routes.requestService,
-                        arguments: {
-                          'providerId': p.id,
-                          'providerName': p.name,
-                          'category':
-                              p.categories.isNotEmpty ? p.categories.first : ''
-                        }),
-                    onChat: () => ChatNav.open(context,
-                        otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
-                        otherName: p.name,
-                        otherPhoto: p.photoUrl),
-                  ),
-                );
-              },
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1100),
+                  child: BrandProviderGrid(list: favs),
+                ),
+              ),
             );
           },
         ),
       );
 }
-
-// Nota: o botão de favoritar já está embutido no ProvCard (via parâmetro providerId).
 
 // ─────────────────────────────────────────────────────────────
 // MY ORDERS / HISTORY SCREEN (Vol.3: Perfil do Cliente – Pedidos)
@@ -373,7 +332,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
       case OrderStatus.pending:
         return const Color(0xFFFFF8E1);
       case OrderStatus.accepted:
-        return const Color(0xFFE3F0FF);
+        return const Color(0xFFE7F5EB);
       case OrderStatus.inProgress:
         return const Color(0xFFE1F5FE);
       case OrderStatus.awaitingPayment:
@@ -635,6 +594,7 @@ class _PaymentInfo extends StatelessWidget {
 class RequestServiceScreen extends StatefulWidget {
   final String providerId, providerName, category;
   final String? initialDescription;
+  final bool remoteOnly;
   final Color providerColor;
   const RequestServiceScreen(
       {super.key,
@@ -642,6 +602,7 @@ class RequestServiceScreen extends StatefulWidget {
       required this.providerName,
       required this.category,
       this.initialDescription,
+      this.remoteOnly = false,
       this.providerColor = AppColors.primary});
   @override
   State<RequestServiceScreen> createState() => _RequestServiceState();
@@ -657,6 +618,8 @@ class _RequestServiceState extends State<RequestServiceScreen> {
       _improvingDescription = false,
       _loadingBudget = false;
   String? _budgetSuggestion;
+  String? _senderName;
+  final _guard = SubmitGuard();
 
   @override
   void initState() {
@@ -666,6 +629,8 @@ class _RequestServiceState extends State<RequestServiceScreen> {
     if (uid == null) return;
     FS.userStream(uid).first.then((u) {
       if (!mounted) return;
+      final name = u?.name.trim() ?? '';
+      if (name.isNotEmpty) _senderName = name;
       final addr = u?.address?.trim();
       if (addr != null && addr.isNotEmpty && _address.text.isEmpty) {
         _address.text = addr;
@@ -718,46 +683,74 @@ class _RequestServiceState extends State<RequestServiceScreen> {
   }
 
   Future<void> _submit() async {
-    if (!AuthService.isAuth) {
-      snack(context, 'Faça login para solicitar um serviço.',
-          bg: AppColors.warning);
-      Navigator.pushNamed(context, Routes.login);
+    if (_guard.busy) return;
+    if (!await ensureSignedIn(context,
+        message: 'Faça login para solicitar um serviço.')) {
+      return;
+    }
+    if (!mounted) return;
+    final uid = AuthService.uid;
+    final block = ServiceRequest.blockReason(
+      uid: uid,
+      providerId: widget.providerId,
+      demoProvider: HomologCatalog.enabled &&
+          HomologCatalog.isDemoProvider(widget.providerId),
+    );
+    if (block != null) {
+      snack(context, block, bg: AppColors.warning);
       return;
     }
     if (!_form.currentState!.validate()) return;
     setState(() => _loading = true);
-
-    final orderId = await FS.createOrder({
-      'providerId': widget.providerId,
-      'category': widget.category,
-      'title': _title.text.trim(),
-      'description': _description.text.trim(),
-      'address': _address.text.trim(),
-      'urgent': _urgent,
-    });
-
-    final roomId = await FS.getOrCreateRoom(widget.providerId);
-    await FS.sendMessage(
-        roomId: roomId,
-        senderName: 'Você',
-        text:
-            '📋 Nova solicitação: ${_title.text.trim()}\n${_description.text.trim()}');
-    await FS.pushNotif(widget.providerId, '📋 Nova solicitação de serviço',
-        _title.text.trim(), 'order');
-
+    final title = _title.text.trim();
+    final description = _description.text.trim();
+    final result = await _guard.run(() async {
+      final orderId = await FS.createOrder(ServiceRequest.payload(
+        providerId: widget.providerId,
+        category: widget.category,
+        title: title,
+        description: description,
+        address: _address.text,
+        urgent: _urgent,
+        remoteOnly: widget.remoteOnly,
+      ));
+      String? roomId;
+      try {
+        roomId = await FS.getOrCreateRoom(widget.providerId);
+        await FS.sendMessage(
+            roomId: roomId,
+            senderName: _senderName ?? 'Cliente',
+            text: ServiceRequest.chatIntro(title, description));
+      } catch (_) {
+        roomId = null;
+      }
+      return (orderId: orderId, roomId: roomId);
+    }).catchError((Object _) => null);
     if (!mounted) return;
     setState(() => _loading = false);
-    snack(context, '✅ Solicitação enviada! Acompanhe pelo chat.',
+    if (result == null) {
+      snack(context,
+          'Não foi possível enviar a solicitação. Verifique a conexão e tente novamente.',
+          bg: AppColors.error);
+      return;
+    }
+    final roomId = result.roomId;
+    if (roomId == null) {
+      snack(context,
+          'Solicitação registrada. Não foi possível abrir a conversa agora; acompanhe em Pedidos.',
+          bg: AppColors.warning);
+      Navigator.pushReplacementNamed(context, Routes.myOrders);
+      return;
+    }
+    snack(context, 'Solicitação enviada! Acompanhe pela conversa ou em Pedidos.',
         bg: AppColors.secondary);
-    Navigator.pop(context);
-    Navigator.pushNamed(context, Routes.chat, arguments: {
+    Navigator.pushReplacementNamed(context, Routes.chat, arguments: {
       'roomId': roomId,
       'id': widget.providerId,
       'name': widget.providerName,
-      'orderId': orderId
+      'orderId': result.orderId
     });
   }
-
   @override
   Widget build(BuildContext context) => Scaffold(
         appBar: const CarajasAppBar(title: 'Solicitar orçamento'),
@@ -797,20 +790,18 @@ class _RequestServiceState extends State<RequestServiceScreen> {
                       controller: _title,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
-                          hintText: 'Título do serviço *',
+                          labelText: 'Título do serviço *',
                           prefixIcon: Icon(Icons.title_outlined)),
-                      validator: (v) =>
-                          v!.trim().isEmpty ? 'Campo obrigatório' : null),
+                      validator: ServiceRequest.titleError),
                   const SizedBox(height: 12),
                   TextFormField(
                       controller: _description,
                       maxLines: 4,
                       textCapitalization: TextCapitalization.sentences,
                       decoration: const InputDecoration(
-                          hintText: 'Descreva o que você precisa *',
+                          labelText: 'Descreva o que você precisa *',
                           alignLabelWithHint: true),
-                      validator: (v) =>
-                          v!.trim().isEmpty ? 'Campo obrigatório' : null),
+                      validator: ServiceRequest.descriptionError),
                   const SizedBox(height: 8),
                   Row(children: [
                     Expanded(
@@ -867,11 +858,13 @@ class _RequestServiceState extends State<RequestServiceScreen> {
                   TextFormField(
                       controller: _address,
                       textCapitalization: TextCapitalization.sentences,
-                      decoration: const InputDecoration(
-                          hintText: 'Endereço *',
-                          prefixIcon: Icon(Icons.location_on_outlined)),
-                      validator: (v) =>
-                          v!.trim().isEmpty ? 'Campo obrigatório' : null),
+                      decoration: InputDecoration(
+                          labelText: widget.remoteOnly
+                              ? 'Endereço (opcional, atendimento a distância)'
+                              : 'Endereço do atendimento *',
+                          prefixIcon: const Icon(Icons.location_on_outlined)),
+                      validator: (v) => ServiceRequest.addressError(v,
+                          remoteOnly: widget.remoteOnly)),
                   const SizedBox(height: 8),
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,

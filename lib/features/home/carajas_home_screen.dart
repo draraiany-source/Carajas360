@@ -6,6 +6,7 @@ import '../../core/constants/app_constants.dart';
 import '../../core/modules/platform_modules.dart';
 import '../../core/catalog/homolog_catalog.dart';
 import '../../core/utils/provider_entry.dart';
+import '../../core/search/provider_search.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -225,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final featuredHeader = _SectionHeader(
       title: 'Profissionais em destaque',
       action: 'Ver todos',
-      onAction: () => _go(Routes.servicesHub),
+      onAction: () => _go(Routes.search),
     );
     final promo = _ProviderPromoCard(onTap: () => openProviderEntry(context));
     final quickLinks = _QuickLinksCard(onOpen: _go);
@@ -1380,35 +1381,17 @@ class _FeaturedRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, c) {
-      const gap = 14.0;
-      final cols = ((c.maxWidth + gap) / (176 + gap)).floor().clamp(2, 5);
+      final cols = BrandProviderGrid.columnsFor(c.maxWidth, max: 4);
       return _ProvidersStream(
         stream: stream,
         select: (all) => all.take(cols).toList(),
         emptyText:
             'Profissionais da região aparecerão aqui. Abra Serviços para explorar.',
-        builder: (list) => SizedBox(
-          height: 318,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              for (var i = 0; i < cols; i++) ...[
-                if (i > 0) const SizedBox(width: gap),
-                Expanded(
-                  child: i < list.length
-                      ? FadeSlideIn(
-                          index: i, child: BrandProviderCard(provider: list[i]))
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ],
-          ),
-        ),
+        builder: (list) => BrandProviderGrid(list: list, maxColumns: cols),
       );
     });
   }
 }
-
 class _FeaturedCarousel extends StatelessWidget {
   final Stream<List<ProviderModel>> stream;
   final double pad;
@@ -1439,15 +1422,13 @@ class _NearbyProviders extends StatelessWidget {
     required this.wide,
   });
 
-  static String _norm(String s) => s.trim().toLowerCase();
-
   @override
   Widget build(BuildContext context) {
     return _ProvidersStream(
       stream: stream,
       pad: pad,
       select: (all) => all
-          .where((p) => p.city != null && _norm(p.city!) == _norm(city))
+          .where((p) => ProviderSearch.matchesCity(p, city))
           .take(8)
           .toList(),
       emptyText:
@@ -1459,58 +1440,28 @@ class _NearbyProviders extends StatelessWidget {
   }
 }
 
-/// Desktop: grade em vez de carrossel (listas horizontais não rolam com mouse).
 class _ProviderGrid extends StatelessWidget {
   final List<ProviderModel> list;
   final double pad;
   const _ProviderGrid({required this.list, required this.pad});
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.symmetric(horizontal: pad),
-      child: LayoutBuilder(builder: (context, c) {
-        const gap = 14.0;
-        final cols = ((c.maxWidth + gap) / (200 + gap)).floor().clamp(2, 6);
-        final w = (c.maxWidth - gap * (cols - 1)) / cols;
-        return Wrap(
-          spacing: gap,
-          runSpacing: gap,
-          children: [
-            for (var i = 0; i < list.length; i++)
-              SizedBox(
-                width: w,
-                height: 318,
-                child: FadeSlideIn(
-                    index: i, child: BrandProviderCard(provider: list[i])),
-              ),
-          ],
-        );
-      }),
-    );
-  }
+  Widget build(BuildContext context) => Padding(
+        padding: EdgeInsets.symmetric(horizontal: pad),
+        child: BrandProviderGrid(list: list),
+      );
 }
 
+/// Celular: lista vertical curta (o cartão completo não cabe num carrossel
+/// estreito sem cortar texto).
 class _ProviderCarousel extends StatelessWidget {
   final List<ProviderModel> list;
   final double pad;
   const _ProviderCarousel({required this.list, required this.pad});
 
   @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 330,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
+  Widget build(BuildContext context) => Padding(
         padding: EdgeInsets.fromLTRB(pad, 2, pad, 12),
-        itemCount: list.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 12),
-        itemBuilder: (_, i) => FadeSlideIn(
-          index: i,
-          child:
-              SizedBox(width: 212, child: BrandProviderCard(provider: list[i])),
-        ),
-      ),
-    );
-  }
+        child: BrandProviderGrid(list: list.take(3).toList()),
+      );
 }

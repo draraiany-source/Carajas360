@@ -20,7 +20,7 @@ import 'shared/models/models.dart' show ProviderModel;
 
 import 'package:carajas_360/features/auth/auth_screen.dart';
 import 'package:carajas_360/features/home/home_screen.dart'
-    show SearchScreen, ServicesHubScreen;
+    show ServicesHubScreen;
 import 'package:carajas_360/features/home/carajas_home_screen.dart';
 import 'package:carajas_360/features/resolve/resolve_screen.dart';
 import 'package:carajas_360/features/resolve/assisted_request_screen.dart';
@@ -172,8 +172,10 @@ class Carajas360App extends StatelessWidget {
               case Routes.main:
                 return _route(const MainNav());
               case Routes.search:
+              case Routes.universalSearch:
                 final sa = settings.arguments as Map<String, dynamic>?;
-                return _route(SearchScreen(
+                return _route(UniversalSearchScreen(
+                  initialQuery: sa?['q'] as String?,
                   initialCategory: sa?['category'] as String?,
                   initialGroup: sa?['group'] as String?,
                 ));
@@ -256,6 +258,7 @@ class Carajas360App extends StatelessWidget {
                     providerName: a?['providerName'] ?? 'Profissional',
                     category: a?['category'] ?? '',
                     initialDescription: a?['description'] as String?,
+                    remoteOnly: a?['remoteOnly'] == true,
                     providerColor: a?['providerColor'] ?? AppColors.primary,
                   ),
                 ));
@@ -279,11 +282,6 @@ class Carajas360App extends StatelessWidget {
                 return _route(ServiceMarketplaceScreen(
                   verticalId: a?['verticalId'] as String?,
                   categoryId: a?['category'] as String?,
-                ));
-              case Routes.universalSearch:
-                final a = settings.arguments as Map<String, dynamic>?;
-                return _route(UniversalSearchScreen(
-                  initialQuery: a?['q'] as String?,
                 ));
               case Routes.resolve:
                 return _route(const ResolveScreen());
