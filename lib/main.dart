@@ -8,8 +8,6 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/brand.dart';
-import 'core/utils/provider_entry.dart';
-import 'shared/widgets/brand_wordmark.dart';
 import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'shared/widgets/micro_interactions.dart';
