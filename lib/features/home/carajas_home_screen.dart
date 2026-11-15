@@ -12,6 +12,7 @@ import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../shared/widgets/brand_categories.dart';
 import '../../shared/widgets/brand_provider_card.dart';
+import '../../shared/widgets/brand_shell.dart';
 import '../../shared/widgets/brand_wordmark.dart';
 import '../../shared/widgets/micro_interactions.dart';
 
@@ -188,6 +189,36 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  /// Atalhos reais: categorias da marca + módulos disponíveis com rota
+  /// (sem repetir destinos já cobertos). Módulos "em breve" ficam só em
+  /// "Módulos da região", com aviso ao tocar.
+  List<_Shortcut> _shortcuts() {
+    final covered = <String>{
+      Routes.servicesHub,
+      for (final c in brandCategories)
+        if (c.route != null) c.route!,
+    };
+    return [
+      for (final c in brandCategories)
+        _Shortcut(c.label, c.icon, () => _openCategory(c)),
+      for (final m in PlatformModules.all)
+        if (m.isAvailable && m.route != null && !covered.contains(m.route))
+          _Shortcut(m.label, m.icon, () => _openModule(m)),
+      _Shortcut('Mais categorias', Icons.grid_view_rounded,
+          () => _go(Routes.servicesHub),
+          highlight: true),
+    ];
+  }
+
+  void _search(String query) {
+    final q = query.trim();
+    Navigator.pushNamed(
+      context,
+      Routes.universalSearch,
+      arguments: {if (q.isNotEmpty) 'q': q},
+    );
+  }
+
   Widget _content(BuildContext context, UserModel? user,
       {required bool wide, required double pad}) {
     final firstName =
@@ -195,7 +226,7 @@ class _HomeScreenState extends State<HomeScreen> {
     Widget section(Widget child, {double top = 0}) => SliverToBoxAdapter(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1240),
+              constraints: const BoxConstraints(maxWidth: BrandShell.maxWidth),
               child: Padding(
                 padding: EdgeInsets.fromLTRB(pad, top, pad, 0),
                 child: child,
@@ -206,41 +237,21 @@ class _HomeScreenState extends State<HomeScreen> {
     Widget bleed(Widget child, {double top = 0}) => SliverToBoxAdapter(
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1240),
+              constraints: const BoxConstraints(maxWidth: BrandShell.maxWidth),
               child: Padding(padding: EdgeInsets.only(top: top), child: child),
             ),
           ),
         );
 
-    final hero = _HeroBanner(
-      city: _city,
-      wide: wide,
-      onSearch: () => _go(Routes.universalSearch),
-      onRequest: () => _go(Routes.resolve),
-    );
-    final categoriesHeader = _SectionHeader(
-      title: 'Categorias de serviços',
-      action: 'Ver todas',
-      onAction: () => _go(Routes.servicesHub),
-    );
-    final featuredHeader = _SectionHeader(
-      title: 'Profissionais em destaque',
-      action: 'Ver todos',
-      onAction: () => _go(Routes.search),
-    );
-    final promo = _ProviderPromoCard(onTap: () => openProviderEntry(context));
-    final quickLinks = _QuickLinksCard(onOpen: _go);
-
     return CustomScrollView(slivers: [
+      // Em telas largas a MainNav (menu lateral / BrandTopNav) já é a
+      // navegação principal: aqui fica só uma barra utilitária compacta.
       section(
         wide
-            ? _WideTopBar(
+            ? _WideUtilityBar(
                 city: _city,
-                user: user,
                 firstName: firstName,
                 onCity: _pickCity,
-                onSearch: () => _go(Routes.universalSearch),
-                onProfile: () => _go(Routes.profile),
                 onMessages: () => _go(Routes.chatInbox),
               )
             : _MobileTopBar(
@@ -248,76 +259,69 @@ class _HomeScreenState extends State<HomeScreen> {
                 user: user,
                 firstName: firstName,
                 onCity: _pickCity,
-                onSearch: () => _go(Routes.universalSearch),
                 onProfile: () => _go(Routes.profile),
                 onMessages: () => _go(Routes.chatInbox),
               ),
-        top: wide ? 20 : 14,
+        top: wide ? 16 : 12,
       ),
-      if (wide)
+      if (BrandShell.demoMode)
         section(
-          LayoutBuilder(builder: (context, c) {
-            final twoCol = c.maxWidth >= 1000;
-            final main = Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                hero,
-                const SizedBox(height: 28),
-                categoriesHeader,
-                const SizedBox(height: 14),
-                _CategoryGrid(
-                    onTap: _openCategory,
-                    onMore: () => _go(Routes.servicesHub)),
-                const SizedBox(height: 28),
-                featuredHeader,
-                const SizedBox(height: 14),
-                _FeaturedRow(stream: _providers),
-              ],
-            );
-            if (!twoCol) {
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  main,
-                  const SizedBox(height: 20),
-                  Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Expanded(child: promo),
-                    const SizedBox(width: 20),
-                    Expanded(child: quickLinks),
-                  ]),
-                ],
-              );
-            }
-            return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Expanded(child: main),
-              const SizedBox(width: 24),
-              SizedBox(
-                width: 300,
-                child: Column(children: [
-                  promo,
-                  const SizedBox(height: 20),
-                  quickLinks,
-                ]),
-              ),
-            ]);
-          }),
-          top: 22,
-        )
-      else ...[
-        section(hero, top: 18),
-        section(categoriesHeader, top: 24),
-        bleed(
-          _CategoryStrip(
-              pad: pad,
-              onTap: _openCategory,
-              onMore: () => _go(Routes.servicesHub)),
-          top: 10,
+          const BrandDemoNotice(
+            message:
+                'Modo demonstração • perfis ilustrativos. Pedidos reais só com profissionais cadastrados.',
+          ),
+          top: 12,
         ),
-        section(featuredHeader, top: 22),
-        bleed(_FeaturedCarousel(stream: _providers, pad: pad), top: 10),
-        section(promo, top: 10),
-        section(quickLinks, top: 16),
-      ],
+      section(
+        _HeroBanner(
+          city: _city,
+          wide: wide,
+          onSearch: _search,
+          onRequest: () => _go(Routes.resolve),
+        ),
+        top: 14,
+      ),
+      section(
+        const _SectionHeader(
+          title: 'O que você precisa hoje?',
+          subtitle: 'Escolha uma categoria e encontre quem atende na região.',
+        ),
+        top: 26,
+      ),
+      section(_CategoryGrid(shortcuts: _shortcuts()), top: 14),
+      section(
+        _InfoBanners(
+          onHouse: () => Navigator.pushNamed(context, Routes.search,
+              arguments: {'group': 'Casa'}),
+          onHealth: () => _go(Routes.health),
+        ),
+        top: 26,
+      ),
+      section(
+        _SectionHeader(
+          title: 'Profissionais em destaque',
+          action: 'Ver todos',
+          onAction: () => _go(Routes.search),
+        ),
+        top: 28,
+      ),
+      section(_FeaturedProviders(stream: _providers), top: 14),
+      section(
+        wide
+            ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(
+                    child: _ProviderPromoCard(
+                        onTap: () => openProviderEntry(context))),
+                const SizedBox(width: 20),
+                Expanded(child: _QuickLinksCard(onOpen: _go)),
+              ])
+            : Column(children: [
+                _ProviderPromoCard(onTap: () => openProviderEntry(context)),
+                const SizedBox(height: 16),
+                _QuickLinksCard(onOpen: _go),
+              ]),
+        top: 28,
+      ),
       section(_TrustBar(city: _city), top: 28),
       section(
         _SectionHeader(
@@ -389,6 +393,15 @@ class _HomeScreenState extends State<HomeScreen> {
       const SliverToBoxAdapter(child: SizedBox(height: 100)),
     ]);
   }
+}
+
+/// Atalho exibido na grade "O que você precisa hoje?".
+class _Shortcut {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final bool highlight;
+  const _Shortcut(this.label, this.icon, this.onTap, {this.highlight = false});
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -514,62 +527,16 @@ class _NotifBell extends StatelessWidget {
   }
 }
 
-class _SearchField extends StatelessWidget {
-  final VoidCallback onTap;
-  const _SearchField({required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: 'Buscar serviços',
-      excludeSemantics: true,
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: _softShadow(context),
-        ),
-        child: Material(
-          color: _cardColor(context),
-          borderRadius: BorderRadius.circular(16),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: onTap,
-            child: SizedBox(
-              height: 52,
-              child: Row(children: [
-                const SizedBox(width: 16),
-                const Icon(Icons.search_rounded, size: 23, color: Brand.green),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                      'O que você precisa? Ex.: eletricista, limpeza, pedreiro...',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 14, color: _textLow(context))),
-                ),
-                const SizedBox(width: 16),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _MobileTopBar extends StatelessWidget {
   final String city;
   final UserModel? user;
   final String? firstName;
-  final VoidCallback onCity, onSearch, onProfile, onMessages;
+  final VoidCallback onCity, onProfile, onMessages;
   const _MobileTopBar({
     required this.city,
     required this.user,
     required this.firstName,
     required this.onCity,
-    required this.onSearch,
     required this.onProfile,
     required this.onMessages,
   });
@@ -589,7 +556,7 @@ class _MobileTopBar extends StatelessWidget {
               onTap: onMessages),
           const _NotifBell(compact: true),
         ]),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         Row(children: [
           Semantics(
             button: true,
@@ -601,9 +568,9 @@ class _MobileTopBar extends StatelessWidget {
               child: AppAvatar(
                 url: user?.photoUrl,
                 name: user?.name ?? '?',
-                size: 46,
+                size: 44,
                 bg: Brand.green,
-                r: 23,
+                r: 22,
               ),
             ),
           ),
@@ -614,7 +581,7 @@ class _MobileTopBar extends StatelessWidget {
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
-                  fontSize: 21,
+                  fontSize: 20,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.4,
                   color: _textHigh(context)),
@@ -623,35 +590,41 @@ class _MobileTopBar extends StatelessWidget {
           const SizedBox(width: 8),
           Flexible(child: _CityPill(city: city, onTap: onCity)),
         ]),
-        const SizedBox(height: 14),
-        _SearchField(onTap: onSearch),
       ],
     );
   }
 }
 
-class _WideTopBar extends StatelessWidget {
+/// Barra utilitária compacta (desktop): sem logo nem links de navegação,
+/// pois a MainNav já fornece menu lateral / BrandTopNav.
+class _WideUtilityBar extends StatelessWidget {
   final String city;
-  final UserModel? user;
   final String? firstName;
-  final VoidCallback onCity, onSearch, onProfile, onMessages;
-  const _WideTopBar({
+  final VoidCallback onCity, onMessages;
+  const _WideUtilityBar({
     required this.city,
-    required this.user,
     required this.firstName,
     required this.onCity,
-    required this.onSearch,
-    required this.onProfile,
     required this.onMessages,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(children: [
-      Expanded(child: _SearchField(onTap: onSearch)),
-      const SizedBox(width: 16),
+      Expanded(
+        child: Text(
+          firstName != null ? 'Olá, $firstName!' : 'Bem-vindo ao Carajás 360',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -0.3,
+              color: _textHigh(context)),
+        ),
+      ),
       ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 220),
+        constraints: const BoxConstraints(maxWidth: 240),
         child: _CityPill(city: city, onTap: onCity),
       ),
       const SizedBox(width: 8),
@@ -660,46 +633,6 @@ class _WideTopBar extends StatelessWidget {
           icon: Icons.chat_bubble_outline_rounded,
           tooltip: 'Mensagens',
           onTap: onMessages),
-      const SizedBox(width: 8),
-      Semantics(
-        button: true,
-        label: firstName != null ? 'Minha conta, $firstName' : 'Entrar',
-        excludeSemantics: true,
-        onTap: onProfile,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(24),
-          onTap: onProfile,
-          child: Padding(
-            padding: const EdgeInsets.all(4),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              AppAvatar(
-                url: user?.photoUrl,
-                name: user?.name ?? '?',
-                size: 40,
-                bg: Brand.green,
-                r: 20,
-              ),
-              const SizedBox(width: 10),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(firstName != null ? 'Olá, $firstName' : 'Entrar',
-                      style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w800,
-                          color: _textHigh(context))),
-                  Text(firstName != null ? 'Minha conta' : 'ou criar conta',
-                      style:
-                          TextStyle(fontSize: 11.5, color: _textLow(context))),
-                ],
-              ),
-              Icon(Icons.keyboard_arrow_down_rounded,
-                  size: 20, color: _textLow(context)),
-            ]),
-          ),
-        ),
-      ),
     ]);
   }
 }
@@ -708,10 +641,11 @@ class _WideTopBar extends StatelessWidget {
 // Banner principal
 // ─────────────────────────────────────────────────────────────
 
-class _HeroBanner extends StatelessWidget {
+class _HeroBanner extends StatefulWidget {
   final String city;
   final bool wide;
-  final VoidCallback onSearch, onRequest;
+  final ValueChanged<String> onSearch;
+  final VoidCallback onRequest;
   const _HeroBanner({
     required this.city,
     required this.wide,
@@ -720,14 +654,31 @@ class _HeroBanner extends StatelessWidget {
   });
 
   @override
+  State<_HeroBanner> createState() => _HeroBannerState();
+}
+
+class _HeroBannerState extends State<_HeroBanner> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  void _submit() => widget.onSearch(_ctrl.text);
+
+  @override
   Widget build(BuildContext context) {
-    final titleSize = wide ? 34.0 : 25.0;
+    final wide = widget.wide;
+    final city = widget.city;
+    final titleSize = wide ? 36.0 : 26.0;
     return Container(
       width: double.infinity,
-      constraints: BoxConstraints(minHeight: wide ? 260 : 0),
+      constraints: BoxConstraints(minHeight: wide ? 280 : 0),
       decoration: BoxDecoration(
         gradient: Brand.heroGradient,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(24),
         boxShadow: [
           BoxShadow(
               color: Brand.greenDark.withValues(alpha: 0.25),
@@ -742,8 +693,8 @@ class _HeroBanner extends StatelessWidget {
           bottom: wide ? -140 : -120,
           child: IgnorePointer(
             child: Container(
-              width: wide ? 420 : 260,
-              height: wide ? 420 : 260,
+              width: wide ? 440 : 260,
+              height: wide ? 440 : 260,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
                 color: Colors.white.withValues(alpha: 0.05),
@@ -754,22 +705,22 @@ class _HeroBanner extends StatelessWidget {
           ),
         ),
         Positioned(
-          right: wide ? 56 : 14,
-          top: wide ? 44 : 16,
+          right: wide ? 64 : 14,
+          top: wide ? 48 : 16,
           child: IgnorePointer(
             child: Opacity(
               opacity: wide ? 0.2 : 0.14,
               child: SvgPicture.asset(
                 'assets/logos/logo_mark_mono_white.svg',
-                width: wide ? 160 : 70,
+                width: wide ? 180 : 70,
               ),
             ),
           ),
         ),
         Padding(
-          padding: EdgeInsets.all(wide ? 36 : 20),
+          padding: EdgeInsets.all(wide ? 40 : 20),
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: wide ? 560 : 520),
+            constraints: BoxConstraints(maxWidth: wide ? 640 : 520),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -784,9 +735,9 @@ class _HeroBanner extends StatelessWidget {
                   const TextSpan(children: [
                     TextSpan(text: 'Encontre o '),
                     TextSpan(
-                        text: 'profissional ideal',
+                        text: 'profissional certo',
                         style: TextStyle(color: Brand.gold)),
-                    TextSpan(text: ' para o seu dia a dia'),
+                    TextSpan(text: ' perto de você'),
                   ]),
                   style: TextStyle(
                       color: Colors.white,
@@ -796,54 +747,105 @@ class _HeroBanner extends StatelessWidget {
                       letterSpacing: -0.6),
                 ),
                 const SizedBox(height: 10),
-                Text('Serviços, mão de obra, máquinas e muito mais em $city.',
+                Text(
+                    'Serviços, mão de obra, máquinas e muito mais em $city e região. Compare perfis e converse pelo app.',
                     style: TextStyle(
                         color: Colors.white.withValues(alpha: 0.88),
                         fontSize: wide ? 15 : 13.5,
                         height: 1.4)),
-                SizedBox(height: wide ? 26 : 18),
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 10,
-                  children: [
-                    ElevatedButton.icon(
-                      onPressed: onSearch,
-                      icon: const Icon(Icons.search_rounded, size: 19),
-                      label: const Text('Buscar serviços agora'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Brand.gold,
-                        foregroundColor: Brand.greenDark,
-                        elevation: 0,
-                        minimumSize: const Size(0, 46),
-                        padding: const EdgeInsets.symmetric(horizontal: 20),
-                        textStyle: const TextStyle(
-                            fontWeight: FontWeight.w800, fontSize: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
+                SizedBox(height: wide ? 24 : 18),
+                _HeroSearchBar(
+                  controller: _ctrl,
+                  onSubmit: _submit,
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: widget.onRequest,
+                    icon: const Icon(Icons.flash_on_rounded,
+                        size: 18, color: Brand.gold),
+                    label: const Text('Ou peça um orçamento'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      minimumSize: const Size(0, 36),
+                      textStyle: const TextStyle(
+                          fontWeight: FontWeight.w700, fontSize: 13.5),
                     ),
-                    OutlinedButton.icon(
-                      onPressed: onRequest,
-                      icon: const Icon(Icons.flash_on_rounded, size: 18),
-                      label: const Text('Solicitar serviço'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: Colors.white,
-                        backgroundColor: Colors.white.withValues(alpha: 0.08),
-                        side: BorderSide(
-                            color: Colors.white.withValues(alpha: 0.6)),
-                        minimumSize: const Size(0, 46),
-                        padding: const EdgeInsets.symmetric(horizontal: 18),
-                        textStyle: const TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 14),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14)),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
               ],
             ),
           ),
+        ),
+      ]),
+    );
+  }
+}
+
+/// Campo de busca branco com botão dourado "Buscar".
+class _HeroSearchBar extends StatelessWidget {
+  final TextEditingController controller;
+  final VoidCallback onSubmit;
+  const _HeroSearchBar({required this.controller, required this.onSubmit});
+
+  @override
+  Widget build(BuildContext context) {
+    const none = InputBorder.none;
+    return Container(
+      height: 56,
+      padding: const EdgeInsets.fromLTRB(16, 6, 6, 6),
+      decoration: BoxDecoration(
+        color: Brand.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withValues(alpha: 0.12),
+              blurRadius: 16,
+              offset: const Offset(0, 6)),
+        ],
+      ),
+      child: Row(children: [
+        const Icon(Icons.search_rounded, size: 22, color: Brand.green),
+        const SizedBox(width: 10),
+        Expanded(
+          child: TextField(
+            controller: controller,
+            textInputAction: TextInputAction.search,
+            onSubmitted: (_) => onSubmit(),
+            style: const TextStyle(fontSize: 14.5, color: Brand.text),
+            cursorColor: Brand.green,
+            decoration: const InputDecoration(
+              isDense: true,
+              filled: false,
+              border: none,
+              enabledBorder: none,
+              focusedBorder: none,
+              disabledBorder: none,
+              errorBorder: none,
+              focusedErrorBorder: none,
+              contentPadding: EdgeInsets.zero,
+              hintText: 'Qual serviço você precisa?',
+              hintStyle: TextStyle(fontSize: 14.5, color: Brand.textMuted),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        ElevatedButton(
+          onPressed: onSubmit,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Brand.gold,
+            foregroundColor: Brand.greenDark,
+            elevation: 0,
+            minimumSize: const Size(0, 44),
+            padding: const EdgeInsets.symmetric(horizontal: 22),
+            textStyle:
+                const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+          child: const Text('Buscar'),
         ),
       ]),
     );
@@ -912,60 +914,167 @@ class _CategoryTile extends StatelessWidget {
   }
 }
 
-List<Widget> _categoryTiles(
-        ValueChanged<BrandCategory> onTap, VoidCallback onMore) =>
-    [
-      for (final c in brandCategories)
-        _CategoryTile(label: c.label, icon: c.icon, onTap: () => onTap(c)),
-      _CategoryTile(
-          label: 'Mais categorias',
-          icon: Icons.grid_view_rounded,
-          highlight: true,
-          onTap: onMore),
-    ];
-
 class _CategoryGrid extends StatelessWidget {
-  final ValueChanged<BrandCategory> onTap;
-  final VoidCallback onMore;
-  const _CategoryGrid({required this.onTap, required this.onMore});
+  final List<_Shortcut> shortcuts;
+  const _CategoryGrid({required this.shortcuts});
 
   @override
   Widget build(BuildContext context) {
-    final tiles = _categoryTiles(onTap, onMore);
     return LayoutBuilder(builder: (context, c) {
-      final cols = c.maxWidth >= 1000 ? 10 : 5;
-      return GridView.count(
-        crossAxisCount: cols,
+      final w = c.maxWidth;
+      final cols = w >= 1000 ? shortcuts.length.clamp(1, 10) : (w >= 640 ? 5 : 3);
+      return GridView.builder(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-        childAspectRatio: cols == 10 ? 0.78 : 1.15,
-        children: tiles,
+        itemCount: shortcuts.length,
+        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: cols,
+          mainAxisSpacing: 12,
+          crossAxisSpacing: 12,
+          mainAxisExtent: 112,
+        ),
+        itemBuilder: (_, i) {
+          final s = shortcuts[i];
+          return _CategoryTile(
+            label: s.label,
+            icon: s.icon,
+            onTap: s.onTap,
+            highlight: s.highlight,
+          );
+        },
       );
     });
   }
 }
 
-class _CategoryStrip extends StatelessWidget {
-  final double pad;
-  final ValueChanged<BrandCategory> onTap;
-  final VoidCallback onMore;
-  const _CategoryStrip(
-      {required this.pad, required this.onTap, required this.onMore});
+// ─────────────────────────────────────────────────────────────
+// Banners informativos (sem preços nem promoções)
+// ─────────────────────────────────────────────────────────────
+
+class _InfoBanners extends StatelessWidget {
+  final VoidCallback onHouse, onHealth;
+  const _InfoBanners({required this.onHouse, required this.onHealth});
 
   @override
   Widget build(BuildContext context) {
-    final tiles = _categoryTiles(onTap, onMore);
-    return SizedBox(
-      height: 112,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: EdgeInsets.symmetric(horizontal: pad),
-        itemCount: tiles.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 10),
-        itemBuilder: (_, i) => SizedBox(width: 92, child: tiles[i]),
+    final house = _InfoBanner(
+      icon: Icons.home_repair_service_rounded,
+      title: 'Cuidando da sua casa',
+      text:
+          'Encontre pedreiros, eletricistas, encanadores e outros profissionais para obra, reforma e manutenção.',
+      cta: 'Ver profissionais',
+      dark: true,
+      onTap: onHouse,
+    );
+    final health = _InfoBanner(
+      icon: Icons.health_and_safety_rounded,
+      title: 'Saúde e bem-estar',
+      text:
+          'Conheça clínicas e profissionais de saúde da região e agende pelo aplicativo.',
+      cta: 'Ver saúde',
+      dark: false,
+      onTap: onHealth,
+    );
+    return LayoutBuilder(builder: (context, c) {
+      if (c.maxWidth >= 700) {
+        return IntrinsicHeight(
+          child: Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            Expanded(child: house),
+            const SizedBox(width: 16),
+            Expanded(child: health),
+          ]),
+        );
+      }
+      return Column(children: [house, const SizedBox(height: 14), health]);
+    });
+  }
+}
+
+class _InfoBanner extends StatelessWidget {
+  final IconData icon;
+  final String title, text, cta;
+  final bool dark;
+  final VoidCallback onTap;
+  const _InfoBanner({
+    required this.icon,
+    required this.title,
+    required this.text,
+    required this.cta,
+    required this.dark,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final night = _isDark(context);
+    final titleColor = dark ? Colors.white : _textHigh(context);
+    final bodyColor =
+        dark ? Colors.white.withValues(alpha: 0.86) : _textLow(context);
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: dark
+            ? Brand.heroGradient
+            : LinearGradient(
+                colors: night
+                    ? [AppColors.darkSurface, AppColors.darkSurface]
+                    : [Brand.greenLight, Brand.goldLight],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+        borderRadius: BorderRadius.circular(20),
+        border: dark ? null : Border.all(color: _borderColor(context)),
+        boxShadow: _softShadow(context),
       ),
+      child: Row(children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(title,
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.2,
+                      color: titleColor)),
+              const SizedBox(height: 6),
+              Text(text,
+                  style:
+                      TextStyle(fontSize: 13, height: 1.4, color: bodyColor)),
+              const SizedBox(height: 14),
+              ElevatedButton(
+                onPressed: onTap,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: dark ? Brand.gold : Brand.green,
+                  foregroundColor: dark ? Brand.greenDark : Colors.white,
+                  elevation: 0,
+                  minimumSize: const Size(0, 42),
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  textStyle: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 13.5),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(cta),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        Container(
+          width: 68,
+          height: 68,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: dark
+                ? Brand.gold.withValues(alpha: 0.18)
+                : Brand.green.withValues(alpha: 0.12),
+          ),
+          child: Icon(icon,
+              size: 34, color: dark ? Brand.gold : Brand.green),
+        ),
+      ]),
     );
   }
 }
@@ -1374,39 +1483,24 @@ class _ProvidersStream extends StatelessWidget {
   }
 }
 
-class _FeaturedRow extends StatelessWidget {
+class _FeaturedProviders extends StatelessWidget {
   final Stream<List<ProviderModel>> stream;
-  const _FeaturedRow({required this.stream});
+  const _FeaturedProviders({required this.stream});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, c) {
       final cols = BrandProviderGrid.columnsFor(c.maxWidth, max: 4);
+      // Uma fileira em telas largas; três cartões empilhados no celular.
+      final count = cols == 1 ? 3 : cols;
       return _ProvidersStream(
         stream: stream,
-        select: (all) => all.take(cols).toList(),
+        select: (all) => all.take(count).toList(),
         emptyText:
             'Profissionais da região aparecerão aqui. Abra Serviços para explorar.',
         builder: (list) => BrandProviderGrid(list: list, maxColumns: cols),
       );
     });
-  }
-}
-class _FeaturedCarousel extends StatelessWidget {
-  final Stream<List<ProviderModel>> stream;
-  final double pad;
-  const _FeaturedCarousel({required this.stream, required this.pad});
-
-  @override
-  Widget build(BuildContext context) {
-    return _ProvidersStream(
-      stream: stream,
-      pad: pad,
-      select: (all) => all.take(6).toList(),
-      emptyText:
-          'Profissionais da região aparecerão aqui. Abra Serviços para explorar.',
-      builder: (list) => _ProviderCarousel(list: list, pad: pad),
-    );
   }
 }
 

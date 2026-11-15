@@ -16,7 +16,7 @@ import 'shared/widgets/micro_interactions.dart';
 import 'core/constants/app_constants.dart';
 import 'core/utils/firebase_bootstrap.dart';
 import 'shared/services/firebase_service.dart';
-import 'shared/models/models.dart' show ProviderModel;
+import 'shared/models/models.dart' show ProviderModel, UserModel;
 
 import 'package:carajas_360/features/auth/auth_screen.dart';
 import 'package:carajas_360/features/home/home_screen.dart'
@@ -43,6 +43,10 @@ import 'package:carajas_360/features/ai_assistant/ai_screen.dart';
 import 'package:carajas_360/features/admin/admin_screen.dart';
 import 'package:carajas_360/features/company/company_screen.dart';
 import 'package:carajas_360/features/orders/orders_screen.dart';
+import 'package:carajas_360/features/orders/favorites_screen_ui.dart';
+import 'package:carajas_360/features/orders/service_request_flow_screen.dart';
+import 'package:carajas_360/shared/widgets/brand_shell.dart';
+import 'package:carajas_360/core/modules/platform_modules.dart';
 import 'package:carajas_360/features/provider/provider_home_screen.dart';
 import 'package:carajas_360/features/provider/provider_profile_screen.dart';
 import 'package:carajas_360/core/auth/access_control.dart';
@@ -188,6 +192,7 @@ class Carajas360App extends StatelessWidget {
                     roomId: a?['roomId'] ?? a?['id'] ?? 'demo',
                     otherName: a?['name'] ?? 'Profissional',
                     otherPhoto: a?['photo'],
+                    orderId: a?['orderId'] as String?,
                   ),
                 ));
               case Routes.gps:
@@ -253,11 +258,13 @@ class Carajas360App extends StatelessWidget {
                 final a = settings.arguments as Map<String, dynamic>?;
                 return _route(RequireAuth(
                   title: 'Solicitar serviço',
-                  child: RequestServiceScreen(
+                  child: QuoteRequestFlowScreen(
                     providerId: a?['providerId'] ?? '',
                     providerName: a?['providerName'] ?? 'Profissional',
                     category: a?['category'] ?? '',
                     initialDescription: a?['description'] as String?,
+                    initialPreferredDate: a?['preferredDate'] as DateTime?,
+                    initialPeriod: a?['period'] as String?,
                     remoteOnly: a?['remoteOnly'] == true,
                     providerColor: a?['providerColor'] ?? AppColors.primary,
                   ),
@@ -346,7 +353,10 @@ class MainNav extends StatefulWidget {
 
 class _MainNavState extends State<MainNav> {
   int _idx = 0;
+  String _city = RegionCities.defaultCity;
+  UserModel? _user;
   StreamSubscription? _taxonomySub;
+  StreamSubscription? _userSub;
 
   static const _destinations = [
     (Icons.home_rounded, 'Início'),
@@ -356,31 +366,95 @@ class _MainNavState extends State<MainNav> {
     (Icons.person_outline_rounded, 'Perfil'),
   ];
 
-  static const _sidebarTabs = [
-    (Icons.home_rounded, 'Início'),
-    (Icons.explore_rounded, 'Explorar Serviços'),
-    (Icons.receipt_long_rounded, 'Pedidos'),
-    (Icons.chat_bubble_outline_rounded, 'Mensagens'),
-    (Icons.person_outline_rounded, 'Minha Conta'),
-  ];
-
   final List<Widget?> _tabs = List<Widget?>.filled(5, null);
+
+  BrandNavDest? get _navActive => switch (_idx) {
+        0 => BrandNavDest.home,
+        1 => BrandNavDest.explore,
+        2 => BrandNavDest.orders,
+        _ => null,
+      };
 
   @override
   void initState() {
     super.initState();
-    // Taxonomia remota: novas categorias sem release do app.
     _taxonomySub = FS.serviceTaxonomyStream().listen((docs) {
       if (TaxonomyRepository.shouldPreferSeed) return;
       TaxonomyRepository.applyDocs(docs);
       if (mounted) setState(() {});
+    }, onError: (_) {});
+    _bindUser();
+  }
+
+  void _bindUser() {
+    _userSub?.cancel();
+    final uid = AuthService.uid;
+    if (uid == null) {
+      _user = null;
+      return;
+    }
+    _userSub = FS.userStream(uid).listen((u) {
+      if (!mounted) return;
+      setState(() {
+        _user = u;
+        final c = u?.city?.trim();
+        if (c != null && c.isNotEmpty) _city = c;
+      });
     }, onError: (_) {});
   }
 
   @override
   void dispose() {
     _taxonomySub?.cancel();
+    _userSub?.cancel();
     super.dispose();
+  }
+
+  void _onBrandNav(BrandNavDest dest) {
+    switch (dest) {
+      case BrandNavDest.home:
+        setState(() => _idx = 0);
+      case BrandNavDest.explore:
+        setState(() => _idx = 1);
+      case BrandNavDest.orders:
+        setState(() => _idx = 2);
+      case BrandNavDest.favorites:
+        Navigator.pushNamed(context, Routes.favorites);
+    }
+  }
+
+  void _pickCity() {
+    final cities = [...RegionCities.priority, ...RegionCities.nearby];
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Brand.surface(context),
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          children: [
+            const ListTile(
+                title: Text('Sua localização',
+                    style: TextStyle(fontWeight: FontWeight.w800))),
+            for (final c in cities)
+              ListTile(
+                title: Text(c),
+                trailing: c == _city
+                    ? const Icon(Icons.check_rounded, color: Brand.green)
+                    : null,
+                onTap: () {
+                  setState(() => _city = c);
+                  final uid = AuthService.uid;
+                  if (uid != null) {
+                    FS.updateUser({'city': c}).catchError((_) {});
+                  }
+                  Navigator.pop(ctx);
+                },
+              ),
+          ],
+        ),
+      ),
+    );
   }
 
   Widget _tab(int i) {
@@ -406,12 +480,17 @@ class _MainNavState extends State<MainNav> {
     if (wide) {
       return Scaffold(
         backgroundColor: isDark ? AppColors.darkBackground : Brand.background,
-        body: Row(
+        body: Column(
           children: [
-            _BrandSidebar(
-              selected: _idx,
-              tabs: _sidebarTabs,
-              onTab: (i) => setState(() => _idx = i),
+            BrandTopNav(
+              active: _navActive,
+              city: _city,
+              user: _user,
+              onCity: _pickCity,
+              onNav: _onBrandNav,
+              onProfile: () => setState(() => _idx = 4),
+              onNotifications: () =>
+                  Navigator.pushNamed(context, Routes.notifications),
             ),
             Expanded(child: body),
           ],
@@ -498,143 +577,3 @@ class _MainNavState extends State<MainNav> {
     );
   }
 }
-
-/// Menu lateral (web/desktop): abas principais e atalhos para rotas existentes.
-class _BrandSidebar extends StatelessWidget {
-  final int selected;
-  final List<(IconData, String)> tabs;
-  final ValueChanged<int> onTab;
-  const _BrandSidebar(
-      {required this.selected, required this.tabs, required this.onTab});
-
-  static const _links = [
-    (Icons.favorite_border_rounded, 'Favoritos', Routes.favorites),
-    (
-      Icons.workspace_premium_outlined,
-      'Planos e Assinaturas',
-      Routes.carajasPro
-    ),
-    (Icons.campaign_outlined, 'Divulgue seu Serviço', null),
-    (Icons.help_outline_rounded, 'Ajuda e Suporte', Routes.support),
-  ];
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      container: true,
-      label: 'Menu principal',
-      child: Container(
-        width: 240,
-        decoration: const BoxDecoration(gradient: Brand.sidebarGradient),
-        child: SafeArea(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Padding(
-                padding: EdgeInsets.fromLTRB(24, 28, 20, 28),
-                child: BrandWordmark(size: 27, onDark: true),
-              ),
-              Expanded(
-                child: ListView(
-                  padding: const EdgeInsets.symmetric(horizontal: 14),
-                  children: [
-                    for (var i = 0; i < tabs.length; i++)
-                      _SidebarItem(
-                        icon: tabs[i].$1,
-                        label: tabs[i].$2,
-                        selected: selected == i,
-                        onTap: () => onTab(i),
-                      ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      child: Divider(
-                          height: 1,
-                          color: Colors.white.withValues(alpha: 0.14)),
-                    ),
-                    for (final l in _links)
-                      _SidebarItem(
-                        icon: l.$1,
-                        label: l.$2,
-                        selected: false,
-                        onTap: () => l.$3 == null
-                            ? openProviderEntry(context)
-                            : Navigator.pushNamed(context, l.$3!),
-                      ),
-                  ],
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 12, 20, 22),
-                child: Text(
-                  'Serviços locais de Canaã dos Carajás e região.',
-                  style: TextStyle(
-                      fontSize: 11.5,
-                      height: 1.4,
-                      color: Colors.white.withValues(alpha: 0.6)),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-  const _SidebarItem(
-      {required this.icon,
-      required this.label,
-      required this.selected,
-      required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = selected ? Brand.greenDark : Colors.white;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Semantics(
-        button: true,
-        // Flutter web anuncia `selected: false` como item atual (aria-current).
-        selected: selected ? true : null,
-        label: label,
-        excludeSemantics: true,
-        onTap: onTap,
-        child: Material(
-          color: selected ? Brand.gold : Colors.transparent,
-          borderRadius: BorderRadius.circular(14),
-          child: InkWell(
-            borderRadius: BorderRadius.circular(14),
-            hoverColor: Colors.white.withValues(alpha: 0.08),
-            onTap: onTap,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-              child: Row(children: [
-                Icon(icon, size: 21, color: fg),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                          fontSize: 14,
-                          color: fg,
-                          fontWeight:
-                              selected ? FontWeight.w800 : FontWeight.w600)),
-                ),
-              ]),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// SPLASH SCREEN wrapper (imported from auth_screen.dart)
-// ─────────────────────────────────────────────────────────────

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/catalog/homolog_catalog.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/brand.dart';
 import '../../core/utils/tap_guard.dart';
@@ -7,11 +8,39 @@ import '../../core/utils/app_nav.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/brand_provider_card.dart';
+import '../../shared/widgets/brand_shell.dart';
 import '../../shared/widgets/widgets.dart';
 
-enum _Tab { about, services, reviews, area }
+enum _Tab { about, services, portfolio, reviews }
 
-/// Página pública de detalhes do profissional (Tela 03 / Tela 08).
+/// Rótulo de atendimento a partir de `modalities` (nunca inventa "online").
+String _modalityLabel(String m) {
+  switch (m) {
+    case 'presential':
+      return 'Atendimento presencial';
+    case 'online':
+      return 'Atendimento online';
+    case 'home_care':
+    case 'domiciliar':
+      return 'Atendimento domiciliar';
+    default:
+      return '';
+  }
+}
+
+IconData _modalityIcon(String m) {
+  switch (m) {
+    case 'online':
+      return Icons.videocam_outlined;
+    case 'home_care':
+    case 'domiciliar':
+      return Icons.home_outlined;
+    default:
+      return Icons.home_repair_service_outlined;
+  }
+}
+
+/// Página pública de detalhes do profissional (Tela 03).
 /// Mostra apenas dados existentes em `providers` e `reviews`.
 class ProviderProfileScreen extends StatefulWidget {
   final String providerId;
@@ -29,6 +58,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   final _quote = TextEditingController();
   final _quoteFocus = FocusNode();
   _Tab _tab = _Tab.about;
+  String? _category;
 
   String get _id => widget.providerId.isNotEmpty
       ? widget.providerId
@@ -40,7 +70,7 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     _provider = _id.isEmpty
         ? Stream<ProviderModel?>.value(widget.initial)
         : FS.providerStream(_id);
-    _reviews = _id.isEmpty
+    _reviews = _id.isEmpty || HomologCatalog.isDemoProvider(_id)
         ? Stream<List<ReviewModel>>.value(const [])
         : FS.providerReviewsStream(_id);
   }
@@ -52,13 +82,25 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
     super.dispose();
   }
 
+  static bool _isDemo(ProviderModel p) =>
+      HomologCatalog.enabled && HomologCatalog.isDemoProvider(p.id);
+
   void _requestQuote(ProviderModel p) {
+    if (_isDemo(p)) return;
     if (_quote.text.trim().isEmpty) {
       snack(context, 'Descreva o que você precisa para pedir o orçamento.');
       _quoteFocus.requestFocus();
       return;
     }
-    requestProviderService(context, p, description: _quote.text);
+    final category = _category ??
+        (p.categories.isNotEmpty ? p.categories.first : '');
+    Navigator.pushNamed(context, Routes.requestService, arguments: {
+      'providerId': providerAccountId(p),
+      'providerName': p.name,
+      'category': category,
+      'remoteOnly': providerRemoteOnly(p),
+      'description': _quote.text.trim(),
+    });
   }
 
   @override
@@ -77,50 +119,63 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
               }
               return _NotFound(onBack: () => AppNav.safeBack(context));
             }
+            final demo = _isDemo(p);
             return LayoutBuilder(builder: (context, c) {
               final wide = c.maxWidth >= 900;
-              final pad = wide ? 28.0 : 16.0;
               final tabs = _TabSection(
                 provider: p,
+                demo: demo,
                 tab: _tab,
                 reviews: _reviews,
                 onTab: (t) => setState(() => _tab = t),
               );
-              final quote = _QuoteCard(
-                controller: _quote,
-                focus: _quoteFocus,
-                onSubmit: TapGuard.wrap(() => _requestQuote(p)),
-              );
+              final side = Column(children: [
+                _section(_QuoteCard(
+                  provider: p,
+                  demo: demo,
+                  category: _category ??
+                      (p.categories.isNotEmpty ? p.categories.first : null),
+                  onCategory: (v) => setState(() => _category = v),
+                  controller: _quote,
+                  focus: _quoteFocus,
+                  onSubmit: TapGuard.wrap(() => _requestQuote(p)),
+                )),
+                const SizedBox(height: 16),
+                _section(_AreaCard(provider: p)),
+              ]);
               return ListView(
-                padding: EdgeInsets.fromLTRB(pad, 12, pad, 40),
+                padding: const EdgeInsets.only(bottom: 40),
                 children: [
-                  Center(
-                    child: Container(
-                      width: double.infinity,
-                      constraints: const BoxConstraints(maxWidth: 1240),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          _section(_Breadcrumb(provider: p)),
+                  BrandContentWidth(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 12),
+                        _section(_TopBar(wide: wide)),
+                        const SizedBox(height: 12),
+                        _section(_Hero(provider: p, demo: demo, wide: wide)),
+                        if (demo) ...[
                           const SizedBox(height: 12),
-                          _section(_Hero(provider: p, wide: wide)),
-                          const SizedBox(height: 16),
-                          if (wide)
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(child: _section(tabs)),
-                                const SizedBox(width: 16),
-                                SizedBox(width: 340, child: _section(quote)),
-                              ],
-                            )
-                          else ...[
-                            _section(quote),
-                            const SizedBox(height: 16),
-                            _section(tabs),
-                          ],
+                          const BrandDemoNotice(
+                              message:
+                                  'Perfil de demonstração: solicitações reais indisponíveis.'),
                         ],
-                      ),
+                        const SizedBox(height: 16),
+                        if (wide)
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: _section(tabs)),
+                              const SizedBox(width: 16),
+                              SizedBox(width: 360, child: side),
+                            ],
+                          )
+                        else ...[
+                          side,
+                          const SizedBox(height: 16),
+                          _section(tabs),
+                        ],
+                      ],
                     ),
                   ),
                 ],
@@ -133,267 +188,153 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
   }
 }
 
-// ─────────────────────────────────────────────────────────────
-// Cabeçalho
-// ─────────────────────────────────────────────────────────────
-
 /// Sem fronteiras explícitas, o Flutter web junta todo o texto estático da
 /// página no rótulo acessível do campo de texto.
 Widget _section(Widget child) => Semantics(container: true, child: child);
 
-BoxDecoration _cardDecoration(BuildContext context) => BoxDecoration(
-      color: Brand.surface(context),
-      borderRadius: BorderRadius.circular(20),
-      border: Border.all(color: Brand.line(context)),
-      boxShadow: Brand.shadow(context),
-    );
+// ─────────────────────────────────────────────────────────────
+// Migalhas + hero
+// ─────────────────────────────────────────────────────────────
 
-class _Breadcrumb extends StatelessWidget {
-  final ProviderModel provider;
-  const _Breadcrumb({required this.provider});
+class _TopBar extends StatelessWidget {
+  final bool wide;
+  const _TopBar({required this.wide});
 
   @override
   Widget build(BuildContext context) {
-    final muted = TextStyle(fontSize: 12.5, color: Brand.inkMuted(context));
-    return Row(children: [
-      IconButton(
-        tooltip: 'Voltar',
-        onPressed: () => AppNav.safeBack(context),
-        style: IconButton.styleFrom(
-          backgroundColor: Brand.surface(context),
-          side: BorderSide(color: Brand.line(context)),
-        ),
-        icon: const Icon(Icons.arrow_back_rounded, color: Brand.green),
+    final crumbs = BrandBreadcrumb(items: [
+      (
+        'Início',
+        () => Navigator.pushNamedAndRemoveUntil(
+            context, Routes.main, (_) => false)
       ),
-      const SizedBox(width: 10),
-      Expanded(
-        child: ExcludeSemantics(
-          child: Text.rich(
-            TextSpan(style: muted, children: [
-              const TextSpan(text: 'Explorar Serviços  ›  '),
-              TextSpan(text: '${providerCategoryName(provider)}  ›  '),
-              TextSpan(
-                  text: 'Detalhes',
-                  style: TextStyle(
-                      fontWeight: FontWeight.w700, color: Brand.ink(context))),
-            ]),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ),
-      ),
+      ('Explorar serviços', () => AppNav.safeBack(context)),
+      ('Perfil profissional', null),
     ]);
+    final back = BrandBackLink(
+        label: 'Voltar aos resultados',
+        onTap: () => AppNav.safeBack(context));
+    if (!wide) {
+      return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [crumbs, back]);
+    }
+    return Row(children: [Expanded(child: crumbs), back]);
   }
 }
 
 class _Hero extends StatelessWidget {
   final ProviderModel provider;
-  final bool wide;
-  const _Hero({required this.provider, required this.wide});
+  final bool demo, wide;
+  const _Hero({required this.provider, required this.demo, required this.wide});
 
-  @override
-  Widget build(BuildContext context) {
-    final p = provider;
-    final photo = ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        width: wide ? 300 : double.infinity,
-        height: wide ? 230 : 190,
-        child: ExcludeSemantics(child: BrandProviderPhoto(provider: p)),
-      ),
-    );
-    final info = Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(children: [
-          Flexible(
-            child: Text(p.name,
-                style: TextStyle(
-                    fontSize: wide ? 26 : 22,
-                    fontWeight: FontWeight.w800,
-                    color: Brand.ink(context))),
-          ),
-          if (providerShowsVerified(p)) ...[
-            const SizedBox(width: 8),
-            const Tooltip(
-              message: 'Perfil verificado',
-              child: Icon(Icons.verified_rounded, color: Brand.green, size: 24),
-            ),
-          ],
+  Widget _chip(IconData icon, String label, {bool light = false}) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        decoration: BoxDecoration(
+          color: light ? Brand.greenLight : Colors.white,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 16, color: Brand.green),
+          const SizedBox(width: 6),
+          Text(label,
+              style: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: Brand.greenDark)),
         ]),
-        const SizedBox(height: 4),
-        Text(
-          p.categories.isEmpty
-              ? 'Profissional'
-              : p.categories
-                  .map((id) => Categories.byId(id)?.name ?? id)
-                  .join(' · '),
-          style: TextStyle(fontSize: 14, color: Brand.inkMuted(context)),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 18,
-          runSpacing: 6,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          children: [
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              const Icon(Icons.star_rounded, color: Brand.gold, size: 20),
-              const SizedBox(width: 4),
-              Text(
-                p.totalReviews > 0
-                    ? '${p.rating.toStringAsFixed(1).replaceAll('.', ',')}  (${p.totalReviews} avaliações)'
-                    : 'Novo no Carajás 360',
-                style: TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w700,
-                    color: Brand.ink(context)),
-              ),
-            ]),
-            if (p.city != null && p.city!.isNotEmpty)
-              Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.location_on_outlined,
-                    color: Brand.green, size: 18),
-                const SizedBox(width: 4),
-                Text(p.city!,
-                    style:
-                        TextStyle(fontSize: 13.5, color: Brand.ink(context))),
-              ]),
-          ],
-        ),
-        const SizedBox(height: 14),
-        _Highlights(provider: p),
-        const SizedBox(height: 16),
-        _Actions(provider: p),
-      ],
-    );
-    return Container(
-      padding: EdgeInsets.all(wide ? 20 : 14),
-      decoration: _cardDecoration(context),
-      child: wide
-          ? Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                photo,
-                const SizedBox(width: 24),
-                Expanded(child: info)
-              ],
-            )
-          : Column(children: [photo, const SizedBox(height: 14), info]),
-    );
-  }
-}
-
-class _Highlights extends StatelessWidget {
-  final ProviderModel provider;
-  const _Highlights({required this.provider});
+      );
 
   @override
   Widget build(BuildContext context) {
     final p = provider;
-    final items = <(IconData, String)>[
-      if (providerShowsVerified(p)) (Icons.verified_user_outlined, 'Profissional verificado'),
-      if (p.modalities.contains('presential'))
-        (Icons.home_repair_service_outlined, 'Atendimento presencial'),
-      if (p.modalities.contains('online'))
-        (Icons.videocam_outlined, 'Atendimento online'),
-      if (p.certificates.isNotEmpty)
-        (
-          Icons.workspace_premium_outlined,
-          p.certificates.length == 1
-              ? '1 certificado enviado'
-              : '${p.certificates.length} certificados enviados'
-        ),
+    final city = p.city?.trim() ?? '';
+    final modalities = <String>[];
+    for (final m in p.modalities) {
+      final l = _modalityLabel(m);
+      if (l.isNotEmpty && !modalities.any((x) => _modalityLabel(x) == l)) {
+        modalities.add(m);
+      }
+    }
+    final photoSize = wide ? 104.0 : 76.0;
+    final chips = <Widget>[
+      for (final m in modalities) _chip(_modalityIcon(m), _modalityLabel(m)),
+      if (!demo && p.totalReviews > 0)
+        _chip(Icons.star_rounded,
+            '${p.rating.toStringAsFixed(1).replaceAll('.', ',')} · ${p.totalReviews} avaliações'),
+      if (providerShowsVerified(p))
+        _chip(Icons.verified_rounded, 'Perfil verificado'),
+      if (demo) _chip(Icons.science_outlined, 'Perfil demonstrativo', light: true),
     ];
-    if (items.isEmpty) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      decoration: BoxDecoration(
-        border: Border.symmetric(
-            horizontal: BorderSide(color: Brand.line(context))),
+    return BrandPageHero(
+      title: p.name,
+      subtitle: [
+        providerCategoryName(p),
+        if (city.isNotEmpty) '$city • PA',
+      ].where((s) => s.trim().isNotEmpty).join(' · '),
+      height: wide ? 150 : 130,
+      leading: Container(
+        padding: const EdgeInsets.all(3),
+        decoration: const BoxDecoration(
+            shape: BoxShape.circle, color: Colors.white),
+        child: ClipOval(
+          child: SizedBox(
+            width: photoSize,
+            height: photoSize,
+            child: ExcludeSemantics(child: BrandProviderPhoto(provider: p)),
+          ),
+        ),
       ),
-      child: Wrap(
-        spacing: 22,
-        runSpacing: 10,
-        children: [
-          for (final (icon, label) in items)
-            Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(icon, color: Brand.green, size: 22),
-              const SizedBox(width: 8),
-              Text(label,
-                  style: TextStyle(
-                      fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: Brand.ink(context))),
-            ]),
-        ],
-      ),
+      trailing: wide ? _FavoriteButton(provider: p, demo: demo) : null,
+      bottom: Wrap(spacing: 8, runSpacing: 8, children: [
+        ...chips,
+        if (!wide) _FavoriteButton(provider: p, demo: demo),
+      ]),
     );
   }
 }
 
-class _Actions extends StatelessWidget {
+class _FavoriteButton extends StatelessWidget {
   final ProviderModel provider;
-  const _Actions({required this.provider});
+  final bool demo;
+  const _FavoriteButton({required this.provider, required this.demo});
 
   @override
   Widget build(BuildContext context) {
     final p = provider;
-    final shape =
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(12));
-    const size = Size(0, 46);
-    return Wrap(spacing: 10, runSpacing: 10, children: [
-      ElevatedButton.icon(
-        onPressed: TapGuard.wrap(() => requestProviderService(context, p)),
-        icon: const Icon(Icons.event_available_rounded, size: 20),
-        label: const Text('Solicitar serviço'),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: Brand.green,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          minimumSize: size,
-          padding: const EdgeInsets.symmetric(horizontal: 20),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-          shape: shape,
-        ),
-      ),
-      OutlinedButton.icon(
-        onPressed: TapGuard.wrap(() => openProviderChat(context, p)),
-        icon: const Icon(Icons.chat_bubble_outline_rounded, size: 19),
-        label: const Text('Conversar no chat'),
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Brand.green,
-          side: const BorderSide(color: Brand.green, width: 1.4),
-          minimumSize: size,
-          padding: const EdgeInsets.symmetric(horizontal: 18),
-          textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-          shape: shape,
-        ),
-      ),
-      StreamBuilder<bool>(
-        stream: FS.isFavoriteStream(p.id),
-        builder: (context, snap) {
-          final fav = snap.data ?? false;
-          return OutlinedButton.icon(
-            onPressed: () => toggleProviderFavorite(context, p.id),
-            icon: Icon(
-                fav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-                size: 19,
-                color: fav ? Colors.redAccent : Brand.green),
-            label: Text(fav ? 'Favoritado' : 'Favoritar'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Brand.ink(context),
-              side: BorderSide(color: Brand.line(context), width: 1.4),
-              minimumSize: size,
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              textStyle:
-                  const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-              shape: shape,
-            ),
-          );
-        },
-      ),
-    ]);
+    final style = OutlinedButton.styleFrom(
+      foregroundColor: Colors.white,
+      disabledForegroundColor: Colors.white54,
+      side: const BorderSide(color: Colors.white, width: 1.4),
+      minimumSize: const Size(0, 44),
+      padding: const EdgeInsets.symmetric(horizontal: 18),
+      textStyle: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+    );
+    if (demo) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.favorite_border_rounded, size: 19),
+        label: const Text('Favoritar'),
+        style: style.copyWith(
+            side: WidgetStatePropertyAll(
+                BorderSide(color: Colors.white.withValues(alpha: 0.4)))),
+      );
+    }
+    return StreamBuilder<bool>(
+      stream: FS.isFavoriteStream(p.id),
+      builder: (context, snap) {
+        final fav = snap.data ?? false;
+        return OutlinedButton.icon(
+          onPressed: () => toggleProviderFavorite(context, p.id),
+          icon: Icon(
+              fav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+              size: 19),
+          label: Text(fav ? 'Favoritado' : 'Favoritar'),
+          style: style,
+        );
+      },
+    );
   }
 }
 
@@ -403,11 +344,13 @@ class _Actions extends StatelessWidget {
 
 class _TabSection extends StatelessWidget {
   final ProviderModel provider;
+  final bool demo;
   final _Tab tab;
   final Stream<List<ReviewModel>> reviews;
   final ValueChanged<_Tab> onTab;
   const _TabSection({
     required this.provider,
+    required this.demo,
     required this.tab,
     required this.reviews,
     required this.onTab,
@@ -418,21 +361,22 @@ class _TabSection extends StatelessWidget {
     final labels = {
       _Tab.about: 'Sobre',
       _Tab.services: 'Serviços',
-      _Tab.reviews: 'Avaliações (${provider.totalReviews})',
-      _Tab.area: 'Área de atendimento',
+      _Tab.portfolio: 'Portfólio',
+      _Tab.reviews: !demo && provider.totalReviews > 0
+          ? 'Avaliações (${provider.totalReviews})'
+          : 'Avaliações',
     };
     final body = switch (tab) {
-      _Tab.about => _About(provider: provider),
-      _Tab.services => _Services(provider: provider),
-      _Tab.reviews => _Reviews(provider: provider, stream: reviews),
-      _Tab.area => _Area(provider: provider),
+      _Tab.about => _About(provider: provider, demo: demo),
+      _Tab.services => _Services(provider: provider, demo: demo),
+      _Tab.portfolio => _Portfolio(provider: provider),
+      _Tab.reviews => _Reviews(provider: provider, demo: demo, stream: reviews),
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Container(
+        BrandSoftCard(
           padding: const EdgeInsets.all(6),
-          decoration: _cardDecoration(context),
           child: ScrollConfiguration(
             behavior: const BrandDragScrollBehavior(),
             child: SingleChildScrollView(
@@ -449,10 +393,8 @@ class _TabSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 12),
-        Container(
-          width: double.infinity,
+        BrandSoftCard(
           padding: const EdgeInsets.all(20),
-          decoration: _cardDecoration(context),
           child: _section(body),
         ),
       ],
@@ -508,11 +450,13 @@ Widget _fact(BuildContext context, IconData icon, String text) =>
     Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, color: Brand.green, size: 22),
       const SizedBox(width: 8),
-      Text(text,
-          style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: Brand.ink(context))),
+      Flexible(
+        child: Text(text,
+            style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Brand.ink(context))),
+      ),
     ]);
 
 const _months = [
@@ -522,7 +466,8 @@ const _months = [
 
 class _About extends StatelessWidget {
   final ProviderModel provider;
-  const _About({required this.provider});
+  final bool demo;
+  const _About({required this.provider, required this.demo});
 
   @override
   Widget build(BuildContext context) {
@@ -544,13 +489,21 @@ class _About extends StatelessWidget {
         Divider(color: Brand.line(context), height: 1),
         const SizedBox(height: 16),
         Wrap(spacing: 28, runSpacing: 12, children: [
-          _fact(context, Icons.event_available_outlined,
-              'No Carajás 360 desde $since'),
-          if (p.totalReviews > 0)
+          if (!demo)
+            _fact(context, Icons.event_available_outlined,
+                'No Carajás 360 desde $since'),
+          if (!demo && p.totalReviews > 0)
             _fact(context, Icons.star_outline_rounded,
                 '${p.totalReviews} avaliações de clientes'),
           if (p.city != null && p.city!.isNotEmpty)
             _fact(context, Icons.location_on_outlined, 'Atende em ${p.city}'),
+          if (p.certificates.isNotEmpty)
+            _fact(
+                context,
+                Icons.workspace_premium_outlined,
+                p.certificates.length == 1
+                    ? '1 certificado informado'
+                    : '${p.certificates.length} certificados informados'),
         ]),
       ],
     );
@@ -559,13 +512,14 @@ class _About extends StatelessWidget {
 
 class _Services extends StatelessWidget {
   final ProviderModel provider;
-  const _Services({required this.provider});
+  final bool demo;
+  const _Services({required this.provider, required this.demo});
 
   @override
   Widget build(BuildContext context) {
     final p = provider;
-    final price = p.minPrice != null
-        ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(2).replaceAll('.', ',')}'
+    final price = !demo && p.minPrice != null
+        ? formatStartingPrice(p.minPrice!)
         : 'Valor sob consulta';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -576,23 +530,31 @@ class _Services extends StatelessWidget {
               style: TextStyle(color: Brand.inkMuted(context)))
         else
           for (final id in p.categories)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+            Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: Brand.isDark(context) ? null : Brand.background,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Brand.line(context)),
+              ),
               child: Row(children: [
                 const Icon(Icons.check_circle_rounded,
                     color: Brand.green, size: 20),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
                   child: Text(Categories.byId(id)?.name ?? id,
-                      style:
-                          TextStyle(fontSize: 14, color: Brand.ink(context))),
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                          color: Brand.ink(context))),
                 ),
               ]),
             ),
         const SizedBox(height: 8),
         Divider(color: Brand.line(context), height: 1),
         const SizedBox(height: 14),
-        _fact(context, Icons.sell_outlined, 'Preço inicial: $price'),
+        _fact(context, Icons.sell_outlined, price),
         const SizedBox(height: 8),
         Text(
           'O valor final é combinado com o profissional após ele avaliar o pedido.',
@@ -603,10 +565,52 @@ class _Services extends StatelessWidget {
   }
 }
 
+/// Não há campo de portfólio no cadastro; mostramos apenas certificados
+/// informados pelo profissional (texto), sem imagens inventadas.
+class _Portfolio extends StatelessWidget {
+  final ProviderModel provider;
+  const _Portfolio({required this.provider});
+
+  @override
+  Widget build(BuildContext context) {
+    final certs =
+        provider.certificates.where((c) => c.trim().isNotEmpty).toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(context, 'Portfólio'),
+        Text(
+          'Este profissional ainda não publicou fotos de trabalhos.',
+          style: TextStyle(color: Brand.inkMuted(context)),
+        ),
+        if (certs.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          Divider(color: Brand.line(context), height: 1),
+          const SizedBox(height: 16),
+          _sectionTitle(context, 'Certificados e formações informados'),
+          Wrap(spacing: 8, runSpacing: 8, children: [
+            for (final c in certs)
+              Chip(
+                avatar: const Icon(Icons.workspace_premium_outlined,
+                    size: 18, color: Brand.green),
+                label: Text(c),
+                backgroundColor:
+                    Brand.isDark(context) ? null : Brand.greenLight,
+                side: BorderSide.none,
+              ),
+          ]),
+        ],
+      ],
+    );
+  }
+}
+
 class _Reviews extends StatelessWidget {
   final ProviderModel provider;
+  final bool demo;
   final Stream<List<ReviewModel>> stream;
-  const _Reviews({required this.provider, required this.stream});
+  const _Reviews(
+      {required this.provider, required this.demo, required this.stream});
 
   String _date(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year}';
@@ -622,7 +626,7 @@ class _Reviews extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _sectionTitle(context, 'Avaliações'),
-            if (p.totalReviews > 0)
+            if (!demo && p.totalReviews > 0)
               Padding(
                 padding: const EdgeInsets.only(bottom: 14),
                 child: _fact(
@@ -631,7 +635,9 @@ class _Reviews extends StatelessWidget {
                     'Nota média ${p.rating.toStringAsFixed(1).replaceAll('.', ',')} '
                     'em ${p.totalReviews} avaliações'),
               ),
-            if (snap.connectionState == ConnectionState.waiting && list.isEmpty)
+            if (snap.connectionState == ConnectionState.waiting &&
+                list.isEmpty &&
+                !demo)
               const Padding(
                 padding: EdgeInsets.all(12),
                 child: Center(child: CircularProgressIndicator()),
@@ -641,9 +647,9 @@ class _Reviews extends StatelessWidget {
                   style: TextStyle(color: Brand.inkMuted(context)))
             else if (list.isEmpty)
               Text(
-                p.totalReviews > 0
+                !demo && p.totalReviews > 0
                     ? 'Os comentários das avaliações ainda não estão disponíveis para leitura.'
-                    : 'Este profissional ainda não recebeu avaliações.',
+                    : 'Ainda sem avaliações',
                 style: TextStyle(color: Brand.inkMuted(context)),
               )
             else
@@ -700,9 +706,139 @@ class _Reviews extends StatelessWidget {
   }
 }
 
-class _Area extends StatelessWidget {
+// ─────────────────────────────────────────────────────────────
+// Lateral: orçamento + região
+// ─────────────────────────────────────────────────────────────
+
+class _QuoteCard extends StatelessWidget {
   final ProviderModel provider;
-  const _Area({required this.provider});
+  final bool demo;
+  final String? category;
+  final ValueChanged<String?> onCategory;
+  final TextEditingController controller;
+  final FocusNode focus;
+  final VoidCallback? onSubmit;
+  const _QuoteCard({
+    required this.provider,
+    required this.demo,
+    required this.category,
+    required this.onCategory,
+    required this.controller,
+    required this.focus,
+    required this.onSubmit,
+  });
+
+  OutlineInputBorder _border(BuildContext context, {Color? color, double w = 1}) =>
+      OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide(color: color ?? Brand.line(context), width: w),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final p = provider;
+    return BrandSoftCard(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Solicitar orçamento',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Brand.ink(context))),
+          const SizedBox(height: 4),
+          Text('O valor depende do que você precisa e é combinado com o profissional.',
+              style: TextStyle(fontSize: 12.5, color: Brand.inkMuted(context))),
+          const SizedBox(height: 14),
+          if (p.categories.length > 1) ...[
+            DropdownButtonFormField<String>(
+              initialValue: category,
+              isExpanded: true,
+              decoration: InputDecoration(
+                labelText: 'Serviço',
+                border: _border(context),
+                enabledBorder: _border(context),
+                focusedBorder: _border(context, color: Brand.green, w: 1.6),
+                floatingLabelStyle: const TextStyle(color: Brand.green),
+              ),
+              items: [
+                for (final id in p.categories)
+                  DropdownMenuItem(
+                      value: id, child: Text(Categories.byId(id)?.name ?? id)),
+              ],
+              onChanged: demo ? null : onCategory,
+            ),
+            const SizedBox(height: 12),
+          ],
+          _section(TextField(
+            controller: controller,
+            focusNode: focus,
+            enabled: !demo,
+            minLines: 3,
+            maxLines: 5,
+            maxLength: 500,
+            decoration: InputDecoration(
+              labelText: 'O que você precisa?',
+              hintText: 'Descreva o serviço desejado',
+              alignLabelWithHint: true,
+              filled: true,
+              fillColor: Brand.isDark(context) ? null : Brand.background,
+              border: _border(context),
+              enabledBorder: _border(context),
+              focusedBorder: _border(context, color: Brand.green, w: 1.6),
+              floatingLabelStyle: const TextStyle(color: Brand.green),
+            ),
+          )),
+          const SizedBox(height: 6),
+          BrandPrimaryButton(
+            label: demo ? 'Indisponível na demonstração' : 'Solicitar orçamento',
+            icon: demo ? null : Icons.arrow_forward_rounded,
+            locked: demo,
+            onPressed: demo ? null : onSubmit,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            demo
+                ? 'Pedidos serão liberados para profissionais reais cadastrados.'
+                : 'Você revisa o pedido antes de enviar. Nenhuma cobrança é feita nesta etapa.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11.5, color: Brand.inkMuted(context)),
+          ),
+          const SizedBox(height: 10),
+          BrandPrimaryButton(
+            label: 'Conversar no chat',
+            icon: Icons.chat_bubble_outline_rounded,
+            outlined: true,
+            locked: demo,
+            onPressed: demo
+                ? null
+                : TapGuard.wrap(() => openProviderChat(context, p)),
+          ),
+          const SizedBox(height: 12),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.lock_outline_rounded,
+                size: 16, color: Brand.inkMuted(context)),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                'Seu endereço só é enviado ao profissional quando você confirma a solicitação. Não compartilhe senhas ou documentos pelo chat.',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: Brand.inkMuted(context)),
+              ),
+            ),
+          ]),
+        ],
+      ),
+    );
+  }
+}
+
+class _AreaCard extends StatelessWidget {
+  final ProviderModel provider;
+  const _AreaCard({required this.provider});
 
   @override
   Widget build(BuildContext context) {
@@ -711,122 +847,41 @@ class _Area extends StatelessWidget {
       if (p.city != null && p.city!.isNotEmpty) p.city!,
       ...p.serviceAreas.where((s) => s.trim().isNotEmpty),
     };
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _sectionTitle(context, 'Área de atendimento'),
-        if (places.isEmpty)
-          Text('O profissional ainda não informou a área de atendimento.',
-              style: TextStyle(color: Brand.inkMuted(context)))
-        else
-          Wrap(spacing: 8, runSpacing: 8, children: [
-            for (final place in places)
-              Chip(
-                avatar: const Icon(Icons.location_on_outlined,
-                    size: 18, color: Brand.green),
-                label: Text(place),
-                backgroundColor:
-                    Brand.isDark(context) ? null : Brand.greenLight,
-                side: BorderSide.none,
-              ),
-          ]),
-        const SizedBox(height: 14),
-        Wrap(spacing: 22, runSpacing: 10, children: [
-          if (p.modalities.contains('presential'))
-            _fact(context, Icons.home_repair_service_outlined,
-                'Atende no local do cliente'),
-          if (p.modalities.contains('online'))
-            _fact(context, Icons.videocam_outlined, 'Atende online'),
-        ]),
-      ],
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-// Orçamento rápido e estados
-// ─────────────────────────────────────────────────────────────
-
-class _QuoteCard extends StatelessWidget {
-  final TextEditingController controller;
-  final FocusNode focus;
-  final VoidCallback? onSubmit;
-  const _QuoteCard(
-      {required this.controller, required this.focus, required this.onSubmit});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
+    return BrandSoftCard(
       padding: const EdgeInsets.all(18),
-      decoration: _cardDecoration(context),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(children: [
-            Container(
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: Brand.green,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: const Icon(Icons.request_quote_outlined,
-                  color: Colors.white, size: 18),
-            ),
-            const SizedBox(width: 10),
-            Text('Orçamento rápido',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w800,
-                    color: Brand.ink(context))),
-          ]),
+          Text('Região de atendimento',
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Brand.ink(context))),
           const SizedBox(height: 12),
-          _section(TextField(
-            controller: controller,
-            focusNode: focus,
-            minLines: 3,
-            maxLines: 5,
-            maxLength: 500,
-            decoration: InputDecoration(
-              labelText: 'Descreva o que você precisa',
-              hintText: 'Ex.: instalação de chuveiro, troca de tomada...',
-              alignLabelWithHint: true,
-              filled: true,
-              fillColor: Brand.isDark(context) ? null : Brand.background,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: BorderSide(color: Brand.line(context)),
-              ),
-              focusedBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-                borderSide: const BorderSide(color: Brand.green, width: 1.6),
-              ),
-              floatingLabelStyle: const TextStyle(color: Brand.green),
+          if (places.isEmpty)
+            Text('O profissional ainda não informou a área de atendimento.',
+                style: TextStyle(color: Brand.inkMuted(context)))
+          else
+            Wrap(spacing: 8, runSpacing: 8, children: [
+              for (final place in places)
+                Chip(
+                  avatar: const Icon(Icons.location_on_outlined,
+                      size: 18, color: Brand.green),
+                  label: Text(place),
+                  backgroundColor:
+                      Brand.isDark(context) ? null : Brand.greenLight,
+                  side: BorderSide.none,
+                ),
+            ]),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.only(left: 10),
+            decoration: const BoxDecoration(
+                border: Border(left: BorderSide(color: Brand.gold, width: 3))),
+            child: Text(
+              'Endereço exato compartilhado apenas na contratação.',
+              style: TextStyle(fontSize: 12.5, color: Brand.inkMuted(context)),
             ),
-          )),
-          const SizedBox(height: 6),
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton.icon(
-              onPressed: onSubmit,
-              iconAlignment: IconAlignment.end,
-              icon: const Icon(Icons.arrow_forward_rounded, size: 18),
-              label: const Text('Solicitar orçamento'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Brand.gold,
-                foregroundColor: Brand.greenDark,
-                elevation: 0,
-                minimumSize: const Size(0, 46),
-                textStyle:
-                    const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Você revisa o pedido antes de enviar. Nenhuma cobrança é feita nesta etapa.',
-            style: TextStyle(fontSize: 11.5, color: Brand.inkMuted(context)),
           ),
         ],
       ),

@@ -12,9 +12,10 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/utils/demo_data.dart';
+import '../../core/theme/brand.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../shared/widgets/brand_shell.dart';
 import '../../shared/widgets/widgets.dart';
 import 'chat_voice.dart';
 
@@ -22,11 +23,15 @@ class ChatScreen extends StatefulWidget {
   final String roomId, otherName;
   final String? otherPhoto;
   final Color avatarColor;
+
+  /// Pedido vinculado (opcional): habilita o painel de proposta em tela larga.
+  final String? orderId;
   const ChatScreen(
       {super.key,
       required this.roomId,
       required this.otherName,
       this.otherPhoto,
+      this.orderId,
       this.avatarColor = AppColors.primary});
   @override
   State<ChatScreen> createState() => _ChatState();
@@ -415,39 +420,6 @@ class _ChatState extends State<ChatScreen> {
             ));
   }
 
-  static final _demo = [
-    MessageModel(
-        id: '1',
-        senderId: 'pro',
-        senderName: 'Profissional',
-        text: 'Olá! Vi sua solicitação. Como posso ajudar? 😊',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 8))),
-    MessageModel(
-        id: '2',
-        senderId: 'me',
-        senderName: 'Você',
-        text: 'Preciso de ajuda urgente com um serviço.',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 7))),
-    MessageModel(
-        id: '3',
-        senderId: 'pro',
-        senderName: 'Profissional',
-        text: 'Claro! Me conta mais detalhes.',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 6))),
-    MessageModel(
-        id: '4',
-        senderId: 'me',
-        senderName: 'Você',
-        text: 'Tenho um vazamento na cozinha.',
-        createdAt: DateTime.now().subtract(const Duration(minutes: 5))),
-    MessageModel(
-        id: '5',
-        senderId: 'pro',
-        senderName: 'Profissional',
-        text: 'Posso ir hoje às 16h. Fica bom? 👍',
-        read: true,
-        createdAt: DateTime.now().subtract(const Duration(minutes: 4))),
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -497,19 +469,6 @@ class _ChatState extends State<ChatScreen> {
                                 fontSize: 15,
                                 fontWeight: FontWeight.w700,
                                 color: Colors.white)),
-                        Row(children: [
-                          Container(
-                              width: 8,
-                              height: 8,
-                              decoration: const BoxDecoration(
-                                  color: AppColors.success,
-                                  shape: BoxShape.circle)),
-                          const SizedBox(width: 4),
-                          Text('Online agora',
-                              style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white.withValues(alpha: 0.75)))
-                        ]),
                       ]),
                 ]),
           actions: [
@@ -552,7 +511,31 @@ class _ChatState extends State<ChatScreen> {
               preferredSize: const Size.fromHeight(1),
               child: Container(height: 1, color: AppColors.divider)),
         ),
-        body: Column(children: [
+        body: _withOrderPanel(context, _chatColumn(context)),
+      );
+
+  /// Painel lateral (tela larga) com o pedido/proposta vinculado.
+  Widget _withOrderPanel(BuildContext context, Widget chat) {
+    final orderId = widget.orderId;
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    if (!wide || orderId == null || orderId.isEmpty) return chat;
+    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Expanded(child: chat),
+      SizedBox(
+        width: 360,
+        child: _OrderPanel(orderId: orderId, otherName: widget.otherName),
+      ),
+    ]);
+  }
+
+  Widget _chatColumn(BuildContext context) => Column(children: [
+          if (BrandShell.demoMode)
+            const Padding(
+              padding: EdgeInsets.fromLTRB(12, 8, 12, 0),
+              child: BrandDemoNotice(
+                  message:
+                      'Modo demonstração • perfis e ações ilustrativas. Pedidos reais só com profissionais cadastrados.'),
+            ),
           const InfoBanner(
               icon: '🔒',
               text:
@@ -563,7 +546,8 @@ class _ChatState extends State<ChatScreen> {
               child: StreamBuilder<List<MessageModel>>(
             stream: FS.messagesStream(widget.roomId),
             builder: (_, snap) {
-              final allMsgs = DemoData.orEmpty(snap.data, _demo);
+              // Só mensagens reais do backend — nada de conversa simulada.
+              final allMsgs = snap.data ?? const <MessageModel>[];
               if (snap.hasData) FS.markMessagesRead(widget.roomId);
               if (snap.hasData && allMsgs.isEmpty) {
                 return Center(
@@ -606,8 +590,7 @@ class _ChatState extends State<ChatScreen> {
           _quickReplies(),
           if (_replyTo != null) _replyBar(),
           _inputBar(),
-        ]),
-      );
+        ]);
 
   // Diferencia o tipo de mídia pelo prefixo do texto (definido no
   // envio: 📷 foto, 📄 documento, 🎤 áudio) para renderizar cada um
@@ -1007,4 +990,158 @@ class _AudioBubbleState extends State<_AudioBubble> {
               color: widget.isMe ? Colors.white70 : AppColors.textLight),
         ]),
       );
+}
+
+// ─────────────────────────────────────────────────────────────
+// PAINEL DO PEDIDO / PROPOSTA (Tela 07 — somente leitura)
+// Dados reais do pedido; aceitar/ajustar seguem em "Meus pedidos"
+// porque o cliente não tem transição de aceite/ajuste de proposta.
+// ─────────────────────────────────────────────────────────────
+class _OrderPanel extends StatelessWidget {
+  final String orderId;
+  final String otherName;
+  const _OrderPanel({required this.orderId, required this.otherName});
+
+  OrderModel? _find(List<OrderModel>? list) {
+    if (list == null) return null;
+    for (final o in list) {
+      if (o.id == orderId) return o;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(0, 12, 12, 12),
+      child: StreamBuilder<List<OrderModel>>(
+        stream: FS.myOrdersStream(),
+        builder: (_, mine) {
+          final asClient = _find(mine.data);
+          if (asClient != null) return _card(context, asClient);
+          return StreamBuilder<List<OrderModel>>(
+            stream: FS.providerOrdersStream(),
+            builder: (_, prov) {
+              final o = _find(prov.data);
+              if (o != null) return _card(context, o);
+              final loading = !mine.hasData && !prov.hasData;
+              return BrandSoftCard(
+                padding: const EdgeInsets.all(18),
+                child: loading
+                    ? const Center(child: CircularProgressIndicator())
+                    : Text('Pedido vinculado não encontrado.',
+                        style: TextStyle(color: Brand.inkMuted(context))),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _row(BuildContext context, IconData icon, String label, String value) =>
+      Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 20, color: Brand.green),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label,
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w800,
+                          color: Brand.ink(context))),
+                  Text(value,
+                      style: TextStyle(
+                          fontSize: 13, color: Brand.inkMuted(context))),
+                ]),
+          ),
+        ]),
+      );
+
+  Widget _card(BuildContext context, OrderModel o) {
+    final category = Categories.byId(o.category)?.name ?? o.category;
+    final serviceName = o.title.trim().isNotEmpty ? o.title.trim() : category;
+    final price = (o.price ?? 0) > 0
+        ? PaySvc.fmt(o.price!)
+        : 'Aguardando valor do profissional';
+    final shortId = o.id.length > 6 ? o.id.substring(0, 6) : o.id;
+    return BrandSoftCard(
+      padding: const EdgeInsets.all(18),
+      child: SingleChildScrollView(
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text('Proposta de serviço',
+                  style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w900,
+                      color: Brand.ink(context))),
+            ),
+            Text('#${shortId.toUpperCase()}',
+                style: TextStyle(
+                    fontSize: 12, color: Brand.inkMuted(context))),
+          ]),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+                color: Brand.goldLight,
+                borderRadius: BorderRadius.circular(20)),
+            child: Text(o.statusLabel,
+                style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF6B5500))),
+          ),
+          const SizedBox(height: 10),
+          Divider(color: Brand.line(context), height: 1),
+          _row(context, Icons.handyman_outlined, 'Serviço', serviceName),
+          _row(context, Icons.person_outline_rounded, 'Profissional / cliente',
+              otherName),
+          _row(context, Icons.payments_outlined, 'Valor proposto', price),
+          if (o.description.trim().isNotEmpty)
+            _row(context, Icons.notes_rounded, 'Descrição do pedido',
+                o.description.trim()),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: Brand.goldLight,
+                borderRadius: BorderRadius.circular(12)),
+            child: const Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.info_outline_rounded,
+                  size: 16, color: Brand.goldDeep),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                    'O agendamento depende da confirmação das duas partes.',
+                    style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF6B5500))),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 12),
+          BrandPrimaryButton(
+            label: 'Ver em Meus pedidos',
+            icon: Icons.receipt_long_rounded,
+            outlined: true,
+            onPressed: () => Navigator.pushNamed(context, Routes.myOrders),
+          ),
+          const SizedBox(height: 8),
+          Center(
+            child: Text('Aceite, ajuste e pagamento são feitos em Meus pedidos.',
+                textAlign: TextAlign.center,
+                style:
+                    TextStyle(fontSize: 11.5, color: Brand.inkMuted(context))),
+          ),
+        ]),
+      ),
+    );
+  }
 }

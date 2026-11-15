@@ -3,6 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/catalog/homolog_catalog.dart';
+import '../../core/theme/brand.dart';
+import '../../core/utils/app_nav.dart';
+import '../../shared/widgets/brand_shell.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_assets.dart';
 import '../../core/theme/theme_controller.dart';
@@ -16,8 +21,77 @@ import '../../shared/widgets/widgets.dart';
 import '../support/support_screens.dart';
 import '../../core/utils/provider_entry.dart';
 
-class ProfileScreen extends StatelessWidget {
+enum _ProfileSection {
+  personal,
+  addresses,
+  notifications,
+  security,
+  privacy,
+  help,
+  shortcuts,
+}
+
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  static const _kNotifOrders = 'profile_pref_notif_orders';
+  static const _kNotifMessages = 'profile_pref_notif_messages';
+  static const _kNotifPromos = 'profile_pref_notif_promos';
+
+  _ProfileSection _selected = _ProfileSection.personal;
+  bool _notifOrders = true;
+  bool _notifMessages = true;
+  bool _notifPromos = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPrefs();
+  }
+
+  Future<void> _loadPrefs() async {
+    try {
+      final p = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() {
+        _notifOrders = p.getBool(_kNotifOrders) ?? true;
+        _notifMessages = p.getBool(_kNotifMessages) ?? true;
+        _notifPromos = p.getBool(_kNotifPromos) ?? false;
+      });
+    } catch (_) {
+      // Mantém os padrões se o armazenamento local não estiver disponível.
+    }
+  }
+
+  Future<void> _setPref(String key, bool value, void Function() apply) async {
+    setState(apply);
+    try {
+      final p = await SharedPreferences.getInstance();
+      await p.setBool(key, value);
+    } catch (_) {
+      if (mounted) {
+        snack(context, 'Não foi possível salvar a preferência neste aparelho.',
+            bg: AppColors.error);
+      }
+    }
+  }
+
+  static const _sectionMeta = <_ProfileSection, (IconData, String)>{
+    _ProfileSection.personal: (Icons.person_outline_rounded, 'Dados pessoais'),
+    _ProfileSection.addresses: (Icons.location_on_outlined, 'Endereços'),
+    _ProfileSection.notifications:
+        (Icons.notifications_none_rounded, 'Notificações'),
+    _ProfileSection.security: (Icons.lock_outline_rounded, 'Segurança'),
+    _ProfileSection.privacy:
+        (Icons.privacy_tip_outlined, 'Privacidade'),
+    _ProfileSection.help: (Icons.help_outline_rounded, 'Central de ajuda'),
+    _ProfileSection.shortcuts: (Icons.apps_rounded, 'Atalhos do app'),
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -41,339 +115,652 @@ class ProfileScreen extends StatelessWidget {
                         'Verifique a conexão ou tente sair e entrar de novo.',
                   );
                 }
-                final user = snap.data;
-                final xp = user?.xp ?? 0;
-                return CustomScrollView(slivers: [
-                  SliverToBoxAdapter(
-                      child: GradHeader(
-                          gradient: AppGradients.primary,
-                          br: 32,
-                          child: Center(
-                              child: Column(children: [
-                            Stack(children: [
-                              AppAvatar(
-                                  url: user?.photoUrl,
-                                  name: user?.name ?? '?',
-                                  size: 80,
-                                  bg: AppColors.warning,
-                                  r: 24),
-                              Positioned(
-                                  bottom: 0,
-                                  right: 0,
-                                  child: GestureDetector(
-                                    onTap: () => _pickAndUploadPhoto(context),
-                                    child: Container(
-                                        width: 28,
-                                        height: 28,
-                                        decoration: const BoxDecoration(
-                                            color: AppColors.primary,
-                                            shape: BoxShape.circle),
-                                        child: const Icon(
-                                            Icons.camera_alt_rounded,
-                                            size: 16,
-                                            color: Colors.white)),
-                                  )),
-                            ]),
-                            const SizedBox(height: 12),
-                            Text(
-                                user?.name.isNotEmpty == true
-                                    ? user!.name
-                                    : 'Usuário',
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 22)),
-                            const SizedBox(height: 4),
-                            Text(user?.email ?? '',
-                                style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.7),
-                                    fontSize: 13)),
-                            const SizedBox(height: 8),
-                            Container(
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 6),
-                                decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
-                                    borderRadius: BorderRadius.circular(20)),
-                                child: Text(
-                                    '${user?.levelName ?? '⭐ Iniciante'} · $xp XP',
-                                    style: const TextStyle(
-                                        color: Colors.white,
-                                        fontWeight: FontWeight.w700,
-                                        fontSize: 12))),
-                          ])))),
-                  SliverToBoxAdapter(
-                      child: Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
-                          child: Row(children: [
-                            const StatCard(
-                                value: '—',
-                                label: 'Serviços',
-                                color: AppColors.primary),
-                            const StatCard(
-                                value: '—',
-                                label: 'Economia',
-                                color: AppColors.secondary),
-                            StatCard(
-                                value: xp > 0 ? '$xp XP' : '—',
-                                label: 'Experiência',
-                                color: AppColors.warning),
-                          ]))),
-                  const SliverToBoxAdapter(child: SizedBox(height: 16)),
-                  SliverToBoxAdapter(
-                      child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 16),
-                          child: Column(children: [
-                            _section('Conta', [
-                              _item(
-                                  context,
-                                  '👤',
-                                  'Dados pessoais',
-                                  'Nome, CPF, telefone',
-                                  () => _editProfile(context, user)),
-                              _item(
-                                  context,
-                                  '📍',
-                                  'Endereços',
-                                  user?.address?.isNotEmpty == true
-                                      ? user!.address!
-                                      : 'Cadastrar endereço de atendimento',
-                                  () => _editAddress(context, user)),
-                              _item(
-                                  context,
-                                  '🔔',
-                                  'Notificações',
-                                  'Avisos de pedidos e mensagens',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.notifications)),
-                              _item(context, '🔐', 'Segurança', 'Alterar senha',
-                                  () => _changePassword(context, user)),
-                            ]),
-                            _section('Financeiro', [
-                              _item(
-                                  context,
-                                  '👜',
-                                  'Minha carteira',
-                                  'Ver saldo disponível',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.wallet)),
-                              _item(
-                                  context,
-                                  '🔑',
-                                  'Minhas reservas',
-                                  'Locações de veículos e máquinas',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.bookings)),
-                              _item(
-                                  context,
-                                  '📋',
-                                  'Meu histórico',
-                                  'Pedidos e serviços',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.myOrders)),
-                              _item(
-                                  context,
-                                  '⭐',
-                                  'Favoritos',
-                                  'Profissionais salvos',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.favorites)),
-                              _item(
-                                  context,
-                                  '🎟️',
-                                  'Cupons',
-                                  'Ver cupons disponíveis',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.coupons)),
-                            ]),
-                            _section('Serviços', [
-                              _item(
-                                  context,
-                                  '⚡',
-                                  'Resolve Carajás',
-                                  'Pedir orçamento e ver propostas',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.resolve)),
-                              _item(
-                                  context,
-                                  '📋',
-                                  'Meus Resolve',
-                                  'Solicitações abertas',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.myResolve)),
-                              _item(
-                                  context,
-                                  '🏥',
-                                  'Saúde',
-                                  'Consultas e profissionais de saúde',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.health)),
-                              _item(
-                                  context,
-                                  '📦',
-                                  'Entregas',
-                                  'Rastrear pedidos',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.delivery)),
-                              _item(context, '🏆', 'Conquistas', 'Ver suas medalhas',
-                                  () => _showBadges(context)),
-                              _item(
-                                  context,
-                                  '💎',
-                                  'Planos e assinaturas',
-                                  'Conheça os planos do Carajás 360',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.carajasPro)),
-                              _item(
-                                  context,
-                                  '📣',
-                                  'Divulgue seu serviço',
-                                  'Cadastre-se como profissional',
-                                  () => openProviderEntry(context)),
-                              _item(
-                                  context,
-                                  '❓',
-                                  'Ajuda e suporte',
-                                  'Central de ajuda',
-                                  () => Navigator.pushNamed(
-                                      context, Routes.support)),
-                            ]),
-                            if (user?.type == UserType.provider)
-                              _section('Área do Prestador', [
-                                _item(
-                                    context,
-                                    '🔧',
-                                    'Meus Atendimentos',
-                                    'Pedidos recebidos e agenda',
-                                    () => Navigator.pushNamed(
-                                        context, Routes.providerHome)),
-                                _item(
-                                    context,
-                                    '⚡',
-                                    'Oportunidades Resolve',
-                                    'Enviar propostas a pedidos abertos',
-                                    () => Navigator.pushNamed(context,
-                                        Routes.resolveOpportunities)),
-                              ]),
-                            if (user?.type == UserType.company)
-                              _section('Empresa', [
-                                _item(
-                                    context,
-                                    '🏢',
-                                    'Painel da Empresa',
-                                    'Equipe, leads e plano',
-                                    () => Navigator.pushNamed(
-                                        context, Routes.companyProfile)),
-                              ])
-                            else if (user?.type != UserType.admin)
-                              _section('Para empresas', [
-                                _item(
-                                    context,
-                                    '🏢',
-                                    'Cadastrar minha empresa',
-                                    'Gerencie equipe e leads',
-                                    () => Navigator.pushNamed(
-                                        context, Routes.companyProfile)),
-                              ]),
-                            if (user?.type == UserType.admin)
-                              _section('Administração', [
-                                _item(
-                                    context,
-                                    '⚙️',
-                                    'Painel Admin',
-                                    'Usuários, validação, financeiro',
-                                    () => Navigator.pushNamed(
-                                        context, Routes.admin)),
-                              ]),
-                            _section('App', [
-                              _item(
-                                  context,
-                                  '🎁',
-                                  'Indique e ganhe',
-                                  'Convide amigos e ganhe cashback',
-                                  () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) =>
-                                              const ReferralScreen()))),
-                              ValueListenableBuilder<ThemeMode>(
-                                valueListenable: ThemeController.instance.mode,
-                                builder: (context, mode, _) => _item(
-                                    context,
-                                    '🌗',
-                                    'Tema',
-                                    _themeLabel(mode),
-                                    () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                            builder: (_) =>
-                                                const ThemeSettingsScreen()))),
-                              ),
-                              _item(context, 'ℹ️', 'Sobre o app',
-                                  AppInfo.version, () => _showAbout(context)),
-                              _item(
-                                  context,
-                                  '📄',
-                                  'Termos de Uso',
-                                  '',
-                                  () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) => const LegalScreen(
-                                              isPrivacy: false)))),
-                              _item(
-                                  context,
-                                  '🔏',
-                                  'Privacidade',
-                                  '',
-                                  () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                          builder: (_) => const LegalScreen(
-                                              isPrivacy: true)))),
-                              _item(context, '📦', 'Exportar meus dados',
-                                  'LGPD · portabilidade', () {
-                                _exportMyData(context);
-                              }),
-                              _item(context, '🗑️', 'Excluir minha conta',
-                                  'LGPD · irreversível', () {
-                                _deleteMyAccount(context);
-                              }),
-                            ]),
-                            const SizedBox(height: 16),
-                            SizedBox(
-                                width: double.infinity,
-                                child: OutlinedButton.icon(
-                                  onPressed: () async {
-                                    await AuthService.signOut();
-                                    if (context.mounted)
-                                      Navigator.pushReplacementNamed(
-                                          context, Routes.login);
-                                  },
-                                  icon: const Icon(Icons.logout_rounded,
-                                      color: AppColors.error),
-                                  label: const Text('Sair da conta',
-                                      style: TextStyle(
-                                          color: AppColors.error,
-                                          fontWeight: FontWeight.w700)),
-                                  style: OutlinedButton.styleFrom(
-                                      padding: const EdgeInsets.symmetric(
-                                          vertical: 14),
-                                      side: const BorderSide(
-                                          color: AppColors.error, width: 1.5),
-                                      shape: RoundedRectangleBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(14))),
-                                )),
-                            const SizedBox(height: 100),
-                          ]))),
-                ]);
+                return _signedIn(context, snap.data);
               },
             ),
     );
   }
 
-  static Future<void> _exportMyData(BuildContext context) async {
+  // ───────────────────────── Chrome compartilhado ─────────────────────────
+
+  List<Widget> _chrome(BuildContext context, {required String subtitle}) => [
+        const SizedBox(height: 16),
+        BrandBreadcrumb(items: [
+          ('Início', () => AppNav.safeBack(context)),
+          ('Meu perfil', null),
+        ]),
+        const SizedBox(height: 12),
+        if (HomologCatalog.enabled) ...[
+          const BrandDemoNotice(),
+          const SizedBox(height: 12),
+        ],
+        BrandPageHero(
+          title: 'Meu perfil e configurações',
+          subtitle: subtitle,
+          height: 120,
+        ),
+        const SizedBox(height: 16),
+      ];
+
+  Widget _signedIn(BuildContext context, UserModel? user) {
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+    return ListView(
+      children: [
+        BrandContentWidth(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ..._chrome(context,
+                  subtitle:
+                      'Gerencie seus dados, notificações, segurança e privacidade.'),
+              if (wide)
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(width: 300, child: _sidebar(context, user)),
+                    const SizedBox(width: 20),
+                    Expanded(child: _sectionContent(context, user, _selected)),
+                  ],
+                )
+              else
+                _mobileBody(context, user),
+              const SizedBox(height: 100),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ───────────────────────── Sidebar (wide) ─────────────────────────
+
+  Widget _profileHeader(BuildContext context, UserModel? user) {
+    final name = user?.name.isNotEmpty == true ? user!.name : 'Usuário';
+    final xp = user?.xp ?? 0;
+    return Column(children: [
+      Stack(children: [
+        AppAvatar(
+            url: user?.photoUrl,
+            name: user?.name ?? '?',
+            size: 80,
+            bg: AppColors.warning,
+            r: 24),
+        Positioned(
+            bottom: 0,
+            right: 0,
+            child: GestureDetector(
+              onTap: () => _pickAndUploadPhoto(context),
+              child: Container(
+                  width: 28,
+                  height: 28,
+                  decoration: const BoxDecoration(
+                      color: Brand.green, shape: BoxShape.circle),
+                  child: const Icon(Icons.camera_alt_rounded,
+                      size: 16, color: Colors.white)),
+            )),
+      ]),
+      const SizedBox(height: 12),
+      Text(name,
+          textAlign: TextAlign.center,
+          style: TextStyle(
+              color: Brand.ink(context),
+              fontWeight: FontWeight.w800,
+              fontSize: 18)),
+      if (user?.email.isNotEmpty == true) ...[
+        const SizedBox(height: 2),
+        Text(user!.email,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Brand.inkMuted(context), fontSize: 12.5)),
+      ],
+      const SizedBox(height: 8),
+      Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+          decoration: BoxDecoration(
+              color: Brand.greenLight,
+              borderRadius: BorderRadius.circular(20)),
+          child: Text('${user?.levelName ?? '⭐ Iniciante'} · $xp XP',
+              style: const TextStyle(
+                  color: Brand.green,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12))),
+    ]);
+  }
+
+  Widget _sidebar(BuildContext context, UserModel? user) {
+    const order = [
+      _ProfileSection.personal,
+      _ProfileSection.addresses,
+      _ProfileSection.notifications,
+      _ProfileSection.security,
+      _ProfileSection.privacy,
+      _ProfileSection.help,
+      _ProfileSection.shortcuts,
+    ];
+    return BrandSoftCard(
+      padding: const EdgeInsets.all(14),
+      child: Column(children: [
+        _profileHeader(context, user),
+        const SizedBox(height: 14),
+        Divider(color: Brand.line(context), height: 1),
+        const SizedBox(height: 8),
+        for (final s in order)
+          _navTile(
+            context,
+            icon: _sectionMeta[s]!.$1,
+            label: _sectionMeta[s]!.$2,
+            selected: _selected == s,
+            onTap: () => setState(() => _selected = s),
+          ),
+        Divider(color: Brand.line(context), height: 16),
+        _navTile(
+          context,
+          icon: Icons.logout_rounded,
+          label: 'Sair',
+          selected: false,
+          danger: true,
+          onTap: () => _logout(context),
+        ),
+      ]),
+    );
+  }
+
+  Widget _navTile(BuildContext context,
+      {required IconData icon,
+      required String label,
+      required bool selected,
+      required VoidCallback onTap,
+      bool danger = false}) {
+    final color = danger
+        ? AppColors.error
+        : selected
+            ? Brand.green
+            : Brand.ink(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Material(
+        color: selected ? Brand.greenLight : Colors.transparent,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+            child: Row(children: [
+              Icon(icon, size: 20, color: color),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Text(label,
+                      style: TextStyle(
+                          fontSize: 14,
+                          fontWeight:
+                              selected ? FontWeight.w800 : FontWeight.w600,
+                          color: color))),
+              if (!danger)
+                Icon(Icons.chevron_right_rounded,
+                    size: 18, color: Brand.inkMuted(context)),
+            ]),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ───────────────────────── Mobile ─────────────────────────
+
+  Widget _mobileBody(BuildContext context, UserModel? user) {
+    const order = [
+      _ProfileSection.personal,
+      _ProfileSection.addresses,
+      _ProfileSection.notifications,
+      _ProfileSection.security,
+      _ProfileSection.privacy,
+      _ProfileSection.help,
+      _ProfileSection.shortcuts,
+    ];
+    return Column(children: [
+      BrandSoftCard(
+          padding: const EdgeInsets.all(18),
+          child: _profileHeader(context, user)),
+      for (final s in order) ...[
+        const SizedBox(height: 14),
+        _sectionContent(context, user, s),
+      ],
+      const SizedBox(height: 18),
+      BrandPrimaryButton(
+        label: 'Sair da conta',
+        icon: Icons.logout_rounded,
+        outlined: true,
+        onPressed: () => _logout(context),
+      ),
+    ]);
+  }
+
+  // ───────────────────────── Conteúdo das seções ─────────────────────────
+
+  Widget _sectionContent(
+      BuildContext context, UserModel? user, _ProfileSection s) {
+    switch (s) {
+      case _ProfileSection.personal:
+        return _personalCard(context, user);
+      case _ProfileSection.addresses:
+        return _addressCard(context, user);
+      case _ProfileSection.notifications:
+        return _notificationsCard(context);
+      case _ProfileSection.security:
+        return _securityCard(context, user);
+      case _ProfileSection.privacy:
+        return _privacyCard(context);
+      case _ProfileSection.help:
+        return _helpCard(context);
+      case _ProfileSection.shortcuts:
+        return _shortcuts(context, user);
+    }
+  }
+
+  Widget _cardTitle(BuildContext context, String title, [String? subtitle]) =>
+      Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(title,
+              style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w900,
+                  color: Brand.ink(context))),
+          if (subtitle != null) ...[
+            const SizedBox(height: 4),
+            Text(subtitle,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    height: 1.35,
+                    color: Brand.inkMuted(context))),
+          ],
+        ]),
+      );
+
+  Widget _infoRow(BuildContext context, String label, String? value) {
+    final has = value != null && value.trim().isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(
+            width: 110,
+            child: Text(label,
+                style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w600,
+                    color: Brand.inkMuted(context)))),
+        Expanded(
+            child: Text(has ? value.trim() : 'Não informado',
+                style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: has ? FontWeight.w700 : FontWeight.w500,
+                    color: has ? Brand.ink(context) : Brand.inkMuted(context)))),
+      ]),
+    );
+  }
+
+  Widget _personalCard(BuildContext context, UserModel? user) {
+    final cityState = [
+      if (user?.city?.trim().isNotEmpty == true) user!.city!.trim(),
+      if (user?.state?.trim().isNotEmpty == true) user!.state!.trim(),
+    ].join(' / ');
+    return BrandSoftCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _cardTitle(context, 'Dados pessoais',
+            'Informações da sua conta. E-mail e telefone não podem ser alterados por aqui.'),
+        _infoRow(context, 'Nome', user?.name),
+        Divider(color: Brand.line(context), height: 1),
+        _infoRow(context, 'E-mail', user?.email),
+        Divider(color: Brand.line(context), height: 1),
+        _infoRow(context, 'Telefone', user?.phone),
+        Divider(color: Brand.line(context), height: 1),
+        _infoRow(context, 'Cidade', cityState),
+        Divider(color: Brand.line(context), height: 1),
+        _infoRow(context, 'Endereço', user?.address),
+        const SizedBox(height: 16),
+        BrandPrimaryButton(
+          label: 'Editar nome e cidade',
+          icon: Icons.edit_outlined,
+          expanded: false,
+          onPressed: () => _editProfile(context, user),
+        ),
+      ]),
+    );
+  }
+
+  Widget _addressCard(BuildContext context, UserModel? user) {
+    final hasAddress = user?.address?.trim().isNotEmpty == true;
+    final cityState = [
+      if (user?.city?.trim().isNotEmpty == true) user!.city!.trim(),
+      if (user?.state?.trim().isNotEmpty == true) user!.state!.trim(),
+    ].join(' / ');
+    return BrandSoftCard(
+      padding: const EdgeInsets.all(20),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _cardTitle(context, 'Endereços',
+            'Usado nas solicitações de serviço e no GPS. Não é público.'),
+        if (hasAddress) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+                color: Brand.greenLight.withValues(
+                    alpha: Brand.isDark(context) ? 0.12 : 1),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Brand.line(context))),
+            child: Row(children: [
+              const Icon(Icons.location_on_rounded, color: Brand.green),
+              const SizedBox(width: 12),
+              Expanded(
+                  child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                    Text(user!.address!.trim(),
+                        style: TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 14,
+                            color: Brand.ink(context))),
+                    if (cityState.isNotEmpty)
+                      Text(cityState,
+                          style: TextStyle(
+                              fontSize: 12.5,
+                              color: Brand.inkMuted(context))),
+                  ])),
+            ]),
+          ),
+        ] else
+          Text('Nenhum endereço cadastrado.',
+              style: TextStyle(color: Brand.inkMuted(context), fontSize: 13.5)),
+        const SizedBox(height: 16),
+        BrandPrimaryButton(
+          label: hasAddress ? 'Editar endereço' : 'Cadastrar endereço',
+          icon: Icons.add_location_alt_outlined,
+          expanded: false,
+          onPressed: () => _editAddress(context, user),
+        ),
+      ]),
+    );
+  }
+
+  Widget _prefSwitch(BuildContext context, String title, String sub,
+          bool value, ValueChanged<bool> onChanged) =>
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        activeThumbColor: Brand.green,
+        title: Text(title,
+            style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 14,
+                color: Brand.ink(context))),
+        subtitle: Text(sub,
+            style: TextStyle(fontSize: 12, color: Brand.inkMuted(context))),
+        value: value,
+        onChanged: onChanged,
+      );
+
+  Widget _notificationsCard(BuildContext context) => BrandSoftCard(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _cardTitle(context, 'Notificações',
+              'Preferências salvas apenas neste aparelho (não sincronizadas com sua conta).'),
+          _prefSwitch(
+              context,
+              'Pedidos e serviços',
+              'Avisos sobre andamento de pedidos',
+              _notifOrders,
+              (v) => _setPref(_kNotifOrders, v, () => _notifOrders = v)),
+          Divider(color: Brand.line(context), height: 1),
+          _prefSwitch(
+              context,
+              'Mensagens',
+              'Avisos de novas mensagens no chat',
+              _notifMessages,
+              (v) => _setPref(_kNotifMessages, v, () => _notifMessages = v)),
+          Divider(color: Brand.line(context), height: 1),
+          _prefSwitch(
+              context,
+              'Promoções e novidades',
+              'Cupons e ofertas do Carajás 360',
+              _notifPromos,
+              (v) => _setPref(_kNotifPromos, v, () => _notifPromos = v)),
+          const SizedBox(height: 16),
+          BrandPrimaryButton(
+            label: 'Ver minhas notificações',
+            icon: Icons.notifications_none_rounded,
+            expanded: false,
+            outlined: true,
+            onPressed: () => Navigator.pushNamed(context, Routes.notifications),
+          ),
+        ]),
+      );
+
+  Widget _securityCard(BuildContext context, UserModel? user) =>
+      BrandSoftCard(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _cardTitle(context, 'Segurança', 'Proteja o acesso à sua conta.'),
+          Text('Senha',
+              style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Brand.ink(context))),
+          const SizedBox(height: 4),
+          Text('Enviaremos um link de redefinição para o seu e-mail.',
+              style: TextStyle(fontSize: 12.5, color: Brand.inkMuted(context))),
+          const SizedBox(height: 10),
+          BrandPrimaryButton(
+            label: 'Alterar senha',
+            icon: Icons.lock_reset_rounded,
+            expanded: false,
+            onPressed: () => _changePassword(context, user),
+          ),
+          const SizedBox(height: 18),
+          Divider(color: Brand.line(context), height: 1),
+          const SizedBox(height: 18),
+          Text('Verificação em duas etapas',
+              style: TextStyle(
+                  fontWeight: FontWeight.w800,
+                  fontSize: 14,
+                  color: Brand.ink(context))),
+          const SizedBox(height: 4),
+          // 2FA não está implementado: sem botão de configurar.
+          Text('Ainda não disponível no Carajás 360.',
+              style: TextStyle(fontSize: 12.5, color: Brand.inkMuted(context))),
+        ]),
+      );
+
+  Widget _privacyCard(BuildContext context) => BrandSoftCard(
+        padding: const EdgeInsets.all(8),
+        child: Column(children: [
+          Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+              child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: _cardTitle(context, 'Privacidade',
+                      'Documentos legais e seus direitos (LGPD).'))),
+          _item(
+              context,
+              '📄',
+              'Termos de Uso',
+              '',
+              () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const LegalScreen(isPrivacy: false)))),
+          _item(
+              context,
+              '🔏',
+              'Política de Privacidade',
+              '',
+              () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const LegalScreen(isPrivacy: true)))),
+          _item(context, '📦', 'Exportar meus dados', 'LGPD · portabilidade',
+              () => _exportMyData(context)),
+          _item(context, '🗑️', 'Excluir minha conta', 'LGPD · irreversível',
+              () => _deleteMyAccount(context)),
+        ]),
+      );
+
+  Widget _helpCard(BuildContext context) => BrandSoftCard(
+        padding: const EdgeInsets.all(20),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _cardTitle(context, 'Central de ajuda',
+              'Dúvidas, suporte e contato com a equipe Carajás 360.'),
+          BrandPrimaryButton(
+            label: 'Abrir central de ajuda',
+            icon: Icons.help_outline_rounded,
+            expanded: false,
+            onPressed: () => Navigator.pushNamed(context, Routes.support),
+          ),
+        ]),
+      );
+
+  /// Demais atalhos que já existiam no perfil (carteira, reservas, etc.).
+  Widget _shortcuts(BuildContext context, UserModel? user) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _section('Financeiro', [
+          _item(context, '👜', 'Minha carteira', 'Ver saldo disponível',
+              () => Navigator.pushNamed(context, Routes.wallet)),
+          _item(context, '🔑', 'Minhas reservas',
+              'Locações de veículos e máquinas',
+              () => Navigator.pushNamed(context, Routes.bookings)),
+          _item(context, '📋', 'Meu histórico', 'Pedidos e serviços',
+              () => Navigator.pushNamed(context, Routes.myOrders)),
+          _item(context, '⭐', 'Favoritos', 'Profissionais salvos',
+              () => Navigator.pushNamed(context, Routes.favorites)),
+          _item(context, '🎟️', 'Cupons', 'Ver cupons disponíveis',
+              () => Navigator.pushNamed(context, Routes.coupons)),
+        ]),
+        _section('Serviços', [
+          _item(context, '⚡', 'Resolve Carajás',
+              'Pedir orçamento e ver propostas',
+              () => Navigator.pushNamed(context, Routes.resolve)),
+          _item(context, '📋', 'Meus Resolve', 'Solicitações abertas',
+              () => Navigator.pushNamed(context, Routes.myResolve)),
+          _item(context, '🏥', 'Saúde', 'Consultas e profissionais de saúde',
+              () => Navigator.pushNamed(context, Routes.health)),
+          _item(context, '📦', 'Entregas', 'Rastrear pedidos',
+              () => Navigator.pushNamed(context, Routes.delivery)),
+          _item(context, '🏆', 'Conquistas', 'Ver suas medalhas',
+              () => _showBadges(context)),
+          _item(context, '💎', 'Planos e assinaturas',
+              'Conheça os planos do Carajás 360',
+              () => Navigator.pushNamed(context, Routes.carajasPro)),
+          _item(context, '📣', 'Divulgue seu serviço',
+              'Cadastre-se como profissional',
+              () => openProviderEntry(context)),
+        ]),
+        if (user?.type == UserType.provider)
+          _section('Área do Prestador', [
+            _item(context, '🔧', 'Meus Atendimentos',
+                'Pedidos recebidos e agenda',
+                () => Navigator.pushNamed(context, Routes.providerHome)),
+            _item(context, '⚡', 'Oportunidades Resolve',
+                'Enviar propostas a pedidos abertos',
+                () => Navigator.pushNamed(
+                    context, Routes.resolveOpportunities)),
+          ]),
+        if (user?.type == UserType.company)
+          _section('Empresa', [
+            _item(context, '🏢', 'Painel da Empresa', 'Equipe, leads e plano',
+                () => Navigator.pushNamed(context, Routes.companyProfile)),
+          ])
+        else if (user?.type != UserType.admin)
+          _section('Para empresas', [
+            _item(context, '🏢', 'Cadastrar minha empresa',
+                'Gerencie equipe e leads',
+                () => Navigator.pushNamed(context, Routes.companyProfile)),
+          ]),
+        if (user?.type == UserType.admin)
+          _section('Administração', [
+            _item(context, '⚙️', 'Painel Admin',
+                'Usuários, validação, financeiro',
+                () => Navigator.pushNamed(context, Routes.admin)),
+          ]),
+        _section('App', [
+          _item(
+              context,
+              '🎁',
+              'Indique e ganhe',
+              'Convide amigos e ganhe cashback',
+              () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const ReferralScreen()))),
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: ThemeController.instance.mode,
+            builder: (context, mode, _) => _item(
+                context,
+                '🌗',
+                'Tema',
+                _themeLabel(mode),
+                () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                        builder: (_) => const ThemeSettingsScreen()))),
+          ),
+          _item(context, 'ℹ️', 'Sobre o app', AppInfo.version,
+              () => _showAbout(context)),
+        ]),
+      ]);
+
+  // ───────────────────────── Deslogado ─────────────────────────
+
+  Widget _signedOut(BuildContext context) => ListView(
+        children: [
+          BrandContentWidth(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ..._chrome(context,
+                    subtitle:
+                        'Entre na sua conta para gerenciar seus dados e configurações.'),
+                const EmptyState(
+                  emoji: '👤',
+                  title: 'Entre na sua conta',
+                  subtitle: 'Acompanhe pedidos, mensagens e favoritos.',
+                ),
+                Center(
+                  child: BrandPrimaryButton(
+                    label: 'Entrar ou criar conta',
+                    expanded: false,
+                    onPressed: () =>
+                        Navigator.pushNamed(context, Routes.login),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _section('Carajás 360', [
+                  _item(context, '⭐', 'Favoritos', 'Profissionais salvos',
+                      () => Navigator.pushNamed(context, Routes.favorites)),
+                  _item(context, '💎', 'Planos e assinaturas',
+                      'Conheça os planos do Carajás 360',
+                      () => Navigator.pushNamed(context, Routes.carajasPro)),
+                  _item(context, '📣', 'Divulgue seu serviço',
+                      'Cadastre-se como profissional',
+                      () => openProviderEntry(context)),
+                  _item(context, '❓', 'Ajuda e suporte', 'Central de ajuda',
+                      () => Navigator.pushNamed(context, Routes.support)),
+                ]),
+                const SizedBox(height: 100),
+              ],
+            ),
+          ),
+        ],
+      );
+
+  // ───────────────────────── Ações ─────────────────────────
+
+  Future<void> _logout(BuildContext context) async {
+    await AuthService.signOut();
+    if (context.mounted) {
+      Navigator.pushReplacementNamed(context, Routes.login);
+    }
+  }
+
+  Future<void> _exportMyData(BuildContext context) async {
     try {
       snack(context, 'Preparando exportação…');
       final data = await FS.exportMyData();
@@ -385,18 +772,21 @@ class ProfileScreen extends StatelessWidget {
       }
     } catch (e) {
       if (context.mounted) {
-        snack(context, AppError.userMessage(e, message: 'Não foi possível exportar os dados.'), bg: AppColors.error);
+        snack(
+            context,
+            AppError.userMessage(e,
+                message: 'Não foi possível exportar os dados.'),
+            bg: AppColors.error);
       }
     }
   }
 
-  static Future<void> _deleteMyAccount(BuildContext context) async {
+  Future<void> _deleteMyAccount(BuildContext context) async {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Excluir conta?'),
-        content: const Text(
-            'Seu perfil e dados pessoais serão anonimizados. '
+        content: const Text('Seu perfil e dados pessoais serão anonimizados. '
             'Pedidos, pagamentos, contratos e registros fiscais são mantidos '
             'pelo prazo legal, sem identificação. Esta ação não pode ser desfeita.'),
         actions: [
@@ -422,54 +812,29 @@ class ProfileScreen extends StatelessWidget {
       if (context.mounted) snack(context, e.message, bg: AppColors.error);
     } catch (e) {
       if (context.mounted) {
-        snack(context, AppError.userMessage(e, message: 'Não foi possível excluir a conta.'), bg: AppColors.error);
+        snack(
+            context,
+            AppError.userMessage(e,
+                message: 'Não foi possível excluir a conta.'),
+            bg: AppColors.error);
       }
     }
   }
-
-  Widget _signedOut(BuildContext context) => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 24, 16, 24),
-        children: [
-          const EmptyState(
-            emoji: '👤',
-            title: 'Entre na sua conta',
-            subtitle: 'Acompanhe pedidos, mensagens e favoritos.',
-          ),
-          Center(
-            child: ElevatedButton(
-              onPressed: () => Navigator.pushNamed(context, Routes.login),
-              child: const Text('Entrar ou criar conta'),
-            ),
-          ),
-          const SizedBox(height: 16),
-          _section('Carajás 360', [
-            _item(context, '⭐', 'Favoritos', 'Profissionais salvos',
-                () => Navigator.pushNamed(context, Routes.favorites)),
-            _item(context, '💎', 'Planos e assinaturas',
-                'Conheça os planos do Carajás 360',
-                () => Navigator.pushNamed(context, Routes.carajasPro)),
-            _item(context, '📣', 'Divulgue seu serviço',
-                'Cadastre-se como profissional',
-                () => openProviderEntry(context)),
-            _item(context, '❓', 'Ajuda e suporte', 'Central de ajuda',
-                () => Navigator.pushNamed(context, Routes.support)),
-          ]),
-        ],
-      );
 
   Widget _section(String title, List<Widget> items) =>
       Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
             padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
             child: Text(title,
-                style: const TextStyle(
+                style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w700,
-                    color: AppColors.textLight))),
-        Container(
-            margin: const EdgeInsets.only(bottom: 16),
-            decoration: AppDecorations.card(r: 16),
-            child: Column(children: items)),
+                    color: Brand.inkMuted(context)))),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: BrandSoftCard(
+              padding: EdgeInsets.zero, child: Column(children: items)),
+        ),
       ]);
 
   Widget _item(BuildContext ctx, String icon, String title, String sub,
@@ -477,17 +842,16 @@ class ProfileScreen extends StatelessWidget {
       ListTile(
         leading: Text(icon, style: const TextStyle(fontSize: 20)),
         title: Text(title,
-            style: const TextStyle(
+            style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 14,
-                color: AppColors.textDark)),
+                color: Brand.ink(ctx))),
         subtitle: sub.isNotEmpty
             ? Text(sub,
-                style:
-                    const TextStyle(fontSize: 11, color: AppColors.textLight))
+                style: TextStyle(fontSize: 11, color: Brand.inkMuted(ctx)))
             : null,
-        trailing:
-            const Icon(Icons.chevron_right_rounded, color: AppColors.textLight),
+        trailing: Icon(Icons.chevron_right_rounded,
+            color: Brand.inkMuted(ctx)),
         onTap: onTap,
       );
 

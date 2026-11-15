@@ -16,6 +16,7 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/brand_categories.dart';
 import '../../shared/widgets/brand_provider_card.dart';
+import '../../shared/widgets/brand_shell.dart';
 import '../../shared/widgets/widgets.dart';
 import '../services/service_marketplace_screen.dart';
 
@@ -55,6 +56,7 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
   double _minRating = 0;
   String? _modality;
   double? _maxPrice;
+  bool? _priceInformed;
   ProviderSort _sort = ProviderSort.relevance;
   bool _grid = true;
   int _page = 0;
@@ -74,8 +76,18 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
         minRating: _minRating,
         modality: _modality,
         maxPrice: _maxPrice,
+        priceInformed: _priceInformed,
         sort: _sort,
       );
+
+  /// Filtros secundários ativos (selo do botão "Filtros" no mobile).
+  int get _activeFilters =>
+      (_city != null ? 1 : 0) +
+      (_minRating > 0 ? 1 : 0) +
+      (_modality != null ? 1 : 0) +
+      (_maxPrice != null ? 1 : 0) +
+      (_priceInformed != null ? 1 : 0) +
+      _specialties.length;
 
   void _goToPage(int p) {
     setState(() => _page = p);
@@ -155,6 +167,17 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
       });
       _runSearch(v);
     });
+  }
+
+  /// Enter ou botão "Buscar": aplica o texto na hora.
+  void _submitSearch(String v) {
+    _debounce?.cancel();
+    setState(() {
+      _q = v;
+      _page = 0;
+    });
+    _pushHistory(v);
+    _runSearch(v);
   }
 
   /// Serviços e categorias da taxonomia; profissionais vêm do stream.
@@ -312,9 +335,97 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
         _minRating = 0;
         _modality = null;
         _maxPrice = null;
+        _priceInformed = null;
         _sort = ProviderSort.relevance;
         _page = 0;
       });
+
+  /// Muda um filtro e volta à primeira página.
+  void _apply(VoidCallback fn) => setState(() {
+        fn();
+        _page = 0;
+      });
+
+  /// Painel de filtros (barra lateral ou folha). [refresh] reconstrói a
+  /// folha inferior, que vive fora desta árvore.
+  _FiltersPanel _buildPanel(List<ProviderModel> all, {VoidCallback? refresh}) {
+    void run(VoidCallback fn) {
+      _apply(fn);
+      refresh?.call();
+    }
+
+    final ids = _category == null
+        ? const <String>[]
+        : ProviderSearch.availableSpecialties(all, _category!.ids);
+    return _FiltersPanel(
+      city: _city,
+      specialtyIds: ids,
+      specialtyCounts: {
+        for (final id in ids)
+          id: all.where((p) => p.active && p.categories.contains(id)).length,
+      },
+      specialties: _specialties,
+      hasCategory: _category != null,
+      hasFilters: _criteria.hasFilters,
+      priceInformed: _priceInformed,
+      maxPrice: _maxPrice,
+      modality: _modality,
+      minRating: _minRating,
+      onCity: (v) => run(() => _city = v),
+      onModality: (v) => run(() => _modality = v),
+      onSpecialty: (id) => run(() {
+        final next = {..._specialties};
+        if (!next.remove(id)) next.add(id);
+        _specialties = next;
+      }),
+      onPriceInformed: (v) => run(() {
+        _priceInformed = v;
+        if (v == false) _maxPrice = null;
+      }),
+      onMaxPrice: (v) => run(() {
+        _maxPrice = v;
+        if (v != null && _priceInformed == false) _priceInformed = null;
+      }),
+      onRating: (v) => run(() => _minRating = v),
+      onClear: () {
+        _clearFilters();
+        refresh?.call();
+      },
+    );
+  }
+
+  void _openFilters(List<ProviderModel> all) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      backgroundColor: Brand.surface(context),
+      builder: (sheetCtx) => StatefulBuilder(builder: (ctx, setSheet) {
+        final n = ProviderSearch.apply(all, _criteria).length;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(ctx).height * 0.85),
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Flexible(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+                  child: _buildPanel(all, refresh: () => setSheet(() {})),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+                child: BrandPrimaryButton(
+                  label: 'Ver $n ${n == 1 ? 'profissional' : 'profissionais'}',
+                  onPressed: () => Navigator.pop(sheetCtx),
+                ),
+              ),
+            ]),
+          ),
+        );
+      }),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -327,6 +438,7 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
         bottom: false,
         child: LayoutBuilder(builder: (context, constraints) {
           final wide = constraints.maxWidth >= 900;
+          final sidebar = constraints.maxWidth >= 1000;
           final pad = wide ? 28.0 : 16.0;
           return StreamBuilder<List<ProviderModel>>(
             stream: _providers,
@@ -353,7 +465,8 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                   Center(
                     child: Container(
                       width: double.infinity,
-                      constraints: const BoxConstraints(maxWidth: 1240),
+                      constraints:
+                          const BoxConstraints(maxWidth: BrandShell.maxWidth),
                       child: Padding(
                         padding: EdgeInsets.fromLTRB(
                             bleed ? 0 : pad, top, bleed ? 0 : pad, 0),
@@ -362,37 +475,182 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                     ),
                   );
 
+              final heading = Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Semantics(
+                    header: true,
+                    child: Text(
+                      _category != null
+                          ? 'Profissionais de ${_category!.label}'
+                          : 'Profissionais',
+                      style: TextStyle(
+                          fontSize: wide ? 22 : 19,
+                          fontWeight: FontWeight.w900,
+                          color: Brand.ink(context)),
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Semantics(
+                    liveRegion: true,
+                    child: Text(
+                      key: _resultsKey,
+                      loading
+                          ? 'Carregando profissionais...'
+                          : failed
+                              ? 'Não foi possível carregar os profissionais.'
+                              : _countLabel(
+                                  total: results.length,
+                                  page: page,
+                                  pages: pages,
+                                  query: _q.trim(),
+                                  category: _category?.label),
+                      style: TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w700,
+                          color: Brand.inkMuted(context)),
+                    ),
+                  ),
+                ],
+              );
+              final sortMenu = _FilterMenu<ProviderSort>(
+                icon: Icons.sort_rounded,
+                tooltip: 'Ordenar',
+                label: providerSortLabels[_sort]!,
+                active: _sort != ProviderSort.relevance,
+                value: _sort,
+                options: [
+                  for (final s in ProviderSort.values) (s, providerSortLabels[s]!)
+                ],
+                onSelected: (v) => _apply(() => _sort = v),
+              );
+              final toggle = _ViewToggle(
+                  grid: _grid, onGrid: (v) => setState(() => _grid = v));
+              final nFilters = _activeFilters;
+              final toolbar = sidebar
+                  ? Row(children: [
+                      Expanded(child: heading),
+                      const SizedBox(width: 12),
+                      sortMenu,
+                      const SizedBox(width: 12),
+                      toggle,
+                    ])
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        heading,
+                        const SizedBox(height: 12),
+                        Row(children: [
+                          Expanded(
+                            child: ScrollConfiguration(
+                              behavior: const BrandDragScrollBehavior(),
+                              child: SingleChildScrollView(
+                                scrollDirection: Axis.horizontal,
+                                child: Row(children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () => _openFilters(all),
+                                    icon: const Icon(Icons.tune_rounded,
+                                        size: 18),
+                                    label: Text(nFilters > 0
+                                        ? 'Filtros ($nFilters)'
+                                        : 'Filtros'),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Brand.green,
+                                      minimumSize: const Size(0, 44),
+                                      side: BorderSide(
+                                          color: nFilters > 0
+                                              ? Brand.green
+                                              : Brand.line(context)),
+                                      shape: RoundedRectangleBorder(
+                                          borderRadius:
+                                              BorderRadius.circular(22)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  sortMenu,
+                                ]),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          toggle,
+                        ]),
+                      ],
+                    );
+
+              final resultsColumn = Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (HomologCatalog.enabled) ...[
+                    const BrandDemoNotice(
+                        message:
+                            'Ambiente de demonstração: estes perfis não recebem pedidos reais.'),
+                    const SizedBox(height: 14),
+                  ],
+                  toolbar,
+                  const SizedBox(height: 14),
+                  loading
+                      ? const ShimCard()
+                      : failed
+                          ? _ErrorResults(onRetry: _reloadProviders)
+                          : results.isEmpty
+                              ? _EmptyResults(
+                                  hasFilters:
+                                      criteria.hasFilters || _q.isNotEmpty,
+                                  onClear: () {
+                                    _clearFilters();
+                                    _clearQuery();
+                                  },
+                                  onRequest: () => Navigator.pushNamed(
+                                      context, Routes.resolve),
+                                )
+                              : BrandProviderGrid(
+                                  list: visible,
+                                  highlight: criteria.effectiveIds,
+                                  asList: !_grid,
+                                  maxColumns: sidebar ? 3 : null,
+                                ),
+                  if (pages > 1) ...[
+                    const SizedBox(height: 20),
+                    _Pagination(page: page, pages: pages, onPage: _goToPage),
+                  ],
+                  if (truncated) ...[
+                    const SizedBox(height: 16),
+                    _LoadMore(
+                      loaded: all.length,
+                      onTap: () => _reloadProviders(more: true),
+                    ),
+                  ],
+                ],
+              );
+
               return ListView(
                 controller: _scroll,
                 padding: const EdgeInsets.only(bottom: 100),
                 children: [
-                  box(_Header(wide: wide, showBack: inner),
-                      top: wide ? 20 : 12),
                   box(
-                    _SearchBox(
-                      controller: _ctrl,
-                      focusNode: _focus,
+                    _HeroSearch(
+                      wide: wide,
+                      showBack: inner,
                       autofocus: inner &&
                           widget.initialQuery == null &&
                           _category == null,
                       aiBusy: _aiBusy,
+                      controller: _ctrl,
+                      focusNode: _focus,
+                      city: _city,
+                      onCity: (v) => _apply(() => _city = v),
                       onChanged: _onChanged,
-                      onSubmitted: (v) {
-                        _debounce?.cancel();
-                        setState(() {
-                          _q = v;
-                          _page = 0;
-                        });
-                        _pushHistory(v);
-                        _runSearch(v);
-                      },
+                      onSubmitted: _submitSearch,
                       onClear: _clearQuery,
                       onSmartSearch: _smartSearch,
+                      onSearch: () {
+                        FocusScope.of(context).unfocus();
+                        _submitSearch(_ctrl.text);
+                      },
                     ),
-                    top: 16,
+                    top: wide ? 20 : 12,
                   ),
-                  if (HomologCatalog.enabled)
-                    box(const _DemoNotice(), top: 12),
                   if (_q.trim().isEmpty && _history.isNotEmpty)
                     box(
                       _ChipLine(
@@ -428,7 +686,7 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                     top: 18,
                     bleed: true,
                   ),
-                  if (specialties.length >= 2)
+                  if (!sidebar && specialties.length >= 2)
                     box(
                       _SpecialtyBar(
                         pad: pad,
@@ -445,103 +703,24 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                       bleed: true,
                     ),
                   box(
-                    _FilterBar(
-                      wide: wide,
-                      minRating: _minRating,
-                      modality: _modality,
-                      maxPrice: _maxPrice,
-                      city: _city,
-                      sort: _sort,
-                      grid: _grid,
-                      hasFilters: criteria.hasFilters,
-                      onRating: (v) => setState(() {
-                        _minRating = v;
-                        _page = 0;
-                      }),
-                      onModality: (v) => setState(() {
-                        _modality = v;
-                        _page = 0;
-                      }),
-                      onPrice: (v) => setState(() {
-                        _maxPrice = v;
-                        _page = 0;
-                      }),
-                      onCity: (v) => setState(() {
-                        _city = v;
-                        _page = 0;
-                      }),
-                      onSort: (v) => setState(() {
-                        _sort = v;
-                        _page = 0;
-                      }),
-                      onGrid: (v) => setState(() => _grid = v),
-                      onClear: _clearFilters,
-                    ),
-                    top: 16,
+                    sidebar
+                        ? Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              SizedBox(
+                                width: 264,
+                                child: BrandSoftCard(
+                                  padding: const EdgeInsets.all(18),
+                                  child: _buildPanel(all),
+                                ),
+                              ),
+                              const SizedBox(width: 20),
+                              Expanded(child: resultsColumn),
+                            ],
+                          )
+                        : resultsColumn,
+                    top: 18,
                   ),
-                  box(
-                    Semantics(
-                      liveRegion: true,
-                      child: Text(
-                        key: _resultsKey,
-                        loading
-                            ? 'Carregando profissionais...'
-                            : failed
-                                ? 'Não foi possível carregar os profissionais.'
-                                : _countLabel(
-                                    total: results.length,
-                                    page: page,
-                                    pages: pages,
-                                    query: _q.trim(),
-                                    category: _category?.label),
-                        style: TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w700,
-                            color: Brand.inkMuted(context)),
-                      ),
-                    ),
-                    top: 16,
-                  ),
-                  box(
-                    loading
-                        ? const ShimCard()
-                        : failed
-                            ? _ErrorResults(onRetry: _reloadProviders)
-                            : results.isEmpty
-                                ? _EmptyResults(
-                                    hasFilters:
-                                        criteria.hasFilters || _q.isNotEmpty,
-                                    onClear: () {
-                                      _clearFilters();
-                                      _clearQuery();
-                                    },
-                                    onRequest: () => Navigator.pushNamed(
-                                        context, Routes.resolve),
-                                  )
-                                : BrandProviderGrid(
-                                    list: visible,
-                                    highlight: criteria.effectiveIds,
-                                    asList: !_grid,
-                                  ),
-                    top: 12,
-                  ),
-                  if (pages > 1)
-                    box(
-                      _Pagination(
-                        page: page,
-                        pages: pages,
-                        onPage: _goToPage,
-                      ),
-                      top: 20,
-                    ),
-                  if (truncated)
-                    box(
-                      _LoadMore(
-                        loaded: all.length,
-                        onTap: () => _reloadProviders(more: true),
-                      ),
-                      top: 16,
-                    ),
                 ],
               );
             },
@@ -576,134 +755,43 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
 // Cabeçalho e busca
 // ─────────────────────────────────────────────────────────────
 
-class _Header extends StatelessWidget {
-  final bool wide, showBack;
-  const _Header({required this.wide, required this.showBack});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(
-          wide ? 28 : 16, wide ? 22 : 16, wide ? 28 : 16, wide ? 22 : 16),
-      decoration: BoxDecoration(
-        gradient: Brand.heroGradient,
-        borderRadius: BorderRadius.circular(20),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Stack(clipBehavior: Clip.none, children: [
-        Positioned(
-          right: wide ? 10 : -6,
-          top: wide ? -10 : -8,
-          child: IgnorePointer(
-            child: Opacity(
-              opacity: 0.16,
-              child: SvgPicture.asset('assets/logos/logo_mark_mono_white.svg',
-                  width: wide ? 110 : 64),
-            ),
-          ),
-        ),
-        Row(children: [
-          if (showBack) ...[
-            Material(
-              color: Colors.white.withValues(alpha: 0.14),
-              shape: const CircleBorder(),
-              child: IconButton(
-                tooltip: 'Voltar',
-                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
-                onPressed: () => AppNav.safeBack(context),
-              ),
-            ),
-            const SizedBox(width: 14),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Semantics(
-                  header: true,
-                  child: Text('Explorar Serviços',
-                      style: TextStyle(
-                          color: Colors.white,
-                          fontSize: wide ? 28 : 22,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.5)),
-                ),
-                const SizedBox(height: 4),
-                Text('Encontre rapidamente o serviço ideal na sua região.',
-                    style: TextStyle(
-                        color: Colors.white.withValues(alpha: 0.86),
-                        fontSize: wide ? 14.5 : 13)),
-              ],
-            ),
-          ),
-        ]),
-      ]),
-    );
-  }
-}
-
-class _DemoNotice extends StatelessWidget {
-  const _DemoNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: Brand.goldLight,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Brand.gold.withValues(alpha: 0.6)),
-      ),
-      child: const Row(children: [
-        Icon(Icons.info_outline_rounded, size: 20, color: Color(0xFF7A5B00)),
-        SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            'Ambiente de homologação: os profissionais abaixo são de demonstração, '
-            'não são cadastros reais e não recebem pedidos.',
-            style: TextStyle(
-                fontSize: 12.5,
-                height: 1.35,
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF5C4400)),
-          ),
-        ),
-      ]),
-    );
-  }
-}
-
-class _SearchBox extends StatelessWidget {
+/// Hero da tela: título, busca, cidade e botão dourado "Buscar".
+class _HeroSearch extends StatelessWidget {
+  final bool wide, showBack, aiBusy, autofocus;
   final TextEditingController controller;
   final FocusNode focusNode;
-  final bool autofocus, aiBusy;
+  final String? city;
+  final ValueChanged<String?> onCity;
   final ValueChanged<String> onChanged, onSubmitted;
-  final VoidCallback onClear, onSmartSearch;
-  const _SearchBox({
+  final VoidCallback onClear, onSmartSearch, onSearch;
+  const _HeroSearch({
+    required this.wide,
+    required this.showBack,
+    required this.aiBusy,
+    required this.autofocus,
     required this.controller,
     required this.focusNode,
-    required this.autofocus,
-    required this.aiBusy,
+    required this.city,
+    required this.onCity,
     required this.onChanged,
     required this.onSubmitted,
     required this.onClear,
     required this.onSmartSearch,
+    required this.onSearch,
   });
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final search = Container(
+      height: 50,
       decoration: BoxDecoration(
-        color: Brand.surface(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Brand.line(context)),
-        boxShadow: Brand.shadow(context),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Row(children: [
-        const SizedBox(width: 16),
-        const Icon(Icons.search_rounded, color: Brand.green, size: 23),
-        const SizedBox(width: 10),
+        const SizedBox(width: 14),
+        const Icon(Icons.search_rounded, color: Brand.green, size: 22),
+        const SizedBox(width: 8),
         Expanded(
           child: TextField(
             controller: controller,
@@ -712,16 +800,16 @@ class _SearchBox extends StatelessWidget {
             onChanged: onChanged,
             onSubmitted: onSubmitted,
             textInputAction: TextInputAction.search,
-            style: TextStyle(fontSize: 15, color: Brand.ink(context)),
-            decoration: InputDecoration(
-              hintText: 'Nome, serviço, especialidade ou cidade...',
-              hintStyle:
-                  TextStyle(color: Brand.inkMuted(context), fontSize: 14),
+            style: const TextStyle(fontSize: 15, color: Brand.text),
+            decoration: const InputDecoration(
+              hintText: 'Nome, serviço ou especialidade',
+              hintStyle: TextStyle(color: Brand.textMuted, fontSize: 14),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
               focusedBorder: InputBorder.none,
               filled: false,
-              contentPadding: const EdgeInsets.symmetric(vertical: 16),
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(vertical: 14),
             ),
           ),
         ),
@@ -731,8 +819,8 @@ class _SearchBox extends StatelessWidget {
               ? const SizedBox.shrink()
               : IconButton(
                   tooltip: 'Limpar busca',
-                  icon:
-                      Icon(Icons.close_rounded, color: Brand.inkMuted(context)),
+                  icon: const Icon(Icons.close_rounded,
+                      color: Brand.textMuted, size: 20),
                   onPressed: onClear,
                 ),
         ),
@@ -746,8 +834,146 @@ class _SearchBox extends StatelessWidget {
                   child: CircularProgressIndicator(strokeWidth: 2))
               : const Icon(Icons.auto_awesome_rounded, color: Brand.goldDeep),
         ),
-        const SizedBox(width: 6),
+        const SizedBox(width: 2),
       ]),
+    );
+    final cityBox = _BoxDropdown<String>(
+      onHero: true,
+      icon: Icons.location_on_outlined,
+      semanticLabel: 'Cidade',
+      value: city ?? '',
+      items: _cityItems,
+      onChanged: (v) => onCity(v.isEmpty ? null : v),
+    );
+    final button = SizedBox(
+      height: 50,
+      child: ElevatedButton(
+        onPressed: onSearch,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: Brand.gold,
+          foregroundColor: Brand.greenDark,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 28),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        child: const Text('Buscar',
+            style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+      ),
+    );
+    final bottom = wide
+        ? Row(children: [
+            Expanded(child: search),
+            const SizedBox(width: 10),
+            SizedBox(width: 230, child: cityBox),
+            const SizedBox(width: 10),
+            button,
+          ])
+        : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            search,
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: cityBox),
+              const SizedBox(width: 10),
+              button,
+            ]),
+          ]);
+    return BrandPageHero(
+      title: 'Explorar serviços',
+      subtitle: 'Encontre quem entende do que você precisa.',
+      padding: EdgeInsets.fromLTRB(
+          wide ? 24 : 16, wide ? 22 : 16, wide ? 24 : 16, wide ? 22 : 16),
+      leading: showBack
+          ? Material(
+              color: Colors.white.withValues(alpha: 0.14),
+              shape: const CircleBorder(),
+              child: IconButton(
+                tooltip: 'Voltar',
+                icon: const Icon(Icons.arrow_back_rounded, color: Colors.white),
+                onPressed: () => AppNav.safeBack(context),
+              ),
+            )
+          : null,
+      trailing: wide
+          ? Opacity(
+              opacity: 0.25,
+              child: SvgPicture.asset('assets/logos/logo_mark_mono_white.svg',
+                  width: 84),
+            )
+          : null,
+      bottom: bottom,
+    );
+  }
+}
+
+List<(String, String)> get _cityItems => [
+      ('', 'Todas as cidades'),
+      for (final c in [...RegionCities.priority, ...RegionCities.nearby]) (c, c),
+    ];
+
+/// Seletor em caixa (hero: fundo branco; painel de filtros: com borda).
+class _BoxDropdown<T> extends StatelessWidget {
+  final T value;
+  final List<(T, String)> items;
+  final ValueChanged<T> onChanged;
+  final IconData? icon;
+  final bool onHero;
+  final String semanticLabel;
+  const _BoxDropdown({
+    required this.value,
+    required this.items,
+    required this.onChanged,
+    required this.semanticLabel,
+    this.icon,
+    this.onHero = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final fill = onHero ? Colors.white : Brand.surface(context);
+    final ink = onHero ? Brand.text : Brand.ink(context);
+    return Semantics(
+      container: true,
+      label: semanticLabel,
+      child: Container(
+        height: onHero ? 50 : 46,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: fill,
+          borderRadius: BorderRadius.circular(12),
+          border: onHero ? null : Border.all(color: Brand.line(context)),
+        ),
+        child: Row(children: [
+          if (icon != null) ...[
+            Icon(icon, size: 18, color: Brand.green),
+            const SizedBox(width: 8),
+          ],
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<T>(
+                value: value,
+                isExpanded: true,
+                borderRadius: BorderRadius.circular(12),
+                dropdownColor: fill,
+                icon: Icon(Icons.expand_more_rounded,
+                    color: onHero ? Brand.textMuted : Brand.inkMuted(context)),
+                style: TextStyle(
+                    fontSize: 13.5, fontWeight: FontWeight.w700, color: ink),
+                items: [
+                  for (final (v, l) in items)
+                    DropdownMenuItem<T>(
+                      value: v,
+                      child: Text(l, maxLines: 1, overflow: TextOverflow.ellipsis),
+                    ),
+                ],
+                onChanged: (v) {
+                  if (v != null) onChanged(v);
+                },
+              ),
+            ),
+          ),
+        ]),
+      ),
     );
   }
 }
@@ -1131,120 +1357,168 @@ class _FilterMenu<T> extends StatelessWidget {
   }
 }
 
-class _FilterBar extends StatelessWidget {
-  final bool wide, grid, hasFilters;
-  final double minRating;
-  final String? modality, city;
+/// Painel de filtros: barra lateral (>= 1000px) ou folha inferior (mobile).
+class _FiltersPanel extends StatelessWidget {
+  final String? city;
+  final List<String> specialtyIds;
+  final Map<String, int> specialtyCounts;
+  final Set<String> specialties;
+  final bool hasCategory, hasFilters;
+  final bool? priceInformed;
   final double? maxPrice;
-  final ProviderSort sort;
+  final String? modality;
+  final double minRating;
+  final ValueChanged<String?> onCity, onModality;
+  final ValueChanged<String> onSpecialty;
+  final ValueChanged<bool?> onPriceInformed;
+  final ValueChanged<double?> onMaxPrice;
   final ValueChanged<double> onRating;
-  final ValueChanged<String?> onModality, onCity;
-  final ValueChanged<double?> onPrice;
-  final ValueChanged<ProviderSort> onSort;
-  final ValueChanged<bool> onGrid;
   final VoidCallback onClear;
-  const _FilterBar({
-    required this.wide,
-    required this.minRating,
-    required this.modality,
-    required this.maxPrice,
+  const _FiltersPanel({
     required this.city,
-    required this.sort,
-    required this.grid,
+    required this.specialtyIds,
+    required this.specialtyCounts,
+    required this.specialties,
+    required this.hasCategory,
     required this.hasFilters,
-    required this.onRating,
-    required this.onModality,
-    required this.onPrice,
+    required this.priceInformed,
+    required this.maxPrice,
+    required this.modality,
+    required this.minRating,
     required this.onCity,
-    required this.onSort,
-    required this.onGrid,
+    required this.onModality,
+    required this.onSpecialty,
+    required this.onPriceInformed,
+    required this.onMaxPrice,
+    required this.onRating,
     required this.onClear,
   });
 
-  String _money(double v) => 'R\$ ${v.toStringAsFixed(0)}';
+  @override
+  Widget build(BuildContext context) {
+    final ink = Brand.ink(context);
+    final muted = Brand.inkMuted(context);
+    Widget title(String t) => Padding(
+          padding: const EdgeInsets.only(bottom: 6),
+          child: Text(t,
+              style: TextStyle(
+                  fontSize: 14.5, fontWeight: FontWeight.w800, color: ink)),
+        );
+    Widget divider() => Divider(height: 26, color: Brand.line(context));
+    Widget check(String label, bool v, VoidCallback onTap) => CheckboxListTile(
+          value: v,
+          onChanged: (_) => onTap(),
+          title: Text(label,
+              style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: v ? FontWeight.w800 : FontWeight.w600,
+                  color: ink)),
+          dense: true,
+          controlAffinity: ListTileControlAffinity.leading,
+          contentPadding: EdgeInsets.zero,
+          visualDensity: VisualDensity.compact,
+          activeColor: Brand.green,
+          checkColor: Colors.white,
+        );
+    Widget hint(String t) =>
+        Text(t, style: TextStyle(fontSize: 12.5, height: 1.35, color: muted));
+
+    // Material próprio: o ListTile dos checkboxes não pode pintar sobre o
+    // fundo decorado do cartão.
+    return Material(
+      type: MaterialType.transparency,
+      child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Row(children: [
+          Expanded(
+            child: Text('Filtros',
+                style: TextStyle(
+                    fontSize: 20, fontWeight: FontWeight.w900, color: ink)),
+          ),
+          TextButton(
+            onPressed: hasFilters ? onClear : null,
+            style: TextButton.styleFrom(
+                foregroundColor: Brand.green, minimumSize: const Size(0, 40)),
+            child: const Text('Limpar filtros',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5)),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        title('Cidade'),
+        _BoxDropdown<String>(
+          semanticLabel: 'Cidade',
+          value: city ?? '',
+          items: _cityItems,
+          onChanged: (v) => onCity(v.isEmpty ? null : v),
+        ),
+        divider(),
+        title('Especialidade'),
+        if (specialtyIds.isEmpty)
+          hint(hasCategory
+              ? 'Esta categoria não tem subespecialidades cadastradas.'
+              : 'Escolha uma categoria acima para filtrar por especialidade.')
+        else
+          for (final id in specialtyIds)
+            check(
+                '${ProviderSearch.categoryName(id)} (${specialtyCounts[id] ?? 0})',
+                specialties.contains(id),
+                () => onSpecialty(id)),
+        divider(),
+        title('Preço'),
+        check('Sob orçamento', priceInformed == false,
+            () => onPriceInformed(priceInformed == false ? null : false)),
+        check('Preço informado', priceInformed == true,
+            () => onPriceInformed(priceInformed == true ? null : true)),
+        if (priceInformed != false) ...[
+          const SizedBox(height: 6),
+          _BoxDropdown<double>(
+            semanticLabel: 'Preço inicial máximo',
+            value: maxPrice ?? -1.0,
+            items: const [
+              (-1.0, 'Qualquer valor inicial'),
+              (100.0, 'Inicial até R\$ 100'),
+              (200.0, 'Inicial até R\$ 200'),
+            ],
+            onChanged: (v) => onMaxPrice(v < 0 ? null : v),
+          ),
+        ],
+        divider(),
+        title('Atendimento'),
+        check('Domiciliar', modality == 'home_care',
+            () => onModality(modality == 'home_care' ? null : 'home_care')),
+        check('Presencial', modality == 'presential',
+            () => onModality(modality == 'presential' ? null : 'presential')),
+        check('Online', modality == 'online',
+            () => onModality(modality == 'online' ? null : 'online')),
+        divider(),
+        title('Avaliação'),
+        _BoxDropdown<double>(
+          semanticLabel: 'Avaliação mínima',
+          value: minRating,
+          items: const [
+            (0.0, 'Qualquer avaliação'),
+            (4.0, 'Nota 4,0 ou mais'),
+            (4.5, 'Nota 4,5 ou mais'),
+          ],
+          onChanged: onRating,
+        ),
+      ],
+    ),
+    );
+  }
+}
+
+/// Alternância grade/lista.
+class _ViewToggle extends StatelessWidget {
+  final bool grid;
+  final ValueChanged<bool> onGrid;
+  const _ViewToggle({required this.grid, required this.onGrid});
 
   @override
   Widget build(BuildContext context) {
-    final filters = [
-      _FilterMenu<String>(
-        icon: Icons.location_on_outlined,
-        tooltip: 'Cidade',
-        label: city ?? 'Todas as cidades',
-        active: city != null,
-        value: city ?? '',
-        options: [
-          ('', 'Todas as cidades'),
-          for (final c in [...RegionCities.priority, ...RegionCities.nearby])
-            (c, c),
-        ],
-        onSelected: (v) => onCity(v.isEmpty ? null : v),
-      ),
-      _FilterMenu<double>(
-        icon: Icons.star_outline_rounded,
-        tooltip: 'Avaliação mínima',
-        label: minRating > 0
-            ? 'Nota ${minRating.toStringAsFixed(1).replaceAll('.', ',')}+'
-            : 'Avaliação',
-        active: minRating > 0,
-        value: minRating,
-        options: const [
-          (0.0, 'Qualquer avaliação'),
-          (4.0, 'Nota 4,0 ou mais'),
-          (4.5, 'Nota 4,5 ou mais'),
-        ],
-        onSelected: onRating,
-      ),
-      _FilterMenu<double>(
-        icon: Icons.sell_outlined,
-        tooltip: 'Preço inicial',
-        label: maxPrice != null ? 'Até ${_money(maxPrice!)}' : 'Preço',
-        active: maxPrice != null,
-        value: maxPrice ?? -1,
-        options: const [
-          (-1.0, 'Qualquer preço'),
-          (100.0, 'Preço inicial até R\$ 100'),
-          (200.0, 'Preço inicial até R\$ 200'),
-        ],
-        onSelected: (v) => onPrice(v < 0 ? null : v),
-      ),
-      _FilterMenu<String>(
-        icon: Icons.event_available_outlined,
-        tooltip: 'Forma de atendimento',
-        label: switch (modality) {
-          'online' => 'Atende a distância',
-          'presential' => 'Atende presencialmente',
-          _ => 'Atendimento',
-        },
-        active: modality != null,
-        value: modality ?? '',
-        options: const [
-          ('', 'Qualquer forma de atendimento'),
-          ('presential', 'Atende presencialmente'),
-          ('online', 'Atende a distância (online)'),
-        ],
-        onSelected: (v) => onModality(v.isEmpty ? null : v),
-      ),
-      _FilterMenu<ProviderSort>(
-        icon: Icons.sort_rounded,
-        tooltip: 'Ordenar',
-        label: providerSortLabels[sort]!,
-        active: sort != ProviderSort.relevance,
-        value: sort,
-        options: [
-          for (final s in ProviderSort.values) (s, providerSortLabels[s]!)
-        ],
-        onSelected: onSort,
-      ),
-      if (hasFilters)
-        TextButton.icon(
-          onPressed: onClear,
-          icon: const Icon(Icons.filter_alt_off_outlined, size: 18),
-          label: const Text('Limpar filtros'),
-          style: TextButton.styleFrom(
-              foregroundColor: Brand.green, minimumSize: const Size(0, 44)),
-        ),
-    ];
-    final toggle = Container(
+    return Container(
       decoration: BoxDecoration(
         color: Brand.surface(context),
         borderRadius: BorderRadius.circular(12),
@@ -1270,28 +1544,6 @@ class _FilterBar extends StatelessWidget {
           ),
       ]),
     );
-    return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Expanded(
-        child: wide
-            ? Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: filters,
-              )
-            : ScrollConfiguration(
-                behavior: const BrandDragScrollBehavior(),
-                child: SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(children: [
-                    for (final f in filters) ...[f, const SizedBox(width: 8)],
-                  ]),
-                ),
-              ),
-      ),
-      const SizedBox(width: 12),
-      toggle,
-    ]);
   }
 }
 

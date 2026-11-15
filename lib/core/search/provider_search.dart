@@ -25,6 +25,10 @@ class ProviderSearchCriteria {
   /// 'presential' | 'online' — modalidade de atendimento cadastrada.
   final String? modality;
   final double? maxPrice;
+
+  /// `true`: só quem informou preço inicial; `false`: só "sob orçamento"
+  /// (sem preço informado); `null`: ambos.
+  final bool? priceInformed;
   final ProviderSort sort;
 
   const ProviderSearchCriteria({
@@ -35,6 +39,7 @@ class ProviderSearchCriteria {
     this.minRating = 0,
     this.modality,
     this.maxPrice,
+    this.priceInformed,
     this.sort = ProviderSort.relevance,
   });
 
@@ -48,6 +53,7 @@ class ProviderSearchCriteria {
       minRating > 0 ||
       modality != null ||
       maxPrice != null ||
+      priceInformed != null ||
       sort != ProviderSort.relevance;
 }
 
@@ -112,6 +118,8 @@ abstract final class ProviderSearch {
         (p.minPrice == null || p.minPrice! > c.maxPrice!)) {
       return false;
     }
+    if (c.priceInformed == true && p.minPrice == null) return false;
+    if (c.priceInformed == false && p.minPrice != null) return false;
     return true;
   }
 
