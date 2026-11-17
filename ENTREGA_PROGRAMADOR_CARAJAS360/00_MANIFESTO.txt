@@ -1,11 +1,5 @@
-PACOTE: ENTREGA_PROGRAMADOR_CARAJAS360
-FASE: 14
-VERSAO_APP: 1.0.0+403
-COMMIT: 686d16c5f0b9e9eae24a661c5506f290b5fd8046
-BRANCH: feat/modernizacao-visual
-FIREBASE: carajas360-a17c5
-HOMOLOG: https://carajas360-a17c5--homolog-88u39zqx.web.app
-ESTADO: NAO APTO PARA PUBLICACAO
-ZIP: documentacao apenas (codigo via Git no commit acima)
-SEM: keystores, tokens MP/Anthropic, key.properties, .env reais
-GERADO: 2026-11-17
+PACOTE ENTREGA FASE15
+HEAD=e07b633
+VER=1.0.0+403
+A=SIM B=NAO C=NAO D=NAO E=NAO
+BLAZE=No CF_API=403 LIVE=404 HOMOLOG=200

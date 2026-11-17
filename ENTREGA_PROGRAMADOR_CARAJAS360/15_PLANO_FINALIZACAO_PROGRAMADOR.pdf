@@ -1,0 +1,66 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 732 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(15 PLANO DE FINALIZACAO ? PROGRAMADOR) Tj
+T*
+(Baseline e07b633 | pacote F14 82dc012) Tj
+T*
+() Tj
+T*
+(ORDEM SUGERIDA) Tj
+T*
+(1. Ler README_ENTREGA + FASE15) Tj
+T*
+(2. flutter pub get; npm test; flutter test) Tj
+T*
+(3. Liberar disco; APK debug) Tj
+T*
+(4. key.properties -> AAB + SHA256) Tj
+T*
+(5. Owner: Blaze + APIs) Tj
+T*
+(6. Deploy aiAssistant; prova IA) Tj
+T*
+(7. E2E cliente + profissional) Tj
+T*
+(8. MP sandbox \(sem producao\)) Tj
+T*
+(9. Multimidia video/audio se no escopo) Tj
+T*
+(10. Mac -> TestFlight) Tj
+T*
+(11. GO -> live Web / lojas) Tj
+T*
+() Tj
+T*
+(CRITERIOS ACEITE: PDF 12) Tj
+T*
+(EDITAL: EDITAL_CONTRATACAO_*.pdf) Tj
+T*
+() Tj
+T*
+(NAO reconstruir o app.) Tj
+T*
+(NAO publicar sem GO.) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000179 00000 n 
+0000000303 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+1084
+%%EOF

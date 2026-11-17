@@ -1,0 +1,220 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R] /Count 4 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 734 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360) Tj
+T*
+(EDITAL DE CONTRATACAO ? PROGRAMADOR) Tj
+T*
+(Flutter / Firebase ? Finalizacao do app) Tj
+T*
+() Tj
+T*
+(Baseline: 1.0.0+403 | commit 686d16c) Tj
+T*
+(Branch: feat/modernizacao-visual) Tj
+T*
+(Pacote: ENTREGA_PROGRAMADOR_CARAJAS360 \(FASE 14\)) Tj
+T*
+(Firebase: carajas360-a17c5) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(NAO E PROJETO PARA DESENVOLVER DO ZERO) Tj
+T*
+(========================================) Tj
+T*
+() Tj
+T*
+(App ja possui Flutter Web/Android/iOS,) Tj
+T*
+(UI, clientes, profissionais, pedidos,) Tj
+T*
+(chat, admin e documentacao tecnica.) Tj
+T*
+() Tj
+T*
+(Reconstruir o app NAO sera aceito sem) Tj
+T*
+(justificativa tecnica e aprovacao previa.) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 800 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PERFIL BUSCADO) Tj
+T*
+() Tj
+T*
+(Experiencia em:) Tj
+T*
+(- Flutter multiplataforma) Tj
+T*
+(- Firebase \(Auth, Firestore, Hosting\)) Tj
+T*
+(- Cloud Functions) Tj
+T*
+(- IA \(callable / APIs\)) Tj
+T*
+(- Mercado Pago) Tj
+T*
+(- Android \(APK/AAB\) e iOS \(TestFlight\)) Tj
+T*
+() Tj
+T*
+(SERVICOS NECESSARIOS) Tj
+T*
+() Tj
+T*
+(1. Corrigir pendencias do pacote de entrega) Tj
+T*
+(2. Ativar Cloud Functions + IA existente) Tj
+T*
+(3. Testar fluxos cliente e profissional) Tj
+T*
+(4. Homologar pagamentos MP em sandbox) Tj
+T*
+(5. Corrigir compilacao Android) Tj
+T*
+(6. Gerar APK de testes e AAB assinado) Tj
+T*
+(7. iOS + TestFlight) Tj
+T*
+(8. Validar telas, botoes e navegacao) Tj
+T*
+(9. Testes de seguranca e estabilidade) Tj
+T*
+(10. Preparar publicacao \(so com autorizacao\)) Tj
+ET
+endstream
+endobj
+8 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 9 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+9 0 obj<< /Length 860 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(ENTREGAS OBRIGATORIAS) Tj
+T*
+() Tj
+T*
+(- Codigo no repositorio EXISTENTE) Tj
+T*
+(- Relatorio de testes \(PASS/FAIL/N-E\)) Tj
+T*
+(- IA comprovadamente funcional) Tj
+T*
+(- Fluxos de contratacao funcionando) Tj
+T*
+(- Pagamentos homologados \(sandbox\)) Tj
+T*
+(- APK + AAB Android \(+ SHA256 do AAB\)) Tj
+T*
+(- Build iOS no TestFlight) Tj
+T*
+(- Web homolog validada) Tj
+T*
+(- Documentacao final instalacao/manutencao) Tj
+T*
+() Tj
+T*
+(Aceite: 12_CRITERIOS_ACEITE.pdf) Tj
+T*
+() Tj
+T*
+(CONDICOES) Tj
+T*
+() Tj
+T*
+(- Pagamento por etapas, apos validacao) Tj
+T*
+(- Sem GO: sem live, sem MP producao,) Tj
+T*
+(  sem lojas, sem alterar billing) Tj
+T*
+() Tj
+T*
+(PROPOSTA DEVE INFORMAR) Tj
+T*
+() Tj
+T*
+(Experiencia similar | prazo | orcamento) Tj
+T*
+(Disponibilidade | acesso a macOS/Xcode) Tj
+T*
+(Confirmacao de leitura do pacote FASE 14) Tj
+ET
+endstream
+endobj
+10 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 11 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+11 0 obj<< /Length 627 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(TRANSPARENCIA ? ESTADO ATUAL) Tj
+T*
+() Tj
+T*
+(NAO APTO para publicacao \(Fases 12-13\).) Tj
+T*
+(Homolog Web parcial OK \(demo\).) Tj
+T*
+(Pendencias: Blaze/Functions API, deploy IA,) Tj
+T*
+(pagamentos E2E, AAB/IPA, GO publicacao.) Tj
+T*
+() Tj
+T*
+(Homolog:) Tj
+T*
+(https://carajas360-a17c5--homolog-88u39zqx.web.app) Tj
+T*
+() Tj
+T*
+(ZIP transferencia:) Tj
+T*
+(ENTREGA_PROGRAMADOR_CARAJAS360_686d16c.zip) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(Trabalhar no repositorio existente.) Tj
+T*
+(Nao reconstruir o Carajas 360.) Tj
+T*
+(========================================) Tj
+ET
+endstream
+endobj
+xref
+0 12
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000130 00000 n 
+0000000198 00000 n 
+0000000322 00000 n 
+0000001105 00000 n 
+0000001229 00000 n 
+0000002078 00000 n 
+0000002202 00000 n 
+0000003111 00000 n 
+0000003237 00000 n 
+trailer<< /Size 12 /Root 1 0 R >>
+startxref
+3914
+%%EOF

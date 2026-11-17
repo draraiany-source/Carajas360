@@ -1,0 +1,106 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 734 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(13 AUDITORIA MULTIMIDIA ? ORCAMENTO) Tj
+T*
+(HEAD e07b633 | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(FOTOS \(IMPLEMENTADO E TESTADO\)) Tj
+T*
+(- Ate 10 fotos \(OrderPhotos.maxCount\)) Tj
+T*
+(- Camera e galeria \(OrderPhotoPicker\)) Tj
+T*
+(- Preview, remocao, substituicao) Tj
+T*
+(- Limite 8 MB / formatos JPG PNG WebP HEIC) Tj
+T*
+(- Upload Storage + attachOrderPhotos) Tj
+T*
+(- Galeria no pedido \(cliente/pro\)) Tj
+T*
+(- Testes unit + fluxo + emulador \(e07b633\)) Tj
+T*
+() Tj
+T*
+(VIDEO CURTO NO ORCAMENTO) Tj
+T*
+(Status: AUSENTE) Tj
+T*
+(Pendencia: implementar no fluxo existente) Tj
+T*
+() Tj
+T*
+(AUDIO EXPLICATIVO NO ORCAMENTO) Tj
+T*
+(Status: AUSENTE no pedido) Tj
+T*
+(\(Audio existe no chat, nao no orcamento\)) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 585 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(MODALIDADES) Tj
+T*
+() Tj
+T*
+(A ? Profissional especifico:) Tj
+T*
+(  /provider-profile -> /request-service) Tj
+T*
+() Tj
+T*
+(B ? Multiplos compativeis:) Tj
+T*
+(  /resolve ou marketplace matching) Tj
+T*
+(  acceptResolveProposal -> Meus pedidos) Tj
+T*
+() Tj
+T*
+(PRIVACIDADE) Tj
+T*
+(Storage rules + pedido associado) Tj
+T*
+(Nao inventar analise medica/preco via IA) Tj
+T*
+(OrderPhotos.iaPromptHint: so descricao) Tj
+T*
+() Tj
+T*
+(PROXIMO PASSO PROGRAMADOR) Tj
+T*
+(Se contratado: video+audio no mesmo picker) Tj
+T*
+(com limites, mime types e rules Storage) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000001092 00000 n 
+0000001216 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1850
+%%EOF

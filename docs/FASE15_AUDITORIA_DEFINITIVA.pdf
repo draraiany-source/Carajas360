@@ -1,0 +1,102 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 558 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? FASE 15) Tj
+T*
+(AUDITORIA DEFINITIVA E ENTREGA) Tj
+T*
+() Tj
+T*
+(HEAD: e07b633) Tj
+T*
+(Versao: 1.0.0+403) Tj
+T*
+(Branch: feat/modernizacao-visual) Tj
+T*
+(Firebase: carajas360-a17c5) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(VEREDITO A-E) Tj
+T*
+(A Entrega programador ..... SIM) Tj
+T*
+(B Prod. controlada ........ NAO) Tj
+T*
+(C Publicacao Web .......... NAO) Tj
+T*
+(D Publicacao Android ...... NAO) Tj
+T*
+(E Publicacao iOS .......... NAO) Tj
+T*
+(========================================) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 561 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(BLOQUEADORES EXTERNOS) Tj
+T*
+(- Blaze off + Functions API 403) Tj
+T*
+(- Live hosting 404) Tj
+T*
+(- Sem AAB/IPA neste HEAD) Tj
+T*
+(- IA real e MP sandbox N/E) Tj
+T*
+() Tj
+T*
+(MULTIMIDIA) Tj
+T*
+(Fotos orcamento: IMPLEMENTADO+TESTADO) Tj
+T*
+(Video/audio orcamento: AUSENTE) Tj
+T*
+() Tj
+T*
+(TESTES FASE 15) Tj
+T*
+(Functions 163 PASS | fotos 14 PASS) Tj
+T*
+(Homolog 200 | Live 404) Tj
+T*
+() Tj
+T*
+(Pacote: ENTREGA_PROGRAMADOR_CARAJAS360) Tj
+T*
+(Docs: docs/FASE15_AUDITORIA_DEFINITIVA.md) Tj
+T*
+() Tj
+T*
+(NAO APTO PARA PUBLICACAO.) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000000916 00000 n 
+0000001040 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1650
+%%EOF

@@ -1,13 +1,15 @@
-# Carajás 360 — Pacote de entrega ao programador (FASE 14)
+# Carajás 360 — Pacote de entrega ao programador (FASES 14–15)
 
 | Campo | Valor |
 |--------|--------|
 | Versão app | **1.0.0+403** |
-| Commit | **b58a96b+** (orçamento com fotos; ver `docs/RELATORIO_ORCAMENTO_FOTOS_IA.md`) |
+| HEAD auditoria F15 | **e07b633** |
+| Pacote docs F14 | **82dc012** |
 | Branch | `feat/modernizacao-visual` |
 | Firebase | `carajas360-a17c5` |
 | Homolog Web | https://carajas360-a17c5--homolog-88u39zqx.web.app |
-| Estado publicação | **NÃO APTO** (Fases 12 e 13) |
+| Estado publicação | **NÃO APTO** (Fases 12–15) |
+| Entrega ao programador (veredito A) | **SIM** |
 
 ## Conteúdo desta pasta
 
@@ -25,8 +27,13 @@
 | `10_CHECKLIST_PUBLICACAO.pdf` | Gate de publicação |
 | `11_ROTEIRO_TESTES.pdf` | Testes obrigatórios |
 | `12_CRITERIOS_ACEITE.pdf` | Aceite do serviço contratado |
+| `13_AUDITORIA_MULTIMIDIA.pdf` | Fotos IT; vídeo/áudio ausentes no orçamento |
+| `14_TESTES_EVIDENCIAS.pdf` | Matriz APROVADO/REPROVADO/N-E FASE 15 |
+| `15_PLANO_FINALIZACAO_PROGRAMADOR.pdf` | Ordem de trabalho sugerida |
+| `EDITAL_CONTRATACAO_PROGRAMADOR.pdf` | Texto para Workana |
 | `MAPA_FLUXOS.md` | Fluxogramas Mermaid (fonte) |
 | `SEGURANCA_CREDENCIAIS.md` | Como tratar secrets |
+| `docs/FASE15_AUDITORIA_DEFINITIVA.md` | Auditoria completa no repo |
 
 ## Código-fonte
 
@@ -34,8 +41,8 @@
 
 ```bash
 git fetch
-git checkout 686d16c
-# ou branch feat/modernizacao-visual a partir deste commit
+git checkout e07b633
+# ou branch feat/modernizacao-visual (HEAD da auditoria F15)
 flutter pub get
 cd functions && npm test && cd ..
 ```
