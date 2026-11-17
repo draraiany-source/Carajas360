@@ -26,6 +26,7 @@ import 'package:carajas_360/features/services/service_marketplace_screen.dart';
 import 'package:carajas_360/features/search/universal_search_screen.dart';
 import 'package:carajas_360/features/monetization/opportunities_screen.dart';
 import 'package:carajas_360/features/monetization/monetization_screens.dart';
+import 'package:carajas_360/core/catalog/service_taxonomy.dart';
 import 'package:carajas_360/core/catalog/taxonomy_repository.dart';
 import 'package:carajas_360/features/chat/chat_screen.dart';
 import 'package:carajas_360/features/chat/chat_inbox_screen.dart';
@@ -184,11 +185,25 @@ class Carajas360App extends StatelessWidget {
                 ));
               case Routes.chat:
                 final a = settings.arguments as Map<String, dynamic>?;
+                final roomId =
+                    (a?['roomId'] ?? a?['id'] ?? '').toString().trim();
+                if (roomId.isEmpty || roomId == 'demo') {
+                  return _route(RequireAuth(
+                    title: 'Chat',
+                    child: _MissingArgsScreen(
+                      title: 'Conversa indisponível',
+                      message:
+                          'Abra a conversa a partir de Mensagens ou do perfil do profissional.',
+                      fallbackRoute: Routes.chatInbox,
+                      fallbackLabel: 'Ir para mensagens',
+                    ),
+                  ));
+                }
                 return _route(RequireAuth(
                   title: 'Chat',
                   subtitle: 'Entre na conta para enviar e ler mensagens.',
                   child: ChatScreen(
-                    roomId: a?['roomId'] ?? a?['id'] ?? 'demo',
+                    roomId: roomId,
                     otherName: a?['name'] ?? 'Profissional',
                     otherPhoto: a?['photo'],
                     orderId: a?['orderId'] as String?,
@@ -205,6 +220,9 @@ class Carajas360App extends StatelessWidget {
                     title: 'Carteira', child: WalletScreen()));
               case Routes.health:
                 return _route(const HealthScreen());
+              case Routes.appointments:
+                return _route(const RequireAuth(
+                    title: 'Agendamentos', child: AppointmentsScreen()));
               case Routes.marketplace:
                 return _route(const MarketplaceScreen());
               case Routes.store:
@@ -227,11 +245,24 @@ class Carajas360App extends StatelessWidget {
                     title: 'Notificações', child: NotificationsScreen()));
               case Routes.reviews:
                 final a = settings.arguments as Map<String, dynamic>?;
+                final orderId = (a?['orderId'] ?? '').toString().trim();
+                if (orderId.isEmpty || orderId == 'demo') {
+                  return _route(RequireAuth(
+                    title: 'Avaliar serviço',
+                    child: _MissingArgsScreen(
+                      title: 'Pedido não informado',
+                      message:
+                          'Avalie a partir de Meus pedidos, após a conclusão do serviço.',
+                      fallbackRoute: Routes.myOrders,
+                      fallbackLabel: 'Ir para meus pedidos',
+                    ),
+                  ));
+                }
                 return _route(RequireAuth(
                   title: 'Avaliar serviço',
                   subtitle: 'Entre na conta para avaliar um pedido concluído.',
                   child: ReviewScreen(
-                    orderId: a?['orderId'] ?? 'demo',
+                    orderId: orderId,
                     providerId: a?['providerId'],
                     providerName: a?['providerName'],
                   ),
@@ -291,6 +322,48 @@ class Carajas360App extends StatelessWidget {
                 return _route(ServiceMarketplaceScreen(
                   verticalId: a?['verticalId'] as String?,
                   categoryId: a?['category'] as String?,
+                ));
+              case Routes.serviceRequestFlow:
+                final a = settings.arguments as Map<String, dynamic>?;
+                final serviceId = (a?['serviceId'] as String?)?.trim();
+                final categoryId = (a?['categoryId'] as String?)?.trim() ??
+                    (a?['category'] as String?)?.trim();
+                final svc = (serviceId != null && serviceId.isNotEmpty
+                        ? ServiceTaxonomy.serviceById(serviceId)
+                        : null) ??
+                    (categoryId != null && categoryId.isNotEmpty
+                        ? ServiceTaxonomy.serviceByCategoryId(categoryId)
+                        : null);
+                if (svc == null) {
+                  return _route(_MissingArgsScreen(
+                    title: 'Serviço não encontrado',
+                    message:
+                        'Escolha um serviço em Explorar ou no marketplace de categorias.',
+                    fallbackRoute: Routes.serviceMarketplace,
+                    fallbackLabel: 'Ver serviços',
+                  ));
+                }
+                return _route(RequireAuth(
+                  title: 'Solicitar serviço',
+                  child: ServiceRequestFlowScreen(service: svc),
+                ));
+              case Routes.opportunityDetail:
+                final a = settings.arguments as Map<String, dynamic>?;
+                final rid = (a?['id'] ?? a?['requestId'] ?? '').toString().trim();
+                if (rid.isEmpty) {
+                  return _route(RequireAuth(
+                    title: 'Oportunidade',
+                    child: _MissingArgsScreen(
+                      title: 'Oportunidade não informada',
+                      message: 'Abra o detalhe a partir da lista de oportunidades.',
+                      fallbackRoute: Routes.resolveOpportunities,
+                      fallbackLabel: 'Ver oportunidades',
+                    ),
+                  ));
+                }
+                return _route(RequireAuth(
+                  title: 'Oportunidade',
+                  child: OpportunityDetailLoader(requestId: rid),
                 ));
               case Routes.resolve:
                 return _route(const ResolveScreen());
@@ -581,6 +654,62 @@ class _MainNavState extends State<MainNav> {
                             ? AppColors.darkTextLow
                             : AppColors.textLight))),
           ]),
+        ),
+      ),
+    );
+  }
+}
+
+/// Deep link incompleto: orienta o usuário sem inventar IDs `demo`.
+class _MissingArgsScreen extends StatelessWidget {
+  final String title;
+  final String message;
+  final String fallbackRoute;
+  final String fallbackLabel;
+  const _MissingArgsScreen({
+    required this.title,
+    required this.message,
+    required this.fallbackRoute,
+    required this.fallbackLabel,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(title),
+        backgroundColor: Brand.green,
+        foregroundColor: Colors.white,
+      ),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.link_off_rounded, size: 48, color: Brand.green),
+              const SizedBox(height: 16),
+              Text(title,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.w800, fontSize: 18)),
+              const SizedBox(height: 8),
+              Text(message,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      color: Brand.inkMuted(context), height: 1.4)),
+              const SizedBox(height: 20),
+              ElevatedButton(
+                onPressed: () => Navigator.pushNamedAndRemoveUntil(
+                    context, fallbackRoute, (r) => r.isFirst),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Brand.green,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(fallbackLabel),
+              ),
+            ],
+          ),
         ),
       ),
     );

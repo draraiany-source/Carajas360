@@ -8,10 +8,90 @@ import '../../core/constants/app_constants.dart';
 import '../../core/monetization/lead_unlock_service.dart';
 import '../../core/monetization/monetization_config.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/brand.dart';
 import '../../core/utils/app_error.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+
+/// Deep link `/opportunity-detail` — carrega pedido real + config.
+class OpportunityDetailLoader extends StatefulWidget {
+  final String requestId;
+  const OpportunityDetailLoader({super.key, required this.requestId});
+
+  @override
+  State<OpportunityDetailLoader> createState() =>
+      _OpportunityDetailLoaderState();
+}
+
+class _OpportunityDetailLoaderState extends State<OpportunityDetailLoader> {
+  MonetizationConfig _cfg = MonetizationConfig.defaults();
+  StreamSubscription? _cfgSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _cfgSub = FS.platformConfigStream().listen((m) {
+      if (!mounted) return;
+      setState(() => _cfg = MonetizationConfig.fromMap(m));
+    }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _cfgSub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final uid = AuthService.uid;
+    if (uid == null) {
+      return const Scaffold(
+        body: Center(child: Text('Faça login para ver a oportunidade.')),
+      );
+    }
+    return StreamBuilder<ResolveRequest?>(
+      stream: FS.resolveRequestStream(widget.requestId),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        final req = snap.data;
+        if (req == null) {
+          return Scaffold(
+            appBar: AppBar(
+              title: const Text('Oportunidade'),
+              backgroundColor: Brand.green,
+              foregroundColor: Colors.white,
+            ),
+            body: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text('Pedido não encontrado.'),
+                  const SizedBox(height: 12),
+                  TextButton(
+                    onPressed: () => Navigator.pushNamed(
+                        context, Routes.resolveOpportunities),
+                    child: const Text('Voltar às oportunidades'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+        return OpportunityDetailScreen(
+          request: req,
+          config: _cfg,
+          providerId: uid,
+        );
+      },
+    );
+  }
+}
 
 /// Oportunidades para o profissional (FASE 2).
 class OpportunitiesHubScreen extends StatefulWidget {
@@ -128,17 +208,10 @@ class _OpportunitiesHubScreenState extends State<OpportunitiesHubScreen> {
                       itemBuilder: (_, i) => _OpportunityCard(
                         request: list[i],
                         creditCost: _cfg.defaultLeadCreditCost,
-                        onOpen: () => Navigator.push(
+                        onOpen: () => Navigator.pushNamed(
                           context,
-                          MaterialPageRoute(
-                            builder: (_) => OpportunityDetailScreen(
-                              request: list[i],
-                              config: _cfg,
-                              providerId: prov?.id ??
-                                  AuthService.uid ??
-                                  'homolog_pro',
-                            ),
-                          ),
+                          Routes.opportunityDetail,
+                          arguments: {'id': list[i].id},
                         ),
                       ),
                     );

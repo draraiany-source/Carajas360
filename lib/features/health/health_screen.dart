@@ -665,10 +665,8 @@ class _TrackCard extends StatelessWidget {
                 label: 'Agendamentos antigos',
                 outlined: true,
                 expanded: false,
-                onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) => const AppointmentsScreen())),
+                onPressed: () =>
+                    Navigator.pushNamed(context, Routes.appointments),
               ),
             ]),
           ],

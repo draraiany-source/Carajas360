@@ -512,9 +512,15 @@ class _GpsState extends State<GpsScreen> with TickerProviderStateMixin {
           Expanded(
               child: ElevatedButton(
                   onPressed: () {
+                    final oid = widget.orderId?.trim();
+                    if (oid == null || oid.isEmpty) {
+                      snack(context,
+                          'Pedido não vinculado. Avalie em Meus pedidos.');
+                      return;
+                    }
                     Navigator.pop(context);
                     Navigator.pushNamed(context, Routes.reviews,
-                        arguments: {'orderId': widget.orderId ?? 'demo'});
+                        arguments: {'orderId': oid});
                   },
                   style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.background,

@@ -1805,6 +1805,41 @@ class FS {
     return doc.id;
   }
 
+  /// Admin: lista disputas reais (`Col.disputes`). Sem inventar tickets.
+  static Stream<List<Map<String, dynamic>>> disputesStream({int limit = 50}) {
+    if (HomologCatalog.enabled) {
+      return Stream.value(const <Map<String, dynamic>>[]);
+    }
+    return _db
+        .collection(Col.disputes)
+        .limit(limit)
+        .snapshots()
+        .map((s) {
+      final list = s.docs.map((d) {
+        final m = Map<String, dynamic>.from(d.data());
+        m['id'] = d.id;
+        return m;
+      }).toList();
+      list.sort((a, b) {
+        final ta = a['createdAt'];
+        final tb = b['createdAt'];
+        final da = ta is Timestamp ? ta.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        final db = tb is Timestamp ? tb.toDate() : DateTime.fromMillisecondsSinceEpoch(0);
+        return db.compareTo(da);
+      });
+      return list;
+    });
+  }
+
+  static Future<void> updateDisputeStatus(String id, String status) async {
+    if (HomologCatalog.enabled) return;
+    await _db.collection(Col.disputes).doc(id).update({
+      'status': status,
+      'resolvedAt': FieldValue.serverTimestamp(),
+      'resolvedBy': _uid,
+    });
+  }
+
   static Stream<List<AuditLogModel>> auditLogStream({int limit = 100}) => _db
       .collection(Col.auditLogs)
       .orderBy('timestamp', descending: true)

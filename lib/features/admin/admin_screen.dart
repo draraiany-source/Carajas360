@@ -40,6 +40,7 @@ class _AdminState extends State<AdminScreen>
     'Marketing',
     'Atendimento',
     'Denúncias',
+    'Disputas',
     'Pedidos',
     'Auditoria',
     'Configurações'
@@ -195,6 +196,7 @@ class _AdminState extends State<AdminScreen>
             _MarketingTab(),
             _SupportTab(),
             _ReportsTab(),
+            _DisputesTab(),
             _OrdersAdminTab(),
             _AuditTab(),
             _SettingsTab(),
@@ -1307,6 +1309,107 @@ class _SupportTabState extends State<_SupportTab> {
 // ═══════════════════════════════════════════════════════════════
 // DENÚNCIAS (Vol.20: Administração — moderação de conteúdo/usuários)
 // ═══════════════════════════════════════════════════════════════
+/// Disputas financeiras/contratuais (`Col.disputes`) — distinto de denúncias.
+class _DisputesTab extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) => StreamBuilder<List<Map<String, dynamic>>>(
+        stream: FS.disputesStream(),
+        builder: (_, snap) {
+          if (snap.hasError) {
+            return EmptyState(
+              emoji: '⚠️',
+              title: 'Falha ao carregar disputas',
+              subtitle: '${snap.error}',
+            );
+          }
+          final items = snap.data ?? [];
+          if (snap.connectionState == ConnectionState.waiting && items.isEmpty) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (items.isEmpty) {
+            return const EmptyState(
+              emoji: '⚖️',
+              title: 'Sem disputas',
+              subtitle:
+                  'Tickets abertos por clientes (ajuda/disputa) aparecerão aqui.',
+            );
+          }
+          return ListView.builder(
+            padding: const EdgeInsets.all(16),
+            itemCount: items.length,
+            itemBuilder: (_, i) {
+              final d = items[i];
+              final id = '${d['id'] ?? ''}';
+              final status = '${d['status'] ?? 'open'}';
+              final reason = '${d['reason'] ?? '—'}';
+              final orderId = '${d['orderId'] ?? ''}';
+              final clientId = '${d['clientId'] ?? ''}';
+              final open = status == 'open' || status == 'reviewing';
+              return Container(
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: AppDecorations.card(r: 16),
+                padding: const EdgeInsets.all(14),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Expanded(
+                        child: Text(reason,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.w700, fontSize: 14)),
+                      ),
+                      AppTag(status,
+                          bg: AppColors.background, fg: AppColors.textDark),
+                    ]),
+                    const SizedBox(height: 6),
+                    if (orderId.isNotEmpty)
+                      Text('Pedido: $orderId',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textDark)),
+                    Text('Cliente: $clientId',
+                        style: const TextStyle(
+                            fontSize: 11, color: AppColors.textLight)),
+                    if ('${d['notes'] ?? ''}'.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text('${d['notes']}',
+                            style: const TextStyle(
+                                fontSize: 12, color: AppColors.textMedium)),
+                      ),
+                    if (open && id.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Row(children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () =>
+                                  FS.updateDisputeStatus(id, 'reviewing'),
+                              child: const Text('Analisar',
+                                  style: TextStyle(fontSize: 12)),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: () =>
+                                  FS.updateDisputeStatus(id, 'resolved'),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.secondary),
+                              child: const Text('Resolver',
+                                  style: TextStyle(fontSize: 12)),
+                            ),
+                          ),
+                        ]),
+                      ),
+                  ],
+                ),
+              );
+            },
+          );
+        },
+      );
+}
+
 class _ReportsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) => StreamBuilder<List<ReportModel>>(

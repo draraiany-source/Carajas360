@@ -110,6 +110,7 @@ abstract class Routes {
   static const highlightsBuy = '/highlights-buy';
   static const disputeHelp = '/dispute-help';
   static const assistedRequest = '/assisted-request';
+  static const appointments = '/appointments';
 }
 
 class ServiceCategory {
