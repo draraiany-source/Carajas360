@@ -79,12 +79,20 @@ class _MyOrdersState extends State<MyOrdersScreen> {
   String? _selectedId;
 
   /// Stream único (filtros são locais): contagens vêm da lista completa.
-  late final Stream<List<OrderModel>> _orders =
+  late Stream<List<OrderModel>> _orders =
       FS.orderHistoryStream().asBroadcastStream();
+  int _streamGen = 0;
 
   /// Profissionais dos pedidos (nome/foto), carregados uma vez por id.
   final Map<String, ProviderModel?> _providers = {};
   final Set<String> _requested = {};
+
+  void _retryOrders() {
+    setState(() {
+      _streamGen++;
+      _orders = FS.orderHistoryStream().asBroadcastStream();
+    });
+  }
 
   void _ensureProviders(List<OrderModel> all) {
     for (final o in all) {
@@ -146,6 +154,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
       body: SafeArea(
         bottom: false,
         child: StreamBuilder<List<OrderModel>>(
+          key: ValueKey(_streamGen),
           stream: _orders,
           builder: (context, snap) {
             if (snap.connectionState == ConnectionState.waiting &&
@@ -153,10 +162,12 @@ class _MyOrdersState extends State<MyOrdersScreen> {
               return const Center(child: CircularProgressIndicator());
             }
             if (snap.hasError && !snap.hasData) {
-              return const EmptyState(
+              return EmptyState(
                   emoji: '⚠️',
                   title: 'Falha ao carregar pedidos',
-                  subtitle: 'Verifique a conexão e tente novamente.');
+                  subtitle: 'Verifique a conexão e tente novamente.',
+                  actionLabel: 'Tentar novamente',
+                  onAction: _retryOrders);
             }
             final all = snap.data ?? const <OrderModel>[];
             _ensureProviders(all);

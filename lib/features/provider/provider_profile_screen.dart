@@ -117,6 +117,15 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen> {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
               }
+              if (snap.hasError) {
+                return EmptyState(
+                  emoji: '⚠️',
+                  title: 'Falha ao carregar perfil',
+                  subtitle: 'Verifique a conexão e tente novamente.',
+                  actionLabel: 'Voltar',
+                  onAction: () => AppNav.safeBack(context),
+                );
+              }
               return _NotFound(onBack: () => AppNav.safeBack(context));
             }
             final demo = _isDemo(p);

@@ -289,10 +289,24 @@ class Carajas360App extends StatelessWidget {
                     title: 'Meus pedidos', child: MyOrdersScreen()));
               case Routes.requestService:
                 final a = settings.arguments as Map<String, dynamic>?;
+                final providerId =
+                    (a?['providerId'] ?? '').toString().trim();
+                if (providerId.isEmpty || providerId == 'demo') {
+                  return _route(RequireAuth(
+                    title: 'Solicitar serviço',
+                    child: _MissingArgsScreen(
+                      title: 'Profissional não informado',
+                      message:
+                          'Escolha um profissional em Explorar ou no perfil para solicitar o orçamento.',
+                      fallbackRoute: Routes.search,
+                      fallbackLabel: 'Ir para Explorar',
+                    ),
+                  ));
+                }
                 return _route(RequireAuth(
                   title: 'Solicitar serviço',
                   child: QuoteRequestFlowScreen(
-                    providerId: a?['providerId'] ?? '',
+                    providerId: providerId,
                     providerName: a?['providerName'] ?? 'Profissional',
                     category: a?['category'] ?? '',
                     initialDescription: a?['description'] as String?,
@@ -304,8 +318,19 @@ class Carajas360App extends StatelessWidget {
                 ));
               case Routes.providerProfile:
                 final a = settings.arguments as Map<String, dynamic>?;
+                final providerId =
+                    (a?['providerId'] ?? '').toString().trim();
+                if (providerId.isEmpty) {
+                  return _route(_MissingArgsScreen(
+                    title: 'Perfil não encontrado',
+                    message:
+                        'Abra o perfil a partir da busca ou da lista de profissionais.',
+                    fallbackRoute: Routes.search,
+                    fallbackLabel: 'Ir para Explorar',
+                  ));
+                }
                 return _route(ProviderProfileScreen(
-                  providerId: a?['providerId'] as String? ?? '',
+                  providerId: providerId,
                   initial: a?['provider'] as ProviderModel?,
                 ));
               case Routes.providerHome:

@@ -19,6 +19,15 @@ class ChatInboxScreen extends StatefulWidget {
 
 class _ChatInboxScreenState extends State<ChatInboxScreen> {
   String _q = '';
+  int _streamGen = 0;
+  late Stream<List<ChatRoomPreview>> _rooms = FS.chatRoomsStream();
+
+  void _retryRooms() {
+    setState(() {
+      _streamGen++;
+      _rooms = FS.chatRoomsStream();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -125,16 +134,19 @@ class _ChatInboxScreenState extends State<ChatInboxScreen> {
       );
     }
     return StreamBuilder<List<ChatRoomPreview>>(
-      stream: FS.chatRoomsStream(),
+      key: ValueKey(_streamGen),
+      stream: _rooms,
       builder: (_, snap) {
         if (snap.connectionState == ConnectionState.waiting && !snap.hasData) {
           return const Center(child: CircularProgressIndicator());
         }
         if (snap.hasError) {
-          return const EmptyState(
+          return EmptyState(
             emoji: '⚠️',
             title: 'Falha ao carregar conversas',
             subtitle: 'Verifique a conexão e tente novamente.',
+            actionLabel: 'Tentar novamente',
+            onAction: _retryRooms,
           );
         }
         var rooms = snap.data ?? [];

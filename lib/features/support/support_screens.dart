@@ -6,7 +6,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/constants/app_assets.dart';
-import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -207,84 +206,42 @@ class _CouponsState extends State<CouponsScreen> {
   CouponModel? _found;
   String? _err;
 
-  static final _demo = [
-    CouponModel(
-        id: '1',
-        code: 'PROMO30',
-        description: '30% OFF em qualquer serviço',
-        discount: 30,
-        isPercentage: true,
-        minValue: 50,
-        expiresAt: DateTime.now().add(const Duration(days: 7))),
-    CouponModel(
-        id: '2',
-        code: 'FRETE0',
-        description: 'Frete grátis no Mercado',
-        discount: 15,
-        isPercentage: false,
-        minValue: 30,
-        expiresAt: DateTime.now().add(const Duration(days: 3))),
-    CouponModel(
-        id: '3',
-        code: 'SAUDE20',
-        description: '20% OFF em consultas',
-        discount: 20,
-        isPercentage: true,
-        minValue: 100,
-        expiresAt: DateTime.now().add(const Duration(days: 14)),
-        category: 'health'),
-    CouponModel(
-        id: '4',
-        code: 'WELCOME50',
-        description: 'R\$ 50 no 1º pedido',
-        discount: 50,
-        isPercentage: false,
-        minValue: 80,
-        expiresAt: DateTime.now().add(const Duration(days: 30))),
-  ];
-
   Future<void> _check() async {
     final code = _ctrl.text.trim().toUpperCase();
-    if (code.isEmpty) return;
+    if (code.isEmpty) {
+      snack(context, 'Digite o código do cupom.', bg: AppColors.warning);
+      return;
+    }
     setState(() {
       _checking = true;
       _found = null;
       _err = null;
     });
-    final coupon = await FS.validateCoupon(code);
-    if (!context.mounted) return;
-    if (coupon != null) {
-      setState(() {
-        _found = coupon;
-        _checking = false;
-      });
-      snack(context, '🎉 Cupom válido! ${coupon.label}',
-          bg: AppColors.secondary);
-    } else {
-      CouponModel? demo;
-      if (DemoData.allow) {
-        demo = _demo.firstWhere((c) => c.code == code,
-            orElse: () => CouponModel(
-                id: '',
-                code: '',
-                description: '',
-                discount: 0,
-                expiresAt: DateTime.now().subtract(const Duration(days: 1))));
-      }
-      if (demo != null && demo.code.isNotEmpty && demo.isValid) {
+    try {
+      final coupon = await FS.validateCoupon(code);
+      if (!mounted) return;
+      if (coupon != null && coupon.isValid) {
         setState(() {
-          _found = demo;
+          _found = coupon;
           _checking = false;
         });
-        snack(context, '🎉 Cupom válido! ${demo.label}',
+        snack(context, 'Cupom válido! ${coupon.label}',
             bg: AppColors.secondary);
       } else {
         setState(() {
           _err = 'Cupom inválido ou expirado';
           _checking = false;
         });
-        snack(context, '❌ Cupom inválido', bg: AppColors.error);
+        snack(context, 'Cupom inválido ou expirado', bg: AppColors.error);
       }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _err = 'Não foi possível validar agora. Tente novamente.';
+        _checking = false;
+      });
+      snack(context, 'Falha ao validar cupom. Verifique a conexão.',
+          bg: AppColors.error);
     }
   }
 
@@ -362,74 +319,14 @@ class _CouponsState extends State<CouponsScreen> {
                 ],
               ])),
           const SizedBox(height: 20),
-          const SecHeader(title: '🎁 Cupons disponíveis'),
+          const SecHeader(title: 'Cupons'),
           const SizedBox(height: 12),
-          if (DemoData.allow)
-            for (final c in _demo) _CouponCard(coupon: c)
-          else
-            const EmptyState(
-                emoji: '🎟️',
-                title: 'Sem cupons listados',
-                subtitle: 'Digite um código acima para validar'),
+          const EmptyState(
+              emoji: '🎟️',
+              title: 'Valide pelo código',
+              subtitle:
+                  'Digite um cupom real acima. Não exibimos cupons fictícios.'),
         ]),
-      );
-}
-
-class _CouponCard extends StatelessWidget {
-  final CouponModel coupon;
-  const _CouponCard({required this.coupon});
-  @override
-  Widget build(BuildContext context) => Container(
-        margin: const EdgeInsets.only(bottom: 12),
-        decoration: AppDecorations.card(r: 18),
-        child: Padding(
-            padding: const EdgeInsets.all(18),
-            child: Row(children: [
-              Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration:
-                      AppDecorations.gradient(AppGradients.primary, r: 14),
-                  child: Text(coupon.label,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w900,
-                          fontSize: 18))),
-              const SizedBox(width: 14),
-              Expanded(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                    Text(coupon.code,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w900,
-                            fontSize: 16,
-                            color: AppColors.primary,
-                            letterSpacing: 1)),
-                    const SizedBox(height: 4),
-                    Text(coupon.description,
-                        style: const TextStyle(
-                            fontSize: 12,
-                            color: AppColors.textMedium,
-                            height: 1.4)),
-                    if (coupon.minValue != null)
-                      Text('Mín. ${PaySvc.fmt(coupon.minValue!)}',
-                          style: const TextStyle(
-                              fontSize: 11, color: AppColors.textLight)),
-                    const SizedBox(height: 8),
-                    Text('Válido até ${fmtDate(coupon.expiresAt)}',
-                        style: TextStyle(
-                            fontSize: 11,
-                            color: coupon.isValid
-                                ? AppColors.secondary
-                                : AppColors.error,
-                            fontWeight: FontWeight.w600)),
-                  ])),
-              GestureDetector(
-                  onTap: () => snack(context, '✅ Código copiado!',
-                      bg: AppColors.secondary),
-                  child: const Icon(Icons.content_copy_rounded,
-                      color: AppColors.primary, size: 20)),
-            ])),
       );
 }
 

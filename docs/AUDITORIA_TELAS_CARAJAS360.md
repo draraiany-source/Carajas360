@@ -219,8 +219,9 @@ HTTP: `mercadoPagoWebhook`.
 - Homolog Web com Explorar + profissionais reais e UI da IA **já comprovados**; turnos LLM **não**.  
 
 **FASE 2 concluída** (`e3ca8b4`) — ver `docs/RELATORIO_FASE2_ORGANIZAR_TELAS.md`.  
-**Próximo passo (após GO):** FASE 3 — funcionamento tela a tela (fluxo cliente P0).
+**FASE 3 (fluxo cliente P0) concluída** — ver `docs/RELATORIO_FASE3_TELA_POR_TELA.md`.  
+**Próximo passo (após GO):** FASE 4 — fluxo E2E do cliente com status no Firestore.
 
 ---
 
-*Arquivo gerado na FASE 1 do Prompt Mestre de Finalização. Evidências: `docs/RELATORIO_CORRECAO_PROFISSIONAIS_E_IA.md`, `docs/RELATORIO_FASE2_ORGANIZAR_TELAS.md`, `docs/evidence/homolog_ia/`.*
+*Arquivo gerado na FASE 1 do Prompt Mestre de Finalização. Evidências: `docs/RELATORIO_CORRECAO_PROFISSIONAIS_E_IA.md`, `docs/RELATORIO_FASE2_ORGANIZAR_TELAS.md`, `docs/RELATORIO_FASE3_TELA_POR_TELA.md`, `docs/evidence/homolog_ia/`.*

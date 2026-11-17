@@ -383,38 +383,44 @@ class _ServiceRequestFlowScreenState extends State<ServiceRequestFlowScreen> {
     return true;
   }
 
-  void _runMatching() {
+  Future<void> _runMatching() async {
     if (!_validate()) return;
-    final pool = HomologCatalog.enabled
-        ? HomologCatalog.providers()
-        : <ProviderModel>[];
-    // Em produção o stream FS alimenta; em homolog usamos seed.
-    final ranked = ServiceMatching.rank(
-      candidates: pool.isEmpty && HomologCatalog.enabled
-          ? HomologCatalog.providers(category: widget.service.categoryId)
-          : (pool.isEmpty
-              ? HomologCatalog.providers(category: widget.service.categoryId)
-              : pool),
-      categoryId: widget.service.categoryId,
-      city: _city.text.trim(),
-      modality: _answers['modality'],
-      answers: _answers,
-    );
-    // Se pool geral veio sem filtro, re-rank com providers homolog filtrados
-    final matched = ranked.isNotEmpty
-        ? ranked
-        : ServiceMatching.rank(
-            candidates:
-                HomologCatalog.providers(category: widget.service.categoryId),
-            categoryId: widget.service.categoryId,
-            city: _city.text.trim(),
-            modality: _answers['modality'],
-            answers: _answers,
-          );
-    setState(() {
-      _matches = matched;
-      _showMatches = true;
-    });
+    setState(() => _submitting = true);
+    try {
+      List<ProviderModel> pool;
+      if (HomologCatalog.enabled) {
+        pool = HomologCatalog.providers(category: widget.service.categoryId);
+        if (pool.isEmpty) pool = HomologCatalog.providers();
+      } else {
+        // Dados reais do Firestore — nunca seed de demonstração.
+        pool = await FS.providersStream(
+          category: widget.service.categoryId,
+          limit: 80,
+        ).first;
+        if (pool.isEmpty) {
+          pool = await FS.providersStream(limit: 80).first;
+        }
+      }
+      final matched = ServiceMatching.rank(
+        candidates: pool,
+        categoryId: widget.service.categoryId,
+        city: _city.text.trim(),
+        modality: _answers['modality'],
+        answers: _answers,
+      );
+      if (!mounted) return;
+      setState(() {
+        _matches = matched;
+        _showMatches = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      snack(context,
+          'Não foi possível carregar profissionais. Verifique a conexão.',
+          bg: AppColors.error);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   Future<void> _submitQuoteRequest() async {
@@ -561,10 +567,18 @@ class _ServiceRequestFlowScreenState extends State<ServiceRequestFlowScreen> {
               width: double.infinity,
               height: 48,
               child: ElevatedButton.icon(
-                onPressed: _runMatching,
-                icon: const Icon(Icons.search_rounded),
-                label: const Text('Ver profissionais compatíveis',
-                    style: TextStyle(fontWeight: FontWeight.w800)),
+                onPressed: _submitting ? null : _runMatching,
+                icon: _submitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.search_rounded),
+                label: Text(
+                    _submitting
+                        ? 'Buscando…'
+                        : 'Ver profissionais compatíveis',
+                    style: const TextStyle(fontWeight: FontWeight.w800)),
               ),
             ),
             const SizedBox(height: 10),

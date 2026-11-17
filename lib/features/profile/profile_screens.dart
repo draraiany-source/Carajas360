@@ -13,7 +13,6 @@ import '../../core/constants/app_assets.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
-import '../../core/utils/demo_data.dart';
 import '../../core/utils/app_error.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
@@ -1124,41 +1123,6 @@ class ThemeSettingsScreen extends StatelessWidget {
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 
-  static final _demo = [
-    NotifModel(
-        id: '1',
-        userId: 'u',
-        title: '🔧 Profissional confirmado!',
-        body: 'Carlos Silva aceitou seu pedido de serviço.',
-        type: 'order',
-        read: false,
-        createdAt: DateTime.now().subtract(const Duration(minutes: 5))),
-    NotifModel(
-        id: '2',
-        userId: 'u',
-        title: '💳 Pagamento confirmado',
-        body: 'PIX de R\$ 120,00 recebido com sucesso.',
-        type: 'payment',
-        read: false,
-        createdAt: DateTime.now().subtract(const Duration(hours: 1))),
-    NotifModel(
-        id: '3',
-        userId: 'u',
-        title: '💬 Nova mensagem',
-        body: 'Carlos: "Estarei aí em 30 minutos!"',
-        type: 'chat',
-        read: true,
-        createdAt: DateTime.now().subtract(const Duration(hours: 2))),
-    NotifModel(
-        id: '4',
-        userId: 'u',
-        title: '⭐ Avalie seu serviço',
-        body: 'Como foi o serviço de Ana Souza?',
-        type: 'review',
-        read: true,
-        createdAt: DateTime.now().subtract(const Duration(days: 1))),
-  ];
-
   @override
   Widget build(BuildContext context) {
     final uid = AuthService.uid;
@@ -1185,12 +1149,13 @@ class NotificationsScreen extends StatelessWidget {
                 title: 'Falha ao carregar',
                 subtitle: 'Verifique a conexão e tente novamente.');
           }
-          final notifs = DemoData.orEmpty(snap.data, _demo);
-          if (notifs.isEmpty)
+          final notifs = snap.data ?? const <NotifModel>[];
+          if (notifs.isEmpty) {
             return const EmptyState(
                 emoji: '🔔',
                 title: 'Sem notificações',
                 subtitle: 'Você está em dia!');
+          }
           return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: notifs.length,
@@ -1413,23 +1378,46 @@ class _ReviewState extends State<ReviewScreen> {
       );
 
   Future<void> _submit() async {
+    if (_loading) return;
+    if (!AuthService.isAuth) {
+      snack(context, 'Faça login para enviar a avaliação.',
+          bg: AppColors.warning);
+      return;
+    }
+    if (widget.orderId.trim().isEmpty || widget.orderId == 'demo') {
+      snack(context, 'Pedido inválido para avaliação.', bg: AppColors.error);
+      return;
+    }
+    if (_stars < 1 || _stars > 5) {
+      snack(context, 'Escolha uma nota de 1 a 5 estrelas.',
+          bg: AppColors.warning);
+      return;
+    }
     setState(() => _loading = true);
-    final user = await FS.getUser();
-    final review = ReviewModel(
-        id: '',
-        orderId: widget.orderId,
-        clientId: AuthService.uid ?? '',
-        clientName: user?.name ?? 'Anônimo',
-        clientPhoto: user?.photoUrl,
-        providerId: widget.providerId,
-        stars: _stars,
-        comment: _ctrl.text,
-        tags: _tags.toList(),
-        createdAt: DateTime.now());
-    await FS.saveReview(review);
-    if (mounted) {
+    try {
+      final user = await FS.getUser();
+      final review = ReviewModel(
+          id: '',
+          orderId: widget.orderId,
+          clientId: AuthService.uid ?? '',
+          clientName: user?.name ?? 'Anônimo',
+          clientPhoto: user?.photoUrl,
+          providerId: widget.providerId,
+          stars: _stars,
+          comment: _ctrl.text.trim(),
+          tags: _tags.toList(),
+          createdAt: DateTime.now());
+      await FS.saveReview(review);
+      if (!mounted) return;
       Navigator.pop(context);
-      snack(context, '✅ Avaliação enviada! Obrigado!', bg: AppColors.secondary);
+      snack(context, 'Avaliação enviada! Obrigado!', bg: AppColors.secondary);
+    } catch (_) {
+      if (!mounted) return;
+      snack(context,
+          'Não foi possível enviar a avaliação. Verifique a conexão e tente novamente.',
+          bg: AppColors.error);
+    } finally {
+      if (mounted) setState(() => _loading = false);
     }
   }
 

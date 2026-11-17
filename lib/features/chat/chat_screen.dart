@@ -546,6 +546,17 @@ class _ChatState extends State<ChatScreen> {
               child: StreamBuilder<List<MessageModel>>(
             stream: FS.messagesStream(widget.roomId),
             builder: (_, snap) {
+              if (snap.connectionState == ConnectionState.waiting &&
+                  !snap.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snap.hasError && !snap.hasData) {
+                return const EmptyState(
+                  emoji: '⚠️',
+                  title: 'Falha ao carregar mensagens',
+                  subtitle: 'Verifique a conexão e volte a abrir a conversa.',
+                );
+              }
               // Só mensagens reais do backend — nada de conversa simulada.
               final allMsgs = snap.data ?? const <MessageModel>[];
               if (snap.hasData) FS.markMessagesRead(widget.roomId);
