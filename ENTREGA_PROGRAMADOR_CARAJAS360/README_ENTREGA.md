@@ -3,11 +3,14 @@
 | Campo | Valor |
 |--------|--------|
 | Versão app | **1.0.0+403** |
-| HEAD auditoria F15 | **e07b633** |
+| HEAD auditoria F15 (código) | **e07b633** |
+| Commit pacote docs F15 | **87c5f37** |
 | Pacote docs F14 | **82dc012** |
 | Branch | `feat/modernizacao-visual` |
 | Firebase | `carajas360-a17c5` |
 | Homolog Web | https://carajas360-a17c5--homolog-88u39zqx.web.app |
+| ZIP | `ENTREGA_PROGRAMADOR_CARAJAS360_F15_e07b633.zip` |
+| SHA256 ZIP | `3CC0CA0DFA04AAF3C9D58A9A5975137AFD799BCCDDCE07D925193F7468A75B5C` |
 | Estado publicação | **NÃO APTO** (Fases 12–15) |
 | Entrega ao programador (veredito A) | **SIM** |
 
@@ -41,13 +44,14 @@
 
 ```bash
 git fetch
-git checkout e07b633
-# ou branch feat/modernizacao-visual (HEAD da auditoria F15)
+git checkout feat/modernizacao-visual
+# baseline de código auditado na F15: e07b633
+# pacote de documentação F15: 87c5f37 (ou tip da branch)
 flutter pub get
 cd functions && npm test && cd ..
 ```
 
-O ZIP deste pacote contém **documentação**. O código completo fica no Git no commit acima (respeitando tamanho e segurança — sem keystores/tokens).
+O ZIP `ENTREGA_PROGRAMADOR_CARAJAS360_F15_e07b633.zip` contém **documentação**. O código completo fica no Git (respeitando tamanho e segurança — sem keystores/tokens).
 
 ### Relatórios de origem no repo
 
