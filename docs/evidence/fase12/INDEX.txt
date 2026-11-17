@@ -1,0 +1,15 @@
+﻿FASE12 evidence index
+date: 2026-11-17
+commit: 9880c6f
+version: 1.0.0+402
+verdict: NAO APTO para publicacao
+
+functions_test: 163/163 pass -> docs/evidence/fase12_functions_test.txt
+flutter_test: +190 ~1 -12 -> docs/evidence/fase12_flutter_test.txt
+homolog_http: 200
+live_http: 404
+cloud_functions_api: 403 disabled
+homolog_explorar: 3 profissionais (browser 2026-11-17)
+homolog_ia_ui: docs/evidence/fase12/homolog_ia_ui.png
+aab_this_branch: not produced
+ipa: not produced
