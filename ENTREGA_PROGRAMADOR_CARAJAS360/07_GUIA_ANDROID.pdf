@@ -1,0 +1,122 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 691 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(07 GUIA ANDROID) Tj
+T*
+(applicationId br.com.carajas360) Tj
+T*
+(versionName/Code: ver pubspec 1.0.0+403) Tj
+T*
+() Tj
+T*
+(AMBIENTE) Tj
+T*
+(Flutter SDK, Android SDK, JDK 17) Tj
+T*
+(Espaco livre disco: >10 GB recomendado) Tj
+T*
+() Tj
+T*
+(GRADLE TRAVADO / DAEMON) Tj
+T*
+(1. Fechar Java/Gradle orphans) Tj
+T*
+(2. flutter clean) Tj
+T*
+(3. Remover android/.gradle se lock) Tj
+T*
+(4. Reabrir terminal; flutter pub get) Tj
+T*
+() Tj
+T*
+(APK TESTES INTERNOS) Tj
+T*
+(flutter build apk --debug) Tj
+T*
+(Saida tipica:) Tj
+T*
+(build/app/outputs/flutter-apk/) Tj
+T*
+(  app-debug.apk) Tj
+T*
+() Tj
+T*
+(FASE 13: build falhou \(disco/daemon\).) Tj
+T*
+(Repetir apos liberar C:) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 797 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(ASSINATURA RELEASE) Tj
+T*
+(1. keytool -genkey ... upload-keystore.jks) Tj
+T*
+(2. Copiar android/key.properties.example) Tj
+T*
+(   -> android/key.properties \(NAO git\)) Tj
+T*
+(3. Preencher storeFile/passwords/alias) Tj
+T*
+() Tj
+T*
+(AAB) Tj
+T*
+(flutter build appbundle --release) Tj
+T*
+(Arquivo:) Tj
+T*
+(build/app/outputs/bundle/release/) Tj
+T*
+(  app-release.aab) Tj
+T*
+(Registrar SHA256:) Tj
+T*
+(Get-FileHash app-release.aab -Algorithm SHA256) Tj
+T*
+() Tj
+T*
+(PLAY STORE) Tj
+T*
+(Play Console -> app br.com.carajas360) Tj
+T*
+(Faixa interna/fechada antes de prod) Tj
+T*
+(Politica: privacidade/termos ja em hosting/) Tj
+T*
+() Tj
+T*
+(google-services.json: projeto real) Tj
+T*
+(\(cliente Firebase; nao e secret privado) Tj
+T*
+(de servidor ? ainda assim nao vazar\)) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000001049 00000 n 
+0000001173 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+2019
+%%EOF

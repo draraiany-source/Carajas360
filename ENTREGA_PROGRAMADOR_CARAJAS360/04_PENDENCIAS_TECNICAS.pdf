@@ -1,0 +1,98 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 617 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(04 PENDENCIAS TECNICAS) Tj
+T*
+(Base FASE 12+13 | 686d16c) Tj
+T*
+() Tj
+T*
+(P0 BLOQUEADORES PUBLICACAO) Tj
+T*
+(1. Blaze + Cloud Functions API) Tj
+T*
+(2. Deploy aiAssistant \(+ assist\)) Tj
+T*
+(3. Hosting live \(404 hoje\) ? so com GO) Tj
+T*
+(4. MP sandbox E2E comprovado) Tj
+T*
+(5. AAB assinado do HEAD) Tj
+T*
+(6. IPA/TestFlight \(macOS\)) Tj
+T*
+(7. Disco C: estabilizar builds) Tj
+T*
+() Tj
+T*
+(P1) Tj
+T*
+(- E2E cliente autenticado) Tj
+T*
+(- E2E profissional + aprovacao) Tj
+T*
+(- OAuth dominios homolog) Tj
+T*
+(- Refunds admin / fila saques) Tj
+T*
+(- flutter test suite completa CI) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 513 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PROGRAMADOR DEVE) Tj
+T*
+(- Clonar no commit 686d16c) Tj
+T*
+(- Rodar flutter test / analyze) Tj
+T*
+(- Liberar disco; build APK debug) Tj
+T*
+(- Apos Blaze: deploy Functions) Tj
+T*
+(- Evidenciar IA e pagamentos teste) Tj
+T*
+(- Gerar AAB+SHA256 com keystore) Tj
+T*
+(- Homologar Web channel + live c/ GO) Tj
+T*
+() Tj
+T*
+(NAO FAZER SEM GO) Tj
+T*
+(- Alterar billing Firebase) Tj
+T*
+(- PAYMENTS_ENABLED producao) Tj
+T*
+(- firebase deploy hosting live) Tj
+T*
+(- Publicar Play/App Store) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000000975 00000 n 
+0000001099 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1661
+%%EOF

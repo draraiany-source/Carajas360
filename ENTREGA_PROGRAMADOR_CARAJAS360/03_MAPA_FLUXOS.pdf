@@ -1,0 +1,148 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 678 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(03 MAPA DE FLUXOS) Tj
+T*
+(686d16c | ASCII \(Mermaid em MD fonte\)) Tj
+T*
+() Tj
+T*
+(CLIENTE) Tj
+T*
+(Home -> Explorar -> Perfil pro) Tj
+T*
+(  -> Pedir orcamento \(/request-service\)) Tj
+T*
+(  -> createOrder -> Chat e/ou Meus pedidos) Tj
+T*
+(  -> \(opcional\) Resolve: publicar) Tj
+T*
+(  -> aceitar proposta \(acceptResolveProposal\)) Tj
+T*
+(  -> Meus pedidos -> Pagar \(CF\)) Tj
+T*
+(  -> Execucao/GPS -> Confirmar) Tj
+T*
+(  -> Avaliar \(/reviews\)) Tj
+T*
+() Tj
+T*
+(Botoes tipicos Explorar:) Tj
+T*
+(Ver perfil -> /provider-profile) Tj
+T*
+(Pedir orcamento -> /request-service) Tj
+T*
+(Favoritar \(guest\) -> /login) Tj
+T*
+(Encontrar com IA -> /ai) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 735 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PROFISSIONAL) Tj
+T*
+(Cadastro/register asProvider) Tj
+T*
+(  -> /provider-onboarding \(docs\)) Tj
+T*
+(  -> Admin aprova) Tj
+T*
+(  -> /provider-home online) Tj
+T*
+(  -> pedido pendente -> Aceitar+preco) Tj
+T*
+(  -> em andamento -> concluir) Tj
+T*
+(  -> Resolve oportunidades -> proposta) Tj
+T*
+(  -> recebimento \(escrow/payout BX\)) Tj
+T*
+() Tj
+T*
+(ADMIN) Tj
+T*
+(/admin AdminGate) Tj
+T*
+(Abas: Usuarios, Validacao, Categorias,) Tj
+T*
+(Financeiro, Marketing, Atendimento,) Tj
+T*
+(Denuncias, Disputas, Pedidos,) Tj
+T*
+(Auditoria, Config) Tj
+T*
+() Tj
+T*
+(CONTRATACAO / ORCAMENTO) Tj
+T*
+(Direto: QuoteRequestFlowScreen) Tj
+T*
+(Aberto: Resolve + propostas) Tj
+T*
+(Matching marketplace: ServiceRequestFlow) Tj
+ET
+endstream
+endobj
+8 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 9 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+9 0 obj<< /Length 474 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PAGAMENTOS \(codigo\)) Tj
+T*
+(Meus pedidos canPay -> sheet) Tj
+T*
+(  Carteira: payOrderWithWallet CF) Tj
+T*
+(  PIX: generatePix / checkPayment) Tj
+T*
+(  Cartao: processCardPayment) Tj
+T*
+(Nunca marcar pago so no frontend) Tj
+T*
+() Tj
+T*
+(IA) Tj
+T*
+(FAB/CTA -> /ai -> AiSvc.askTurn) Tj
+T*
+(  -> callable aiAssistant) Tj
+T*
+(  Auth obrigatoria no envio) Tj
+T*
+(  Erro honesto se Function ausente) Tj
+T*
+(  Atalhos: busca, orcamento, status) Tj
+ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000123 00000 n 
+0000000191 00000 n 
+0000000315 00000 n 
+0000001042 00000 n 
+0000001166 00000 n 
+0000001950 00000 n 
+0000002074 00000 n 
+trailer<< /Size 10 /Root 1 0 R >>
+startxref
+2597
+%%EOF

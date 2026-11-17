@@ -1,0 +1,98 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 684 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(08 GUIA IOS / TESTFLIGHT) Tj
+T*
+(Bundle ID: br.com.carajas360) Tj
+T*
+(REQUER macOS + Xcode + Apple Developer) Tj
+T*
+(Windows: IPA NAO geravel aqui) Tj
+T*
+() Tj
+T*
+(SETUP) Tj
+T*
+(cd ios && pod install && cd ..) Tj
+T*
+(Abrir ios/Runner.xcworkspace) Tj
+T*
+(Team + Signing Automatic) Tj
+T*
+(GoogleService-Info.plist do Console) Tj
+T*
+() Tj
+T*
+(PERMISSOES \(Info.plist\)) Tj
+T*
+(Camera, Localizacao, etc. ja descritas) Tj
+T*
+() Tj
+T*
+(BUILD) Tj
+T*
+(flutter build ipa --release) Tj
+T*
+(ou Product > Archive no Xcode) Tj
+T*
+() Tj
+T*
+(TESTFLIGHT) Tj
+T*
+(Distribute App -> TestFlight) Tj
+T*
+(Preencher compliance export) Tj
+T*
+(Convidar testadores internos) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 338 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(APP STORE) Tj
+T*
+(Screenshots, privacy nutrition labels,) Tj
+T*
+(conta desarrollador paga ativa) Tj
+T*
+(Revisao Apple: conta demo se login) Tj
+T*
+() Tj
+T*
+(Doc detalhado:) Tj
+T*
+(docs/IOS_BUILD_TESTFLIGHT.md) Tj
+T*
+(docs/CARAJAS360_IOS_CHECKLIST.md) Tj
+T*
+() Tj
+T*
+(NAO afirmar IPA gerado sem arquivo.) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000001042 00000 n 
+0000001166 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1553
+%%EOF

@@ -1,0 +1,152 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 648 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(02 INVENTARIO DE TELAS E ROTAS) Tj
+T*
+(Commit 686d16c | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(CLASSIFICACAO:) Tj
+T*
+(IT = implementada e testada) Tj
+T*
+(IS = implementada sem teste completo) Tj
+T*
+(PI = parcialmente implementada) Tj
+T*
+(PE = pendente) Tj
+T*
+(BX = bloqueada por config externa) Tj
+T*
+() Tj
+T*
+(MAINNAV \(abas\)) Tj
+T*
+(Inicio \(Home\) .............. IS/PI) Tj
+T*
+(Explorar \(/search\) ......... IT \(homolog carga\)) Tj
+T*
+(Pedidos \(/my-orders\) ....... IS \(pay BX\)) Tj
+T*
+(Mensagens \(inbox\) .......... IS) Tj
+T*
+(Perfil ..................... IS) Tj
+T*
+(FAB Carajas IA ............. IS UI / BX runtime) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 888 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(ROTAS PRINCIPAIS) Tj
+T*
+() Tj
+T*
+(/onboarding, /login, /register .... IS) Tj
+T*
+(/provider-profile ................. IS) Tj
+T*
+(/request-service .................. IS) Tj
+T*
+(/provider-home / onboarding ....... IS) Tj
+T*
+(/resolve, /resolve-detail ......... IS) Tj
+T*
+(/my-resolve, oportunidades ........ IS/PI) Tj
+T*
+(/wallet, PIX, cartao .............. PI/BX) Tj
+T*
+(/ai ................................ IS UI / BX CF) Tj
+T*
+(/admin \(+ Disputas\) ............... IS) Tj
+T*
+(/appointments, /health ............ IS/PI) Tj
+T*
+(/favorites, /support, /reviews .... IS) Tj
+T*
+(/gps, /coupons, marketplace ....... PI) Tj
+T*
+(/service-request-flow ............. IS \(F2\)) Tj
+T*
+(/opportunity-detail ............... IS \(F2\)) Tj
+T*
+() Tj
+T*
+(Fonte detalhada:) Tj
+T*
+(docs/AUDITORIA_TELAS_CARAJAS360.md) Tj
+T*
+(\(atualizar notas F2/F3: demo IDs removidos\)) Tj
+ET
+endstream
+endobj
+8 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 9 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+9 0 obj<< /Length 587 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(MODULOS lib/features/) Tj
+T*
+() Tj
+T*
+(admin, ai_assistant, auth, chat,) Tj
+T*
+(company, gps, health, home,) Tj
+T*
+(marketplace, monetization, orders,) Tj
+T*
+(profile, provider, rental, resolve,) Tj
+T*
+(search, services, support, wallet) Tj
+T*
+() Tj
+T*
+(BACKEND) Tj
+T*
+(functions/ \(Node 20, us-central1\)) Tj
+T*
+(firestore.rules, storage.rules) Tj
+T*
+(indexes: firestore.indexes.json) Tj
+T*
+() Tj
+T*
+(DEPENDENCIAS CHAVE) Tj
+T*
+(Flutter 3.x, Firebase Auth/FS/Storage/) Tj
+T*
+(Messaging/Analytics/Crashlytics/) Tj
+T*
+(Cloud Functions, Maps, Geolocator) Tj
+ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000123 00000 n 
+0000000191 00000 n 
+0000000315 00000 n 
+0000001012 00000 n 
+0000001136 00000 n 
+0000002073 00000 n 
+0000002197 00000 n 
+trailer<< /Size 10 /Root 1 0 R >>
+startxref
+2833
+%%EOF

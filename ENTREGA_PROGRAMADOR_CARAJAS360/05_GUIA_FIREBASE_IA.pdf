@@ -1,0 +1,126 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 558 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(05 GUIA FIREBASE + CARAJAS IA) Tj
+T*
+(Projeto carajas360-a17c5) Tj
+T*
+() Tj
+T*
+(ESTADO ATUAL) Tj
+T*
+(Billing enabled: No \(F13\)) Tj
+T*
+(functions_list: HTTP 403) Tj
+T*
+(aiAssistant: codigo em functions/) Tj
+T*
+(  exports.aiAssistant ? NAO deployada) Tj
+T*
+() Tj
+T*
+(APIS A HABILITAR \(owner/console\)) Tj
+T*
+(- cloudfunctions.googleapis.com) Tj
+T*
+(- cloudbuild, artifactregistry) Tj
+T*
+(- \(opcional\) secretmanager) Tj
+T*
+() Tj
+T*
+(PLANO) Tj
+T*
+(Upgrade Blaze \(pay-as-you-go\)) Tj
+T*
+(NAO alterar sem autorizacao dona) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 895 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(DEPLOY \(apos Blaze + API\)) Tj
+T*
+() Tj
+T*
+(cd functions && npm test) Tj
+T*
+(firebase deploy --only \\) Tj
+T*
+(  functions:aiAssistant \\) Tj
+T*
+(  --project carajas360-a17c5) Tj
+T*
+() Tj
+T*
+(Grounded-only \(sem LLM\):) Tj
+T*
+(  sem ANTHROPIC_API_KEY / AI_ENABLED=false) Tj
+T*
+() Tj
+T*
+(LLM opcional:) Tj
+T*
+(  firebase functions:secrets:set \\) Tj
+T*
+(    ANTHROPIC_API_KEY) Tj
+T*
+(  BIND_ANTHROPIC_SECRET=true) Tj
+T*
+() Tj
+T*
+(SEGURANCA) Tj
+T*
+(- Chave NUNCA no app Flutter) Tj
+T*
+(- Callable exige Auth) Tj
+T*
+(- Admin/provider modes checados) Tj
+T*
+(- Nao inventa profissionais/precos) Tj
+T*
+() Tj
+T*
+(CUSTOS) Tj
+T*
+(Functions invocacoes + Anthropic tokens) Tj
+T*
+(Usar quota/rate limit ja no codigo) Tj
+T*
+() Tj
+T*
+(TESTES REAIS PENDENTES) Tj
+T*
+(Login -> /ai -> pergunta -> reply) Tj
+T*
+(+ cards de providers Firestore) Tj
+T*
+(Registrar screenshot/log) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000000916 00000 n 
+0000001040 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1984
+%%EOF

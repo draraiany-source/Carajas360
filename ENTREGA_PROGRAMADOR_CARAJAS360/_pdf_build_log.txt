@@ -1,0 +1,12 @@
+01_RELATORIO_EXECUTIVO.pdf: 2423 bytes, 2 pages
+02_INVENTARIO_TELAS.pdf: 3098 bytes, 3 pages
+03_MAPA_FLUXOS.pdf: 2862 bytes, 3 pages
+04_PENDENCIAS_TECNICAS.pdf: 1884 bytes, 2 pages
+05_GUIA_FIREBASE_IA.pdf: 2207 bytes, 2 pages
+06_GUIA_PAGAMENTOS.pdf: 2154 bytes, 2 pages
+07_GUIA_ANDROID.pdf: 2242 bytes, 2 pages
+08_GUIA_IOS.pdf: 1776 bytes, 2 pages
+09_GUIA_WEB.pdf: 1952 bytes, 2 pages
+10_CHECKLIST_PUBLICACAO.pdf: 1248 bytes, 1 pages
+11_ROTEIRO_TESTES.pdf: 1911 bytes, 2 pages
+12_CRITERIOS_ACEITE.pdf: 2105 bytes, 2 pages

@@ -1,0 +1,112 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 678 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(11 ROTEIRO DE TESTES OBRIGATORIOS) Tj
+T*
+() Tj
+T*
+(A. AUTOMATIZADOS) Tj
+T*
+(cd functions && npm test  \(163+\)) Tj
+T*
+(flutter analyze) Tj
+T*
+(flutter test) Tj
+T*
+() Tj
+T*
+(B. WEB HOMOLOG) Tj
+T*
+(Home carrega) Tj
+T*
+(Explorar lista profissionais) Tj
+T*
+(Perfil -> orcamento \(login\)) Tj
+T*
+(IA UI + erro/resposta Function) Tj
+T*
+() Tj
+T*
+(C. CLIENTE E2E) Tj
+T*
+(Cadastro -> busca -> perfil) Tj
+T*
+(-> orcamento -> proposta/aceite) Tj
+T*
+(-> pagamento teste -> concluir) Tj
+T*
+(-> avaliar) Tj
+T*
+() Tj
+T*
+(D. PROFISSIONAL E2E) Tj
+T*
+(Cadastro -> aprovacao admin) Tj
+T*
+(-> receber -> aceitar c/ preco) Tj
+T*
+(-> executar -> recebimento teste) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 479 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(E. PAGAMENTOS SANDBOX) Tj
+T*
+(PIX, cartao, webhook, refund) Tj
+T*
+(Ver 06_GUIA_PAGAMENTOS.pdf) Tj
+T*
+() Tj
+T*
+(F. SEGURANCA) Tj
+T*
+(Usuario A nao le pedido de B) Tj
+T*
+(AdminGate bloqueia nao-admin) Tj
+T*
+(Sem demo IDs em chat/review) Tj
+T*
+() Tj
+T*
+(G. MOBILE) Tj
+T*
+(APK debug instalavel) Tj
+T*
+(AAB upload faixa interna) Tj
+T*
+(iOS TestFlight \(Mac\)) Tj
+T*
+() Tj
+T*
+(Registrar PASS/FAIL/N-E com data) Tj
+T*
+(e commit. Sem evidencia = N-E.) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000001036 00000 n 
+0000001160 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1688
+%%EOF

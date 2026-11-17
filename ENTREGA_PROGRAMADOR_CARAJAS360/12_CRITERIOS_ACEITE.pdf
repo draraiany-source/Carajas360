@@ -1,0 +1,108 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 788 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(12 CRITERIOS DE ACEITE DO SERVICO) Tj
+T*
+(Objetivos para aceitar o programador) Tj
+T*
+(contratado. Todos devem ser MEDIVEIS.) Tj
+T*
+() Tj
+T*
+(ACEITE TECNICO) Tj
+T*
+(1. Repo no commit acordado + PRs) Tj
+T*
+(2. functions npm test 100% pass) Tj
+T*
+(3. flutter test sem falhas P0) Tj
+T*
+(   \(ou exclusoes justificadas\)) Tj
+T*
+(4. Homolog Web URL estavel 200) Tj
+T*
+(5. aiAssistant responde com Auth) Tj
+T*
+(   e providers reais \(evidencia\)) Tj
+T*
+(6. Fluxo cliente E2E filmado/log) Tj
+T*
+(7. Fluxo profissional E2E) Tj
+T*
+(8. Sandbox MP: 1 PIX + 1 cartao) Tj
+T*
+(   aprovados + webhook aplicado) Tj
+T*
+(9. AAB do mesmo commit + SHA256) Tj
+T*
+(10. APK debug entregue OU AAB) Tj
+T*
+(11. iOS: IPA/TestFlight OU) Tj
+T*
+(    documento de adiamento assinado) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 563 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(ACEITE PUBLICACAO \(separado\)) Tj
+T*
+(So apos GO da proprietaria:) Tj
+T*
+(- Live hosting 200) Tj
+T*
+(- Play internal/closed) Tj
+T*
+(- TestFlight externos) Tj
+T*
+(- PRODUCTION_PAYMENTS so se GO) Tj
+T*
+() Tj
+T*
+(REJEICAO AUTOMATICA) Tj
+T*
+(- App recriado do zero) Tj
+T*
+(- Dados ficticios mascarando erro) Tj
+T*
+(- Secrets commitados) Tj
+T*
+(- Declarar APTO sem evidencias) Tj
+T*
+(- Deploy live/pagamentos sem GO) Tj
+T*
+() Tj
+T*
+(Baseline entrega: 686d16c) Tj
+T*
+(Versao documentada: 1.0.0+403) Tj
+T*
+(Estado baseline: NAO APTO) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000001146 00000 n 
+0000001270 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1882
+%%EOF
