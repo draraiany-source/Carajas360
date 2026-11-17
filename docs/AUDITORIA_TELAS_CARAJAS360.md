@@ -203,11 +203,11 @@ HTTP: `mercadoPagoWebhook`.
 | P0 | Deploy `aiAssistant` (+ assist) após Blaze/API |
 | P0 | Hosting **live** (hoje Site Not Found) — só com GO |
 | P0 | Pagamentos: token MP, `PAYMENTS_ENABLED`, webhook, fila de saque |
-| P1 | Ligar rotas órfãs `/service-request-flow`, `/opportunity-detail` |
-| P1 | Admin de `disputes` + refunds |
-| P1 | Agenda como rota se produto exigir |
-| P2 | Remover `demo` IDs / DemoData em caminhos sensíveis |
-| P2 | Unificar UIs duplicadas de oportunidades |
+| P1 | Ligar rotas órfãs `/service-request-flow`, `/opportunity-detail` | **FASE 2 ✓** |
+| P1 | Admin de `disputes` + refunds | **Disputas ✓** (refunds → FASE 3+) |
+| P1 | Agenda como rota se produto exigir | **FASE 2 ✓** `/appointments` |
+| P2 | Remover `demo` IDs / DemoData em caminhos sensíveis | **FASE 2 ✓** chat/reviews/GPS |
+| P2 | Unificar UIs duplicadas de oportunidades | parcial (hub → rota nomeada) |
 | P3 | Modernização visual nas telas ainda densas (admin/financeiro) |
 
 ---
@@ -218,8 +218,9 @@ HTTP: `mercadoPagoWebhook`.
 - Lacunas críticas para comercialização: **IA runtime**, **live hosting**, **pagamentos/ops**, **disputas admin**.  
 - Homolog Web com Explorar + profissionais reais e UI da IA **já comprovados**; turnos LLM **não**.  
 
-**Próximo passo (após aprovação):** FASE 2 — organizar/corrigir telas existentes por prioridade P0/P1, sem criar app novo.
+**FASE 2 concluída** (`e3ca8b4`) — ver `docs/RELATORIO_FASE2_ORGANIZAR_TELAS.md`.  
+**Próximo passo (após GO):** FASE 3 — funcionamento tela a tela (fluxo cliente P0).
 
 ---
 
-*Arquivo gerado na FASE 1 do Prompt Mestre de Finalização. Evidências de correções recentes: `docs/RELATORIO_CORRECAO_PROFISSIONAIS_E_IA.md`, `docs/evidence/homolog_ia/`.*
+*Arquivo gerado na FASE 1 do Prompt Mestre de Finalização. Evidências: `docs/RELATORIO_CORRECAO_PROFISSIONAIS_E_IA.md`, `docs/RELATORIO_FASE2_ORGANIZAR_TELAS.md`, `docs/evidence/homolog_ia/`.*
