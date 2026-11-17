@@ -37,6 +37,17 @@ Admin: /admin (AdminGate) + aba Disputas
 | `RELATORIO_FASE3_TELA_POR_TELA.md` | UX fluxo cliente |
 | `RELATORIO_FASES_4_A_11.md` | Fases 4–11 |
 | `MATRIZ_HOMOLOGACAO_FASE10.md` | Testes |
+| `RELATORIO_ORCAMENTO_FOTOS_IA.md` | Orçamento com fotos + visita + proposta + IA opcional |
+| `AUDITORIA_FINAL_CARAJAS360.md` | FASE 12 — NÃO APTO publicação |
+
+### Orçamento com fotos (obrigatório validar)
+
+1. Deploy `firestore.rules` + `storage.rules` atualizados.  
+2. Cliente: anexar até 10 fotos → enviar orçamento → URLs em `orders/{id}.photoUrls` e objetos em Storage `orders/{id}/photos/`.  
+3. Profissional: ver galeria → enviar proposta (valor/prazo/descrição).  
+4. Cliente: ver fotos em Meus pedidos.  
+5. Teste unitário: `flutter test test/order_photos_test.dart`.  
+6. IA opcional: só sugere descrição; **não** inventa preço (Function pode estar off).
 
 ## 4. Status por plataforma
 

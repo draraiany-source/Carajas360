@@ -414,6 +414,12 @@ class OrderModel {
   final String? completedBy;
   final String? origin;
 
+  /// URLs no Firebase Storage (`orders/{id}/photos/…`).
+  final List<String> photoUrls;
+
+  /// Cliente pediu visita técnica no local.
+  final bool siteVisitRequested;
+
   const OrderModel({
     required this.id,
     required this.clientId,
@@ -434,6 +440,8 @@ class OrderModel {
     this.clientConfirmed = false,
     this.completedBy,
     this.origin,
+    this.photoUrls = const [],
+    this.siteVisitRequested = false,
   });
 
   bool get isPaid => paymentStatus == 'paid';
@@ -497,6 +505,8 @@ class OrderModel {
         clientConfirmed: m['clientConfirmedAt'] != null,
         completedBy: m['completedBy'] as String?,
         origin: m['origin'] as String?,
+        photoUrls: List<String>.from(m['photoUrls'] ?? const []),
+        siteVisitRequested: m['siteVisitRequested'] == true,
       );
 
   static OrderStatus _parseOrderStatus(dynamic raw) {

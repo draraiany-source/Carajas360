@@ -14,6 +14,7 @@ import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/brand_shell.dart';
 import '../../shared/widgets/widgets.dart';
 import '../wallet/wallet_screen.dart' show PixScreen, CardPaymentScreen;
+import 'order_photo_picker.dart';
 
 // ─────────────────────────────────────────────────────────────
 // MY ORDERS / HISTORY SCREEN (Tela 06 — Meus pedidos)
@@ -655,6 +656,24 @@ class _MyOrdersState extends State<MyOrdersScreen> {
               maxLines: 4,
               overflow: TextOverflow.ellipsis,
               style: TextStyle(fontSize: 13, height: 1.4, color: ink)),
+        ],
+        if (o.siteVisitRequested) ...[
+          const SizedBox(height: 8),
+          Text('Visita técnica solicitada',
+              style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: Brand.inkMuted(context))),
+        ],
+        if (o.photoUrls.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          Text('Fotos do ambiente',
+              style: TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w800,
+                  color: Brand.ink(context))),
+          const SizedBox(height: 6),
+          OrderPhotoGallery(urls: o.photoUrls),
         ],
         const SizedBox(height: 10),
         _PaymentInfo(order: o),

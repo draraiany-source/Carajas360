@@ -52,6 +52,8 @@ abstract final class ServiceRequest {
     required String address,
     required bool urgent,
     required bool remoteOnly,
+    bool siteVisitRequested = false,
+    List<String> photoUrls = const [],
   }) =>
       {
         'providerId': providerId,
@@ -60,10 +62,23 @@ abstract final class ServiceRequest {
         'description': description.trim(),
         'address': remoteOnly ? '' : address.trim(),
         'urgent': urgent,
+        'siteVisitRequested': siteVisitRequested,
+        'photoUrls': photoUrls.take(10).toList(),
+        'photoCount': photoUrls.take(10).length,
       };
 
-  static String chatIntro(String title, String description) =>
-      '📋 Nova solicitação: ${title.trim()}\n${description.trim()}';
+  static String chatIntro(String title, String description,
+      {int photoCount = 0, bool siteVisit = false}) {
+    final buf = StringBuffer('📋 Nova solicitação: ${title.trim()}\n');
+    buf.writeln(description.trim());
+    if (photoCount > 0) {
+      buf.writeln('📷 $photoCount foto(s) do ambiente anexada(s).');
+    }
+    if (siteVisit) {
+      buf.writeln('🏠 Cliente solicitou visita técnica.');
+    }
+    return buf.toString().trim();
+  }
 }
 
 /// Evita envios duplicados enquanto uma gravação está em andamento.

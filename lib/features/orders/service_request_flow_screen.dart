@@ -1,16 +1,19 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../core/auth/sign_in_gate.dart';
 import '../../core/catalog/homolog_catalog.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/orders/order_photos.dart';
 import '../../core/orders/service_request.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/brand.dart';
 import '../../core/utils/app_nav.dart';
+import '../../shared/services/ai_service.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/brand_shell.dart';
 import '../../shared/widgets/widgets.dart';
+import 'order_photo_picker.dart';
 
 /// Campos extras só para categorias de limpeza (não misturar com saúde/beleza).
 bool categoryNeedsPropertyFields(String categoryId) {
@@ -68,13 +71,15 @@ class _QuoteRequestFlowScreenState extends State<QuoteRequestFlowScreen> {
   bool _loading = false;
   bool _confirmed = false;
   bool _urgent = false;
+  bool _siteVisit = false;
+  bool _iaBusy = false;
   String? _senderName;
   String? _propertyType;
   String? _area;
   String? _rooms;
   String? _period;
   DateTime? _preferredDate;
-  final List<XFile> _photos = [];
+  List<OrderPhotoDraft> _photos = [];
 
   bool get _needsProperty => categoryNeedsPropertyFields(widget.category);
   bool get _demoBlocked =>
@@ -118,20 +123,34 @@ class _QuoteRequestFlowScreenState extends State<QuoteRequestFlowScreen> {
     super.dispose();
   }
 
-  Future<void> _pickPhotos() async {
+  Future<void> _suggestDescriptionWithIa() async {
+    if (_iaBusy || _demoBlocked) return;
+    final draft = _description.text.trim();
+    if (draft.length < 8 && _photos.isEmpty) {
+      snack(context, 'Escreva um rascunho ou anexe fotos antes de usar a IA.',
+          bg: AppColors.warning);
+      return;
+    }
+    setState(() => _iaBusy = true);
     try {
-      final files = await ImagePicker().pickMultiImage(imageQuality: 75);
-      if (files.isEmpty || !mounted) return;
-      setState(() {
-        _photos
-          ..clear()
-          ..addAll(files.take(5));
-      });
-    } catch (_) {
-      if (mounted) {
-        snack(context, 'Não foi possível anexar as fotos agora.',
-            bg: AppColors.error);
+      final hint = OrderPhotos.iaPromptHint(
+        draftDescription: draft.isEmpty ? _title.text : draft,
+        photoCount: _photos.length,
+      );
+      final suggestion = await AiSvc.ask(hint, const []);
+      if (!mounted) return;
+      if (suggestion == null || suggestion.trim().isEmpty) {
+        snack(context,
+            'IA indisponível agora. Você pode enviar a solicitação sem a sugestão.',
+            bg: AppColors.warning);
+        return;
       }
+      setState(() => _description.text = suggestion.trim());
+      snack(context,
+          'Descrição sugerida. Revise antes de enviar — a IA não define preço.',
+          bg: AppColors.secondary);
+    } finally {
+      if (mounted) setState(() => _iaBusy = false);
     }
   }
 
@@ -183,7 +202,10 @@ class _QuoteRequestFlowScreenState extends State<QuoteRequestFlowScreen> {
       parts.add('Complemento: ${_complement.text.trim()}');
     }
     if (_photos.isNotEmpty) {
-      parts.add('Fotos anexadas na solicitação: ${_photos.length}');
+      parts.add('Fotos do ambiente anexadas: ${_photos.length}');
+    }
+    if (_siteVisit) {
+      parts.add('Solicita visita técnica no local.');
     }
     return parts.join('\n');
   }
@@ -214,7 +236,10 @@ class _QuoteRequestFlowScreenState extends State<QuoteRequestFlowScreen> {
     });
     final title = _title.text.trim();
     final description = _composedDescription;
+    final drafts = List<OrderPhotoDraft>.from(_photos);
+    final siteVisit = _siteVisit;
     final result = await _guard.run(() async {
+      // 1) Cria o pedido (Storage exige orderId nas regras).
       final orderId = await FS.createOrder(ServiceRequest.payload(
         providerId: widget.providerId,
         category: widget.category,
@@ -223,28 +248,65 @@ class _QuoteRequestFlowScreenState extends State<QuoteRequestFlowScreen> {
         address: _address.text,
         urgent: _urgent,
         remoteOnly: widget.remoteOnly,
+        siteVisitRequested: siteVisit,
+        photoUrls: const [],
       ));
+      // 2) Upload real + associação.
+      final urls = <String>[];
+      for (final p in drafts) {
+        try {
+          final url = await FS.uploadOrderPhoto(
+            orderId: orderId,
+            bytes: p.bytes,
+            fileName: p.fileName,
+          );
+          urls.add(url);
+        } catch (e) {
+          debugPrint('uploadOrderPhoto: $e');
+        }
+      }
+      if (urls.isNotEmpty || siteVisit) {
+        await FS.attachOrderPhotos(
+          orderId: orderId,
+          photoUrls: urls,
+          siteVisitRequested: siteVisit,
+        );
+      }
+      if (drafts.isNotEmpty && urls.isEmpty) {
+        throw StateError('photo_upload_failed');
+      }
       String? roomId;
       try {
         roomId = await FS.getOrCreateRoom(widget.providerId);
         await FS.sendMessage(
             roomId: roomId,
             senderName: _senderName ?? 'Cliente',
-            text: ServiceRequest.chatIntro(title, description));
+            text: ServiceRequest.chatIntro(title, description,
+                photoCount: urls.length, siteVisit: siteVisit));
       } catch (_) {
         roomId = null;
       }
-      return (orderId: orderId, roomId: roomId);
-    }).catchError((Object _) => null);
+      return (orderId: orderId, roomId: roomId, photoCount: urls.length);
+    }).catchError((Object e) {
+      debugPrint('quote submit: $e');
+      return null;
+    });
 
     if (!mounted) return;
     setState(() => _loading = false);
     if (result == null) {
       setState(() => _step = 2);
       snack(context,
-          'Não foi possível enviar a solicitação. Verifique a conexão e tente novamente.',
+          drafts.isNotEmpty
+              ? 'Falha ao enviar fotos ou gravar o pedido. Tente novamente com imagens menores.'
+              : 'Não foi possível enviar a solicitação. Verifique a conexão e tente novamente.',
           bg: AppColors.error);
       return;
+    }
+    if (result.photoCount < drafts.length) {
+      snack(context,
+          'Solicitação enviada com ${result.photoCount} de ${drafts.length} foto(s).',
+          bg: AppColors.warning);
     }
     final roomId = result.roomId;
     if (roomId == null) {
@@ -437,12 +499,27 @@ class _QuoteRequestFlowScreenState extends State<QuoteRequestFlowScreen> {
                 validator: ServiceRequest.descriptionError,
               ),
               const SizedBox(height: 12),
-              OutlinedButton.icon(
-                onPressed: _pickPhotos,
-                icon: const Icon(Icons.attach_file_rounded, size: 18),
-                label: Text(_photos.isEmpty
-                    ? 'Adicionar fotos (opcional)'
-                    : '${_photos.length} foto(s) selecionada(s)'),
+              OrderPhotoPicker(
+                photos: _photos,
+                enabled: !_demoBlocked,
+                onChanged: (v) => setState(() => _photos = v),
+              ),
+              const SizedBox(height: 8),
+              TextButton.icon(
+                onPressed: (_iaBusy || _demoBlocked) ? null : _suggestDescriptionWithIa,
+                icon: _iaBusy
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.auto_awesome_outlined, size: 18),
+                label: Text(_iaBusy
+                    ? 'Gerando sugestão…'
+                    : 'Sugerir descrição com IA (opcional)'),
+              ),
+              Text(
+                'A IA não inventa diagnóstico técnico nem preços.',
+                style: TextStyle(fontSize: 11.5, color: Brand.inkMuted(context)),
               ),
             ],
           ),
@@ -517,6 +594,18 @@ class _QuoteRequestFlowScreenState extends State<QuoteRequestFlowScreen> {
                 onChanged: (v) => setState(() => _urgent = v),
                 activeThumbColor: AppColors.error,
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Solicitar visita técnica',
+                    style:
+                        TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                subtitle: const Text(
+                    'O profissional pode avaliar o ambiente antes de fechar o preço.',
+                    style: TextStyle(fontSize: 12)),
+                value: _siteVisit,
+                onChanged: (v) => setState(() => _siteVisit = v),
+                activeThumbColor: Brand.green,
+              ),
             ],
           ),
         ),
@@ -580,6 +669,23 @@ class _QuoteRequestFlowScreenState extends State<QuoteRequestFlowScreen> {
         _kv('Descrição', _description.text.trim()),
         _kv('Fotos',
             _photos.isEmpty ? 'Nenhuma foto anexada' : '${_photos.length} foto(s)'),
+        if (_photos.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 72,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: _photos.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 6),
+              itemBuilder: (_, i) => ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.memory(_photos[i].bytes,
+                    width: 72, height: 72, fit: BoxFit.cover),
+              ),
+            ),
+          ),
+        ],
+        _kv('Visita técnica', _siteVisit ? 'Solicitada' : 'Não'),
       ], () {}),
       const SizedBox(height: 14),
       section('Local e preferência', [

@@ -12,6 +12,7 @@ import '../../core/auth/dev_bypass_auth.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/catalog/homolog_catalog.dart';
 import '../../core/modules/platform_modules.dart';
+import '../../core/orders/order_photos.dart';
 import '../../core/security/order_policy.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/perf_log.dart';
@@ -252,6 +253,7 @@ class FS {
       'jpg' || 'jpeg' => 'image/jpeg',
       'png' => 'image/png',
       'webp' => 'image/webp',
+      'heic' || 'heif' => 'image/jpeg',
       'gif' => 'image/gif',
       'pdf' => 'application/pdf',
       'm4a' || 'aac' || 'mp4' => 'audio/mp4',
@@ -611,6 +613,16 @@ class FS {
     sanitized.remove('billingMode');
     sanitized.remove('commissionExempt');
     sanitized.remove('commissionRate');
+    final photos = sanitized['photoUrls'];
+    if (photos is! List) {
+      sanitized['photoUrls'] = <String>[];
+      sanitized['photoCount'] = 0;
+    } else {
+      final urls = photos.map((e) => '$e').where((u) => u.isNotEmpty).take(10);
+      sanitized['photoUrls'] = urls.toList();
+      sanitized['photoCount'] = (sanitized['photoUrls'] as List).length;
+    }
+    sanitized['siteVisitRequested'] = sanitized['siteVisitRequested'] == true;
     final doc = await _db.collection(Col.orders).add({
       ...sanitized,
       'clientId': _uid,
@@ -620,6 +632,59 @@ class FS {
       'createdAt': FieldValue.serverTimestamp()
     });
     return doc.id;
+  }
+
+  /// Upload de foto do ambiente para `orders/{orderId}/photos/…`.
+  /// Requer pedido já criado (regras Storage leem clientId/providerId).
+  static Future<String> uploadOrderPhoto({
+    required String orderId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    if (_uid == null) {
+      throw const CloudCallException('Não autenticado', code: 'unauthenticated');
+    }
+    final err = OrderPhotos.fileError(
+        fileName: fileName, byteLength: bytes.length);
+    if (err != null) {
+      throw CloudCallException(err, code: 'invalid-argument');
+    }
+    final ext = _extOf(fileName);
+    final safeExt = OrderPhotos.allowedExt.contains(ext) ? ext : 'jpg';
+    final path =
+        'orders/$orderId/photos/${DateTime.now().millisecondsSinceEpoch}_$_uid.$safeExt';
+    final ref = FirebaseStorage.instance.ref().child(path);
+    await ref.putData(bytes, _metaFor(fileName));
+    return await ref.getDownloadURL();
+  }
+
+  /// Associa URLs ao pedido (só cliente, status pendente — ver firestore.rules).
+  static Future<void> attachOrderPhotos({
+    required String orderId,
+    required List<String> photoUrls,
+    bool? siteVisitRequested,
+  }) async {
+    if (_uid == null) {
+      throw const CloudCallException('Não autenticado', code: 'unauthenticated');
+    }
+    final urls = photoUrls.where((u) => u.trim().isNotEmpty).take(10).toList();
+    final data = <String, dynamic>{
+      'photoUrls': urls,
+      'photoCount': urls.length,
+    };
+    if (siteVisitRequested != null) {
+      data['siteVisitRequested'] = siteVisitRequested;
+    }
+    await _db.collection(Col.orders).doc(orderId).update(data);
+  }
+
+  /// Remove um objeto do Storage (melhor esforço; URL pode não mapear path).
+  static Future<void> deleteOrderPhotoByUrl(String url) async {
+    try {
+      await FirebaseStorage.instance.refFromURL(url).delete();
+    } catch (e) {
+      debugPrint('deleteOrderPhotoByUrl: $e');
+    }
   }
 
   /// Cliente confirma que o serviço foi feito; libera o repasse.

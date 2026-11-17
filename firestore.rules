@@ -223,6 +223,17 @@ service cloud.firestore {
         request.resource.data.diff(resource.data).affectedKeys().hasOnly(['reviewed']) &&
         resource.data.status == 'completed' &&
         request.resource.data.reviewed == true
+      ) || (
+        // Cliente anexa/atualiza fotos e visita técnica só enquanto pendente.
+        isAuth() &&
+        resource.data.clientId == uid() &&
+        resource.data.status in ['pending', 'created'] &&
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['photoUrls', 'photoCount', 'siteVisitRequested']) &&
+        request.resource.data.photoUrls is list &&
+        request.resource.data.photoUrls.size() <= 10 &&
+        request.resource.data.get('photoCount', 0) ==
+          request.resource.data.photoUrls.size()
       );
       allow delete: if isAdmin();
     }

@@ -10,6 +10,7 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../core/security/order_policy.dart';
 import '../../shared/widgets/widgets.dart';
+import '../orders/order_photo_picker.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PROVIDER HOME SCREEN (Vol.3: Perfil do Profissional — Serviços,
@@ -311,6 +312,15 @@ class _OrderList extends StatelessWidget {
                               fontSize: 13,
                               color: AppColors.textMedium,
                               height: 1.4)),
+                      if (o.siteVisitRequested) ...[
+                        const SizedBox(height: 6),
+                        const AppTag('Visita técnica solicitada',
+                            bg: Color(0xFFFFF8E1), fg: AppColors.warning),
+                      ],
+                      if (o.photoUrls.isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        OrderPhotoGallery(urls: o.photoUrls),
+                      ],
                       const SizedBox(height: 6),
                       Row(children: [
                         const Icon(Icons.location_on_outlined,
@@ -714,39 +724,67 @@ class _PendingActionsState extends State<_PendingActions> {
     return left.isNegative ? Duration.zero : left;
   }
 
-  /// O profissional informa o valor ao aceitar; o cliente paga esse valor.
+  /// Proposta: valor + prazo + descrição (cliente vê e paga o valor).
   Future<void> _accept(BuildContext context) async {
     final current = widget.order.price;
-    final ctrl = TextEditingController(
+    final priceCtrl = TextEditingController(
         text: current != null ? current.toStringAsFixed(2) : '');
-    final price = await showDialog<double>(
+    final daysCtrl = TextEditingController(text: '3');
+    final noteCtrl = TextEditingController();
+    final proposal = await showDialog<({double price, String note})>(
       context: context,
       builder: (dialog) {
         String? error;
         return StatefulBuilder(
           builder: (_, setLocal) => AlertDialog(
-            title: const Text('Aceitar pedido'),
-            content: Column(mainAxisSize: MainAxisSize.min, children: [
-              const Text(
-                  'Informe o valor total do serviço. O cliente verá e pagará este valor.',
-                  style: TextStyle(fontSize: 13)),
-              const SizedBox(height: 12),
-              TextField(
-                controller: ctrl,
-                autofocus: true,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                    prefixText: 'R\$ ', hintText: '0,00', errorText: error),
-              ),
-            ]),
+            title: const Text('Enviar proposta'),
+            content: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                if (widget.order.siteVisitRequested)
+                  const Padding(
+                    padding: EdgeInsets.only(bottom: 8),
+                    child: Text(
+                      'Cliente pediu visita técnica — descreva se a visita está inclusa.',
+                      style: TextStyle(fontSize: 12),
+                    ),
+                  ),
+                TextField(
+                  controller: priceCtrl,
+                  autofocus: true,
+                  keyboardType:
+                      const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                      labelText: 'Valor (R\$)',
+                      prefixText: 'R\$ ',
+                      hintText: '0,00',
+                      errorText: error),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: daysCtrl,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                      labelText: 'Prazo (dias)', hintText: '3'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: noteCtrl,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Descrição da proposta',
+                    hintText: 'Escopo, materiais, visita técnica…',
+                    alignLabelWithHint: true,
+                  ),
+                ),
+              ]),
+            ),
             actions: [
               TextButton(
                   onPressed: () => Navigator.pop(dialog),
                   child: const Text('Voltar')),
               TextButton(
                   onPressed: () {
-                    final raw = ctrl.text.trim();
+                    final raw = priceCtrl.text.trim();
                     final v = double.tryParse(raw.contains(',')
                         ? raw.replaceAll('.', '').replaceAll(',', '.')
                         : raw);
@@ -754,20 +792,41 @@ class _PendingActionsState extends State<_PendingActions> {
                       setLocal(() => error = 'Informe um valor válido');
                       return;
                     }
-                    Navigator.pop(dialog, v);
+                    final days = int.tryParse(daysCtrl.text.trim()) ?? 0;
+                    final note = noteCtrl.text.trim();
+                    final parts = <String>[
+                      if (note.isNotEmpty) note,
+                      if (days > 0) 'Prazo estimado: $days dia(s).',
+                      if (widget.order.siteVisitRequested)
+                        'Visita técnica: conforme combinado na proposta.',
+                    ];
+                    Navigator.pop(dialog, (price: v, note: parts.join(' ')));
                   },
-                  child: const Text('Aceitar')),
+                  child: const Text('Enviar proposta')),
             ],
           ),
         );
       },
     );
-    ctrl.dispose();
-    if (price == null) return;
+    priceCtrl.dispose();
+    daysCtrl.dispose();
+    noteCtrl.dispose();
+    if (proposal == null) return;
     try {
-      await FS.acceptOrder(widget.order.id, price: price);
+      await FS.acceptOrder(widget.order.id, price: proposal.price);
+      if (proposal.note.isNotEmpty) {
+        try {
+          final room = await FS.getOrCreateRoom(widget.order.clientId);
+          await FS.sendMessage(
+            roomId: room,
+            senderName: 'Profissional',
+            text:
+                '💼 Proposta: ${PaySvc.fmt(proposal.price)}\n${proposal.note}',
+          );
+        } catch (_) {}
+      }
       if (context.mounted) {
-        snack(context, '✅ Pedido aceito!', bg: AppColors.secondary);
+        snack(context, 'Proposta enviada!', bg: AppColors.secondary);
       }
     } on CloudCallException catch (e) {
       if (context.mounted) snack(context, e.message, bg: AppColors.error);
