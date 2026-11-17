@@ -3,7 +3,7 @@
 | Campo | Valor |
 |--------|--------|
 | Versão app | **1.0.0+403** |
-| Commit | **686d16c** (`686d16c5f0b9e9eae24a661c5506f290b5fd8046`) |
+| Commit | **b58a96b+** (orçamento com fotos; ver `docs/RELATORIO_ORCAMENTO_FOTOS_IA.md`) |
 | Branch | `feat/modernizacao-visual` |
 | Firebase | `carajas360-a17c5` |
 | Homolog Web | https://carajas360-a17c5--homolog-88u39zqx.web.app |
@@ -47,10 +47,19 @@ O ZIP deste pacote contém **documentação**. O código completo fica no Git no
 - `docs/AUDITORIA_FINAL_CARAJAS360.md` (Fase 12)
 - `docs/FASE13_CARAJAS360.md` (Fase 13)
 - `docs/AUDITORIA_TELAS_CARAJAS360.md`
+- `docs/RELATORIO_ORCAMENTO_FOTOS_IA.md` (**fotos no orçamento** — Storage bucket pendente no Console)
 - `docs/FASE13_GO_EXTERNOS.md`
 - `docs/IOS_BUILD_TESTFLIGHT.md`
 - `scripts/homolog_web_preview.ps1`
 - `scripts/live_web_deploy.ps1` (exige `-IAuthorizeLiveDeploy`)
+
+### Orçamento com fotos — aceite técnico
+
+1. Código: `OrderPhotoPicker` / `uploadOrderPhoto` / galerias / visita / proposta.  
+2. Testes: `flutter test test/order_photos_test.dart test/order_photos_flow_test.dart` (8 pass).  
+3. Firestore rules com `photoUrls` **já deployadas**.  
+4. **P0 externo:** habilitar Firebase Storage no Console + `firebase deploy --only storage`.  
+5. Só então E2E: upload real → URL no bucket → visualização cliente/pro.
 
 ## Resumo rápido
 

@@ -133,11 +133,15 @@ class _QuoteRequestFlowScreenState extends State<QuoteRequestFlowScreen> {
     }
     setState(() => _iaBusy = true);
     try {
-      final hint = OrderPhotos.iaPromptHint(
-        draftDescription: draft.isEmpty ? _title.text : draft,
+      final suggestion = await AiSvc.suggestOrderDescriptionFromPhotos(
+        draft: draft.isEmpty ? _title.text : draft,
         photoCount: _photos.length,
+        imageNotes: [
+          if (_categoryLabel.isNotEmpty) 'categoria: $_categoryLabel',
+          if (_address.text.trim().isNotEmpty)
+            'local: ${_address.text.trim()}',
+        ],
       );
-      final suggestion = await AiSvc.ask(hint, const []);
       if (!mounted) return;
       if (suggestion == null || suggestion.trim().isEmpty) {
         snack(context,

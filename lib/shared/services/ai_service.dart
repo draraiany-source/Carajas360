@@ -144,6 +144,24 @@ class AiSvc {
     return reply?.trim();
   }
 
+  /// Sugestão de descrição para orçamento com fotos.
+  /// [imageNotes] = legendas/observações do cliente (não inventar diagnóstico).
+  /// Multimodal completo depende da Function; aqui enviamos metadados seguros.
+  static Future<String?> suggestOrderDescriptionFromPhotos({
+    required String draft,
+    required int photoCount,
+    List<String> imageNotes = const [],
+  }) async {
+    final notes = imageNotes.where((e) => e.trim().isNotEmpty).take(10).join('; ');
+    final prompt = 'Cliente anexou $photoCount foto(s) do ambiente'
+        '${notes.isEmpty ? '' : ' e observou: "$notes"'}. '
+        'Rascunho: "${draft.trim()}". '
+        'Sugira só uma descrição clara do pedido de orçamento em português. '
+        'PROIBIDO: inventar diagnóstico técnico, materiais, prazos ou preços.';
+    final reply = await ask(prompt, const []);
+    return reply?.trim();
+  }
+
   static Future<Map<String, dynamic>?> assistServiceRequest({
     required String freeText,
     String? city,

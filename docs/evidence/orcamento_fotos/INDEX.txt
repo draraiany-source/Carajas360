@@ -1,0 +1,6 @@
+﻿ORCAMENTO FOTOS - EVIDENCIAS
+firestore_rules_deploy: OK 2026-11-17
+storage_deploy: BLOCKED - Firebase Storage not set up on carajas360-a17c5
+unit_tests: 8/8 pass (order_photos + order_photos_flow)
+code_commit: b58a96b
+next: Console Firebase > Storage > Get Started, then deploy storage.rules
