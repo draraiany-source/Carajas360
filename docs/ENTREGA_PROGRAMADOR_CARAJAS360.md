@@ -42,12 +42,14 @@ Admin: /admin (AdminGate) + aba Disputas
 
 ### Orçamento com fotos (obrigatório validar)
 
-1. Deploy `firestore.rules` + `storage.rules` atualizados.  
+1. Deploy `firestore.rules` (já feito) + `storage.rules` (após criar bucket com billing).  
 2. Cliente: anexar até 10 fotos → enviar orçamento → URLs em `orders/{id}.photoUrls` e objetos em Storage `orders/{id}/photos/`.  
 3. Profissional: ver galeria → enviar proposta (valor/prazo/descrição).  
 4. Cliente: ver fotos em Meus pedidos.  
-5. Teste unitário: `flutter test test/order_photos_test.dart`.  
-6. IA opcional: só sugere descrição; **não** inventa preço (Function pode estar off).
+5. Unitários: `flutter test test/order_photos_test.dart test/order_photos_flow_test.dart` (8 pass).  
+6. E2E emuladores (comprovado): `test/order_photos_emulator_e2e_test.dart` — evidência `docs/evidence/orcamento_fotos/emulator_e2e.txt`.  
+7. IA opcional: só sugere descrição; **não** inventa preço (Function pode estar off).  
+8. Produção: bucket Storage ainda bloqueado sem billing — ver `RELATORIO_ORCAMENTO_FOTOS_IA.md`.
 
 ## 4. Status por plataforma
 

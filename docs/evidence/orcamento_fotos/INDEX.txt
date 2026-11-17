@@ -1,6 +1,18 @@
 ﻿ORCAMENTO FOTOS - EVIDENCIAS
-firestore_rules_deploy: OK 2026-11-17
-storage_deploy: BLOCKED - Firebase Storage not set up on carajas360-a17c5
-unit_tests: 8/8 pass (order_photos + order_photos_flow)
-code_commit: b58a96b
-next: Console Firebase > Storage > Get Started, then deploy storage.rules
+data: 2026-11-17
+
+unit_tests: 8/8 (order_photos + order_photos_flow)
+emulator_e2e: PASS (auth+firestore+storage)
+  - upload orders/{id}/photos/*.jpg
+  - client read 200 / provider read 200 / stranger 403
+  - attach photoUrls + photoCount + siteVisitRequested
+  - provider order read OK / stranger 403
+  - client delete 204
+  log: emulator_e2e.txt
+
+firestore_rules_deploy: OK
+storage_prod_bucket: BLOCKED (billingEnabled=false; Storage not set up)
+storage_rules_fix: delete ACL for orders/* added (create/update vs delete)
+
+commits_feature: b58a96b (feat) + follow-ups docs/E2E
+next_prod: enable billing / Console Storage Get Started → deploy --only storage

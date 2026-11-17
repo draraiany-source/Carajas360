@@ -47,7 +47,7 @@ O ZIP deste pacote contém **documentação**. O código completo fica no Git no
 - `docs/AUDITORIA_FINAL_CARAJAS360.md` (Fase 12)
 - `docs/FASE13_CARAJAS360.md` (Fase 13)
 - `docs/AUDITORIA_TELAS_CARAJAS360.md`
-- `docs/RELATORIO_ORCAMENTO_FOTOS_IA.md` (**fotos no orçamento** — Storage bucket pendente no Console)
+- `docs/RELATORIO_ORCAMENTO_FOTOS_IA.md` (**fotos no orçamento** — E2E emuladores OK; bucket live pendente billing)
 - `docs/FASE13_GO_EXTERNOS.md`
 - `docs/IOS_BUILD_TESTFLIGHT.md`
 - `scripts/homolog_web_preview.ps1`
@@ -56,10 +56,11 @@ O ZIP deste pacote contém **documentação**. O código completo fica no Git no
 ### Orçamento com fotos — aceite técnico
 
 1. Código: `OrderPhotoPicker` / `uploadOrderPhoto` / galerias / visita / proposta.  
-2. Testes: `flutter test test/order_photos_test.dart test/order_photos_flow_test.dart` (8 pass).  
-3. Firestore rules com `photoUrls` **já deployadas**.  
-4. **P0 externo:** habilitar Firebase Storage no Console + `firebase deploy --only storage`.  
-5. Só então E2E: upload real → URL no bucket → visualização cliente/pro.
+2. Unitários: `order_photos_test` + `order_photos_flow_test` (8 pass).  
+3. E2E emuladores: `order_photos_emulator_e2e_test` — upload, ACL cliente/pro/deny estranho, attach `photoUrls`, delete (**PASS**, ver `docs/evidence/orcamento_fotos/`).  
+4. Firestore rules `photoUrls` **já deployadas**.  
+5. Storage rules: delete ACL corrigido (sem `request.resource` no delete).  
+6. **P0 produção:** vincular billing → criar bucket → `firebase deploy --only storage` → smoke no app homolog.
 
 ## Resumo rápido
 
