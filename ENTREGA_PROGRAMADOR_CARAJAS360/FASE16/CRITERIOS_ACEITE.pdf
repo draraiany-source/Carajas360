@@ -1,0 +1,88 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 578 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CRITERIOS DE ACEITE ? WORKANA) Tj
+T*
+(Baseline a95b2e5) Tj
+T*
+() Tj
+T*
+(Aceite por logs/builds/HTTP ? nao so prints.) Tj
+T*
+() Tj
+T*
+(MARCO 1) Tj
+T*
+(Functions listaveis; aiAssistant deploy;) Tj
+T*
+(turno IA grounded; Storage+upload fotos;) Tj
+T*
+(npm test >= baseline.) Tj
+T*
+() Tj
+T*
+(MARCO 2) Tj
+T*
+(E2E cliente/pro/admin; video/audio se contrato;) Tj
+T*
+(PIX+cartao+webhook sandbox.) Tj
+T*
+() Tj
+T*
+(MARCO 3) Tj
+T*
+(APK; AAB+SHA256; TestFlight; smoke devices.) Tj
+T*
+() Tj
+T*
+(MARCO 4) Tj
+T*
+(Checklists; termo codigo; live/MP so com GO.) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 288 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(REJEICAO AUTOMATICA DO MARCO) Tj
+T*
+(- Rebuild sem autorizacao) Tj
+T*
+(- Secrets no Git) Tj
+T*
+(- PRODUCTION_PAYMENTS sem GO) Tj
+T*
+(- So screenshots sem logs) Tj
+T*
+(- Regressao testes sem correcao) Tj
+T*
+() Tj
+T*
+(MD: docs/FASE16_CRITERIOS_ACEITE.md) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000000936 00000 n 
+0000001060 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1397
+%%EOF

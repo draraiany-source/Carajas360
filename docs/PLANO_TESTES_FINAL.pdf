@@ -1,0 +1,88 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 583 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PLANO DE TESTES FINAL ? FASE 16) Tj
+T*
+(HEAD a95b2e5) Tj
+T*
+() Tj
+T*
+(A AUTOMATIZADOS \(EXECUTADOS\)) Tj
+T*
+(A1 functions 163/163 PASS) Tj
+T*
+(A2 flutter photos/config 14/14 PASS) Tj
+T*
+(A3 fotos emulator E2E PASS \(sessao anterior\)) Tj
+T*
+() Tj
+T*
+(B INFRA) Tj
+T*
+(B1 Homolog 200 | B2 Live 404) Tj
+T*
+(B3 Blaze false | B4 Storage 0 buckets) Tj
+T*
+() Tj
+T*
+(C/D/E FLUXOS AUTH) Tj
+T*
+(Cliente / Pro / Admin: NAO EXECUTADOS) Tj
+T*
+() Tj
+T*
+(F IA turno real: NAO EXECUTADO) Tj
+T*
+(G Video/audio orcamento: AUSENTE) Tj
+T*
+(H ACL fotos emulator: PASS) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 290 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(REGISTRO) Tj
+T*
+(Pass automacao: 163 + 14 \(+ E2E fotos\)) Tj
+T*
+(E2E auth: 0) Tj
+T*
+(Builds mobile: 0) Tj
+T*
+() Tj
+T*
+(Conclusao: backend/fotos OK;) Tj
+T*
+(publicacao e fluxos auth NAO comprovados.) Tj
+T*
+() Tj
+T*
+(MD: docs/FASE16_PLANO_TESTES_FINAL.md) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000000941 00000 n 
+0000001065 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1404
+%%EOF

@@ -1,0 +1,104 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 808 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? RELATORIO FINAL \(FASE 16\)) Tj
+T*
+(Data: 2026-11-17 | Branch: feat/modernizacao-visual) Tj
+T*
+(HEAD: a95b2e5 | Versao: 1.0.0+403) Tj
+T*
+(Firebase: carajas360-a17c5) Tj
+T*
+(Baseline: docs/FASE15_AUDITORIA_DEFINITIVA.md \(existe\)) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(VEREDITO) Tj
+T*
+(Contratar programador .......... SIM) Tj
+T*
+(Publicar Web live .............. NAO) Tj
+T*
+(Publicar Android ............... NAO) Tj
+T*
+(Publicar iOS ................... NAO) Tj
+T*
+(IA funcional \(LLM real\) ........ NAO) Tj
+T*
+(Pagamentos homologados ......... NAO) Tj
+T*
+(Orcamentos multimídia .......... PARCIAL) Tj
+T*
+(  \(fotos IT emulator; video/audio AU;) Tj
+T*
+(   Storage prod bloqueado\)) Tj
+T*
+(========================================) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 637 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CONFERENCIA) Tj
+T*
+(- Codigo Git atualizado na branch) Tj
+T*
+(- Telas/rotas inventariadas \(~40+\)) Tj
+T*
+(- Fluxos cliente/pro/admin: codigo IS; E2E auth N/E) Tj
+T*
+(- Fotos orcamento: unit + emulator PASS) Tj
+T*
+(- Homolog Web HTTP 200 | Live 404) Tj
+T*
+(- Billing Blaze: false | CF API: 403) Tj
+T*
+() Tj
+T*
+(TESTES FASE 16) Tj
+T*
+(- functions npm test: 163/163 PASS) Tj
+T*
+(- flutter photos/config: 14/14 PASS) Tj
+T*
+(- E2E autenticado completo: NAO EXECUTADO) Tj
+T*
+() Tj
+T*
+(NAO APTO PARA PUBLICACAO.) Tj
+T*
+(Pronto para transferencia Workana.) Tj
+T*
+() Tj
+T*
+(MD: docs/FASE16_VALIDACAO_FINAL.md) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000001166 00000 n 
+0000001290 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1976
+%%EOF

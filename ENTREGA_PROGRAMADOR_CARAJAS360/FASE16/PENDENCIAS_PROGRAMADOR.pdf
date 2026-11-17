@@ -1,0 +1,100 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 532 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PENDENCIAS PROGRAMADOR ? P0/P1/P2) Tj
+T*
+(HEAD a95b2e5) Tj
+T*
+() Tj
+T*
+(P0 \(publicacao/seguranca\)) Tj
+T*
+(P0-1 Live Web 404) Tj
+T*
+(P0-2 Blaze / Functions API 403) Tj
+T*
+(P0-3 Storage bucket producao) Tj
+T*
+(P0-4 IA sem LLM deployado) Tj
+T*
+(P0-5 Pagamentos sandbox N/E) Tj
+T*
+(P0-6 AAB/APK deste HEAD) Tj
+T*
+(P0-7 IPA / TestFlight) Tj
+T*
+() Tj
+T*
+(P1) Tj
+T*
+(P1-1 Video no orcamento) Tj
+T*
+(P1-2 Audio no orcamento) Tj
+T*
+(P1-3 E2E cliente) Tj
+T*
+(P1-4 E2E profissional) Tj
+T*
+(P1-5 E2E admin) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 476 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(P2) Tj
+T*
+(P2-1 Paridade visual premium) Tj
+T*
+(P2-2 Estabilizar widget tests) Tj
+T*
+(P2-3 OAuth domains) Tj
+T*
+(P2-4 Dominio custom) Tj
+T*
+() Tj
+T*
+(JA COMPROVADO) Tj
+T*
+(- Functions 163/163) Tj
+T*
+(- Fotos emulator E2E) Tj
+T*
+(- Homolog 200) Tj
+T*
+(- Firestore photoUrls rules deploy) Tj
+T*
+() Tj
+T*
+(Cada P0 tem problema/modulo/causa/solucao/) Tj
+T*
+(dependencias/aceite no MD completo.) Tj
+T*
+(MD: docs/FASE16_PENDENCIAS_PROGRAMADOR.md) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000000890 00000 n 
+0000001014 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1539
+%%EOF

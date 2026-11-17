@@ -1,0 +1,90 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 438 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CHECKLIST ANDROID / iOS / WEB) Tj
+T*
+(HEAD a95b2e5 | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(WEB) Tj
+T*
+([x] Projeto Flutter Web) Tj
+T*
+([x] Homolog HTTP 200) Tj
+T*
+([ ] Live \(404\)) Tj
+T*
+([ ] OAuth domains finais) Tj
+T*
+() Tj
+T*
+(ANDROID) Tj
+T*
+([x] Projeto android/) Tj
+T*
+([x] key.properties.example) Tj
+T*
+([ ] key.properties local) Tj
+T*
+([ ] APK debug HEAD) Tj
+T*
+([ ] AAB + SHA256) Tj
+T*
+([ ] Teste device) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 355 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(iOS) Tj
+T*
+([x] Projeto ios/ existe) Tj
+T*
+([ ] Certs / provisioning) Tj
+T*
+([ ] IPA) Tj
+T*
+([ ] TestFlight) Tj
+T*
+([ ] Teste device) Tj
+T*
+() Tj
+T*
+(PUBLICAVEL AGORA?) Tj
+T*
+(Web live: NAO | Android: NAO | iOS: NAO) Tj
+T*
+(Homolog: SIM parcial \(interno\)) Tj
+T*
+() Tj
+T*
+(MD: docs/FASE16_CHECKLIST_ANDROID_IOS_WEB.md) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000000796 00000 n 
+0000000920 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+1324
+%%EOF
