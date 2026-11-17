@@ -3,12 +3,12 @@
 **Data:** 2026-11-17  
 **Branch:** `feat/modernizacao-visual`  
 **HEAD auditado:** `e07b633` (*fix(orders): comprova E2E de fotos no emulador…*)  
-**Commit pacote F15:** `87c5f37`  
+**Commit pacote F15:** `727a40c` (docs/ZIP; código auditado `e07b633`)  
 **Pacote FASE 14:** `82dc012`  
 **Versão app:** `1.0.0+403`  
 **Firebase:** `carajas360-a17c5`  
 **ZIP:** `ENTREGA_PROGRAMADOR_CARAJAS360_F15_e07b633.zip`  
-**SHA256 ZIP:** `3CC0CA0DFA04AAF3C9D58A9A5975137AFD799BCCDDCE07D925193F7468A75B5C`  
+**SHA256 ZIP:** `A46F2F8CBF31F60DC0EF9C99A74D641FFCE73B83EE0AF8E1A99C06A01A130F8B`  
 
 **Regras:** não recriar app; não inventar evidências; não alterar billing/publicação sem GO.
 
@@ -153,7 +153,7 @@ Rules/policy/tests Functions = IT (código); exclusão conta/export = IS; secret
 | Fluxos E2E autenticados nesta sessão | **0** |
 | Testes automatizados aprovados nesta sessão | **163 + 14** |
 | Erros críticos externos | Blaze/403, live 404, builds mobile |
-| Pacote programador | Atualizado (PDFs 13–15 + ZIP `F15_e07b633`, SHA256 `3CC0CA0D…A75B5C`) |
+| Pacote programador | Atualizado (PDFs 13–15 + ZIP `F15_e07b633`, SHA256 `A46F2F8C…130F8B`) |
 
 ---
 

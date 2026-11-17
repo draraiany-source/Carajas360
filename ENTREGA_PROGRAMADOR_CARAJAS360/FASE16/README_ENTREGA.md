@@ -2,7 +2,7 @@
 
 **Produto:** Carajás 360  
 **Branch:** `feat/modernizacao-visual`  
-**Commit (HEAD pacote):** `a95b2e5`  
+**Commit (HEAD pacote):** `ddaec54`  
 **Versão:** `1.0.0+403`  
 **Firebase:** `carajas360-a17c5`  
 **Homolog:** https://carajas360-a17c5--homolog-88u39zqx.web.app  
@@ -51,7 +51,7 @@ PDFs 01–15, edital, guias Firebase/pagamentos/Android/iOS/Web.
 ## Comandos iniciais do programador
 ```bash
 git checkout feat/modernizacao-visual
-git log -1 --oneline   # esperado: a95b2e5 ou sucessor documentado
+git log -1 --oneline   # esperado: ddaec54 ou sucessor documentado
 flutter pub get
 cd functions && npm test && cd ..
 flutter test test/order_photos_test.dart test/order_photos_flow_test.dart
