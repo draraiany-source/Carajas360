@@ -1,4 +1,4 @@
-# README — Entrega Workana / Programador (FASE 16)
+﻿# README — Entrega Workana / Programador (FASE 16)
 
 **Produto:** Carajás 360  
 **Branch:** `feat/modernizacao-visual`  
