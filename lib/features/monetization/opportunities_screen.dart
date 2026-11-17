@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../core/catalog/homolog_catalog.dart';
@@ -24,14 +26,21 @@ class _OpportunitiesHubScreenState extends State<OpportunitiesHubScreen> {
   String? _urgency;
   String _sort = 'recent';
   MonetizationConfig _cfg = MonetizationConfig.defaults();
+  StreamSubscription? _cfgSub;
 
   @override
   void initState() {
     super.initState();
-    FS.platformConfigStream().listen((m) {
+    _cfgSub = FS.platformConfigStream().listen((m) {
       if (!mounted) return;
       setState(() => _cfg = MonetizationConfig.fromMap(m));
     }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _cfgSub?.cancel();
+    super.dispose();
   }
 
   List<ResolveRequest> _filter(List<ResolveRequest> raw) {

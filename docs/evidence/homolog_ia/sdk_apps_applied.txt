@@ -1,0 +1,5 @@
+﻿SDK apps (project carajas360-a17c5):
+- ANDROID 1:943691582268:android:815702597e79223a9eec39 — keys applied to google-services.json + firebase_options
+- IOS 1:943691582268:ios:28b25a6c6d3c60279eec39 — keys applied to GoogleService-Info.plist + firebase_options
+- WEB 1:943691582268:web:cd3e505962fd07059eec39 — keys applied to firebase_options
+Client API keys are Firebase public client keys (not Anthropic). Anthropic key: NOT present; Secret Manager blocked without Blaze.

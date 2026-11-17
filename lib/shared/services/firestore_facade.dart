@@ -1,7 +1,12 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import '../models/models.dart';
 import '../../core/auth/dev_bypass_auth.dart';
 import '../../core/constants/app_constants.dart';
@@ -10,6 +15,7 @@ import '../../core/modules/platform_modules.dart';
 import '../../core/security/order_policy.dart';
 import '../../core/utils/auth_validators.dart';
 import '../../core/utils/perf_log.dart';
+import '../../firebase_options.dart';
 import 'auth_service.dart';
 import 'cloud_fn.dart';
 
@@ -272,41 +278,224 @@ class FS {
     debugPrint('addXp ignorado no client (xp=$xp)');
   }
 
-  static final Map<String, Stream<List<ProviderModel>>> _providersStreamCache =
+  static final Map<String, Future<List<ProviderModel>>> _providersFutureCache =
       {};
 
-  /// Descarta streams em cache (ex.: após erro de rede) para nova tentativa.
-  static void resetProvidersStreams() => _providersStreamCache.clear();
+  /// Descarta cache (ex.: após erro de rede) para nova tentativa.
+  static void resetProvidersStreams() => _providersFutureCache.clear();
+
+  static List<ProviderModel> _mapProviderDocs(QuerySnapshot snap) {
+    final out = <ProviderModel>[];
+    for (final d in snap.docs) {
+      try {
+        out.add(ProviderModel.fromMap(
+            d.id, d.data() as Map<String, dynamic>));
+      } catch (e) {
+        PerfLog.error('provider_map', 'id=${d.id} err=$e');
+      }
+    }
+    return out;
+  }
+
+  /// Consulta composta (índice) — active + verified + rating.
+  static Query _providersQueryStrict({String? category, required int limit}) {
+    Query q = _db
+        .collection(Col.providers)
+        .where('active', isEqualTo: true)
+        .where('verified', isEqualTo: true)
+        .orderBy('rating', descending: true)
+        .limit(limit);
+    if (category != null) {
+      q = q.where('categories', arrayContains: category);
+    }
+    return q;
+  }
+
+  /// Fallback sem orderBy/índice composto: filtra e ordena no cliente.
+  /// Continua lendo só docs reais do Firestore (nada fictício).
+  static Future<List<ProviderModel>> _fetchProvidersFallback({
+    String? category,
+    required int limit,
+  }) async {
+    PerfLog.query('providers_fallback', category: category, limit: limit);
+    Query q = _db
+        .collection(Col.providers)
+        .where('active', isEqualTo: true)
+        .limit(limit > 10 ? limit * 4 : 40);
+    if (category != null) {
+      q = q.where('categories', arrayContains: category);
+    }
+    final snap = await q
+        .get(const GetOptions(source: Source.server))
+        .timeout(const Duration(seconds: 25));
+    final list = _mapProviderDocs(snap)
+        .where((p) => p.verified && p.active)
+        .toList()
+      ..sort((a, b) => b.rating.compareTo(a.rating));
+    return list.take(limit).toList();
+  }
+
+  /// Fallback Web: REST oficial do Firestore (mesmos docs reais).
+  /// Usado quando o SDK Web Listen/get falha com transferSize 0.
+  static Future<List<ProviderModel>> _fetchProvidersRest({
+    String? category,
+    required int limit,
+  }) async {
+    PerfLog.query('providers_rest', category: category, limit: limit);
+    final opts = DefaultFirebaseOptions.currentPlatform;
+    final uri = Uri.https(
+      'firestore.googleapis.com',
+      '/v1/projects/${opts.projectId}/databases/(default)/documents/${Col.providers}',
+      {
+        'key': opts.apiKey,
+        'pageSize': '${limit > 40 ? limit : 40}',
+      },
+    );
+    final res = await http.get(uri).timeout(const Duration(seconds: 20));
+    if (res.statusCode != 200) {
+      throw FirebaseException(
+        plugin: 'cloud_firestore',
+        code: 'rest-http-${res.statusCode}',
+        message: 'Falha REST ao listar profissionais (${res.statusCode}).',
+      );
+    }
+    final body = jsonDecode(res.body);
+    if (body is! Map) return const [];
+    final docs = body['documents'];
+    if (docs is! List) return const [];
+    final out = <ProviderModel>[];
+    for (final raw in docs) {
+      if (raw is! Map) continue;
+      final name = raw['name'] as String? ?? '';
+      final id = name.split('/').isNotEmpty ? name.split('/').last : '';
+      final fields = raw['fields'];
+      if (id.isEmpty || fields is! Map) continue;
+      try {
+        out.add(ProviderModel.fromMap(id, _restFieldsToMap(fields)));
+      } catch (e) {
+        PerfLog.error('provider_rest_map', 'id=$id err=$e');
+      }
+    }
+    final filtered = out
+        .where((p) =>
+            p.active &&
+            p.verified &&
+            (category == null || p.categories.contains(category)))
+        .toList()
+      ..sort((a, b) => b.rating.compareTo(a.rating));
+    return filtered.take(limit).toList();
+  }
+
+  static Map<String, dynamic> _restFieldsToMap(Map fields) {
+    final out = <String, dynamic>{};
+    fields.forEach((key, value) {
+      if (key is! String || value is! Map) return;
+      out[key] = _restValue(value);
+    });
+    return out;
+  }
+
+  static dynamic _restValue(Map v) {
+    if (v.containsKey('stringValue')) return v['stringValue'];
+    if (v.containsKey('booleanValue')) return v['booleanValue'] == true;
+    if (v.containsKey('integerValue')) {
+      return int.tryParse('${v['integerValue']}') ?? 0;
+    }
+    if (v.containsKey('doubleValue')) {
+      final d = v['doubleValue'];
+      if (d is num) return d.toDouble();
+      return double.tryParse('$d') ?? 0.0;
+    }
+    if (v.containsKey('timestampValue')) {
+      final raw = v['timestampValue'];
+      if (raw is String) {
+        final dt = DateTime.tryParse(raw);
+        if (dt != null) return Timestamp.fromDate(dt);
+      }
+      return null;
+    }
+    if (v.containsKey('arrayValue')) {
+      final values = (v['arrayValue'] as Map?)?['values'];
+      if (values is! List) return <dynamic>[];
+      return values.map((e) => e is Map ? _restValue(e) : e).toList();
+    }
+    if (v.containsKey('mapValue')) {
+      final f = (v['mapValue'] as Map?)?['fields'];
+      if (f is Map) return _restFieldsToMap(f);
+      return <String, dynamic>{};
+    }
+    if (v.containsKey('nullValue')) return null;
+    return null;
+  }
+
+  static Future<List<ProviderModel>> _fetchProvidersOnce({
+    String? category,
+    required int limit,
+  }) async {
+    // Web: REST primeiro (SDK Listen frequentemente falha no canal homolog).
+    if (kIsWeb) {
+      try {
+        return await _fetchProvidersRest(category: category, limit: limit);
+      } catch (e) {
+        PerfLog.error('providers_rest_fail', '$e');
+      }
+    }
+    const opts = GetOptions(source: Source.server);
+    try {
+      final snap = await _providersQueryStrict(category: category, limit: limit)
+          .get(opts)
+          .timeout(const Duration(seconds: 25));
+      return _mapProviderDocs(snap);
+    } on TimeoutException {
+      PerfLog.error('providers_get_timeout', 'category=${category ?? '-'}');
+      if (kIsWeb) {
+        return _fetchProvidersRest(category: category, limit: limit);
+      }
+      return _fetchProvidersFallback(category: category, limit: limit);
+    } on FirebaseException catch (e) {
+      PerfLog.error('providers_get_firebase', '${e.code} ${e.message}');
+      if (kIsWeb) {
+        return _fetchProvidersRest(category: category, limit: limit);
+      }
+      if (e.code == 'failed-precondition' ||
+          e.code == 'invalid-argument' ||
+          e.code == 'unavailable') {
+        return _fetchProvidersFallback(category: category, limit: limit);
+      }
+      try {
+        return await _fetchProvidersFallback(category: category, limit: limit);
+      } catch (_) {
+        rethrow;
+      }
+    } catch (e) {
+      PerfLog.error('providers_get_other', '$e');
+      if (kIsWeb) {
+        return _fetchProvidersRest(category: category, limit: limit);
+      }
+      return _fetchProvidersFallback(category: category, limit: limit);
+    }
+  }
 
   static Stream<List<ProviderModel>> providersStream(
       {String? category, int limit = 20}) {
+    // Cache o Future (não o Stream broadcast): senão o evento do get()
+    // era emitido antes do StreamBuilder escutar e a UI ficava em erro/vazio.
+    final key = 'h=${HomologCatalog.enabled}|${category ?? ''}|$limit';
     if (HomologCatalog.enabled) {
       PerfLog.query('providers_homolog', category: category, limit: limit);
-      // Broadcast: StreamBuilder pode re-inscrever sem perder o evento.
       return Stream<List<ProviderModel>>.value(
-              HomologCatalog.providers(category: category))
-          .asBroadcastStream();
+          HomologCatalog.providers(category: category));
     }
-    final key = '${category ?? ''}|$limit';
-    return _providersStreamCache.putIfAbsent(key, () {
-      PerfLog.query('providers_firestore', category: category, limit: limit);
-      Query q = _db
-          .collection(Col.providers)
-          .where('active', isEqualTo: true)
-          .where('verified', isEqualTo: true)
-          .orderBy('rating', descending: true)
-          .limit(limit);
-      if (category != null) {
-        q = q.where('categories', arrayContains: category);
+    PerfLog.query('providers_firestore', category: category, limit: limit);
+    final future = _providersFutureCache.putIfAbsent(key, () async {
+      try {
+        return await _fetchProvidersOnce(category: category, limit: limit);
+      } catch (e) {
+        _providersFutureCache.remove(key);
+        rethrow;
       }
-      return q
-          .snapshots()
-          .map((s) => s.docs
-              .map((d) =>
-                  ProviderModel.fromMap(d.id, d.data() as Map<String, dynamic>))
-              .toList())
-          .asBroadcastStream();
     });
+    return Stream<List<ProviderModel>>.fromFuture(future);
   }
 
   static Stream<ProviderModel?> providerStream(String providerId) {

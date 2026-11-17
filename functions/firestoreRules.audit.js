@@ -44,6 +44,14 @@ describe('firestore.rules — políticas críticas (auditoria estática)', () =>
     assert.match(rules, /allow create, update, delete: if false;/);
   });
 
+  it('aiConversations e aiUsage: client só lê o próprio; escrita backend', () => {
+    assert.match(rules, /match \/aiConversations\/\{convId\}/);
+    assert.match(rules, /match \/aiUsage\/\{id\}/);
+    assert.match(rules, /resource\.data\.userId == uid\(\)/);
+    assert.match(rules, /match \/messages\/\{msgId\}/);
+    assert.match(rules, /allow create, update, delete: if false;/);
+  });
+
   it('cliente não define comissão ao criar pedido', () => {
     const orders = rules.slice(rules.indexOf('match /orders/{orderId}'));
     const create = orders.slice(0, orders.indexOf('allow update'));

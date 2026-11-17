@@ -434,6 +434,8 @@ class BrandProviderCard extends StatelessWidget {
       label: 'Profissional ${p.name}, $specialty',
       child: Material(
         color: Brand.surface(context),
+        elevation: 3,
+        shadowColor: Brand.green.withValues(alpha: 0.18),
         borderRadius: BorderRadius.circular(18),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
@@ -442,6 +444,16 @@ class BrandProviderCard extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(18),
               border: Border.all(color: Brand.line(context)),
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Brand.surface(context),
+                  Brand.isDark(context)
+                      ? Brand.surface(context)
+                      : const Color(0xFFF7FBF8),
+                ],
+              ),
             ),
             child: Padding(padding: const EdgeInsets.all(14), child: body),
           ),

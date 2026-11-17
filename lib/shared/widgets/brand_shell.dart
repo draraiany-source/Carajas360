@@ -6,6 +6,8 @@ import '../../core/modules/platform_modules.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/brand.dart';
 import '../../core/utils/app_nav.dart';
+import '../../features/ai_assistant/carajas_ia_character.dart';
+import '../../features/ai_assistant/carajas_ia_fab.dart';
 import '../models/models.dart';
 import '../services/firebase_service.dart';
 import 'brand_wordmark.dart';
@@ -128,6 +130,11 @@ class BrandTopNav extends StatelessWidget {
                     ),
                   ),
                   IconButton(
+                    tooltip: 'Carajás 360 IA',
+                    onPressed: () => CarajasIaFab.open(context),
+                    icon: const _CarajasIaNavIcon(),
+                  ),
+                  IconButton(
                     tooltip: 'Notificações',
                     onPressed: onNotifications ??
                         () => Navigator.pushNamed(context, Routes.notifications),
@@ -161,6 +168,13 @@ class BrandTopNav extends StatelessWidget {
       ),
     );
   }
+}
+
+class _CarajasIaNavIcon extends StatelessWidget {
+  const _CarajasIaNavIcon();
+  @override
+  Widget build(BuildContext context) =>
+      const CarajasIaAvatar(size: 28, showRing: true);
 }
 
 class _NavLink extends StatelessWidget {

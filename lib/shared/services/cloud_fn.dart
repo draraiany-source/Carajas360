@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -34,7 +36,17 @@ abstract final class CloudFn {
       }
     }
     try {
-      final result = await _fn.httpsCallable(name).call(data ?? {});
+      final result = await _fn
+          .httpsCallable(name, options: HttpsCallableOptions(
+            timeout: const Duration(seconds: 28),
+          ))
+          .call(data ?? {})
+          .timeout(const Duration(seconds: 30), onTimeout: () {
+        throw const CloudCallException(
+          'A operação demorou demais. Tente novamente.',
+          code: 'deadline-exceeded',
+        );
+      });
       final raw = result.data;
       if (raw is Map) {
         return Map<String, dynamic>.from(raw);
@@ -43,6 +55,11 @@ abstract final class CloudFn {
     } on FirebaseFunctionsException catch (e) {
       throw CloudCallException(e.message ?? 'Falha na operação',
           code: e.code);
+    } on TimeoutException {
+      throw const CloudCallException(
+        'A operação demorou demais. Tente novamente.',
+        code: 'deadline-exceeded',
+      );
     }
   }
 }

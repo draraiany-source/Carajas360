@@ -38,6 +38,7 @@ import 'package:carajas_360/features/rental/rental_screen.dart';
 import 'package:carajas_360/features/profile/profile_screens.dart';
 import 'package:carajas_360/features/support/support_screens.dart';
 import 'package:carajas_360/features/ai_assistant/ai_screen.dart';
+import 'package:carajas_360/features/ai_assistant/carajas_ia_fab.dart';
 import 'package:carajas_360/features/admin/admin_screen.dart';
 import 'package:carajas_360/features/company/company_screen.dart';
 import 'package:carajas_360/features/orders/orders_screen.dart';
@@ -241,8 +242,11 @@ class Carajas360App extends StatelessWidget {
               case Routes.coupons:
                 return _route(const CouponsScreen());
               case Routes.aiAssistant:
-                return _route(const RequireAuth(
-                    title: 'Assistente', child: AiAssistantScreen()));
+                final aiArgs = settings.arguments as Map<String, dynamic>?;
+                // Central visível sem login; o callable exige auth no envio.
+                return _route(AiAssistantScreen(
+                  initialMessage: aiArgs?['initialMessage'] as String?,
+                ));
               case Routes.companyProfile:
                 return _route(const RequireAuth(
                     title: 'Empresa', child: CompanyProfileScreen()));
@@ -478,6 +482,8 @@ class _MainNavState extends State<MainNav> {
     if (wide) {
       return Scaffold(
         backgroundColor: isDark ? AppColors.darkBackground : Brand.background,
+        floatingActionButton: const CarajasIaFab(embedPanel: true),
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         body: Column(
           children: [
             BrandTopNav(
@@ -498,6 +504,11 @@ class _MainNavState extends State<MainNav> {
 
     return Scaffold(
       body: body,
+      floatingActionButton: const Padding(
+        padding: EdgeInsets.only(bottom: 8),
+        child: CarajasIaFab(embedPanel: false),
+      ),
+      floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
       bottomNavigationBar: Semantics(
         container: true,
         label: 'Navegação principal',

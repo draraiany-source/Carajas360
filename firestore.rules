@@ -551,6 +551,23 @@ service cloud.firestore {
       allow create, update, delete: if false;
     }
 
+    // Central Carajás IA — histórico: dono lê; escrita só backend (callable).
+    match /aiConversations/{convId} {
+      allow read: if isAuth() && (resource.data.userId == uid() || isAdmin());
+      allow create, update, delete: if false;
+      match /messages/{msgId} {
+        allow read: if isAuth() && (
+          get(/databases/$(database)/documents/aiConversations/$(convId)).data.userId == uid()
+          || isAdmin()
+        );
+        allow create, update, delete: if false;
+      }
+    }
+    match /aiUsage/{id} {
+      allow read: if isAuth() && (resource.data.userId == uid() || isAdmin());
+      allow create, update, delete: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

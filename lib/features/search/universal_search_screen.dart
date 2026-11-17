@@ -18,6 +18,8 @@ import '../../shared/widgets/brand_categories.dart';
 import '../../shared/widgets/brand_provider_card.dart';
 import '../../shared/widgets/brand_shell.dart';
 import '../../shared/widgets/widgets.dart';
+import '../ai_assistant/carajas_ia_character.dart';
+import '../ai_assistant/carajas_ia_fab.dart';
 import '../services/service_marketplace_screen.dart';
 
 /// Explorar Serviços: busca única de profissionais (aba Explorar,
@@ -60,9 +62,6 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
   ProviderSort _sort = ProviderSort.relevance;
   bool _grid = true;
   int _page = 0;
-  bool _aiBusy = false;
-  int _aiRequest = 0;
-
   static const _historyKey = 'carajas360_universal_search_history_v1';
   static const _pageSize = 12;
   final _resultsKey = GlobalKey();
@@ -217,6 +216,16 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
     });
   }
 
+  /// Abre a Central Carajás 360 IA (chat real via callable).
+  Future<void> _openCarajasIa({bool sendQuery = true}) async {
+    final q = _ctrl.text.trim();
+    await CarajasIaFab.open(
+      context,
+      preferPanel: true,
+      initialMessage: sendQuery && q.isNotEmpty ? q : null,
+    );
+  }
+
   /// Sugere a especialidade pela descrição (IA). Respostas atrasadas de
   /// pedidos anteriores são descartadas.
   Future<void> _smartSearch() async {
@@ -226,34 +235,8 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
       _focus.requestFocus();
       return;
     }
-    final req = ++_aiRequest;
-    setState(() => _aiBusy = true);
-    final names = Categories.all
-        .where((c) => c.group != 'Saúde')
-        .map((c) => c.name)
-        .toList();
-    String? result;
-    try {
-      result = await AiSvc.smartSearchCategory(q, names);
-    } catch (_) {
-      result = null;
-    }
-    if (!mounted || req != _aiRequest) return;
-    setState(() => _aiBusy = false);
-    final match = (result == null || result.isEmpty)
-        ? null
-        : Categories.all.where((c) => c.name == result).firstOrNull;
-    if (match == null) {
-      snack(context,
-          'Não foi possível sugerir uma categoria agora. Escolha uma categoria abaixo.');
-      return;
-    }
-    setState(() {
-      _category = BrandCategory.fromArgs(category: match.id);
-      _specialties = const {};
-      _page = 0;
-    });
-    snack(context, 'Categoria sugerida: ${match.name}', bg: Brand.green);
+    // Preferência: abrir o assistente completo com a frase em linguagem natural.
+    await _openCarajasIa(sendQuery: true);
   }
 
   Future<void> _openHit(UniversalHit hit) async {
@@ -635,7 +618,6 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                       autofocus: inner &&
                           widget.initialQuery == null &&
                           _category == null,
-                      aiBusy: _aiBusy,
                       controller: _ctrl,
                       focusNode: _focus,
                       city: _city,
@@ -644,6 +626,7 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
                       onSubmitted: _submitSearch,
                       onClear: _clearQuery,
                       onSmartSearch: _smartSearch,
+                      onOpenIa: () => _openCarajasIa(sendQuery: false),
                       onSearch: () {
                         FocusScope.of(context).unfocus();
                         _submitSearch(_ctrl.text);
@@ -757,17 +740,16 @@ class _UniversalSearchScreenState extends State<UniversalSearchScreen> {
 
 /// Hero da tela: título, busca, cidade e botão dourado "Buscar".
 class _HeroSearch extends StatelessWidget {
-  final bool wide, showBack, aiBusy, autofocus;
+  final bool wide, showBack, autofocus;
   final TextEditingController controller;
   final FocusNode focusNode;
   final String? city;
   final ValueChanged<String?> onCity;
   final ValueChanged<String> onChanged, onSubmitted;
-  final VoidCallback onClear, onSmartSearch, onSearch;
+  final VoidCallback onClear, onSmartSearch, onOpenIa, onSearch;
   const _HeroSearch({
     required this.wide,
     required this.showBack,
-    required this.aiBusy,
     required this.autofocus,
     required this.controller,
     required this.focusNode,
@@ -777,6 +759,7 @@ class _HeroSearch extends StatelessWidget {
     required this.onSubmitted,
     required this.onClear,
     required this.onSmartSearch,
+    required this.onOpenIa,
     required this.onSearch,
   });
 
@@ -787,6 +770,13 @@ class _HeroSearch extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.10),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Row(children: [
         const SizedBox(width: 14),
@@ -802,7 +792,7 @@ class _HeroSearch extends StatelessWidget {
             textInputAction: TextInputAction.search,
             style: const TextStyle(fontSize: 15, color: Brand.text),
             decoration: const InputDecoration(
-              hintText: 'Nome, serviço ou especialidade',
+              hintText: 'Descreva o serviço que você precisa',
               hintStyle: TextStyle(color: Brand.textMuted, fontSize: 14),
               border: InputBorder.none,
               enabledBorder: InputBorder.none,
@@ -823,16 +813,6 @@ class _HeroSearch extends StatelessWidget {
                       color: Brand.textMuted, size: 20),
                   onPressed: onClear,
                 ),
-        ),
-        IconButton(
-          tooltip: 'Sugerir categoria com IA',
-          onPressed: aiBusy ? null : onSmartSearch,
-          icon: aiBusy
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2))
-              : const Icon(Icons.auto_awesome_rounded, color: Brand.goldDeep),
         ),
         const SizedBox(width: 2),
       ]),
@@ -861,7 +841,108 @@ class _HeroSearch extends StatelessWidget {
             style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
       ),
     );
-    final bottom = wide
+    final iaCta = Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onOpenIa,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            gradient: const LinearGradient(
+              colors: [Color(0xFFFFF8E7), Color(0xFFFFE7A8)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            border: Border.all(color: Brand.gold.withValues(alpha: 0.85)),
+            boxShadow: [
+              BoxShadow(
+                color: Brand.goldDeep.withValues(alpha: 0.22),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(
+              horizontal: wide ? 14 : 12,
+              vertical: wide ? 12 : 10,
+            ),
+            child: Row(
+              children: [
+                const CarajasIaAvatar(size: 44, semanticLabel: 'Carajás 360 IA'),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Carajás 360 IA',
+                        style: TextStyle(
+                          color: Brand.greenDark,
+                          fontWeight: FontWeight.w900,
+                          fontSize: 15,
+                          height: 1.1,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        wide
+                            ? 'Assistente para achar profissionais reais por linguagem natural'
+                            : 'Busca inteligente e orçamentos',
+                        style: TextStyle(
+                          color: Brand.greenDark.withValues(alpha: 0.78),
+                          fontWeight: FontWeight.w600,
+                          fontSize: 12,
+                          height: 1.2,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Brand.green,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text(
+                    'Abrir IA',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w800,
+                      fontSize: 12.5,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    final findWithIa = SizedBox(
+      height: 44,
+      child: OutlinedButton.icon(
+        onPressed: onSmartSearch,
+        style: OutlinedButton.styleFrom(
+          foregroundColor: Colors.white,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.55)),
+          backgroundColor: Colors.white.withValues(alpha: 0.12),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+        icon: const Icon(Icons.auto_awesome_rounded, size: 18),
+        label: const Text(
+          'Encontrar com IA',
+          style: TextStyle(fontWeight: FontWeight.w800, fontSize: 13.5),
+        ),
+      ),
+    );
+    final searchRow = wide
         ? Row(children: [
             Expanded(child: search),
             const SizedBox(width: 10),
@@ -878,9 +959,22 @@ class _HeroSearch extends StatelessWidget {
               button,
             ]),
           ]);
+    final bottom = Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        iaCta,
+        const SizedBox(height: 12),
+        searchRow,
+        const SizedBox(height: 10),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: findWithIa,
+        ),
+      ],
+    );
     return BrandPageHero(
       title: 'Explorar serviços',
-      subtitle: 'Encontre quem entende do que você precisa.',
+      subtitle: 'Busque por nome ou descreva o que precisa — a Carajás 360 IA ajuda.',
       padding: EdgeInsets.fromLTRB(
           wide ? 24 : 16, wide ? 22 : 16, wide ? 24 : 16, wide ? 22 : 16),
       leading: showBack
@@ -1605,7 +1699,8 @@ class _ErrorResults extends StatelessWidget {
     return _StateCard(
       icon: Icons.cloud_off_rounded,
       title: 'Não foi possível carregar os profissionais',
-      text: 'Verifique sua conexão e tente novamente.',
+      text:
+          'Rede, índice Firestore ou permissão. Os cadastros reais continuam no banco — toque em tentar novamente.',
       actions: [
         ElevatedButton.icon(
           onPressed: onRetry,

@@ -635,6 +635,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
               () => Navigator.pushNamed(context, Routes.coupons)),
         ]),
         _section('Serviços', [
+          _item(context, '✨', 'Carajás 360 IA',
+              'Assistente inteligente do marketplace',
+              () => Navigator.pushNamed(context, Routes.aiAssistant)),
           _item(context, '⚡', 'Resolve Carajás',
               'Pedir orçamento e ver propostas',
               () => Navigator.pushNamed(context, Routes.resolve)),

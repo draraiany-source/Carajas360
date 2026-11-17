@@ -30,6 +30,8 @@ class _HealthState extends State<HealthScreen> {
   String? _sel;
   String _q = '';
   String? _selectedProviderId;
+  /// Stream estável — não recriar no build (evita freeze no Web).
+  late Stream<List<ProviderModel>> _providers;
 
   static const _modeLabels = ['Todos', 'Online', 'Presencial', 'Domiciliar'];
 
@@ -114,16 +116,18 @@ class _HealthState extends State<HealthScreen> {
     return list;
   }
 
-  Stream<List<ProviderModel>> get _stream => HomologCatalog.enabled
-      ? Stream.value(HomologCatalog.healthProviders(
-          specialty: _sel,
-          mode: _mode,
-          query: _q,
-        ))
-      : FS.providersStream(category: _sel, limit: 60);
+  @override
+  void initState() {
+    super.initState();
+    // Uma inscrição; filtros de especialidade/modalidade/texto são locais.
+    _providers = HomologCatalog.enabled
+        ? Stream<List<ProviderModel>>.value(HomologCatalog.healthProviders())
+            .asBroadcastStream()
+        : FS.providersStream(limit: 60);
+  }
 
   List<ProviderModel> _visible(List<ProviderModel> raw) =>
-      HomologCatalog.enabled ? raw : _applyLocalFilters(raw);
+      _applyLocalFilters(raw);
 
   @override
   Widget build(BuildContext context) {
@@ -132,7 +136,7 @@ class _HealthState extends State<HealthScreen> {
       backgroundColor: Brand.isDark(context) ? null : Brand.background,
       body: SafeArea(
         child: StreamBuilder<List<ProviderModel>>(
-          stream: _stream,
+          stream: _providers,
           builder: (context, snap) {
             final waiting = snap.connectionState == ConnectionState.waiting &&
                 !snap.hasData;
@@ -154,6 +158,16 @@ class _HealthState extends State<HealthScreen> {
               onRequest: (p) {
                 setState(() => _selectedProviderId = p.id);
                 if (!wide) _openPanelSheet(context, p);
+              },
+              onRetry: () {
+                FS.resetProvidersStreams();
+                setState(() {
+                  _providers = HomologCatalog.enabled
+                      ? Stream<List<ProviderModel>>.value(
+                              HomologCatalog.healthProviders())
+                          .asBroadcastStream()
+                      : FS.providersStream(limit: 60);
+                });
               },
             );
             final panel = selected == null
@@ -346,6 +360,7 @@ class _ProviderList extends StatelessWidget {
   final String? selectedId;
   final String Function(ProviderModel) specialtyName;
   final ValueChanged<ProviderModel> onSelect, onRequest;
+  final VoidCallback onRetry;
 
   const _ProviderList({
     required this.waiting,
@@ -356,6 +371,7 @@ class _ProviderList extends StatelessWidget {
     required this.specialtyName,
     required this.onSelect,
     required this.onRequest,
+    required this.onRetry,
   });
 
   @override
@@ -366,10 +382,18 @@ class _ProviderList extends StatelessWidget {
           padding: EdgeInsets.all(32),
           child: Center(child: CircularProgressIndicator()));
     } else if (hasError) {
-      body = const EmptyState(
-          emoji: '⚠️',
-          title: 'Não foi possível carregar',
-          subtitle: 'Verifique a conexão e tente novamente.');
+      body = Column(children: [
+        const EmptyState(
+            emoji: '⚠️',
+            title: 'Não foi possível carregar',
+            subtitle: 'Verifique a conexão e tente novamente.'),
+        const SizedBox(height: 12),
+        TextButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Tentar novamente'),
+        ),
+      ]);
     } else if (providers.isEmpty) {
       body = const EmptyState(
           emoji: '🔍',

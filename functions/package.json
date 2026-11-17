@@ -2,8 +2,8 @@
   "name": "servicoconecta-functions",
   "description": "Cloud Functions - CarajÃƒÂ¡s 360 (Firebase project id tÃƒÂ©cnico: carajas360-a17c5)",
   "scripts": {
-    "test": "node --test orderPolicy.test.js security.test.js blocoB.test.js blocoC.test.js blocoD.test.js blocoE.test.js webhookApply.test.js gatewaySafe.test.js serviceAssist.test.js marketplaceF2.test.js marketplaceF2.flow.test.js firestoreRules.audit.js",
-    "lint": "node --check index.js && node --check orderPolicy.js && node --check security.js && node --check accountDeletion.js && node --check planChange.js && node --check webhookSandbox.js && node --check webhookApply.js && node --check serviceAssist.js && node --check auditLog.js && node --check directionsProxy.js",
+    "test": "node --test orderPolicy.test.js security.test.js blocoB.test.js blocoC.test.js blocoD.test.js blocoE.test.js webhookApply.test.js gatewaySafe.test.js serviceAssist.test.js marketplaceF2.test.js marketplaceF2.flow.test.js firestoreRules.audit.js carajasAi.test.js",
+    "lint": "node --check index.js && node --check orderPolicy.js && node --check security.js && node --check accountDeletion.js && node --check planChange.js && node --check webhookSandbox.js && node --check webhookApply.js && node --check serviceAssist.js && node --check auditLog.js && node --check directionsProxy.js && node --check carajasAi.js",
     "serve": "firebase emulators:start --only functions",
     "shell": "firebase functions:shell",
     "deploy": "firebase deploy --only functions",

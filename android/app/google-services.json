@@ -1,18 +1,28 @@
 {
   "project_info": {
-    "project_number": "000000000000",
+    "project_number": "943691582268",
     "project_id": "carajas360-a17c5",
-    "storage_bucket": "carajas360-a17c5.appspot.com"
+    "storage_bucket": "carajas360-a17c5.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:000000000000:android:0000000000000000",
-        "android_client_info": { "package_name": "br.com.carajas360" }
+        "mobilesdk_app_id": "1:943691582268:android:815702597e79223a9eec39",
+        "android_client_info": {
+          "package_name": "br.com.carajas360"
+        }
       },
       "oauth_client": [],
-      "api_key": [{ "current_key": "COLE_SUA_ANDROID_API_KEY_AQUI" }],
-      "services": { "appinvite_service": { "other_platform_oauth_client": [] } }
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUWj_amgBaD3Pqk5ImKgyRNwj-MObzA1c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
     }
   ],
   "configuration_version": "1"

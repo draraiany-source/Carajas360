@@ -15,6 +15,8 @@ import '../../shared/widgets/brand_provider_card.dart';
 import '../../shared/widgets/brand_shell.dart';
 import '../../shared/widgets/brand_wordmark.dart';
 import '../../shared/widgets/micro_interactions.dart';
+import '../ai_assistant/carajas_ia_character.dart';
+import '../ai_assistant/carajas_ia_fab.dart';
 
 bool _isDark(BuildContext context) =>
     Theme.of(context).brightness == Brightness.dark;
@@ -278,6 +280,11 @@ class _HomeScreenState extends State<HomeScreen> {
           wide: wide,
           onSearch: _search,
           onRequest: () => _go(Routes.resolve),
+          onOpenIa: (msg) => CarajasIaFab.open(
+            context,
+            preferPanel: true,
+            initialMessage: msg,
+          ),
         ),
         top: 14,
       ),
@@ -646,11 +653,13 @@ class _HeroBanner extends StatefulWidget {
   final bool wide;
   final ValueChanged<String> onSearch;
   final VoidCallback onRequest;
+  final ValueChanged<String?> onOpenIa;
   const _HeroBanner({
     required this.city,
     required this.wide,
     required this.onSearch,
     required this.onRequest,
+    required this.onOpenIa,
   });
 
   @override
@@ -759,6 +768,89 @@ class _HeroBannerState extends State<_HeroBanner> {
                   onSubmit: _submit,
                 ),
                 const SizedBox(height: 12),
+                Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () {
+                      final q = _ctrl.text.trim();
+                      widget.onOpenIa(q.isEmpty ? null : q);
+                    },
+                    borderRadius: BorderRadius.circular(14),
+                    child: Ink(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(14),
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFFF8E7), Color(0xFFFFE7A8)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                        border: Border.all(
+                            color: Brand.gold.withValues(alpha: 0.9)),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Brand.goldDeep.withValues(alpha: 0.22),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 10),
+                        child: Row(
+                          children: [
+                            const CarajasIaAvatar(
+                                size: 40, semanticLabel: 'Carajás 360 IA'),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text(
+                                    'Carajás 360 IA',
+                                    style: TextStyle(
+                                      color: Brand.greenDark,
+                                      fontWeight: FontWeight.w900,
+                                      fontSize: 14,
+                                    ),
+                                  ),
+                                  Text(
+                                    wide
+                                        ? 'Descreva o serviço em linguagem natural'
+                                        : 'Busca inteligente',
+                                    style: TextStyle(
+                                      color: Brand.greenDark
+                                          .withValues(alpha: 0.75),
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 10, vertical: 7),
+                              decoration: BoxDecoration(
+                                color: Brand.green,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Text(
+                                'Abrir IA',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 Align(
                   alignment: Alignment.centerLeft,
                   child: TextButton.icon(
@@ -1433,7 +1525,7 @@ class _ModuleCard extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 
 /// Resolve carregamento, erro e vazio do stream de profissionais.
-class _ProvidersStream extends StatelessWidget {
+class _ProvidersStream extends StatefulWidget {
   final Stream<List<ProviderModel>> stream;
   final List<ProviderModel> Function(List<ProviderModel>) select;
   final String emptyText;
@@ -1448,36 +1540,103 @@ class _ProvidersStream extends StatelessWidget {
   });
 
   @override
+  State<_ProvidersStream> createState() => _ProvidersStreamState();
+}
+
+class _ProvidersStreamState extends State<_ProvidersStream> {
+  late Stream<List<ProviderModel>> _stream;
+  int _gen = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _stream = widget.stream;
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProvidersStream oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.stream, widget.stream)) {
+      _stream = widget.stream;
+    }
+  }
+
+  void _retry() {
+    FS.resetProvidersStreams();
+    setState(() {
+      _gen++;
+      _stream = FS.providersStream(limit: 20);
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     return StreamBuilder<List<ProviderModel>>(
-      stream: stream,
+      key: ValueKey(_gen),
+      stream: _stream,
       builder: (_, snap) {
         var all = snap.data ?? [];
         if (all.isEmpty && HomologCatalog.enabled) {
           all = HomologCatalog.providers();
         }
-        if (snap.connectionState == ConnectionState.waiting &&
+        final waiting = snap.connectionState == ConnectionState.waiting &&
             all.isEmpty &&
-            !HomologCatalog.enabled) {
+            !snap.hasError &&
+            !HomologCatalog.enabled;
+        if (waiting) {
           return Padding(
-              padding: EdgeInsets.symmetric(horizontal: pad),
-              child: const ShimCard());
+            padding: EdgeInsets.symmetric(horizontal: widget.pad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const ShimCard(),
+                const SizedBox(height: 8),
+                Text(
+                  'Carregando profissionais…',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                      fontSize: 12.5, color: Brand.inkMuted(context)),
+                ),
+              ],
+            ),
+          );
         }
-        final list = select(all);
+        final list = widget.select(all);
+        if (snap.hasError && list.isEmpty) {
+          return Padding(
+            padding: EdgeInsets.symmetric(horizontal: widget.pad),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                InfoBanner(
+                  icon: '⚠️',
+                  text:
+                      'Falha ao carregar profissionais (rede, índice ou permissão). '
+                      'Isso não é lista vazia.',
+                  bg: _isDark(context) ? AppColors.darkSurface : Brand.greenLight,
+                  fg: _isDark(context) ? AppColors.darkTextMed : Brand.greenDark,
+                ),
+                TextButton.icon(
+                  onPressed: _retry,
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Tentar novamente'),
+                ),
+              ],
+            ),
+          );
+        }
         if (list.isEmpty) {
           return Padding(
-            padding: EdgeInsets.symmetric(horizontal: pad),
+            padding: EdgeInsets.symmetric(horizontal: widget.pad),
             child: InfoBanner(
-              icon: snap.hasError ? '⚠️' : '📍',
-              text: snap.hasError
-                  ? 'Não foi possível carregar os profissionais agora. Puxe para atualizar.'
-                  : emptyText,
+              icon: '📍',
+              text: widget.emptyText,
               bg: _isDark(context) ? AppColors.darkSurface : Brand.greenLight,
               fg: _isDark(context) ? AppColors.darkTextMed : Brand.greenDark,
             ),
           );
         }
-        return builder(list);
+        return widget.builder(list);
       },
     );
   }

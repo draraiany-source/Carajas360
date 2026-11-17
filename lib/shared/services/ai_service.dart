@@ -1,30 +1,118 @@
 import 'package:flutter/material.dart';
 import 'cloud_fn.dart';
 
-// ── Assistente de IA (Vol.28: IA e Automações) ────────────────
-// Usa a Cloud Function `aiAssistant` (Claude API). Se o backend não
-// estiver configurado ou a chamada falhar, retorna null e a tela de
-// IA cai automaticamente no modo de respostas locais (fallback),
-// garantindo que o assistente nunca trave para o usuário.
+/// Resposta estruturada da Central Carajás IA (callable `aiAssistant`).
+class AiTurnResult {
+  final String reply;
+  final List<AiProviderCard> providers;
+  final String source;
+  final String mode;
+  final String? conversationId;
+  final double? costUsd;
+  final bool consentRequired;
+
+  const AiTurnResult({
+    required this.reply,
+    this.providers = const [],
+    this.source = 'unknown',
+    this.mode = 'client',
+    this.conversationId,
+    this.costUsd,
+    this.consentRequired = false,
+  });
+
+  factory AiTurnResult.fromMap(Map<String, dynamic> data) {
+    final raw = data['providers'];
+    final cards = <AiProviderCard>[];
+    if (raw is List) {
+      for (final item in raw) {
+        if (item is Map) {
+          cards.add(AiProviderCard.fromMap(Map<String, dynamic>.from(item)));
+        }
+      }
+    }
+    final cost = data['cost'];
+    double? usd;
+    if (cost is Map && cost['usd'] != null) {
+      usd = (cost['usd'] as num?)?.toDouble();
+    }
+    return AiTurnResult(
+      reply: (data['reply'] as String?)?.trim() ?? '',
+      providers: cards,
+      source: (data['source'] as String?) ?? 'unknown',
+      mode: (data['mode'] as String?) ?? 'client',
+      conversationId: data['conversationId'] as String?,
+      costUsd: usd,
+      consentRequired: data['source'] == 'consent_required',
+    );
+  }
+}
+
+class AiProviderCard {
+  final String id, name;
+  final String? city;
+  final double rating;
+  final List<String> categories;
+  final List<String> modalities;
+  final bool isTestSeed;
+
+  const AiProviderCard({
+    required this.id,
+    required this.name,
+    this.city,
+    this.rating = 0,
+    this.categories = const [],
+    this.modalities = const [],
+    this.isTestSeed = false,
+  });
+
+  factory AiProviderCard.fromMap(Map<String, dynamic> m) => AiProviderCard(
+        id: (m['id'] as String?) ?? '',
+        name: (m['name'] as String?) ?? '',
+        city: m['city'] as String?,
+        rating: (m['rating'] as num?)?.toDouble() ?? 0,
+        categories: List<String>.from(m['categories'] ?? const []),
+        modalities: List<String>.from(m['modalities'] ?? const []),
+        isTestSeed: m['isTestSeed'] == true,
+      );
+}
+
+/// Cliente da Central Carajás IA. Sempre via Cloud Function (sem chave no app).
 class AiSvc {
-  static Future<String?> ask(
-      String message, List<Map<String, dynamic>> history) async {
+  /// Pedido completo com modo/consentimento/cidade.
+  static Future<AiTurnResult?> askTurn({
+    required String message,
+    List<Map<String, dynamic>> history = const [],
+    String mode = 'client',
+    String? city,
+    String? category,
+    String? conversationId,
+    bool healthConsent = false,
+  }) async {
     try {
       final data = await CloudFn.call('aiAssistant', {
         'message': message,
         'history': history,
+        'mode': mode,
+        if (city != null && city.isNotEmpty) 'city': city,
+        if (category != null && category.isNotEmpty) 'category': category,
+        if (conversationId != null) 'conversationId': conversationId,
+        'healthConsent': healthConsent,
       });
-      return data['reply'] as String?;
+      return AiTurnResult.fromMap(Map<String, dynamic>.from(data));
     } catch (e) {
       debugPrint('IA error: $e');
       return null;
     }
   }
 
-  // ── Sugestão automática de descrição (Vol.11: IA) ──────────────
-  // Usado em RequestServiceScreen: o cliente digita algumas palavras
-  // soltas e a IA transforma em uma descrição profissional e clara
-  // para o prestador entender o pedido.
+  /// Compatível com chamadas antigas (só texto).
+  static Future<String?> ask(
+      String message, List<Map<String, dynamic>> history) async {
+    final turn = await askTurn(message: message, history: history);
+    return turn?.reply;
+  }
+
   static Future<String?> suggestDescription(
       {required String category, required String draft}) async {
     if (draft.trim().isEmpty) return null;
@@ -35,21 +123,16 @@ class AiSvc {
     return reply?.trim();
   }
 
-  // ── Sugestão de orçamento (Vol.11: IA) ──────────────────────────
-  // Estima uma faixa de preço razoável com base na categoria e na
-  // descrição do serviço, para orientar o cliente antes de negociar
-  // com o prestador. Sempre deixa claro que é uma estimativa.
   static Future<String?> suggestBudget(
       {required String category, required String description}) async {
     final prompt =
         'Com base nesta descrição de serviço de $category: "$description", '
-        'sugira uma faixa de preço razoável em reais para o mercado brasileiro atual. '
-        'Responda em uma única frase curta, no formato "Entre R\$ X e R\$ Y", sem explicações adicionais.';
+        'oriente o usuário a pedir orçamento a profissionais cadastrados. '
+        'NÃO invente valores em reais. Diga apenas que o preço vem da proposta do profissional.';
     final reply = await ask(prompt, const []);
     return reply?.trim();
   }
 
-  /// Pedido assistido (server). Retorna mapa com draft/source ou null se CF indisponivel.
   static Future<Map<String, dynamic>?> assistServiceRequest({
     required String freeText,
     String? city,
@@ -92,7 +175,6 @@ class AiSvc {
     }
   }
 
-  /// Rascunho de proposta — preco/prazo obrigatorios do prestador.
   static Future<Map<String, dynamic>?> assistProposalDraft({
     required String requestId,
     required double price,
@@ -119,11 +201,6 @@ class AiSvc {
     }
   }
 
-  // ── Busca inteligente (Vol.11: IA) ──────────────────────────────
-  // Interpreta uma busca em linguagem natural (ex.: "preciso de
-  // alguém pra consertar vazamento no banheiro amanhã") e devolve a
-  // categoria mais próxima do catálogo do app, para pré-filtrar a
-  // busca em vez do usuário navegar pelas categorias manualmente.
   static Future<String?> smartSearchCategory(
       String query, List<String> availableCategories) async {
     if (query.trim().isEmpty) return null;

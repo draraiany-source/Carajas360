@@ -18,6 +18,7 @@ const planChange = require('./planChange');
 const audit = require('./auditLog');
 const { directionsDecision } = require('./directionsProxy');
 const serviceAssist = require('./serviceAssist');
+const carajasAi = require('./carajasAi');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -115,7 +116,17 @@ function assertOrderPayable(order) {
 }
 
 function getAnthropicKey() {
-  return process.env.ANTHROPIC_API_KEY || '';
+  // Nunca logar o valor. Secret Manager (Blaze) ou env de runtime — nunca no frontend.
+  return carajasAi.sanitizeAnthropicKey(process.env.ANTHROPIC_API_KEY);
+}
+
+/** Opções da callable IA. Secrets só se BIND_ANTHROPIC_SECRET=true (exige Blaze). */
+function aiAssistantRuntimeOpts() {
+  const opts = { timeoutSeconds: 60, memory: '256MB' };
+  if (process.env.BIND_ANTHROPIC_SECRET === 'true') {
+    opts.secrets = ['ANTHROPIC_API_KEY'];
+  }
+  return opts;
 }
 
 function httpsError(code, message) {
@@ -988,52 +999,200 @@ exports.processCardPayment = functions.region(REGION).https.onCall(async (data, 
   return { id: String(id), status, statusDetail: status_detail };
 });
 
-exports.aiAssistant = functions.region(REGION).https.onCall(async (data, context) => {
+/**
+ * Central Carajás IA — callable autenticada.
+ * Fundamenta respostas em providers reais; sem chave Anthropic usa fallback grounded.
+ * Nunca inventa profissionais/preços/agendamentos.
+ */
+exports.aiAssistant = functions
+  .region(REGION)
+  .runWith(aiAssistantRuntimeOpts())
+  .https.onCall(async (data, context) => {
   const auth = requireAuth(context);
-  await enforceRateLimit(auth.uid, 'ai', 40, 60 * 60 * 1000);
-  const apiKey = getAnthropicKey();
-  if (!apiKey) {
-    throw httpsError('failed-precondition', 'IA não configurada neste ambiente');
+  const userSnap = await db.collection('users').doc(auth.uid).get();
+  const user = userSnap.exists ? userSnap.data() || {} : {};
+  const mode = carajasAi.normalizeMode(data && data.mode);
+  if (mode === 'admin') {
+    const ok = await isAdmin(auth);
+    if (!ok) throw httpsError('permission-denied', 'Modo administrativo restrito');
   }
-  const message = String(data && data.message || '').slice(0, 2000);
-  if (!message.trim()) throw httpsError('invalid-argument', 'Mensagem vazia');
+  if (mode === 'provider') {
+    const isPro = user.role === 'provider' || user.isProvider === true;
+    const prov = await db.collection('providers').doc(auth.uid).get();
+    if (!isPro && !prov.exists) {
+      throw httpsError('permission-denied', 'Modo profissional exige perfil de prestador');
+    }
+  }
+
+  const quota = serviceAssist.planAiQuota(user.plan || 'free');
+  await enforceRateLimit(auth.uid, `ai_${mode}`, Math.min(quota.max, 40), quota.windowMs);
+
+  const message = String((data && data.message) || '').slice(0, 2000).trim();
+  if (!message) throw httpsError('invalid-argument', 'Mensagem vazia');
   const history = Array.isArray(data && data.history) ? data.history.slice(-8) : [];
+  const city = String((data && data.city) || user.city || '').slice(0, 80);
+  const healthConsent = data && data.healthConsent === true;
+  if (mode === 'health' && !healthConsent) {
+    return {
+      reply: 'Para o assistente de Saúde, confirme o aviso: não realizamos diagnóstico nem '
+        + 'prescrição; dados sensíveis não devem ser enviados no chat. Marque o consentimento '
+        + 'educativo e tente de novo, ou use a tela Saúde do app.',
+      providers: [],
+      source: 'consent_required',
+      cost: carajasAi.estimateCostUsd({ inputChars: 0, outputChars: 0, usedLlm: false }),
+    };
+  }
 
-  const systemPrompt = 'Você é o assistente virtual do Carajás 360, plataforma regional de serviços. '
-    + 'Responda sempre em português do Brasil, de forma breve (máx. 3 parágrafos curtos). '
-    + 'Não invente confirmações de pagamento nem dados pessoais.';
+  const intent = carajasAi.detectIntent(message);
+  const category = carajasAi.guessCategory(message)
+    || String((data && data.category) || '').slice(0, 40)
+    || null;
+  const healthOnly = mode === 'health' || intent === 'health';
 
-  const messages = [
-    ...history.map((h) => ({
-      role: h && h.isAi ? 'assistant' : 'user',
-      content: String(h && h.text || '').slice(0, 1000),
-    })),
-    { role: 'user', content: message },
-  ];
-
-  let response;
+  let providers = [];
+  let insights = null;
   try {
-    response = await axios.post('https://api.anthropic.com/v1/messages', {
-      model: 'claude-sonnet-4-5',
-      max_tokens: 500,
-      system: systemPrompt,
-      messages,
-    }, {
-      headers: {
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
+    providers = await carajasAi.loadGroundedProviders(db, {
+      category: category || undefined,
+      city: city || undefined,
+      healthOnly,
+      limit: 8,
+    });
+    if (mode === 'admin') {
+      insights = await carajasAi.loadAdminInsights(db);
+    }
+  } catch (err) {
+    audit.structuredLog('warn', 'ai_grounding_failed', { err: String(err && err.message || err) });
+  }
+
+  const grounded = carajasAi.groundedFallback({
+    mode, providers, insights, intent, message,
+  });
+  const apiKey = getAnthropicKey();
+  // Staging padrão: grounded. LLM só com chave válida e AI_ENABLED!=false.
+  const aiEnabled = process.env.AI_ENABLED !== 'false';
+
+  let reply = grounded.reply;
+  let source = grounded.source;
+  let usedLlm = false;
+  let inputChars = message.length;
+  let outputChars = reply.length;
+
+  if (apiKey && aiEnabled && intent !== 'urgency') {
+    const system = carajasAi.systemPromptFor(mode, { healthConsent })
+      + '\n\nCONTEXTO_AUTORIZADO:\n'
+      + carajasAi.contextBlock({ mode, providers, insights, city, intent });
+    const messages = [
+      ...history.map((h) => ({
+        role: h && h.isAi ? 'assistant' : 'user',
+        content: String((h && h.text) || '').slice(0, 1000),
+      })),
+      { role: 'user', content: message },
+    ];
+    inputChars += system.length + messages.reduce((n, m) => n + String(m.content).length, 0);
+    try {
+      const response = await axios.post('https://api.anthropic.com/v1/messages', {
+        model: 'claude-sonnet-4-5',
+        max_tokens: 500,
+        system,
+        messages,
+      }, {
+        headers: {
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'Content-Type': 'application/json',
+        },
+        timeout: 25000,
+      });
+      const text = response.data.content && response.data.content[0]
+        && response.data.content[0].text
+        ? response.data.content[0].text
+        : '';
+      if (text.trim()) {
+        reply = text.trim().slice(0, 4000);
+        source = 'anthropic';
+        usedLlm = true;
+        outputChars = reply.length;
+      }
+    } catch (err) {
+      console.error('aiAssistant llm', err && err.message);
+      // Mantém fallback grounded — não inventa. Nunca logar a chave.
+      source = 'grounded_fallback_after_llm_error';
+    }
+  }
+
+  const cost = carajasAi.estimateCostUsd({ inputChars, outputChars, usedLlm });
+  const conversationId = carajasAi.scopedConversationId(
+    auth.uid,
+    data && data.conversationId,
+    mode,
+  );
+
+  try {
+    const convRef = db.collection('aiConversations').doc(conversationId);
+    const existing = await convRef.get();
+    if (existing.exists && existing.data() && existing.data().userId
+        && existing.data().userId !== auth.uid) {
+      throw httpsError('permission-denied', 'Histórico de outro usuário');
+    }
+    await convRef.set({
+      userId: auth.uid,
+      mode,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      retentionDays: 30,
+    }, { merge: true });
+    await convRef.collection('messages').add({
+      userId: auth.uid,
+      role: 'user',
+      text: message.slice(0, 2000),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await convRef.collection('messages').add({
+      userId: auth.uid,
+      role: 'assistant',
+      text: reply.slice(0, 4000),
+      source,
+      providerIds: (providers || []).map((p) => p.id),
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+    await db.collection('aiUsage').add({
+      userId: auth.uid,
+      mode,
+      source,
+      costUsd: cost.usd,
+      model: cost.model || 'none',
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   } catch (err) {
-    console.error('aiAssistant error', err && err.message);
-    throw httpsError('unavailable', 'Assistente indisponível no momento.');
+    if (err && err.code && String(err.code).includes('permission-denied')) throw err;
+    audit.structuredLog('warn', 'ai_history_write_failed', { err: String(err && err.message || err) });
   }
-  const reply = response.data.content && response.data.content[0]
-    && response.data.content[0].text
-    ? response.data.content[0].text
-    : 'Não consegui processar sua pergunta agora.';
-  return { reply };
+
+  await audit.writeAudit(db, {
+    actorId: auth.uid,
+    actorType: 'user',
+    action: 'ai_assistant_turn',
+    target: conversationId,
+    details: { mode, source, providers: (providers || []).length, costUsd: cost.usd },
+  });
+
+  return {
+    reply,
+    providers: (providers || []).map((p) => ({
+      id: p.id,
+      name: p.name,
+      categories: p.categories,
+      city: p.city,
+      rating: p.rating,
+      modalities: p.modalities,
+      isTestSeed: !!p.isTestSeed,
+    })),
+    source,
+    mode,
+    cost,
+    conversationId,
+    humanSupportRoute: '/support',
+  };
 });
 
 /**

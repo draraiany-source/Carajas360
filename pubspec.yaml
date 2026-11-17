@@ -64,6 +64,7 @@ flutter:
     - assets/animations/
     - assets/backgrounds/
     - assets/mascot/
+    - assets/carajas_ia/
     - assets/sounds/
     - assets/markers/
     - assets/marketplace/

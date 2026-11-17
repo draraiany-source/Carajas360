@@ -1,0 +1,4 @@
+﻿Prompt 10 — evidência testes (16/11/2026)
+- carajas_ia_character_test + ai_turn_result: PASS
+- carajas_ia_screen_smoke_test (mobile/embedded/FAB): PASS após fix overflow
+- Disco C: estava quase cheio; limpamos caches build/web e flutter_tools Temp

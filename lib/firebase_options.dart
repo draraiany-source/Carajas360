@@ -1,16 +1,10 @@
 // ════════════════════════════════════════════════════════════════
 // FIREBASE OPTIONS — Carajás 360
 //
-// Placeholders de staging. NÃO invente keys.
-// Gere este arquivo automaticamente com:
-//   dart pub global activate flutterfire_cli
-//   flutterfire configure --project=carajas360-a17c5
-//
-// IDs migrados (autorização da Raiany):
-//   projectId  carajas360-a17c5
-//   Android/iOS br.com.carajas360
-//   Dart package carajas_360
-// Ver CHECKLIST_FIREBASE_STAGING.md e IDENTIDADE_TECNICA.md.
+// Gerado a partir de `firebase apps:sdkconfig` no projeto
+// carajas360-a17c5 (apps reais Android/iOS/Web). Não inventar keys.
+// Regenerar se necessário:
+//   firebase apps:sdkconfig ANDROID|IOS|WEB --project carajas360-a17c5
 // ════════════════════════════════════════════════════════════════
 import 'package:firebase_core/firebase_core.dart' show FirebaseOptions;
 import 'package:flutter/foundation.dart'
@@ -30,29 +24,29 @@ class DefaultFirebaseOptions {
   }
 
   static const android = FirebaseOptions(
-    apiKey: 'COLE_SUA_ANDROID_API_KEY',
-    appId: '1:NUMERO:android:HASH',
-    messagingSenderId: 'NUMERO',
+    apiKey: 'AIzaSyBUWj_amgBaD3Pqk5ImKgyRNwj-MObzA1c',
+    appId: '1:943691582268:android:815702597e79223a9eec39',
+    messagingSenderId: '943691582268',
     projectId: 'carajas360-a17c5',
-    storageBucket: 'carajas360-a17c5.appspot.com',
+    storageBucket: 'carajas360-a17c5.firebasestorage.app',
   );
 
   static const ios = FirebaseOptions(
-    apiKey: 'COLE_SUA_IOS_API_KEY',
-    appId: '1:NUMERO:ios:HASH',
-    messagingSenderId: 'NUMERO',
+    apiKey: 'AIzaSyCKosmKE7Sw6XKqb_Xuz6MIGtUW0kYQDLA',
+    appId: '1:943691582268:ios:28b25a6c6d3c60279eec39',
+    messagingSenderId: '943691582268',
     projectId: 'carajas360-a17c5',
-    storageBucket: 'carajas360-a17c5.appspot.com',
+    storageBucket: 'carajas360-a17c5.firebasestorage.app',
     iosBundleId: 'br.com.carajas360',
   );
 
   static const web = FirebaseOptions(
-    apiKey: 'COLE_SUA_WEB_API_KEY',
-    appId: '1:NUMERO:web:HASH',
-    messagingSenderId: 'NUMERO',
+    apiKey: 'AIzaSyBjzEUtgteCKt_pus6YbYcQ6w1pECWETgY',
+    appId: '1:943691582268:web:cd3e505962fd07059eec39',
+    messagingSenderId: '943691582268',
     projectId: 'carajas360-a17c5',
-    storageBucket: 'carajas360-a17c5.appspot.com',
+    storageBucket: 'carajas360-a17c5.firebasestorage.app',
     authDomain: 'carajas360-a17c5.firebaseapp.com',
-    measurementId: 'G-XXXXXXXXXX',
+    measurementId: 'G-N9B19BCQJX',
   );
 }

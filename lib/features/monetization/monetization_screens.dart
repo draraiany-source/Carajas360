@@ -1,9 +1,10 @@
-﻿import 'package:flutter/material.dart';
+﻿import 'dart:async';
+
+import 'package:flutter/material.dart';
 
 import '../../core/catalog/homolog_catalog.dart';
 import '../../core/monetization/lead_unlock_service.dart';
 import '../../core/monetization/monetization_config.dart';
-import '../../core/monetization/money.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
@@ -17,13 +18,20 @@ class CreditPackagesScreen extends StatefulWidget {
 class _CreditPackagesScreenState extends State<CreditPackagesScreen> {
   MonetizationConfig _cfg = MonetizationConfig.defaults();
   bool _busy = false;
+  StreamSubscription? _cfgSub;
 
   @override
   void initState() {
     super.initState();
-    FS.platformConfigStream().listen((m) {
+    _cfgSub = FS.platformConfigStream().listen((m) {
       if (mounted) setState(() => _cfg = MonetizationConfig.fromMap(m));
     }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _cfgSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _buy(CreditPackage pkg) async {
@@ -124,13 +132,20 @@ class CarajasProScreen extends StatefulWidget {
 class _CarajasProScreenState extends State<CarajasProScreen> {
   MonetizationConfig _cfg = MonetizationConfig.defaults();
   String _status = 'NONE';
+  StreamSubscription? _cfgSub;
 
   @override
   void initState() {
     super.initState();
-    FS.platformConfigStream().listen((m) {
+    _cfgSub = FS.platformConfigStream().listen((m) {
       if (mounted) setState(() => _cfg = MonetizationConfig.fromMap(m));
     }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _cfgSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _subscribe() async {
@@ -218,13 +233,20 @@ class HighlightsBuyScreen extends StatefulWidget {
 
 class _HighlightsBuyScreenState extends State<HighlightsBuyScreen> {
   MonetizationConfig _cfg = MonetizationConfig.defaults();
+  StreamSubscription? _cfgSub;
 
   @override
   void initState() {
     super.initState();
-    FS.platformConfigStream().listen((m) {
+    _cfgSub = FS.platformConfigStream().listen((m) {
       if (mounted) setState(() => _cfg = MonetizationConfig.fromMap(m));
     }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _cfgSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _buy(HighlightPlan plan) async {
