@@ -327,19 +327,28 @@ class _ResolveDetailScreenState extends State<ResolveDetailScreen> {
                             snack(context,
                                 'Proposta aceita! O pedido está em Meus pedidos, pronto para pagamento.',
                                 bg: AppColors.secondary);
-                            Navigator.pushNamed(context, Routes.myOrders);
+                            Navigator.pushNamedAndRemoveUntil(
+                              context,
+                              Routes.myOrders,
+                              (route) =>
+                                  route.isFirst ||
+                                  route.settings.name == Routes.main,
+                            );
                           },
                           onChat: () => ChatNav.open(context,
                               otherUserId: p.providerId,
                               otherName: p.providerName,
                               otherPhoto: p.providerPhoto),
                           onDecline: () {
-                            snack(context, 'Proposta recusada (local)');
+                            snack(context,
+                                'Para recusar, ignore a proposta ou escolha outra. '
+                                'A recusa definitiva será registrada na próxima versão.',
+                                bg: AppColors.warning);
                           },
                           onProfile: () => Navigator.pushNamed(
                             context,
-                            Routes.search,
-                            arguments: {'category': req.category},
+                            Routes.providerProfile,
+                            arguments: {'providerId': p.providerId},
                           ),
                         );
                       },

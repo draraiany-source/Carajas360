@@ -218,10 +218,12 @@ HTTP: `mercadoPagoWebhook`.
 - Lacunas críticas para comercialização: **IA runtime**, **live hosting**, **pagamentos/ops**, **disputas admin**.  
 - Homolog Web com Explorar + profissionais reais e UI da IA **já comprovados**; turnos LLM **não**.  
 
-**FASE 2 concluída** (`e3ca8b4`) — ver `docs/RELATORIO_FASE2_ORGANIZAR_TELAS.md`.  
-**FASE 3 (fluxo cliente P0) concluída** — ver `docs/RELATORIO_FASE3_TELA_POR_TELA.md`.  
-**Próximo passo (após GO):** FASE 4 — fluxo E2E do cliente com status no Firestore.
+**FASE 2 concluída** — `docs/RELATORIO_FASE2_ORGANIZAR_TELAS.md`.  
+**FASE 3 concluída** — `docs/RELATORIO_FASE3_TELA_POR_TELA.md`.  
+**FASES 4–11 (código + docs)** — `docs/RELATORIO_FASES_4_A_11.md`, `docs/MATRIZ_HOMOLOGACAO_FASE10.md`, `docs/ENTREGA_PROGRAMADOR_CARAJAS360.md`.  
+
+**Ainda exigem GO:** live hosting, deploy Functions/IA, pagamentos produção, AAB/IPA.
 
 ---
 
-*Arquivo gerado na FASE 1 do Prompt Mestre de Finalização. Evidências: `docs/RELATORIO_CORRECAO_PROFISSIONAIS_E_IA.md`, `docs/RELATORIO_FASE2_ORGANIZAR_TELAS.md`, `docs/RELATORIO_FASE3_TELA_POR_TELA.md`, `docs/evidence/homolog_ia/`.*
+*Arquivo gerado na FASE 1 do Prompt Mestre de Finalização. Evidências: `docs/RELATORIO_CORRECAO_PROFISSIONAIS_E_IA.md`, `docs/RELATORIO_FASE2_ORGANIZAR_TELAS.md`, `docs/RELATORIO_FASE3_TELA_POR_TELA.md`, `docs/RELATORIO_FASES_4_A_11.md`, `docs/evidence/homolog_ia/`.*

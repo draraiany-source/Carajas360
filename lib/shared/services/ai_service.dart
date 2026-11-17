@@ -100,6 +100,17 @@ class AiSvc {
         'healthConsent': healthConsent,
       });
       return AiTurnResult.fromMap(Map<String, dynamic>.from(data));
+    } on CloudCallException catch (e) {
+      debugPrint('IA CloudCallException: ${e.message}');
+      // Propaga mensagem amigável via reply sintética (UI trata source).
+      return AiTurnResult(
+        reply: e.message.isNotEmpty
+            ? e.message
+            : 'Assistente indisponível neste ambiente (Function/API). '
+                'Use Explorar ou o suporte.',
+        source: 'unavailable',
+        mode: mode,
+      );
     } catch (e) {
       debugPrint('IA error: $e');
       return null;

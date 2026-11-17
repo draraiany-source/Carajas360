@@ -6,7 +6,6 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/utils/chat_nav.dart';
-import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../core/security/order_policy.dart';
@@ -72,19 +71,6 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
               style: const TextStyle(color: Colors.white70, fontSize: 10)),
         ]),
       ));
-
-  static final _demoPending = [
-    OrderModel(
-        id: 'p1',
-        clientId: 'c1',
-        category: 'eletricista',
-        title: 'Instalação de chuveiro',
-        description: 'Preciso trocar o chuveiro elétrico do banheiro.',
-        address: 'Rua Augusta, 500',
-        price: 90,
-        status: OrderStatus.pending,
-        createdAt: DateTime.now().subtract(const Duration(minutes: 12))),
-  ];
 
   @override
   Widget build(BuildContext context) => Scaffold(
@@ -216,13 +202,11 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
           body: TabBarView(controller: _tab, children: [
             _OrderList(
                 statuses: const [OrderStatus.pending],
-                demo: _demoPending,
                 emptyEmoji: '📭',
                 emptyTitle: 'Sem pedidos novos',
                 emptySub: 'Novas solicitações aparecerão aqui'),
             _OrderList(
                 statuses: const [OrderStatus.accepted, OrderStatus.inProgress],
-                demo: const [],
                 emptyEmoji: '🔧',
                 emptyTitle: 'Nada em andamento',
                 emptySub: 'Pedidos aceitos aparecerão aqui'),
@@ -231,7 +215,6 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
               Expanded(
                   child: _OrderList(
                       statuses: const [OrderStatus.completed],
-                      demo: const [],
                       emptyEmoji: '✅',
                       emptyTitle: 'Sem histórico ainda',
                       emptySub: 'Serviços concluídos aparecerão aqui')),
@@ -243,11 +226,9 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
 
 class _OrderList extends StatelessWidget {
   final List<OrderStatus> statuses;
-  final List<OrderModel> demo;
   final String emptyEmoji, emptyTitle, emptySub;
   const _OrderList(
       {required this.statuses,
-      required this.demo,
       required this.emptyEmoji,
       required this.emptyTitle,
       required this.emptySub});
@@ -256,12 +237,22 @@ class _OrderList extends StatelessWidget {
   Widget build(BuildContext context) => StreamBuilder<List<OrderModel>>(
         stream: FS.providerOrdersStream(statuses: statuses),
         builder: (_, snap) {
-          final orders = DemoData.orEmpty(
-              snap.data,
-              statuses.contains(OrderStatus.pending) ? demo : <OrderModel>[]);
-          if (orders.isEmpty)
+          if (snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snap.hasError && !snap.hasData) {
+            return const EmptyState(
+              emoji: '⚠️',
+              title: 'Falha ao carregar pedidos',
+              subtitle: 'Verifique a conexão e tente novamente.',
+            );
+          }
+          final orders = snap.data ?? const <OrderModel>[];
+          if (orders.isEmpty) {
             return EmptyState(
                 emoji: emptyEmoji, title: emptyTitle, subtitle: emptySub);
+          }
           return ListView.builder(
             padding: const EdgeInsets.all(16),
             itemCount: orders.length,

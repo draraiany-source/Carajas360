@@ -2209,25 +2209,148 @@ exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
   }
 
   try {
+    // FASE 6: nunca confiar em userId/credits do body. Só ledger a partir de
+    // payments/{eventId} (criado pelo app/CF) + status aprovado no Mercado Pago.
+    const paySnap = await db.collection('payments').doc(eventId).get();
+    if (!paySnap.exists) {
+      audit.structuredLog('info', 'mp_webhook', {
+        status: 202,
+        reason: 'untrusted_payload_no_local_payment',
+        eventId: eventId || null,
+        charged: false,
+        applied: false,
+      });
+      res.status(202).json({
+        ok: true,
+        reason: 'untrusted_payload_no_local_payment',
+        charged: false,
+        applied: false,
+        eventId,
+      });
+      return;
+    }
+    const pay = paySnap.data() || {};
+    const uid = String(pay.userId || '');
+    if (!uid) {
+      audit.structuredLog('info', 'mp_webhook', {
+        status: 202,
+        reason: 'local_payment_missing_user',
+        eventId,
+        charged: false,
+        applied: false,
+      });
+      res.status(202).json({
+        ok: true,
+        reason: 'local_payment_missing_user',
+        charged: false,
+        applied: false,
+        eventId,
+      });
+      return;
+    }
+
+    if (!getMpToken()) {
+      audit.structuredLog('info', 'mp_webhook', {
+        status: 202,
+        reason: 'mp_token_missing',
+        eventId,
+        charged: false,
+        applied: false,
+      });
+      res.status(202).json({
+        ok: true,
+        reason: 'mp_token_missing',
+        charged: false,
+        applied: false,
+        eventId,
+      });
+      return;
+    }
+
+    let mpStatus = '';
+    try {
+      const mpRes = await axios.get(
+        `https://api.mercadopago.com/v1/payments/${eventId}`,
+        { headers: { Authorization: `Bearer ${getMpToken()}` } },
+      );
+      mpStatus = String((mpRes.data && mpRes.data.status) || '');
+    } catch (err) {
+      audit.structuredLog('error', 'mp_webhook_mp_lookup_failed', {
+        eventId,
+        message: err && err.message,
+      });
+      res.status(502).json({
+        ok: false,
+        reason: 'mp_lookup_failed',
+        charged: false,
+        applied: false,
+      });
+      return;
+    }
+    if (mpStatus !== 'approved') {
+      audit.structuredLog('info', 'mp_webhook', {
+        status: 202,
+        reason: 'mp_not_approved',
+        mpStatus,
+        eventId,
+        charged: false,
+        applied: false,
+      });
+      res.status(202).json({
+        ok: true,
+        reason: 'mp_not_approved',
+        mpStatus,
+        charged: false,
+        applied: false,
+        eventId,
+      });
+      return;
+    }
+
+    const credits = Math.max(0, Number(pay.credits || plan.credits || 0));
+    const purchaseId = String(pay.purchaseId || '');
+    const orderId = pay.orderId ? String(pay.orderId) : '';
+
     const result = await db.runTransaction(async (tx) => {
       const evRef = db.collection('webhookEvents').doc(eventId);
       const evSnap = await tx.get(evRef);
       if (evSnap.exists) {
         return { already: true, applied: true, ledgerWrites: 0 };
       }
-      const uid = String((req.body && req.body.userId) || '');
-      const credits = Number(plan.credits || 0);
-      const purchaseId = String((req.body && req.body.purchaseId) || '');
       tx.set(evRef, {
         eventId,
         kind: plan.kind,
-        userId: uid || null,
+        userId: uid,
         purchaseId: purchaseId || null,
+        orderId: orderId || null,
         applied: true,
-        charged: false,
+        charged: true,
+        mpStatus,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       });
-      if (uid && credits > 0) {
+      tx.set(db.collection('payments').doc(eventId), {
+        status: 'approved',
+        mpStatus,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      }, { merge: true });
+      if (orderId) {
+        const oRef = db.collection('orders').doc(orderId);
+        const oSnap = await tx.get(oRef);
+        if (oSnap.exists) {
+          // Espelha checkPayment: paymentStatus/escrow — sem forçar status do pedido
+          // fora da máquina de estados (aceito/em andamento podem permanecer).
+          tx.update(oRef, {
+            paymentStatus: 'paid',
+            paidAt: admin.firestore.FieldValue.serverTimestamp(),
+            paymentMethod: pay.method || 'pix',
+            escrowStatus: 'held',
+            heldAmount: Number(pay.amount) || 0,
+            transactionId: eventId,
+            gatewayTransactionId: eventId,
+          });
+        }
+      }
+      if (credits > 0) {
         const walletRef = db.collection('wallets').doc(uid);
         const wSnap = await tx.get(walletRef);
         const w = wSnap.exists ? wSnap.data() || {} : {};
@@ -2252,10 +2375,14 @@ exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
         const pRef = db.collection('creditPurchases').doc(purchaseId);
         const pSnap = await tx.get(pRef);
         if (pSnap.exists) {
+          const pdata = pSnap.data() || {};
+          if (pdata.userId && pdata.userId !== uid) {
+            throw new Error('purchase_user_mismatch');
+          }
           tx.update(pRef, {
             status: 'confirmed',
             applied: true,
-            charged: false,
+            charged: true,
             eventId,
             appliedAt: admin.firestore.FieldValue.serverTimestamp(),
           });
@@ -2267,13 +2394,13 @@ exports.mercadoPagoWebhook = functions.https.onRequest(async (req, res) => {
       status: 202,
       reason: result.already ? 'idempotent_skip' : 'apply_ledger',
       eventId,
-      charged: false,
+      charged: true,
       applied: true,
       already: Boolean(result.already),
     });
     res.status(202).json({
       ok: true,
-      charged: false,
+      charged: true,
       applied: true,
       already: Boolean(result.already),
       eventId,

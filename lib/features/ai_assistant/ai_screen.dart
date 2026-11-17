@@ -200,6 +200,12 @@ class _AiState extends State<AiAssistantScreen> {
           'Não consegui falar com o assistente agora (rede, autenticação ou Function indisponível). '
           'Tente novamente ou use Explorar / Saúde / suporte humano.';
       canRetry = true;
+    } else if (turn.source == 'unavailable') {
+      response = turn.reply.isNotEmpty
+          ? turn.reply
+          : 'Assistente indisponível neste ambiente. Use Explorar ou o suporte.';
+      source = turn.source;
+      canRetry = true;
     } else if (turn.consentRequired) {
       response = turn.reply;
     } else if (turn.reply.isNotEmpty) {
