@@ -43,7 +43,14 @@ int _casaCount() => ProviderSearch.apply(
     .length;
 
 void main() {
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+    // Keys Firebase reais no projeto: força seed só nos widget tests.
+    HomologCatalog.debugOverrideEnabled = true;
+  });
+  tearDown(() {
+    HomologCatalog.debugOverrideEnabled = null;
+  });
 
   test('ambiente de teste usa o catálogo de demonstração isolado', () {
     expect(HomologCatalog.enabled, isTrue);

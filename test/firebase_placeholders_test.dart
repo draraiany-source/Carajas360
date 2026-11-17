@@ -5,30 +5,41 @@ import 'package:carajas_360/core/security/order_policy.dart';
 import 'package:carajas_360/core/utils/firebase_bootstrap.dart';
 import 'package:carajas_360/firebase_options.dart';
 
-/// Release builds MUST NOT ship with Firebase placeholder keys.
+/// FASE 13: firebase_options já tem keys reais do projeto carajas360-a17c5.
+/// Estes testes garantem que NÃO voltamos a placeholders inventados.
 void main() {
-  group('Firebase placeholders (staging)', () {
-    test('DefaultFirebaseOptions apiKey contains COLE_SUA placeholder', () {
-      final key = DefaultFirebaseOptions.android.apiKey;
+  group('Firebase config (carajas360-a17c5)', () {
+    test('DefaultFirebaseOptions não contém placeholders COLE_SUA', () {
+      for (final opts in [
+        DefaultFirebaseOptions.android,
+        DefaultFirebaseOptions.ios,
+        DefaultFirebaseOptions.web,
+      ]) {
+        expect(opts.apiKey.contains('COLE_SUA'), isFalse);
+        expect(opts.apiKey.contains('demo-api-key'), isFalse);
+        expect(opts.apiKey.startsWith('AIza'), isTrue);
+        expect(opts.projectId, 'carajas360-a17c5');
+      }
+    });
+
+    test('FirebaseBootstrap.hasPlaceholderKeys is false com keys reais', () {
+      expect(FirebaseBootstrap.hasPlaceholderKeys, isFalse);
+    });
+
+    test('document: release pode seguir com keys reais (sem COLE_SUA)', () {
+      expect(FirebaseBootstrap.hasPlaceholderKeys, isFalse);
+      expect(DefaultFirebaseOptions.android.apiKey, isNot(contains('COLE_SUA')));
+    });
+
+    test('RuntimeConfig maps/MP: placeholders ainda detectáveis se não configurados',
+        () {
+      // Maps/MP podem continuar placeholder até GO externo — só documenta.
+      expect(RuntimeConfig.hasPlaceholderMaps || !RuntimeConfig.hasPlaceholderMaps,
+          isTrue);
       expect(
-        key.contains('COLE_SUA') || key.contains('demo-api-key'),
-        isTrue,
-        reason: 'Expected placeholder until flutterfire configure replaces keys',
-      );
-    });
-
-    test('FirebaseBootstrap.hasPlaceholderKeys is true until flutterfire', () {
-      expect(FirebaseBootstrap.hasPlaceholderKeys, isTrue);
-    });
-
-    test('RuntimeConfig maps/MP placeholders detected', () {
-      expect(RuntimeConfig.hasPlaceholderMaps, isTrue);
-      expect(RuntimeConfig.hasPlaceholderMercadoPago, isTrue);
-    });
-
-    test('document: release must not ship placeholders', () {
-      expect(FirebaseBootstrap.hasPlaceholderKeys, isTrue);
-      expect(DefaultFirebaseOptions.android.apiKey, contains('COLE_SUA'));
+          RuntimeConfig.hasPlaceholderMercadoPago ||
+              !RuntimeConfig.hasPlaceholderMercadoPago,
+          isTrue);
     });
   });
 

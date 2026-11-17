@@ -25,13 +25,20 @@ void main() {
     expect(DefaultFirebaseOptions.ios.projectId, 'carajas360-a17c5');
     expect(DefaultFirebaseOptions.web.projectId, 'carajas360-a17c5');
     expect(DefaultFirebaseOptions.ios.iosBundleId, 'br.com.carajas360');
-    expect(DefaultFirebaseOptions.android.storageBucket,
-        'carajas360-a17c5.appspot.com');
+    // Bucket moderno (.firebasestorage.app) ou legado (.appspot.com).
+    final bucket = DefaultFirebaseOptions.android.storageBucket;
+    expect(
+      bucket == 'carajas360-a17c5.firebasestorage.app' ||
+          bucket == 'carajas360-a17c5.appspot.com',
+      isTrue,
+      reason: 'storageBucket inesperado: $bucket',
+    );
     expect(DefaultFirebaseOptions.web.authDomain,
         'carajas360-a17c5.firebaseapp.com');
-    expect(DefaultFirebaseOptions.android.apiKey.contains('COLE_SUA'), isTrue);
-    expect(DefaultFirebaseOptions.ios.apiKey.contains('COLE_SUA'), isTrue);
-    expect(DefaultFirebaseOptions.web.apiKey.contains('COLE_SUA'), isTrue);
+    expect(DefaultFirebaseOptions.android.apiKey.contains('COLE_SUA'), isFalse);
+    expect(DefaultFirebaseOptions.ios.apiKey.contains('COLE_SUA'), isFalse);
+    expect(DefaultFirebaseOptions.web.apiKey.contains('COLE_SUA'), isFalse);
+    expect(DefaultFirebaseOptions.android.apiKey.startsWith('AIza'), isTrue);
   });
 
   test('PaymentService expõe o contrato de gateway', () {

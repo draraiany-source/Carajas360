@@ -1,10 +1,18 @@
+import 'package:flutter/foundation.dart';
+
 import '../../shared/models/models.dart';
 import '../constants/app_constants.dart';
 import '../utils/firebase_bootstrap.dart';
 
 /// SEED/MOCK/HOMOLOGAÇÃO — só com FirebaseBootstrap.hasPlaceholderKeys.
+/// Em widget tests, use [debugOverrideEnabled] = true (nunca em release).
 abstract final class HomologCatalog {
-  static bool get enabled => FirebaseBootstrap.hasPlaceholderKeys;
+  /// Apenas testes. `null` = comportamento de produção.
+  @visibleForTesting
+  static bool? debugOverrideEnabled;
+
+  static bool get enabled =>
+      debugOverrideEnabled ?? FirebaseBootstrap.hasPlaceholderKeys;
 
   /// Perfil do seed de demonstração (não existe no Firestore).
   static bool isDemoProvider(String id) =>

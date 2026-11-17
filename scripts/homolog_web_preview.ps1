@@ -10,7 +10,7 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-flutter build web --release
+flutter build web --release --no-wasm-dry-run
 if ($LASTEXITCODE -ne 0) { throw 'flutter build web failed' }
 
 $stamp = Get-Date -Format 'yyyyMMddHHmmss'
