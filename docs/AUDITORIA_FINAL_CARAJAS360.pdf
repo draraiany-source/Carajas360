@@ -1,0 +1,294 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R] /Count 6 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 636 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360) Tj
+T*
+(AUDITORIA FINAL \(FASE 12\)) Tj
+T*
+(Homologacao final e liberacao para publicacao) Tj
+T*
+() Tj
+T*
+(Data: 17/11/2026) Tj
+T*
+(Branch: feat/modernizacao-visual) Tj
+T*
+(Commit auditado: 9880c6f \(relatorio c40771a\)) Tj
+T*
+(Versao app: 1.0.0+402) Tj
+T*
+(Projeto Firebase: carajas360-a17c5) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(VEREDITO: NAO APTO PARA PUBLICACAO) Tj
+T*
+(========================================) Tj
+T*
+() Tj
+T*
+(Homolog Web parcial OK para demo.) Tj
+T*
+(NAO publicar lojas nem hosting live.) Tj
+T*
+(Nenhuma publicacao automatica foi feita.) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 621 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(BLOQUEADORES P0) Tj
+T*
+() Tj
+T*
+(1. Hosting live HTTP 404) Tj
+T*
+(   carajas360-a17c5.web.app / .firebaseapp.com) Tj
+T*
+() Tj
+T*
+(2. Cloud Functions API HTTP 403) Tj
+T*
+(   API nao habilitada no projeto) Tj
+T*
+() Tj
+T*
+(3. Carajas IA sem turno LLM real) Tj
+T*
+(   UI OK; callable aiAssistant nao deployavel) Tj
+T*
+() Tj
+T*
+(4. Pagamentos E2E nao comprovados) Tj
+T*
+(   Sem GO; PAYMENTS_ENABLED / sandbox N/E) Tj
+T*
+() Tj
+T*
+(5. AAB do commit HEAD ausente) Tj
+T*
+(   Build desta sessao sem artefato) Tj
+T*
+() Tj
+T*
+(6. iOS / TestFlight nao testados) Tj
+T*
+(   Ambiente Windows; sem IPA) Tj
+ET
+endstream
+endobj
+8 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 9 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+9 0 obj<< /Length 773 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(FASES 1-11 \(AUDITORIA FASE 12\)) Tj
+T*
+() Tj
+T*
+(1 Auditoria telas .......... APROVADO) Tj
+T*
+(2 Organizar rotas/demo ...... APROVADO \(codigo\)) Tj
+T*
+(3 Tela a tela cliente ....... APROVADO \(codigo\)) Tj
+T*
+(4 Fluxo E2E cliente ......... NAO TESTADO \(E2E\)) Tj
+T*
+(5 Fluxo profissional ........ NAO TESTADO \(E2E\)) Tj
+T*
+(6 Pagamentos/webhook ........ REPROVADO p/ publicacao) Tj
+T*
+(7 Carajas IA ................ REPROVADO p/ publicacao) Tj
+T*
+(   \(UI APROVADA; runtime LLM REPROVADO\)) Tj
+T*
+(8 Erro profissionais ........ APROVADO \(homolog\)) Tj
+T*
+(9 Android/iOS ............... REPROVADO / NAO TESTADO) Tj
+T*
+(10 Matriz homologacao ....... APROVADO \(documento\)) Tj
+T*
+(11 Entrega programador ...... APROVADO \(documento\)) Tj
+ET
+endstream
+endobj
+10 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 11 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+11 0 obj<< /Length 896 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(MATRIZ DE VERIFICACAO) Tj
+T*
+() Tj
+T*
+(Homolog Home/Explorar ....... APROVADO) Tj
+T*
+(  Evidencia: HTTP 200; 3 profissionais) Tj
+T*
+() Tj
+T*
+(Functions npm test .......... APROVADO) Tj
+T*
+(  Evidencia: 163/163 pass) Tj
+T*
+(  docs/evidence/fase12_functions_test.txt) Tj
+T*
+() Tj
+T*
+(Flutter test ................ REPROVADO) Tj
+T*
+(  Evidencia: +190 ~1 -12) Tj
+T*
+(  docs/evidence/fase12_flutter_test.txt) Tj
+T*
+() Tj
+T*
+(IA UI \(Central\) ............. APROVADO) Tj
+T*
+(  docs/evidence/fase12/homolog_ia_ui.png) Tj
+T*
+() Tj
+T*
+(IA turno LLM ................ REPROVADO) Tj
+T*
+(  Functions API 403) Tj
+T*
+() Tj
+T*
+(Pagamentos E2E / MP ......... NAO TESTADO) Tj
+T*
+(Live hosting ................ REPROVADO \(404\)) Tj
+T*
+(AAB HEAD .................... NAO TESTADO) Tj
+T*
+(iOS/TestFlight .............. NAO TESTADO) Tj
+T*
+(E2E cliente/profissional .... NAO TESTADO) Tj
+ET
+endstream
+endobj
+12 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 13 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+13 0 obj<< /Length 530 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(EVIDENCIAS GERADAS) Tj
+T*
+() Tj
+T*
+(- docs/AUDITORIA_FINAL_CARAJAS360.md) Tj
+T*
+(- docs/evidence/fase12_functions_test.txt) Tj
+T*
+(- docs/evidence/fase12_flutter_test.txt) Tj
+T*
+(- docs/evidence/fase12/homolog_ia_ui.png) Tj
+T*
+(- docs/evidence/fase12/INDEX.txt) Tj
+T*
+(- docs/evidence/homolog_ia/explorar_profissionais_ok.png) Tj
+T*
+() Tj
+T*
+(Homolog:) Tj
+T*
+(https://carajas360-a17c5--homolog-88u39zqx.web.app) Tj
+T*
+() Tj
+T*
+(AAB desta sessao: NAO GERADO) Tj
+T*
+(IPA / TestFlight: NAO GERADO) Tj
+ET
+endstream
+endobj
+14 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 15 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+15 0 obj<< /Length 900 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CRITERIOS PARA REAVALIAR COMO APTO) Tj
+T*
+() Tj
+T*
+(1. Functions API + Blaze; deploy aiAssistant;) Tj
+T*
+(   turno IA real evidenciado) Tj
+T*
+(2. Hosting live 200 apos GO explicito) Tj
+T*
+(3. Sandbox MP: PIX/cartao/webhook teste) Tj
+T*
+(4. E2E cliente e profissional documentados) Tj
+T*
+(5. AAB do commit candidato + SHA256) Tj
+T*
+(6. iOS archive ou adiamento formal Apple) Tj
+T*
+(7. flutter test estavel \(ou exclusoes\)) Tj
+T*
+(8. Autorizacao explicita de publicacao) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(DECLARACAO FINAL) Tj
+T*
+() Tj
+T*
+(NAO APTO para publicacao nas lojas.) Tj
+T*
+(NAO APTO para go-live do hosting principal.) Tj
+T*
+() Tj
+T*
+(Homolog: parcialmente apto para demonstracao) Tj
+T*
+(Web \(Home + Explorar + UI IA\), sem declarar) Tj
+T*
+(IA/pagamentos comerciais prontos.) Tj
+T*
+(========================================) Tj
+ET
+endstream
+endobj
+xref
+0 16
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000144 00000 n 
+0000000212 00000 n 
+0000000336 00000 n 
+0000001021 00000 n 
+0000001145 00000 n 
+0000001815 00000 n 
+0000001939 00000 n 
+0000002761 00000 n 
+0000002887 00000 n 
+0000003833 00000 n 
+0000003959 00000 n 
+0000004539 00000 n 
+0000004665 00000 n 
+trailer<< /Size 16 /Root 1 0 R >>
+startxref
+5615
+%%EOF

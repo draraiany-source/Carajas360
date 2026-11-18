@@ -1,0 +1,202 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R] /Count 4 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 538 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360) Tj
+T*
+(FASE 14 ? PACOTE DE ENTREGA AO PROGRAMADOR) Tj
+T*
+() Tj
+T*
+(Data: 17/11/2026) Tj
+T*
+(Commit baseline: 686d16c) Tj
+T*
+(Commit pacote: 82dc012) Tj
+T*
+(Versao app: 1.0.0+403) Tj
+T*
+(Branch: feat/modernizacao-visual) Tj
+T*
+(Firebase: carajas360-a17c5) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(ESTADO: NAO APTO PARA PUBLICACAO) Tj
+T*
+(========================================) Tj
+T*
+() Tj
+T*
+(NAO recriar o aplicativo.) Tj
+T*
+(Trabalhar no repositorio existente.) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 778 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PACOTE ENTREGUE) Tj
+T*
+() Tj
+T*
+(Pasta: ENTREGA_PROGRAMADOR_CARAJAS360/) Tj
+T*
+(  01_RELATORIO_EXECUTIVO.pdf) Tj
+T*
+(  02_INVENTARIO_TELAS.pdf) Tj
+T*
+(  03_MAPA_FLUXOS.pdf) Tj
+T*
+(  04_PENDENCIAS_TECNICAS.pdf) Tj
+T*
+(  05_GUIA_FIREBASE_IA.pdf) Tj
+T*
+(  06_GUIA_PAGAMENTOS.pdf) Tj
+T*
+(  07_GUIA_ANDROID.pdf) Tj
+T*
+(  08_GUIA_IOS.pdf) Tj
+T*
+(  09_GUIA_WEB.pdf) Tj
+T*
+(  10_CHECKLIST_PUBLICACAO.pdf) Tj
+T*
+(  11_ROTEIRO_TESTES.pdf) Tj
+T*
+(  12_CRITERIOS_ACEITE.pdf) Tj
+T*
+(  README_ENTREGA.md) Tj
+T*
+(  MAPA_FLUXOS.md / SEGURANCA_CREDENCIAIS.md) Tj
+T*
+() Tj
+T*
+(ZIP: ENTREGA_PROGRAMADOR_CARAJAS360_686d16c.zip) Tj
+T*
+(SHA256:) Tj
+T*
+(BF89716F5E2C5E3CD9BC1D7147D3CC396010963240AE8EA071C5D29DE7D238B9) Tj
+T*
+(ZIP = documentacao \(codigo via Git\)) Tj
+ET
+endstream
+endobj
+8 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 9 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+9 0 obj<< /Length 623 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(O QUE ESTA PRONTO) Tj
+T*
+() Tj
+T*
+(- App Flutter Web/Android/iOS existente) Tj
+T*
+(- Homolog Web + Explorar \(profissionais reais\)) Tj
+T*
+(- UI Carajas IA \(runtime Function pendente\)) Tj
+T*
+(- Pedidos, Resolve, chat, admin/Disputas) Tj
+T*
+(- Policy/webhook em codigo) Tj
+T*
+(- Pacote PDF 01-12 de transferencia) Tj
+T*
+() Tj
+T*
+(PROGRAMADOR DEVE) Tj
+T*
+() Tj
+T*
+(- Disco/Gradle -> APK e AAB+SHA256) Tj
+T*
+(- Apos Blaze: deploy aiAssistant + evidencia) Tj
+T*
+(- E2E cliente e profissional) Tj
+T*
+(- Sandbox Mercado Pago \(sem producao\)) Tj
+T*
+(- iOS no Mac \(TestFlight\) ou adiamento) Tj
+ET
+endstream
+endobj
+10 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 11 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+11 0 obj<< /Length 645 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PROPRIETARIA / CONTAS EXTERNAS) Tj
+T*
+() Tj
+T*
+(- GO Blaze Firebase + APIs) Tj
+T*
+(- Secrets Anthropic / Mercado Pago) Tj
+T*
+(- GO hosting live e lojas) Tj
+T*
+(- Apple Developer, Play Console) Tj
+T*
+() Tj
+T*
+(BUILDS AINDA FALTANDO) Tj
+T*
+() Tj
+T*
+(- APK debug) Tj
+T*
+(- AAB release assinado + SHA256) Tj
+T*
+(- IPA / TestFlight) Tj
+T*
+() Tj
+T*
+(Homolog:) Tj
+T*
+(https://carajas360-a17c5--homolog-88u39zqx.web.app) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(Aceite: 12_CRITERIOS_ACEITE.pdf) Tj
+T*
+(Nao declarar pronto sem homologacao + GO.) Tj
+T*
+(========================================) Tj
+ET
+endstream
+endobj
+xref
+0 12
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000130 00000 n 
+0000000198 00000 n 
+0000000322 00000 n 
+0000000909 00000 n 
+0000001033 00000 n 
+0000001860 00000 n 
+0000001984 00000 n 
+0000002656 00000 n 
+0000002782 00000 n 
+trailer<< /Size 12 /Root 1 0 R >>
+startxref
+3477
+%%EOF

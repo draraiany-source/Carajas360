@@ -1,0 +1,286 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R 10 0 R 12 0 R 14 0 R] /Count 6 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 696 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360) Tj
+T*
+(FASE 13 ? CORRECAO DE BLOQUEADORES) Tj
+T*
+(Preparacao Android/iOS) Tj
+T*
+() Tj
+T*
+(Data: 17/11/2026) Tj
+T*
+(Branch: feat/modernizacao-visual) Tj
+T*
+(Commit: 686d16c) Tj
+T*
+(Versao app: 1.0.0+403) Tj
+T*
+(Base auditoria FASE 12: 1.0.0+402) Tj
+T*
+(Projeto Firebase: carajas360-a17c5) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(VEREDITO: NAO APTO PARA PUBLICACAO) Tj
+T*
+(========================================) Tj
+T*
+() Tj
+T*
+(Correcoes de codigo/testes feitas.) Tj
+T*
+(Sem evidencia de turno IA real,) Tj
+T*
+(pagamento sandbox E2E, AAB ou IPA.) Tj
+T*
+(Faturamento Blaze NAO alterado.) Tj
+T*
+(Deploy live NAO executado.) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 647 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(BLOQUEADORES RESOLVIDOS \(CODIGO\)) Tj
+T*
+() Tj
+T*
+(- Testes Flutter alinhados a keys reais) Tj
+T*
+(  \(placeholders / identity / Explorar\)) Tj
+T*
+(  Suite focada: 19/19 passed) Tj
+T*
+() Tj
+T*
+(- Functions unitarios: 163/163 pass) Tj
+T*
+() Tj
+T*
+(- flutter analyze: sem errors) Tj
+T*
+(  \(warnings/infos preexistentes\)) Tj
+T*
+() Tj
+T*
+(- Diagnostico hosting live 404:) Tj
+T*
+(  sem release live; so canal homolog) Tj
+T*
+(  Script live exige -IAuthorizeLiveDeploy) Tj
+T*
+() Tj
+T*
+(- Docs iOS / GO externos / roteiro E2E) Tj
+T*
+() Tj
+T*
+(- Webhook MP: exige payments/{id}) Tj
+T*
+(  + status aprovado \(codigo\)) Tj
+ET
+endstream
+endobj
+8 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 9 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+9 0 obj<< /Length 470 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(BLOQUEADORES PENDENTES \(EXTERNOS / GO\)) Tj
+T*
+() Tj
+T*
+(1. Billing Blaze = No) Tj
+T*
+(2. Cloud Functions API HTTP 403) Tj
+T*
+(3. aiAssistant nao deployavel sem Blaze) Tj
+T*
+(4. Turno IA real sem evidencia) Tj
+T*
+(5. Pagamentos sandbox E2E \(sem GO\)) Tj
+T*
+(6. Hosting live 404 \(sem GO\)) Tj
+T*
+(7. AAB assinado \(sem key.properties\)) Tj
+T*
+(8. IPA / TestFlight \(precisa macOS\)) Tj
+T*
+(9. Disco C: quase cheio \(ENOSPC/Gradle\)) Tj
+ET
+endstream
+endobj
+10 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 11 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+11 0 obj<< /Length 583 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(FIREBASE E IA) Tj
+T*
+() Tj
+T*
+(Causa do 403: API desabilitada +) Tj
+T*
+(billing nao habilitado.) Tj
+T*
+() Tj
+T*
+(aiAssistant: codigo OK \(auth, grounded,) Tj
+T*
+(chave so no backend\). Deploy N/E.) Tj
+T*
+(Evidencia conversa IA real: AUSENTE) Tj
+T*
+() Tj
+T*
+(FLUXOS) Tj
+T*
+() Tj
+T*
+(Cliente \(codigo\): OK | E2E: N/E) Tj
+T*
+(Profissional \(codigo\): OK | E2E: N/E) Tj
+T*
+(Roteiro: docs/FASE13_ROTEIRO_E2E.md) Tj
+T*
+() Tj
+T*
+(PAGAMENTOS) Tj
+T*
+() Tj
+T*
+(Unitarios: 163 pass) Tj
+T*
+(PIX/cartao/webhook sandbox: N/E) Tj
+T*
+(Cobranca real: NAO ativada) Tj
+ET
+endstream
+endobj
+12 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 13 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+13 0 obj<< /Length 475 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(ANDROID / IOS / WEB) Tj
+T*
+() Tj
+T*
+(Android:) Tj
+T*
+(  Testes criticos: PASS) Tj
+T*
+(  APK debug: NAO GERADO \(Gradle/disco\)) Tj
+T*
+(  AAB: NAO GERADO \(keystore + disco\)) Tj
+T*
+() Tj
+T*
+(iOS:) Tj
+T*
+(  Preparacao: docs/IOS_BUILD_TESTFLIGHT.md) Tj
+T*
+(  IPA: NAO GERADO \(Windows\)) Tj
+T*
+() Tj
+T*
+(Web:) Tj
+T*
+(  Homolog: HTTP 200) Tj
+T*
+(  https://carajas360-a17c5--homolog-88u39zqx.web.app) Tj
+T*
+(  Live / firebaseapp.com: HTTP 404) Tj
+ET
+endstream
+endobj
+14 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 15 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+15 0 obj<< /Length 798 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(PROXIMAS ACOES EXTERNAS \(OWNER\)) Tj
+T*
+() Tj
+T*
+(1. Liberar espaco em disco \(C:\)) Tj
+T*
+(2. GO Blaze + habilitar Functions API) Tj
+T*
+(3. Deploy aiAssistant \(+ secret opcional\)) Tj
+T*
+(4. Conversa IA real + evidencia) Tj
+T*
+(5. Contas teste -> roteiro E2E) Tj
+T*
+(6. Token MP sandbox \(nao producao\)) Tj
+T*
+(7. key.properties -> AAB + SHA256) Tj
+T*
+(8. Mac + Apple Developer -> IPA) Tj
+T*
+(9. GO explicito -> live_web_deploy.ps1) Tj
+T*
+() Tj
+T*
+(========================================) Tj
+T*
+(DECLARACAO FINAL) Tj
+T*
+() Tj
+T*
+(NAO APTO para publicacao.) Tj
+T*
+(Homolog: demo parcial \(UI + profissionais\).) Tj
+T*
+(Sem declarar IA/pagamentos comerciais.) Tj
+T*
+(========================================) Tj
+T*
+() Tj
+T*
+(Fonte: docs/FASE13_CARAJAS360.md) Tj
+ET
+endstream
+endobj
+xref
+0 16
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000144 00000 n 
+0000000212 00000 n 
+0000000336 00000 n 
+0000001081 00000 n 
+0000001205 00000 n 
+0000001901 00000 n 
+0000002025 00000 n 
+0000002544 00000 n 
+0000002670 00000 n 
+0000003303 00000 n 
+0000003429 00000 n 
+0000003954 00000 n 
+0000004080 00000 n 
+trailer<< /Size 16 /Root 1 0 R >>
+startxref
+4928
+%%EOF
