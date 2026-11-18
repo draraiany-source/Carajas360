@@ -1,0 +1,86 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 1297 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? FASE 17) Tj
+T*
+(Fonte: RELATORIO_TESTES.md | HEAD f61deda | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(Relatório de testes ? FASE 17) Tj
+T*
+() Tj
+T*
+(Automatizados \(reexecutados 2026-11-18\)) Tj
+T*
+() Tj
+T*
+(Suite Resultado Evidência) Tj
+T*
+(------- ----------- -----------) Tj
+T*
+(flutter test order_photos + flow + placeholders 14/14 PASS) Tj
+T*
+(docs/evidence/fase17_flutter_tests.txt) Tj
+T*
+(cd functions && npm test 163/163 PASS docs/evidence/fase17_functions_tests.txt) Tj
+T*
+(Fotos E2E emulator \(sessão anterior\) PASS docs/evidence/orcamento_fotos/emulator_e2e.txt) Tj
+T*
+() Tj
+T*
+(Não executados / bloqueados \(não marcar como PASS produção\)) Tj
+T*
+() Tj
+T*
+(Teste Status Motivo) Tj
+T*
+(------- -------- --------) Tj
+T*
+(Login/cadastro real N/E Contas + sessão completa) Tj
+T*
+(Solicitação fotos prod Storage BLOCKED Bucket ausente) Tj
+T*
+(IA backend real BLOCKED CF 403) Tj
+T*
+(Pagamento sandbox N/E Token/flags/deploy) Tj
+T*
+(Admin E2E N/E Conta admin) Tj
+T*
+(Android device / AAB N/E Build release) Tj
+T*
+(iOS device / IPA N/E macOS) Tj
+T*
+(Navegação Web live FAIL pub 404) Tj
+T*
+(Navegação Web homolog Parcial OK HTTP 200; auth E2E N/E) Tj
+T*
+() Tj
+T*
+(Regra) Tj
+T*
+() Tj
+T*
+(Mocks/unitários não substituem E2E autenticado para declarar produção.) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000179 00000 n 
+0000000303 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+1650
+%%EOF

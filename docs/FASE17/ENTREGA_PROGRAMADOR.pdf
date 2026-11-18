@@ -1,0 +1,104 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 1249 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? FASE 17) Tj
+T*
+(Fonte: ENTREGA_PROGRAMADOR.md | HEAD f61deda | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(Entrega ao programador ? FASE 17) Tj
+T*
+() Tj
+T*
+(Classificação) Tj
+T*
+() Tj
+T*
+(APTO PARA ENTREGA AO PROGRAMADOR, COM PENDÊNCIAS) Tj
+T*
+() Tj
+T*
+(Não apto para publicação nas lojas / live sem fechar P0.) Tj
+T*
+() Tj
+T*
+(O que entregar) Tj
+T*
+() Tj
+T*
+(1. Repo GitHub branch feat/modernizacao-visual) Tj
+T*
+(2. Pasta docs/FASE17/ \(esta documentação\)) Tj
+T*
+(3. Pacote Workana FASE 16 \(ENTREGA_PROGRAMADOR_CARAJAS360/\)) Tj
+T*
+(4. Homolog: https://carajas360-a17c5--homolog-88u39zqx.web.app) Tj
+T*
+() Tj
+T*
+(Ordem de trabalho sugerida) Tj
+T*
+() Tj
+T*
+(1. Owner: GO Blaze + APIs) Tj
+T*
+(2. Storage bucket + deploy rules) Tj
+T*
+(3. Deploy aiAssistant + prova IA) Tj
+T*
+(4. MP sandbox) Tj
+T*
+(5. E2E cliente/pro/admin) Tj
+T*
+(6. AAB \(keystore\) + iOS Mac) Tj
+T*
+(7. GO live Hosting / lojas) Tj
+T*
+() Tj
+T*
+(Não fazer) Tj
+T*
+() Tj
+T*
+(- Recriar o app) Tj
+T*
+(- Push --force em main) Tj
+T*
+(- Commitar secrets) Tj
+T*
+(- Ativar produção MP / live sem GO) Tj
+T*
+() Tj
+T*
+(Contato técnico baseline) Tj
+T*
+() Tj
+T*
+(- Commit início F17: 031ab29) Tj
+T*
+(- Firebase: carajas360-a17c5) Tj
+T*
+(- App version: 1.0.0+403) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000179 00000 n 
+0000000303 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+1602
+%%EOF

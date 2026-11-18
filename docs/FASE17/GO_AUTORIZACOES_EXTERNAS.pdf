@@ -1,0 +1,94 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 1442 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? FASE 17) Tj
+T*
+(Fonte: GO_AUTORIZACOES_EXTERNAS.md | HEAD f61deda | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(Autorizações externas necessárias ? FASE 17) Tj
+T*
+() Tj
+T*
+(Nenhuma operação abaixo foi executada nesta fase. Aguardar GO explícito da contratante.) Tj
+T*
+() Tj
+T*
+(1. Firebase Blaze \(pago\)) Tj
+T*
+() Tj
+T*
+(- Por quê: Cloud Functions, Storage completo e vários runtimes exigem Blaze.) Tj
+T*
+(- Custo: pay-as-you-go \(Functions invocações, Storage GB, Hosting, egress\). Monitorar cotas.) Tj
+T*
+(- Ação: Console ? Usage ? Upgrade Blaze no projeto carajas360-a17c5.) Tj
+T*
+(- Depois: habilitar Cloud Functions API.) Tj
+T*
+() Tj
+T*
+(2. Deploy Hosting LIVE \(corrige HTTP 404\)) Tj
+T*
+() Tj
+T*
+(- Por quê: canal live sem release ? 404. Homolog já funciona.) Tj
+T*
+(- Risco: expõe app na URL pública de produção.) Tj
+T*
+(- Ação com GO:) Tj
+T*
+(powershell -File scripts\\live_web_deploy.ps1 -IAuthorizeLiveDeploy) Tj
+T*
+(- Não alterar domínio custom sem autorização.) Tj
+T*
+() Tj
+T*
+(3. Secret Anthropic \(opcional\)) Tj
+T*
+() Tj
+T*
+(- Só se quiser LLM além do grounded.) Tj
+T*
+(- Secret Manager ? nunca no app/Git.) Tj
+T*
+() Tj
+T*
+(4. Mercado Pago sandbox / produção) Tj
+T*
+() Tj
+T*
+(- Sandbox: token TEST + PAYMENTS_ENABLED=true.) Tj
+T*
+(- Produção: GO comercial + PRODUCTION_PAYMENTS_ENABLED.) Tj
+T*
+() Tj
+T*
+(5. Apple Developer / Play Console) Tj
+T*
+() Tj
+T*
+(- Necessários para IPA/AAB de loja.) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000179 00000 n 
+0000000303 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+1795
+%%EOF

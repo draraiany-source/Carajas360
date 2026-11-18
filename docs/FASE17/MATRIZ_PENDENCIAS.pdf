@@ -1,0 +1,128 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 2500 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? FASE 17) Tj
+T*
+(Fonte: MATRIZ_PENDENCIAS.md | HEAD f61deda | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(Matriz de pendências ? FASE 17) Tj
+T*
+() Tj
+T*
+(HEAD base: 031ab29 · Firebase: carajas360-a17c5) Tj
+T*
+() Tj
+T*
+(P0 ? Impede publicação / segurança / runtime crítico) Tj
+T*
+() Tj
+T*
+(ID Problema Módulo Evidência Solução Dependência Aceite) Tj
+T*
+(---- ---------- -------- ----------- --------- ------------- --------) Tj
+T*
+(P0-1 Live Web HTTP 404 Hosting Probe F17 Deploy live com GO \(scripts/live_web_deploy.ps1\) GO) Tj
+T*
+(contratante carajas360-a17c5.web.app = 200) Tj
+T*
+(P0-2 Billing Blaze = false Firebase gcloud + MCP Upgrade Blaze \(pago\) GO financeiro Billing) Tj
+T*
+(enabled) Tj
+T*
+(P0-3 Cloud Functions API 403 Functions/IA/Pay MCP list 403 Habilitar API + deploy P0-2) Tj
+T*
+(functions:list OK) Tj
+T*
+(P0-4 Storage sem bucket Fotos 0 buckets Console Get Started + deploy --only storage P0-2) Tj
+T*
+(Upload prod) Tj
+T*
+(P0-5 IA sem turno LLM real Carajás IA CF 403 Deploy aiAssistant + secret opcional P0-2/3) Tj
+T*
+(Resposta grounded real) Tj
+T*
+(P0-6 MP sandbox N/E Pagamentos Flags/token Token TEST + PAYMENTS_ENABLED sandbox P0-2 + MP) Tj
+T*
+(PIX/cartão/webhook) Tj
+T*
+(P0-7 Sem AAB deste HEAD Android Artefato ausente key.properties + build Keystore AAB+SHA256) Tj
+T*
+(P0-8 Sem IPA/TestFlight iOS Windows Mac + Xcode + Apple Conta Apple TestFlight) Tj
+T*
+() Tj
+T*
+(P1 ? Funcionalidades importantes) Tj
+T*
+() Tj
+T*
+(ID Problema Solução Aceite) Tj
+T*
+(---- ---------- --------- --------) Tj
+T*
+(P1-1 Vídeo no orçamento ausente Estender picker + rules Upload+preview) Tj
+T*
+(P1-2 Áudio no orçamento ausente Reusar padrão chat Áudio no order) Tj
+T*
+(P1-3 E2E cliente autenticado N/E Contas teste + roteiro Fluxo completo) Tj
+T*
+(P1-4 E2E profissional N/E Conta pro + admin Até recebimento) Tj
+T*
+(P1-5 E2E admin N/E Conta admin Disputas/pagamentos) Tj
+T*
+() Tj
+T*
+(P2 ? Melhorias) Tj
+T*
+() Tj
+T*
+(ID Problema Nota) Tj
+T*
+(---- ---------- ------) Tj
+T*
+(P2-1 Paridade visual premium 3D pixel Só com aditivo) Tj
+T*
+(P2-2 Widget tests históricos instáveis CI) Tj
+T*
+(P2-3 OAuth domains / domínio custom Console) Tj
+T*
+() Tj
+T*
+(Já comprovado \(não reabrir sem regressão\)) Tj
+T*
+() Tj
+T*
+(- Functions unit 163/163 \(F17\)) Tj
+T*
+(- Flutter fotos/config 14/14 \(F17\)) Tj
+T*
+(- Fotos E2E emuladores \(sessão anterior\)) Tj
+T*
+(- Homolog Web 200) Tj
+T*
+(- Firestore rules photoUrls deployadas \(fase fotos\)) Tj
+T*
+(- Pacote FASE 16 Workana no GitHub) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000179 00000 n 
+0000000303 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+2853
+%%EOF

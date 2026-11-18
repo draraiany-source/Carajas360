@@ -1,0 +1,106 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 1634 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? FASE 17) Tj
+T*
+(Fonte: RELATORIO_FLUXOS.md | HEAD f61deda | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(Relatório de fluxos ? FASE 17) Tj
+T*
+() Tj
+T*
+(Cliente \(desejado\)) Tj
+T*
+() Tj
+T*
+(Cadastro ? Login ? Localização ? Busca ? Filtros ? Perfil ? Solicitação ? Fotos ? Orçamento ?) Tj
+T*
+(Contratação ? Pagamento ? Acompanhamento ? Conclusão ? Avaliação) Tj
+T*
+() Tj
+T*
+(Trecho Código Evidência F17) Tj
+T*
+(-------- -------- ---------------) Tj
+T*
+(Auth / rotas IS Rotas em app_constants) Tj
+T*
+(Busca / Explorar IS Homolog explorou profissionais \(fases anteriores\)) Tj
+T*
+(Solicitação + fotos IT \(código+tests\) OrderPhotoPicker / unit / emulator) Tj
+T*
+(Proposta / aceite IS UI + Functions transitions \(unit\)) Tj
+T*
+(Pagamento PI/BX Unit OK; sandbox N/E) Tj
+T*
+(Avaliação IS Rules/tests Functions) Tj
+T*
+(E2E autenticado ponta a ponta ? NÃO EXECUTADO) Tj
+T*
+() Tj
+T*
+(Prestador) Tj
+T*
+() Tj
+T*
+(Cadastro ? Verificação ? Perfil ? Categorias ? Área ? Solicitações ? Orçamento ? Aceite ?) Tj
+T*
+(Execução ? Recebimento ? Avaliações) Tj
+T*
+() Tj
+T*
+(Trecho Status F17) Tj
+T*
+(-------- ------------) Tj
+T*
+(Provider home / propostas Código IS) Tj
+T*
+(Categorias \(urbano/rural/máquinas/drones/locação\) Preservar cadastro existente ? não apagadas) Tj
+T*
+(nesta fase) Tj
+T*
+(E2E NÃO EXECUTADO) Tj
+T*
+() Tj
+T*
+(Admin) Tj
+T*
+() Tj
+T*
+(AdminGate + gestão/disputas/pagamentos: código IS; E2E N/E. Usuário comum bloqueado por gate) Tj
+T*
+(\(código\).) Tj
+T*
+() Tj
+T*
+(Navegação) Tj
+T*
+() Tj
+T*
+(Nenhuma rota órfã crítica reintroduzida nesta fase. Correções de rotas foram nas FASE 2?3) Tj
+T*
+(\(docs\).) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000179 00000 n 
+0000000303 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+1987
+%%EOF

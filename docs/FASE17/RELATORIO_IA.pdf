@@ -1,0 +1,114 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R] /Count 1 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 1968 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? FASE 17) Tj
+T*
+(Fonte: RELATORIO_IA.md | HEAD f61deda | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(Relatório IA ? FASE 17) Tj
+T*
+() Tj
+T*
+(Estado) Tj
+T*
+() Tj
+T*
+(Item Status) Tj
+T*
+(------ --------) Tj
+T*
+(UI Central / FAB /ai Implementado) Tj
+T*
+(Cliente ? callable aiAssistant Código \(AiSvc\) ? sem chave no app) Tj
+T*
+(Assist service request / proposal Callables no functions/index.js) Tj
+T*
+(Sugestão descrição c/ fotos suggestOrderDescriptionFromPhotos ? sem preço/diagnóstico) Tj
+T*
+(Turno LLM real nesta fase NÃO \(Functions API 403 / Blaze off\)) Tj
+T*
+(Inventar prestadores/preços Proibido ? grounded + prompts seguros) Tj
+T*
+() Tj
+T*
+(Pré-requisitos \(antes de ativar ? AGUARDAR GO\)) Tj
+T*
+() Tj
+T*
+(Custos potenciais \(ordem de grandeza\)) Tj
+T*
+() Tj
+T*
+(Item Observação) Tj
+T*
+(------ ------------) Tj
+T*
+(Firebase Blaze Pay-as-you-go; Functions/Hosting/Storage faturáveis após free tier) Tj
+T*
+(Anthropic \(opcional\) Por token; sem chave a Function pode operar grounded \(lista providers) Tj
+T*
+(reais\)) Tj
+T*
+(Cold start / invocações Monitorar quotas e custo mensal no Console) Tj
+T*
+() Tj
+T*
+(Esta fase NÃO ativa Blaze nem secrets pagos.) Tj
+T*
+() Tj
+T*
+(Instruções \(owner\)) Tj
+T*
+() Tj
+T*
+(1. Upgrade Blaze em carajas360-a17c5) Tj
+T*
+(2. Habilitar Cloud Functions API \(+ Build/Artifact Registry se pedido\)) Tj
+T*
+(3. firebase deploy --only functions:aiAssistant --project carajas360-a17c5) Tj
+T*
+(4. Opcional: Secret Manager ANTHROPIC_API_KEY) Tj
+T*
+(5. Prova: turno real + label ?gerado por IA? + confirmação humana antes de pagar/contratar) Tj
+T*
+() Tj
+T*
+(Ver também: docs/FASE13_GO_EXTERNOS.md.) Tj
+T*
+() Tj
+T*
+(Controles desejados \(já parcialmente no código\)) Tj
+T*
+() Tj
+T*
+(- Limites/quotas \(serviceAssist\)) Tj
+T*
+(- Consentimento saúde \(consentRequired\)) Tj
+T*
+(- Erro honesto se Function indisponível) Tj
+T*
+(- Confirmação humana para ações irreversíveis \(produto ? validar E2E após deploy\)) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000111 00000 n 
+0000000179 00000 n 
+0000000303 00000 n 
+trailer<< /Size 6 /Root 1 0 R >>
+startxref
+2321
+%%EOF

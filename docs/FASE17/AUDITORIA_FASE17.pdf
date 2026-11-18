@@ -1,0 +1,216 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 2491 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? FASE 17) Tj
+T*
+(Fonte: AUDITORIA_FASE17.md | HEAD f61deda | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(AUDITORIA FASE 17 ? Carajás 360) Tj
+T*
+() Tj
+T*
+(Data: 2026-11-18) Tj
+T*
+(Repositório: https://github.com/draraiany-source/Carajas360) Tj
+T*
+(Branch: feat/modernizacao-visual) Tj
+T*
+(HEAD auditado \(início\): 031ab29) Tj
+T*
+(App: carajas_360 1.0.0+403) Tj
+T*
+(Firebase: carajas360-a17c5) Tj
+T*
+(Regra: não recriar; não inventar evidências; sem Blaze/publicação sem GO.) Tj
+T*
+() Tj
+T*
+(1. Identidade e GitHub \(pré-alteração\)) Tj
+T*
+() Tj
+T*
+(Item Valor) Tj
+T*
+(------ --------) Tj
+T*
+(Remoto origin ? https://github.com/draraiany-source/Carajas360.git) Tj
+T*
+(Branch feat/modernizacao-visual \(= origin no início\)) Tj
+T*
+(Projeto local C:\\Users\\Lenovo\\Desktop\\CARAJAS360) Tj
+T*
+(.firebaserc default: carajas360-a17c5) Tj
+T*
+(MCP Firebase \(antes\) apontava pasta pediatria360 ? corrigido para CARAJAS360) Tj
+T*
+(Confirmação pubspec name: carajas_360 + iOS bundle br.com.carajas360) Tj
+T*
+() Tj
+T*
+(2. Arquitetura) Tj
+T*
+() Tj
+T*
+(Camada Tecnologia) Tj
+T*
+(-------- ------------) Tj
+T*
+(App Flutter multiplataforma \(Web/Android/iOS\)) Tj
+T*
+(Auth Firebase Auth) Tj
+T*
+(Dados Cloud Firestore + rules) Tj
+T*
+(Arquivos Firebase Storage + rules \(orders/{id}/photos/?\)) Tj
+T*
+(Backend Cloud Functions \(functions/, Node 20\)) Tj
+T*
+(Hosting Firebase Hosting \(live + canal homolog\)) Tj
+T*
+(Pagamentos Mercado Pago via callables + webhook \(flags\)) Tj
+T*
+(IA Callable aiAssistant \(+ assist*\) ? sem chave no app) Tj
+T*
+() Tj
+T*
+(3. Telas / rotas \(amostra canônica\)) Tj
+T*
+() Tj
+T*
+(Fonte: lib/core/constants/app_constants.dart + docs/AUDITORIA_TELAS_CARAJAS360.md.) Tj
+T*
+() Tj
+T*
+(Rotas nomeadas incluem: /login, /register, /main, /search, /provider-profile,) Tj
+T*
+(/request-service, /my-orders, /ai, /admin, /resolve, /provider-home, /wallet, /chat,) Tj
+T*
+(marketplace/rental/stores, etc. \(~40+\).) Tj
+T*
+() Tj
+T*
+(4. Backend \(código vs runtime\)) Tj
+T*
+() Tj
+T*
+(Serviço Código Runtime observado F17) Tj
+T*
+(--------- -------- ------------------------) Tj
+T*
+(Auth / Firestore SIM Projeto ativo) Tj
+T*
+(Storage rules SIM 0 buckets ? Storage não provisionado) Tj
+T*
+(Cloud Functions SIM \(aiAssistant, PIX, card, webhook, payout?\) API 403 ? não listáveis) Tj
+T*
+(Hosting homolog SIM HTTP 200) Tj
+T*
+(Hosting live Config SPA OK HTTP 404 \(sem release live\)) Tj
+T*
+() Tj
+T*
+(5. Documentos fases 12?16) Tj
+T*
+() Tj
+T*
+(Fase Documento Status) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 1598 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(------ ----------- --------) Tj
+T*
+(12 docs/AUDITORIA_FINAL_CARAJAS360.md Presente ? NÃO APTO publicação) Tj
+T*
+(13 docs/FASE13_*.md + GO externos Presente) Tj
+T*
+(14 docs/FASE14_ENTREGA_PROGRAMADOR.md Presente) Tj
+T*
+(15 docs/FASE15_AUDITORIA_DEFINITIVA.md Presente ? entrega programador SIM) Tj
+T*
+(16 docs/FASE16_*.md + pacote Workana Presente) Tj
+T*
+() Tj
+T*
+(6. Classificação de funcionalidades \(honesta\)) Tj
+T*
+() Tj
+T*
+(Área Código Teste real Nota) Tj
+T*
+(------ -------- ------------ ------) Tj
+T*
+(UI / rotas / brand IS Parcial homolog Verde #006B35 / ouro #FFC400) Tj
+T*
+(Orçamento + fotos IT código+unit+emulator Prod Storage BX Path implementado) Tj
+T*
+(Vídeo/áudio no orçamento AU ? Pendência P1) Tj
+T*
+(Carajás IA UI IS ? Erro honesto se CF off) Tj
+T*
+(Carajás IA LLM BX N/E Blaze + deploy) Tj
+T*
+(Pagamentos MP IT unit Sandbox N/E Flags off) Tj
+T*
+(Admin IS E2E N/E AdminGate) Tj
+T*
+(Android AAB IS projeto N/E keystore/disco) Tj
+T*
+(iOS IPA IS projeto N/E macOS) Tj
+T*
+() Tj
+T*
+(Legenda: IS=implementado sem E2E completo · IT=implementado+testado no escopo · AU=ausente ·) Tj
+T*
+(BX=bloqueado externo · N/E=não executado) Tj
+T*
+() Tj
+T*
+(7. Brand) Tj
+T*
+() Tj
+T*
+(Brand.green = #006B35, Brand.gold = #FFC400 ? preservado. Sem redesign nesta fase.) Tj
+T*
+() Tj
+T*
+(8. Conclusão da auditoria) Tj
+T*
+() Tj
+T*
+(O produto existe e está organizado no GitHub. Bloqueadores de publicação/runtime \(Blaze,) Tj
+T*
+(Storage bucket, live Hosting, builds mobile, E2E auth\) são externos ou não comprovados, não) Tj
+T*
+(resolvíveis sem GO/credenciais/macOS.) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000002850 00000 n 
+0000002974 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+4622
+%%EOF

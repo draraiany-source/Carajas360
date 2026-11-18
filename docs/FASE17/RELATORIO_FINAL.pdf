@@ -1,0 +1,210 @@
+%PDF-1.4
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [4 0 R 6 0 R] /Count 2 >>endobj
+3 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+4 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 5 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+5 0 obj<< /Length 2051 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(CARAJAS 360 ? FASE 17) Tj
+T*
+(Fonte: RELATORIO_FINAL.md | HEAD f61deda | 1.0.0+403) Tj
+T*
+() Tj
+T*
+(Relatório final ? FASE 17) Tj
+T*
+() Tj
+T*
+(Data: 2026-11-18) Tj
+T*
+(Repo: https://github.com/draraiany-source/Carajas360) Tj
+T*
+(Branch: feat/modernizacao-visual) Tj
+T*
+(HEAD início: 031ab29) Tj
+T*
+() Tj
+T*
+(Classificação) Tj
+T*
+() Tj
+T*
+(APTO PARA ENTREGA AO PROGRAMADOR, COM PENDÊNCIAS) Tj
+T*
+() Tj
+T*
+(Não classificado como APTO PARA PUBLICAÇÃO.) Tj
+T*
+(Não classificado como NÃO APTO para entrega \(código + docs + testes unitários suficientes para) Tj
+T*
+(transferência\).) Tj
+T*
+() Tj
+T*
+(Funcionalidades) Tj
+T*
+() Tj
+T*
+(Concluídas \(com evidência no escopo testável\)) Tj
+T*
+() Tj
+T*
+(- Código Flutter multiplataforma + brand verde/dourado) Tj
+T*
+(- Inventário de rotas/telas) Tj
+T*
+(- Orçamento com fotos \(código + unit + E2E emulator\)) Tj
+T*
+(- Rules Firestore photoUrls \(deploy prévio\)) Tj
+T*
+(- Functions unitários financeiros/IA/policy 163/163) Tj
+T*
+(- Homolog Web HTTP 200) Tj
+T*
+(- Pacote documentação FASE 12?17) Tj
+T*
+(- GitHub sincronizado \(sem force\)) Tj
+T*
+() Tj
+T*
+(Parcialmente concluídas) Tj
+T*
+() Tj
+T*
+(- Carajás IA \(UI + cliente seguro; sem LLM runtime\)) Tj
+T*
+(- Pagamentos \(código + unit; sem sandbox E2E\)) Tj
+T*
+(- Storage fotos \(rules + emulator; sem bucket prod\)) Tj
+T*
+(- Admin / fluxos cliente-pro \(código; E2E auth N/E\)) Tj
+T*
+(- Web live \(config OK; 404 sem release\)) Tj
+T*
+() Tj
+T*
+(Não implementadas / não comprovadas) Tj
+T*
+() Tj
+T*
+(- Vídeo e áudio no orçamento) Tj
+T*
+(- AAB/IPA deste HEAD) Tj
+T*
+(- Turno IA real em produção) Tj
+T*
+(- Pagamento sandbox/produção comprovado) Tj
+T*
+(- E2E autenticado completo) Tj
+T*
+() Tj
+T*
+(Status por área) Tj
+T*
+() Tj
+T*
+(Área Status) Tj
+T*
+(------ --------) Tj
+T*
+(Web homolog OK \(200\)) Tj
+T*
+(Web live 404 ? GO deploy) Tj
+T*
+(Android Projeto OK; AAB N/E) Tj
+T*
+(iOS Projeto OK; IPA N/E \(Windows\)) Tj
+T*
+(IA UI OK; runtime BX) Tj
+T*
+(Pagamentos Unit OK; sandbox N/E) Tj
+T*
+(Firebase Auth/Firestore OK; Storage/CF BX) Tj
+ET
+endstream
+endobj
+6 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 7 0 R /Resources << /Font << /F1 3 0 R >> >> >>endobj
+7 0 obj<< /Length 1003 >>stream
+BT
+/F1 10 Tf
+50 800 Td
+12 TL
+(GitHub Sync OK nesta fase) Tj
+T*
+() Tj
+T*
+(Testes F17) Tj
+T*
+() Tj
+T*
+(- Flutter: 14/14 PASS) Tj
+T*
+(- Functions: 163/163 PASS) Tj
+T*
+(- E2E auth / IA real / MP / mobile builds: não aprovados para produção) Tj
+T*
+() Tj
+T*
+(Riscos para publicação) Tj
+T*
+() Tj
+T*
+(1. Live 404) Tj
+T*
+(2. Sem Functions ? sem IA/pagamentos reais) Tj
+T*
+(3. Sem Storage ? fotos live falham) Tj
+T*
+(4. Sem builds assinados) Tj
+T*
+(5. Sem E2E auth) Tj
+T*
+() Tj
+T*
+(Próximas ações) Tj
+T*
+() Tj
+T*
+(1. GO Blaze + APIs \(GO_AUTORIZACOES_EXTERNAS.md\)) Tj
+T*
+(2. Storage + deploy Functions) Tj
+T*
+(3. Sandbox MP + E2E) Tj
+T*
+(4. AAB + \(Mac\) IPA) Tj
+T*
+(5. GO live Hosting) Tj
+T*
+() Tj
+T*
+(Correções feitas nesta fase \(sem serviços pagos\)) Tj
+T*
+() Tj
+T*
+(- Auditoria e documentação completa em docs/FASE17/) Tj
+T*
+(- MCP Firebase apontado ao diretório correto do Carajás 360) Tj
+T*
+(- Reexecução de testes + evidências) Tj
+T*
+(- Não ativou Blaze, não publicou live, não alterou credenciais) Tj
+ET
+endstream
+endobj
+xref
+0 8
+0000000000 65535 f 
+0000000009 00000 n 
+0000000056 00000 n 
+0000000117 00000 n 
+0000000185 00000 n 
+0000000309 00000 n 
+0000002410 00000 n 
+0000002534 00000 n 
+trailer<< /Size 8 /Root 1 0 R >>
+startxref
+3587
+%%EOF
