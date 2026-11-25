@@ -16,7 +16,6 @@ import 'shared/services/firebase_service.dart';
 import 'package:servico_conecta/features/auth/auth_screen.dart';
 import 'package:servico_conecta/features/home/home_screen.dart'
     show SearchScreen, ServicesHubScreen;
-import 'package:servico_conecta/features/home/carajas_home_screen.dart';
 import 'package:servico_conecta/features/resolve/resolve_screen.dart';
 import 'package:servico_conecta/features/chat/chat_screen.dart';
 import 'package:servico_conecta/features/chat/chat_inbox_screen.dart';
@@ -33,7 +32,9 @@ import 'package:servico_conecta/features/admin/admin_screen.dart';
 import 'package:servico_conecta/features/company/company_screen.dart';
 import 'package:servico_conecta/features/orders/orders_screen.dart';
 import 'package:servico_conecta/features/provider/provider_home_screen.dart';
+import 'package:servico_conecta/features/home/provider_profile_screen.dart';
 import 'package:servico_conecta/core/auth/access_control.dart';
+import 'package:servico_conecta/shared/widgets/c360_shell.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -178,7 +179,19 @@ class ServicoConectaApp extends StatelessWidget {
                   providerColor: a?['providerColor'] ?? AppColors.primary,
                 ));
               case Routes.providerHome:
-                return _route(const ProviderHomeScreen());
+                return _route(const C360Shell(singlePage: ProviderHomeScreen()));
+              case Routes.providerProfile:
+                final pa = settings.arguments as Map<String, dynamic>?;
+                return _route(C360Shell(
+                  singlePage: ProviderProfileScreen(
+                    providerId: pa?['providerId'] ?? '',
+                    providerName: pa?['providerName'] ?? 'Profissional',
+                    category: pa?['category'] ?? '',
+                    style: pa?['style'] == 'service'
+                        ? ProviderDetailStyle.service
+                        : ProviderDetailStyle.profile,
+                  ),
+                ));
               case Routes.providerOnboarding:
                 return _route(const ProviderOnboardingScreen());
               case Routes.servicesHub:
@@ -212,104 +225,11 @@ class ServicoConectaApp extends StatelessWidget {
 // ─────────────────────────────────────────────────────────────
 // MAIN NAVIGATION — Bottom NavBar
 // ─────────────────────────────────────────────────────────────
-class MainNav extends StatefulWidget {
+class MainNav extends StatelessWidget {
   const MainNav({super.key});
-  @override
-  State<MainNav> createState() => _MainNavState();
-}
-
-class _MainNavState extends State<MainNav> {
-  int _idx = 0;
-
-  final _screens = const [
-    HomeScreen(),
-    SearchScreen(),
-    MyOrdersScreen(),
-    ChatInboxScreen(),
-    ProfileScreen(),
-  ];
 
   @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      body: IndexedStack(index: _idx, children: _screens),
-      bottomNavigationBar: Semantics(
-        container: true,
-        label: 'Navegação principal',
-        child: Container(
-          decoration: BoxDecoration(
-              color: isDark ? AppColors.darkSurface : AppColors.white,
-              border: Border(
-                  top: BorderSide(
-                      color: isDark ? AppColors.darkDivider : AppColors.divider)),
-              boxShadow: [
-                BoxShadow(
-                    color: AppColors.navy.withValues(alpha: isDark ? 0.35 : 0.06),
-                    blurRadius: 24,
-                    offset: const Offset(0, -8))
-              ]),
-          child: SafeArea(
-              child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
-            child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
-                children: [
-                  _navItem(0, Icons.home_rounded, 'Início', scheme),
-                  _navItem(1, Icons.explore_rounded, 'Explorar', scheme),
-                  _navItem(2, Icons.receipt_long_rounded, 'Pedidos', scheme),
-                  _navItem(3, Icons.chat_bubble_outline_rounded, 'Mensagens',
-                      scheme),
-                  _navItem(4, Icons.person_outline_rounded, 'Perfil', scheme),
-                ]),
-          )),
-        ),
-      ),
-    );
-  }
-
-  Widget _navItem(int i, IconData icon, String label, ColorScheme scheme) {
-    final sel = _idx == i;
-    final isDark = scheme.brightness == Brightness.dark;
-    return Semantics(
-      button: true,
-      selected: sel,
-      label: label,
-      child: GestureDetector(
-        onTap: () => setState(() => _idx = i),
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 220),
-          curve: Curves.easeOutCubic,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-              color: sel
-                  ? (isDark
-                      ? AppColors.primaryLight.withValues(alpha: 0.18)
-                      : AppColors.primarySoft)
-                  : Colors.transparent,
-              borderRadius: BorderRadius.circular(16)),
-          child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(icon,
-                size: sel ? 24 : 22,
-                color: sel
-                    ? (isDark ? AppColors.primaryLight : AppColors.primary)
-                    : (isDark ? AppColors.darkTextLow : AppColors.textLight)),
-            const SizedBox(height: 3),
-            Text(label,
-                style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: sel ? FontWeight.w800 : FontWeight.w500,
-                    color: sel
-                        ? (isDark ? AppColors.primaryLight : AppColors.primary)
-                        : (isDark
-                            ? AppColors.darkTextLow
-                            : AppColors.textLight))),
-          ]),
-        ),
-      ),
-    );
-  }
+  Widget build(BuildContext context) => const C360Shell();
 }
 
 // ─────────────────────────────────────────────────────────────

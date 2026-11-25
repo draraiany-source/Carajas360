@@ -12,7 +12,9 @@ import '../../core/constants/app_constants.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../shared/widgets/c360_nav.dart';
 import '../../shared/widgets/widgets.dart';
+import '../provider/provider_home_screen.dart';
 import '../support/support_screens.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -20,7 +22,7 @@ class ProfileScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final uid = AuthService.uid;
+    final uid = c360Uid();
     return Scaffold(
       backgroundColor: AppColors.background,
       body: uid == null
@@ -223,8 +225,11 @@ class ProfileScreen extends StatelessWidget {
                                     '🔧',
                                     'Meus Atendimentos',
                                     'Pedidos recebidos e agenda',
-                                    () => Navigator.pushNamed(
-                                        context, Routes.providerHome)),
+                                    () => c360Open(
+                                          context,
+                                          route: Routes.providerHome,
+                                          page: const ProviderHomeScreen(),
+                                        )),
                                 _item(
                                     context,
                                     '⚡',

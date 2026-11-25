@@ -448,6 +448,31 @@ class FS {
         .toList());
   }
 
+  static Stream<ProviderModel?> providerStream(String id) {
+    if (id.isEmpty) return Stream.value(null);
+    return _db.collection(Col.providers).doc(id).snapshots().map((d) {
+      final data = d.data();
+      if (!d.exists || data == null) return null;
+      return ProviderModel.fromMap(d.id, data);
+    });
+  }
+
+  static Stream<List<ReviewModel>> reviewsForProvider(String providerId) {
+    if (providerId.isEmpty) return Stream.value(const []);
+    return _db
+        .collection(Col.reviews)
+        .where('providerId', isEqualTo: providerId)
+        .limit(30)
+        .snapshots()
+        .map((s) {
+      final list = s.docs
+          .map((d) => ReviewModel.fromMap(d.id, d.data()))
+          .toList();
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return list;
+    });
+  }
+
   // Cria o perfil de prestador (coleção providers) vinculado ao usuário
   // recém-cadastrado. Fica com verified:false até aprovação no painel
   // admin (Vol.6: Validação de Profissionais), quando então passa a

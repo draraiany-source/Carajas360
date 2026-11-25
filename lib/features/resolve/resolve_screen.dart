@@ -5,6 +5,7 @@ import '../../core/modules/platform_modules.dart';
 import '../../core/utils/chat_nav.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../shared/widgets/c360_ui.dart';
 import '../../shared/widgets/widgets.dart';
 
 /// Cliente: descreve necessidade e recebe propostas.
@@ -171,7 +172,12 @@ class ResolveDetailScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Propostas recebidas')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textDark,
+        title: const Text('Minhas Solicitações'),
+      ),
       body: StreamBuilder<ResolveRequest?>(
         stream: FS.resolveRequestStream(requestId),
         builder: (_, reqSnap) {
@@ -182,37 +188,59 @@ class ResolveDetailScreen extends StatelessWidget {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                margin: const EdgeInsets.all(16),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.surfaceMuted,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.border),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(req.description,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w700, height: 1.35)),
-                    const SizedBox(height: 8),
-                    Text(
-                        '${Categories.byId(req.category)?.emoji ?? '🛠️'} ${Categories.byId(req.category)?.name ?? req.category} · 📍 ${req.city}',
-                        style: const TextStyle(
-                            color: AppColors.textLight, fontSize: 12)),
-                    const SizedBox(height: 4),
-                    Text(
-                        req.status == ResolveStatus.matched
-                            ? 'Status: combinado'
-                            : 'Status: aguardando propostas (${req.proposalCount})',
-                        style: TextStyle(
-                            color: req.status == ResolveStatus.matched
-                                ? AppColors.secondary
-                                : AppColors.primary,
-                            fontWeight: FontWeight.w700,
-                            fontSize: 12)),
-                  ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+                child: C360Card(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(children: [
+                        Expanded(
+                          child: Text(req.description,
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w800, fontSize: 16)),
+                        ),
+                        C360StatusChip(_resolveLabel(req.status),
+                            tone: _resolveTone(req.status)),
+                      ]),
+                      const SizedBox(height: 14),
+                      C360Stepper(
+                        steps: const [
+                          'Solicitação',
+                          'Aceite',
+                          'Execução',
+                          'Concluído'
+                        ],
+                        current: _resolveStep(req.status),
+                      ),
+                      const SizedBox(height: 8),
+                      C360StepLabels(
+                        steps: const [
+                          'Solicitação Confirmada',
+                          'Profissional Aceitou',
+                          'Em Execução',
+                          'Concluído'
+                        ],
+                        current: _resolveStep(req.status),
+                      ),
+                      const SizedBox(height: 14),
+                      Text(
+                          '${Categories.byId(req.category)?.name ?? req.category} · ${req.city}',
+                          style: const TextStyle(
+                              color: AppColors.textLight, fontSize: 12)),
+                      if (req.address != null && req.address!.isNotEmpty)
+                        Text(req.address!,
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.w600)),
+                      const SizedBox(height: 6),
+                      Text(
+                          req.status == ResolveStatus.open
+                              ? 'Aguardando propostas (${req.proposalCount})'
+                              : 'Status atualizado com base na solicitação.',
+                          style: const TextStyle(
+                              fontSize: 12, color: AppColors.textMedium)),
+                    ],
+                  ),
                 ),
               ),
               Expanded(
@@ -361,18 +389,43 @@ class _ProposalTile extends StatelessWidget {
 }
 
 class MyResolveScreen extends StatelessWidget {
-  const MyResolveScreen({super.key});
+  final bool embedded;
+  const MyResolveScreen({super.key, this.embedded = false});
 
   @override
   Widget build(BuildContext context) {
+    final body = Column(children: [
+      if (embedded)
+        const Padding(
+          padding: EdgeInsets.fromLTRB(4, 0, 4, 8),
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Text('Minhas Solicitações',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+          ),
+        ),
+      Expanded(child: _list(context)),
+    ]);
+    if (embedded) return body;
     return Scaffold(
-      appBar: AppBar(title: const Text('Meus Resolve')),
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textDark,
+        title: const Text('Minhas Solicitações'),
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => Navigator.pushNamed(context, Routes.resolve),
+        backgroundColor: AppColors.primary,
         label: const Text('Novo pedido'),
         icon: const Icon(Icons.add),
       ),
-      body: StreamBuilder<List<ResolveRequest>>(
+      body: body,
+    );
+  }
+
+  Widget _list(BuildContext context) {
+    return StreamBuilder<List<ResolveRequest>>(
         stream: FS.myResolveRequestsStream(),
         builder: (_, snap) {
           final list = snap.data ?? [];
@@ -388,29 +441,78 @@ class MyResolveScreen extends StatelessWidget {
             );
           }
           return ListView.separated(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(0, 0, 0, 16),
             itemCount: list.length,
             separatorBuilder: (_, __) => const SizedBox(height: 10),
             itemBuilder: (_, i) {
               final r = list[i];
-              return ListTile(
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    side: const BorderSide(color: AppColors.border)),
-                title: Text(r.description,
-                    maxLines: 2, overflow: TextOverflow.ellipsis),
-                subtitle: Text(
-                    '${r.city} · ${r.proposalCount} proposta(s) · ${r.status.name}'),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => Navigator.pushNamed(
-                    context, Routes.resolveDetail,
-                    arguments: {'id': r.id}),
+              final cat = Categories.byId(r.category);
+              return Material(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(16),
+                child: ListTile(
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                      side: const BorderSide(color: AppColors.border)),
+                  title: Text(r.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800)),
+                  subtitle: Text(
+                      '${cat?.name ?? r.category} · ${r.city} · ${r.proposalCount} proposta(s)'),
+                  trailing: C360StatusChip(
+                    _resolveLabel(r.status),
+                    tone: _resolveTone(r.status),
+                    icon: Icons.circle,
+                  ),
+                  onTap: () => Navigator.pushNamed(
+                      context, Routes.resolveDetail,
+                      arguments: {'id': r.id}),
+                ),
               );
             },
           );
         },
-      ),
-    );
+      );
+  }
+}
+
+String _resolveLabel(ResolveStatus status) {
+  switch (status) {
+    case ResolveStatus.open:
+      return 'Em Andamento';
+    case ResolveStatus.matched:
+      return 'Aceita';
+    case ResolveStatus.closed:
+      return 'Concluído';
+    case ResolveStatus.cancelled:
+      return 'Cancelado';
+  }
+}
+
+int _resolveStep(ResolveStatus status) {
+  switch (status) {
+    case ResolveStatus.open:
+      return 0;
+    case ResolveStatus.matched:
+      return 1;
+    case ResolveStatus.closed:
+      return 3;
+    case ResolveStatus.cancelled:
+      return 0;
+  }
+}
+
+C360Tone _resolveTone(ResolveStatus status) {
+  switch (status) {
+    case ResolveStatus.open:
+      return C360Tone.progress;
+    case ResolveStatus.matched:
+      return C360Tone.success;
+    case ResolveStatus.closed:
+      return C360Tone.success;
+    case ResolveStatus.cancelled:
+      return C360Tone.danger;
   }
 }
 

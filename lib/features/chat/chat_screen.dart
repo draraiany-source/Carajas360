@@ -13,6 +13,7 @@ import '../../core/constants/app_assets.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../shared/widgets/c360_ui.dart';
 import '../../shared/widgets/widgets.dart';
 import 'chat_voice.dart';
 
@@ -20,12 +21,16 @@ class ChatScreen extends StatefulWidget {
   final String roomId, otherName;
   final String? otherPhoto;
   final Color avatarColor;
+  final bool embedded;
+  final VoidCallback? onClose;
   const ChatScreen(
       {super.key,
       required this.roomId,
       required this.otherName,
       this.otherPhoto,
-      this.avatarColor = AppColors.primary});
+      this.avatarColor = AppColors.primary,
+      this.embedded = false,
+      this.onClose});
   @override
   State<ChatScreen> createState() => _ChatState();
 }
@@ -452,7 +457,9 @@ class _ChatState extends State<ChatScreen> {
           elevation: 0,
           scrolledUnderElevation: 0,
           titleSpacing: 0,
-          leading: IconButton(
+          leading: widget.embedded && widget.onClose == null
+              ? const SizedBox(width: 8)
+              : IconButton(
               icon: const Icon(Icons.arrow_back_ios_new_rounded,
                   size: 20, color: AppColors.textDark),
               onPressed: () => _searching
@@ -460,7 +467,7 @@ class _ChatState extends State<ChatScreen> {
                       _searching = false;
                       _searchQuery = '';
                     })
-                  : Navigator.pop(context)),
+                  : (widget.onClose ?? () => Navigator.pop(context))()),
           title: _searching
               ? TextField(
                   autofocus: true,
@@ -663,6 +670,47 @@ class _ChatState extends State<ChatScreen> {
     );
   }
 
+  Widget _requestCard(MessageModel msg, bool isMe) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Align(
+        alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 340),
+          child: C360Card(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Row(children: [
+                  Icon(Icons.event_note_rounded, color: AppColors.primary),
+                  SizedBox(width: 8),
+                  Text('Agendamento de Serviço',
+                      style: TextStyle(fontWeight: FontWeight.w800)),
+                ]),
+                const SizedBox(height: 6),
+                Text(msg.text,
+                    style: const TextStyle(
+                        fontSize: 13, color: AppColors.textMedium, height: 1.35)),
+                if (!isMe) ...[
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => _send(
+                          'Agendamento confirmado. Combinamos os detalhes por aqui.'),
+                      child: const Text('Confirmar Agendamento'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _bubble(MessageModel msg) {
     final isMe = msg.senderId == _uid || msg.senderId == 'me';
     // Mensagem apagada para todos
@@ -694,6 +742,9 @@ class _ChatState extends State<ChatScreen> {
             ]),
       );
     }
+    if (msg.text.contains('Nova solicitação')) {
+      return _requestCard(msg, isMe);
+    }
     return Padding(
       padding:
           EdgeInsets.only(bottom: 8, left: isMe ? 48 : 0, right: isMe ? 0 : 48),
@@ -718,7 +769,7 @@ class _ChatState extends State<ChatScreen> {
                 padding:
                     const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 decoration: BoxDecoration(
-                    color: isMe ? AppColors.primary : AppColors.white,
+                    color: isMe ? AppColors.primarySoft : AppColors.white,
                     borderRadius: BorderRadius.only(
                         topLeft: const Radius.circular(18),
                         topRight: const Radius.circular(18),
@@ -790,17 +841,15 @@ class _ChatState extends State<ChatScreen> {
                         )
                       else
                         Text(msg.text,
-                            style: TextStyle(
-                                color: isMe ? Colors.white : AppColors.textDark,
+                            style: const TextStyle(
+                                color: AppColors.textDark,
                                 fontSize: 14,
                                 height: 1.4)),
                       const SizedBox(height: 4),
                       Row(mainAxisSize: MainAxisSize.min, children: [
                         Text(fmtTime(msg.createdAt),
-                            style: TextStyle(
-                                color:
-                                    isMe ? Colors.white54 : AppColors.textLight,
-                                fontSize: 10)),
+                            style: const TextStyle(
+                                color: AppColors.textLight, fontSize: 10)),
                         if (isMe) ...[
                           const SizedBox(width: 4),
                           Icon(
@@ -809,8 +858,8 @@ class _ChatState extends State<ChatScreen> {
                                   : Icons.done_rounded,
                               size: 14,
                               color: msg.read
-                                  ? const Color(0xFF4FC3F7)
-                                  : Colors.white54)
+                                  ? AppColors.primary
+                                  : AppColors.textHint)
                         ],
                       ]),
                     ]),
@@ -899,7 +948,7 @@ class _ChatState extends State<ChatScreen> {
             maxLines: null,
             textCapitalization: TextCapitalization.sentences,
             decoration: InputDecoration(
-                hintText: 'Digite uma mensagem...',
+                hintText: 'Digite sua mensagem...',
                 filled: true,
                 fillColor: AppColors.background,
                 border: OutlineInputBorder(

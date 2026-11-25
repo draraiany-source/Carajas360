@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:share_plus/share_plus.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
@@ -10,6 +11,8 @@ import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../core/security/order_policy.dart';
+import '../../shared/widgets/c360_nav.dart';
+import '../../shared/widgets/c360_ui.dart';
 import '../../shared/widgets/widgets.dart';
 
 // ─────────────────────────────────────────────────────────────
@@ -23,56 +26,10 @@ class ProviderHomeScreen extends StatefulWidget {
   State<ProviderHomeScreen> createState() => _ProviderHomeState();
 }
 
-class _ProviderHomeState extends State<ProviderHomeScreen>
-    with SingleTickerProviderStateMixin {
-  late TabController _tab;
+class _ProviderHomeState extends State<ProviderHomeScreen> {
   StreamSubscription<List<OrderModel>>? _newOrdersSub;
   int _lastPendingCount = -1; // -1 = primeira carga (não alertar)
-
-  @override
-  void initState() {
-    super.initState();
-    _tab = TabController(length: 3, vsync: this);
-    // Alerta estilo iFood: quando chega pedido novo, vibra e avisa.
-    _newOrdersSub = FS.providerOrdersStream(
-        statuses: const [OrderStatus.pending]).listen((orders) {
-      if (!mounted) return;
-      if (_lastPendingCount >= 0 && orders.length > _lastPendingCount) {
-        HapticFeedback.heavyImpact();
-        SystemSound.play(SystemSoundType.alert);
-        snack(context, '🔔 Novo pedido recebido!', bg: AppColors.secondary);
-        _tab.animateTo(0);
-      }
-      _lastPendingCount = orders.length;
-    }, onError: (_) {});
-  }
-
-  @override
-  void dispose() {
-    _newOrdersSub?.cancel();
-    _tab.dispose();
-    super.dispose();
-  }
-
-  Widget _kpi(String label, String value) => Expanded(
-          child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.15),
-            borderRadius: BorderRadius.circular(12)),
-        child: Column(children: [
-          Text(value,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w900,
-                  fontSize: 14)),
-          Text(label,
-              style: const TextStyle(color: Colors.white70, fontSize: 10)),
-        ]),
-      ));
-
+  final _ratingsKey = GlobalKey();
   static final _demoPending = [
     OrderModel(
         id: 'p1',
@@ -87,174 +44,450 @@ class _ProviderHomeState extends State<ProviderHomeScreen>
   ];
 
   @override
+  void initState() {
+    super.initState();
+    // Alerta estilo iFood: quando chega pedido novo, vibra e avisa.
+    _newOrdersSub = c360Stream(() => FS.providerOrdersStream(
+        statuses: const [OrderStatus.pending])).listen((orders) {
+      if (!mounted) return;
+      if (_lastPendingCount >= 0 && orders.length > _lastPendingCount) {
+        HapticFeedback.heavyImpact();
+        SystemSound.play(SystemSoundType.alert);
+        snack(context, 'Novo pedido recebido!', bg: AppColors.secondary);
+      }
+      _lastPendingCount = orders.length;
+    }, onError: (_) {});
+  }
+
+  @override
+  void dispose() {
+    _newOrdersSub?.cancel();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => Scaffold(
         backgroundColor: AppColors.background,
-        body: NestedScrollView(
-          headerSliverBuilder: (_, __) => [
-            SliverToBoxAdapter(
-                child: GradHeader(
-                    gradient: AppGradients.primary,
-                    child: Column(children: [
-                      Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        body: ListView(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 28),
+          children: [
+            const C360PageBanner(
+              icon: Icons.work_rounded,
+              title: 'Meus Serviços',
+              subtitle:
+                  'Gerencie seus serviços, agenda, pedidos e recebimentos.',
+            ),
+            const SizedBox(height: 14),
+            StreamBuilder<ProviderModel?>(
+              stream: c360Stream(FS.myProviderStream),
+              builder: (_, snap) {
+                final prov = snap.data;
+                final online = prov?.active ?? false;
+                return C360Card(
+                  child: prov == null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('🔧 Meus Atendimentos',
+                            const Text('Você ainda não é prestador',
                                 style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w900,
-                                    fontSize: 20)),
-                            GestureDetector(
-                                onTap: () => Navigator.pop(context),
-                                child: Container(
-                                    width: 38,
-                                    height: 38,
-                                    decoration: BoxDecoration(
-                                        color: Colors.white.withOpacity(0.2),
-                                        borderRadius:
-                                            BorderRadius.circular(11)),
-                                    child: const Icon(Icons.close_rounded,
-                                        color: Colors.white, size: 20))),
+                                    fontWeight: FontWeight.w800, fontSize: 16)),
+                            const SizedBox(height: 6),
+                            const Text(
+                              'Cadastre seu serviço para aparecer nas buscas da região.',
+                              style: TextStyle(color: AppColors.textMedium),
+                            ),
+                            const SizedBox(height: 10),
+                            ElevatedButton(
+                              onPressed: () => Navigator.pushNamed(
+                                  context, Routes.providerOnboarding),
+                              child: const Text('Configurar meus serviços'),
+                            ),
+                          ],
+                        )
+                      : Row(children: [
+                          C360Avatar(
+                              name: prov.name,
+                              url: prov.photoUrl,
+                              size: 64,
+                              verified: prov.verified),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(prov.name,
+                                    style: const TextStyle(
+                                        fontWeight: FontWeight.w800,
+                                        fontSize: 16)),
+                                Text(
+                                  prov.categories.isEmpty
+                                      ? 'Profissional'
+                                      : prov.categories
+                                          .map((id) =>
+                                              Categories.byId(id)?.name ?? id)
+                                          .join(', '),
+                                  style: const TextStyle(
+                                      color: AppColors.textLight, fontSize: 12),
+                                ),
+                                const SizedBox(height: 4),
+                                C360Rating(
+                                    rating: prov.rating,
+                                    reviews: prov.totalReviews),
+                              ],
+                            ),
+                          ),
+                          Column(children: [
+                            Text(online ? 'Online' : 'Offline',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    color: online
+                                        ? AppColors.primary
+                                        : AppColors.textLight)),
+                            Switch(
+                              value: online,
+                              onChanged: (v) async {
+                                await FS.setProviderOnline(prov.id, v);
+                                if (context.mounted) {
+                                  snack(
+                                      context,
+                                      v
+                                          ? 'Online. Você aparece nas buscas.'
+                                          : 'Offline. Você saiu das buscas.');
+                                }
+                              },
+                            ),
                           ]),
+                        ]),
+                );
+              },
+            ),
+            const SizedBox(height: 12),
+            StreamBuilder<List<OrderModel>>(
+              stream: c360Stream(FS.providerOrdersStream),
+              builder: (_, snap) {
+                final orders = snap.data ?? const <OrderModel>[];
+                final now = DateTime.now();
+                final pending =
+                    orders.where((o) => o.status == OrderStatus.pending).length;
+                final running = orders
+                    .where((o) =>
+                        o.status == OrderStatus.inProgress ||
+                        o.status == OrderStatus.accepted)
+                    .length;
+                final done = orders
+                    .where((o) => o.status == OrderStatus.completed)
+                    .length;
+                final month = orders.where((o) =>
+                    o.status == OrderStatus.completed &&
+                    o.createdAt.year == now.year &&
+                    o.createdAt.month == now.month);
+                final revenue = month.fold<double>(
+                    0, (s, o) => s + (o.price ?? 0) * (1 - AppConst.commission));
+                final days = List<double>.generate(14, (i) {
+                  final d = DateTime(now.year, now.month, now.day - 13 + i);
+                  return orders
+                      .where((o) =>
+                          o.status == OrderStatus.completed &&
+                          o.createdAt.year == d.year &&
+                          o.createdAt.month == d.month &&
+                          o.createdAt.day == d.day)
+                      .fold<double>(
+                          0,
+                          (s, o) =>
+                              s + (o.price ?? 0) * (1 - AppConst.commission));
+                });
+                return Column(children: [
+                  LayoutBuilder(builder: (context, c) {
+                    final cols = c.maxWidth > 900 ? 4 : 2;
+                    return GridView.count(
+                      crossAxisCount: cols,
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      mainAxisSpacing: 10,
+                      crossAxisSpacing: 10,
+                      childAspectRatio: cols == 4 ? 2.5 : 2.1,
+                      children: [
+                        C360KpiCard(
+                          icon: Icons.inbox_rounded,
+                          tint: AppColors.primary,
+                          label: 'Solicitações',
+                          value: '$pending',
+                        ),
+                        C360KpiCard(
+                          icon: Icons.handyman_rounded,
+                          tint: AppColors.warning,
+                          label: 'Em Andamento',
+                          value: '$running',
+                        ),
+                        C360KpiCard(
+                          icon: Icons.check_circle_outline_rounded,
+                          tint: AppColors.success,
+                          label: 'Concluídos',
+                          value: '$done',
+                        ),
+                        C360KpiCard(
+                          icon: Icons.payments_rounded,
+                          tint: AppColors.primary,
+                          label: 'Faturamento (mês)',
+                          value: PaySvc.fmt(revenue),
+                        ),
+                      ],
+                    );
+                  }),
+                  const SizedBox(height: 12),
+                  _actions(),
+                  const SizedBox(height: 16),
+                  LayoutBuilder(builder: (context, c) {
+                    final wide = c.maxWidth > 980;
+                    final left = Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const C360SectionHeader(title: 'Próximos Atendimentos'),
+                        const SizedBox(height: 8),
+                        _OrderList(
+                          shrinkWrap: true,
+                          statuses: const [
+                            OrderStatus.accepted,
+                            OrderStatus.inProgress
+                          ],
+                          demo: const [],
+                          emptyEmoji: '📅',
+                          emptyTitle: 'Nenhum atendimento marcado',
+                          emptySub: 'Pedidos aceitos aparecem aqui',
+                        ),
+                        const SizedBox(height: 16),
+                        const C360SectionHeader(title: 'Solicitações Recentes'),
+                        const SizedBox(height: 8),
+                        _OrderList(
+                          shrinkWrap: true,
+                          statuses: const [OrderStatus.pending],
+                          demo: _demoPending,
+                          emptyEmoji: '📭',
+                          emptyTitle: 'Sem pedidos novos',
+                          emptySub: 'Novas solicitações aparecerão aqui',
+                        ),
+                      ],
+                    );
+                    final right = Column(children: [
+                      C360Card(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Meu Desempenho',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.w800, fontSize: 16)),
+                            const SizedBox(height: 4),
+                            Text('Últimos 14 dias · ${PaySvc.fmt(revenue)} no mês',
+                                style: const TextStyle(
+                                    color: AppColors.textLight, fontSize: 12)),
+                            const SizedBox(height: 8),
+                            C360Sparkline(
+                              values: days,
+                              caption:
+                                  'Valores líquidos, já descontada a comissão da plataforma.',
+                            ),
+                          ],
+                        ),
+                      ),
                       const SizedBox(height: 12),
-                      // ── Estilo Uber/iFood: ficar online/offline. Offline sai da
-                      // busca na hora (providersStream filtra active == true).
-                      StreamBuilder<ProviderModel?>(
-                        stream: FS.myProviderStream(),
-                        builder: (_, snap) {
-                          final prov = snap.data;
-                          final online = prov?.active ?? true;
-                          return Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 14, vertical: 10),
-                            decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.15),
-                                borderRadius: BorderRadius.circular(14)),
-                            child: Row(children: [
-                              Container(
-                                  width: 10,
-                                  height: 10,
-                                  decoration: BoxDecoration(
-                                      color: online
-                                          ? const Color(0xFF69F0AE)
-                                          : Colors.white38,
-                                      shape: BoxShape.circle)),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                  child: Text(
-                                      online
-                                          ? 'Você está online'
-                                          : 'Você está offline',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 13))),
-                              Switch(
-                                value: online,
-                                activeColor: const Color(0xFF69F0AE),
-                                inactiveThumbColor: Colors.white70,
-                                onChanged: prov == null
-                                    ? null
-                                    : (v) async {
-                                        await FS.setProviderOnline(prov.id, v);
-                                        if (context.mounted)
-                                          snack(
-                                              context,
-                                              v
-                                                  ? '✅ Online! Você aparece nas buscas.'
-                                                  : 'Offline. Você saiu das buscas.',
-                                              bg: v
-                                                  ? AppColors.secondary
-                                                  : AppColors.textLight);
-                                      },
-                              ),
-                            ]),
-                          );
-                        },
+                      C360Card(
+                        key: _ratingsKey,
+                        child: _ratings(),
                       ),
-                      const SizedBox(height: 10),
-                      // ── Ganhos do dia, no padrão dos apps de motorista/entregador.
-                      StreamBuilder<List<OrderModel>>(
-                        stream: FS.providerOrdersStream(
-                            statuses: const [OrderStatus.completed]),
-                        builder: (_, snap) {
-                          final now = DateTime.now();
-                          final today = (snap.data ?? const <OrderModel>[])
-                              .where((o) =>
-                                  o.createdAt.year == now.year &&
-                                  o.createdAt.month == now.month &&
-                                  o.createdAt.day == now.day)
-                              .toList();
-                          final total = today.fold<double>(
-                              0, (s, o) => s + (o.price ?? 0));
-                          // Repasse: valor menos a comissão da plataforma.
-                          final net = total * (1 - AppConst.commission);
-                          return Row(children: [
-                            _kpi('Hoje', PaySvc.fmt(net)),
-                            const SizedBox(width: 8),
-                            _kpi('Atendimentos', '${today.length}'),
-                            const SizedBox(width: 8),
-                            _kpi('Bruto', PaySvc.fmt(total)),
-                          ]);
-                        },
-                      ),
-                      const SizedBox(height: 14),
-                      TabBar(
-                          controller: _tab,
-                          indicatorColor: Colors.white,
-                          labelColor: Colors.white,
-                          unselectedLabelColor: Colors.white60,
-                          dividerColor: Colors.transparent,
-                          labelStyle: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w700),
-                          tabs: const [
-                            Tab(text: 'Novos'),
-                            Tab(text: 'Em andamento'),
-                            Tab(text: 'Concluídos')
-                          ]),
-                    ])))
+                    ]);
+                    if (!wide) {
+                      return Column(children: [
+                        left,
+                        const SizedBox(height: 12),
+                        right,
+                      ]);
+                    }
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(flex: 3, child: left),
+                        const SizedBox(width: 12),
+                        Expanded(flex: 2, child: right),
+                      ],
+                    );
+                  }),
+                ]);
+              },
+            ),
           ],
-          body: TabBarView(controller: _tab, children: [
-            _OrderList(
-                statuses: const [OrderStatus.pending],
-                demo: _demoPending,
-                emptyEmoji: '📭',
-                emptyTitle: 'Sem pedidos novos',
-                emptySub: 'Novas solicitações aparecerão aqui'),
-            _OrderList(
-                statuses: const [OrderStatus.accepted, OrderStatus.inProgress],
-                demo: const [],
-                emptyEmoji: '🔧',
-                emptyTitle: 'Nada em andamento',
-                emptySub: 'Pedidos aceitos aparecerão aqui'),
-            Column(children: [
-              const WeeklyEarnings(),
-              Expanded(
-                  child: _OrderList(
-                      statuses: const [OrderStatus.completed],
-                      demo: const [],
-                      emptyEmoji: '✅',
-                      emptyTitle: 'Sem histórico ainda',
-                      emptySub: 'Serviços concluídos aparecerão aqui')),
-            ]),
-          ]),
         ),
       );
+
+  Widget _actions() {
+    final items = <(IconData, String, VoidCallback)>[
+      (
+        Icons.tune_rounded,
+        'Configurar\nMeus Serviços',
+        () => Navigator.pushNamed(context, Routes.providerOnboarding)
+      ),
+      (
+        Icons.calendar_month_rounded,
+        'Gerenciar\nAgenda',
+        () => Navigator.pushNamed(context, Routes.bookings)
+      ),
+      (
+        Icons.request_quote_rounded,
+        'Orçamentos\ne Propostas',
+        () => Navigator.pushNamed(context, Routes.resolveOpportunities)
+      ),
+      (
+        Icons.star_outline_rounded,
+        'Clientes\ne Avaliações',
+        () {
+          final ctx = _ratingsKey.currentContext;
+          if (ctx != null) {
+            Scrollable.ensureVisible(ctx,
+                duration: const Duration(milliseconds: 300));
+          }
+        }
+      ),
+      (
+        Icons.account_balance_wallet_outlined,
+        'Financeiro\ne Recebimentos',
+        () => Navigator.pushNamed(context, Routes.wallet)
+      ),
+      (
+        Icons.campaign_outlined,
+        'Divulgar\nMeu Perfil',
+        () => SharePlus.instance.share(ShareParams(
+            text:
+                'Meu perfil no Carajás 360. Encontre serviços locais em Canaã dos Carajás.'))
+      ),
+    ];
+    return LayoutBuilder(builder: (context, c) {
+      final cols = c.maxWidth > 800 ? 6 : 3;
+      return GridView.count(
+        crossAxisCount: cols,
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 1.15,
+        children: [
+          for (final item in items)
+            Material(
+              color: AppColors.white,
+              borderRadius: BorderRadius.circular(16),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: item.$3,
+                child: Padding(
+                  padding: const EdgeInsets.all(8),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(item.$1, color: AppColors.primary),
+                      const SizedBox(height: 6),
+                      Text(item.$2,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                              fontSize: 11, fontWeight: FontWeight.w700)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    });
+  }
+
+  Widget _ratings() {
+    return StreamBuilder<ProviderModel?>(
+      stream: c360Stream(FS.myProviderStream),
+      builder: (_, snap) {
+        final prov = snap.data;
+        if (prov == null) {
+          return const Text(
+            'As avaliações dos clientes aparecem depois que o perfil de prestador estiver ativo.',
+            style: TextStyle(color: AppColors.textLight, height: 1.35),
+          );
+        }
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Avaliação dos Clientes',
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            const SizedBox(height: 8),
+            Text(prov.rating.toStringAsFixed(1),
+                style: const TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.textDark)),
+            Text('${prov.totalReviews} avaliações',
+                style: const TextStyle(color: AppColors.textLight)),
+            const SizedBox(height: 8),
+            const Text(
+              'A distribuição por estrelas usa as avaliações já registradas no perfil.',
+              style: TextStyle(fontSize: 12, color: AppColors.textLight),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              height: 140,
+              child: StreamBuilder<List<ReviewModel>>(
+                stream: c360Stream(() => FS.reviewsForProvider(prov.id)),
+                builder: (_, reviewSnap) {
+                  final list = reviewSnap.data ?? const <ReviewModel>[];
+                  if (list.isEmpty) {
+                    return const Text('Nenhuma avaliação detalhada ainda.',
+                        style: TextStyle(color: AppColors.textMedium));
+                  }
+                  final counts = List<int>.filled(5, 0);
+                  for (final r in list) {
+                    counts[(r.stars.clamp(1, 5)) - 1]++;
+                  }
+                  return Column(children: [
+                    for (var stars = 5; stars >= 1; stars--)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 4),
+                        child: Row(children: [
+                          Text('$stars'),
+                          const Icon(Icons.star_rounded,
+                              size: 14, color: AppColors.yellowDeep),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: LinearProgressIndicator(
+                              value: counts[stars - 1] / list.length,
+                              minHeight: 8,
+                              borderRadius: BorderRadius.circular(8),
+                              color: AppColors.primary,
+                              backgroundColor: AppColors.surfaceMuted,
+                            ),
+                          ),
+                        ]),
+                      ),
+                  ]);
+                },
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
 }
 
 class _OrderList extends StatelessWidget {
   final List<OrderStatus> statuses;
   final List<OrderModel> demo;
   final String emptyEmoji, emptyTitle, emptySub;
+  final bool shrinkWrap;
   const _OrderList(
       {required this.statuses,
       required this.demo,
       required this.emptyEmoji,
       required this.emptyTitle,
-      required this.emptySub});
+      required this.emptySub,
+      this.shrinkWrap = false});
 
   @override
   Widget build(BuildContext context) => StreamBuilder<List<OrderModel>>(
-        stream: FS.providerOrdersStream(statuses: statuses),
+        stream: c360Stream(() => FS.providerOrdersStream(statuses: statuses)),
         builder: (_, snap) {
           final orders = DemoData.orEmpty(
               snap.data,
@@ -263,7 +496,9 @@ class _OrderList extends StatelessWidget {
             return EmptyState(
                 emoji: emptyEmoji, title: emptyTitle, subtitle: emptySub);
           return ListView.builder(
-            padding: const EdgeInsets.all(16),
+            shrinkWrap: shrinkWrap,
+            physics: shrinkWrap ? const NeverScrollableScrollPhysics() : null,
+            padding: EdgeInsets.all(shrinkWrap ? 0 : 16),
             itemCount: orders.length,
             itemBuilder: (_, i) {
               final o = orders[i];
