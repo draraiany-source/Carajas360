@@ -85,6 +85,7 @@ abstract class Routes {
   static const resolveOpportunities = '/resolve-opportunities';
   static const chatInbox = '/chat-inbox';
   static const myResolve = '/my-resolve';
+  static const providerProfile = '/provider-profile';
 }
 
 class ServiceCategory {

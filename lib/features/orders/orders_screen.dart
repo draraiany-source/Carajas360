@@ -7,19 +7,47 @@ import '../../core/utils/chat_nav.dart';
 import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../shared/widgets/c360_nav.dart';
+import '../../shared/widgets/c360_ui.dart';
 import '../../shared/widgets/widgets.dart';
+import '../resolve/resolve_screen.dart';
 
 // ─────────────────────────────────────────────────────────────
 // FAVORITES SCREEN (Vol.3/Vol.5: coleção favorites)
 // ─────────────────────────────────────────────────────────────
 class FavoritesScreen extends StatelessWidget {
-  const FavoritesScreen({super.key});
+  final bool embedded;
+  const FavoritesScreen({super.key, this.embedded = false});
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(title: const Text('⭐ Favoritos')),
-        body: StreamBuilder<List<ProviderModel>>(
-          stream: FS.favoritesStream(),
+  Widget build(BuildContext context) {
+    final body = Column(children: [
+      if (embedded)
+        const Padding(
+          padding: EdgeInsets.fromLTRB(20, 16, 20, 0),
+          child: C360PageBanner(
+            icon: Icons.favorite_rounded,
+            title: 'Favoritos',
+            subtitle: 'Profissionais e serviços que você salvou.',
+          ),
+        ),
+      Expanded(child: _body(context)),
+    ]);
+    if (embedded) {
+      return ColoredBox(color: AppColors.background, child: body);
+    }
+    return Scaffold(
+        backgroundColor: AppColors.background,
+        appBar: AppBar(
+          backgroundColor: AppColors.white,
+          foregroundColor: AppColors.textDark,
+          title: const Text('Favoritos'),
+        ),
+        body: body);
+  }
+
+  Widget _body(BuildContext context) => StreamBuilder<List<ProviderModel>>(
+          stream: c360Stream(FS.favoritesStream),
           builder: (_, snap) {
             if (snap.connectionState == ConnectionState.waiting) {
               return ListView.builder(
@@ -28,13 +56,14 @@ class FavoritesScreen extends StatelessWidget {
                   itemBuilder: (_, __) => const ShimCard());
             }
             final favs = snap.data ?? [];
-            if (favs.isEmpty)
+            if (favs.isEmpty) {
               return const EmptyState(
                   emoji: '⭐',
                   title: 'Nenhum favorito ainda',
                   subtitle:
                       'Toque no ícone de estrela em um profissional para salvá-lo aqui',
                   asset: AppAssets.ilListaVazia);
+            }
             return ListView.builder(
               padding: const EdgeInsets.all(16),
               itemCount: favs.length,
@@ -88,8 +117,7 @@ class FavoritesScreen extends StatelessWidget {
               },
             );
           },
-        ),
-      );
+        );
 }
 
 // Nota: o botão de favoritar já está embutido no ProvCard (via parâmetro providerId).
@@ -98,13 +126,16 @@ class FavoritesScreen extends StatelessWidget {
 // MY ORDERS / HISTORY SCREEN (Vol.3: Perfil do Cliente – Pedidos)
 // ─────────────────────────────────────────────────────────────
 class MyOrdersScreen extends StatefulWidget {
-  const MyOrdersScreen({super.key});
+  final bool embedded;
+  const MyOrdersScreen({super.key, this.embedded = false});
   @override
   State<MyOrdersScreen> createState() => _MyOrdersState();
 }
 
 class _MyOrdersState extends State<MyOrdersScreen> {
   OrderStatus? _filter;
+  int _segment = 0;
+  int? _periodDays;
 
   static final _demo = [
     OrderModel(
@@ -140,217 +171,285 @@ class _MyOrdersState extends State<MyOrdersScreen> {
   ];
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          title: const Text('📋 Meus Pedidos'),
-          actions: [
-            TextButton(
-              onPressed: () =>
-                  Navigator.pushNamed(context, Routes.myResolve),
-              child: const Text('Resolve'),
-            ),
-          ],
-        ),
-        body: Column(children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-            child: Material(
-              color: AppColors.secondary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(14),
-              child: InkWell(
-                borderRadius: BorderRadius.circular(14),
-                onTap: () =>
-                    Navigator.pushNamed(context, Routes.myResolve),
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  child: Row(children: [
-                    Text('⚡', style: TextStyle(fontSize: 18)),
-                    SizedBox(width: 10),
+  Widget build(BuildContext context) {
+    final content = Column(children: [
+      Expanded(
+        child: StreamBuilder<List<OrderModel>>(
+          stream: c360Stream(FS.orderHistoryStream),
+          builder: (_, snap) {
+            final all = DemoData.orEmpty(snap.data, _demo);
+            final now = DateTime.now();
+            final ranged = _periodDays == null
+                ? all
+                : all
+                    .where((o) => now.difference(o.createdAt).inDays <= _periodDays!)
+                    .toList();
+            final visible = ranged.where((o) {
+              if (_filter == null) return true;
+              if (_filter == OrderStatus.inProgress) {
+                return o.status == OrderStatus.inProgress ||
+                    o.status == OrderStatus.accepted;
+              }
+              return o.status == _filter;
+            }).toList();
+            final running = ranged
+                .where((o) =>
+                    o.status == OrderStatus.inProgress ||
+                    o.status == OrderStatus.accepted)
+                .length;
+            final done =
+                ranged.where((o) => o.status == OrderStatus.completed).length;
+            final cancelled =
+                ranged.where((o) => o.status == OrderStatus.cancelled).length;
+            return ListView(
+              padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+              children: [
+                const C360PageBanner(
+                  icon: Icons.assignment_turned_in_rounded,
+                  title: 'Meus Pedidos',
+                  subtitle: 'Acompanhe, gerencie e avalie todos os seus serviços.',
+                ),
+                const SizedBox(height: 14),
+                LayoutBuilder(builder: (context, c) {
+                  final cols = c.maxWidth > 900 ? 4 : 2;
+                  final cards = [
+                    C360KpiCard(
+                      icon: Icons.shopping_bag_outlined,
+                      tint: AppColors.primary,
+                      label: 'Pedidos Totais',
+                      value: '${ranged.length}',
+                    ),
+                    C360KpiCard(
+                      icon: Icons.timelapse_rounded,
+                      tint: AppColors.warning,
+                      label: 'Em Andamento',
+                      value: '$running',
+                    ),
+                    C360KpiCard(
+                      icon: Icons.check_circle_outline_rounded,
+                      tint: AppColors.success,
+                      label: 'Concluídos',
+                      value: '$done',
+                    ),
+                    C360KpiCard(
+                      icon: Icons.cancel_outlined,
+                      tint: AppColors.error,
+                      label: 'Cancelados',
+                      value: '$cancelled',
+                    ),
+                  ];
+                  return GridView.count(
+                    crossAxisCount: cols,
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    mainAxisSpacing: 10,
+                    crossAxisSpacing: 10,
+                    childAspectRatio: cols == 4 ? 2.6 : 2.2,
+                    children: cards,
+                  );
+                }),
+                const SizedBox(height: 14),
+                Row(children: [
+                  C360FilterChip(
+                    label: 'Meus Pedidos',
+                    icon: Icons.list_alt_rounded,
+                    selected: _segment == 0,
+                    onTap: () => setState(() => _segment = 0),
+                  ),
+                  C360FilterChip(
+                    label: 'Minhas Solicitações',
+                    icon: Icons.bolt_rounded,
+                    selected: _segment == 1,
+                    onTap: () => setState(() => _segment = 1),
+                  ),
+                ]),
+                const SizedBox(height: 8),
+                if (_segment == 1)
+                  const SizedBox(
+                    height: 460,
+                    child: MyResolveScreen(embedded: true),
+                  )
+                else ...[
+                  Row(children: [
                     Expanded(
-                      child: Text(
-                        'Pedidos Resolve — propostas e orçamentos abertos',
-                        style: TextStyle(
-                            fontWeight: FontWeight.w700, fontSize: 13),
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(children: [
+                          C360FilterChip(
+                            label: 'Todos (${ranged.length})',
+                            selected: _filter == null,
+                            onTap: () => setState(() => _filter = null),
+                          ),
+                          C360FilterChip(
+                            label: 'Em Andamento ($running)',
+                            icon: Icons.timelapse_rounded,
+                            selected: _filter == OrderStatus.inProgress,
+                            onTap: () => setState(
+                                () => _filter = OrderStatus.inProgress),
+                          ),
+                          C360FilterChip(
+                            label: 'Concluídos ($done)',
+                            icon: Icons.check_circle_outline_rounded,
+                            selected: _filter == OrderStatus.completed,
+                            onTap: () =>
+                                setState(() => _filter = OrderStatus.completed),
+                          ),
+                          C360FilterChip(
+                            label: 'Cancelados ($cancelled)',
+                            icon: Icons.cancel_outlined,
+                            selected: _filter == OrderStatus.cancelled,
+                            onTap: () =>
+                                setState(() => _filter = OrderStatus.cancelled),
+                          ),
+                        ]),
                       ),
                     ),
-                    Icon(Icons.chevron_right_rounded,
-                        color: AppColors.secondary),
-                  ]),
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-              height: 46,
-              child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-                  children: [
-                    _filterChip('Todos', null),
-                    _filterChip('Aguardando', OrderStatus.pending),
-                    _filterChip('Em andamento', OrderStatus.inProgress),
-                    _filterChip('Concluídos', OrderStatus.completed),
-                    _filterChip('Cancelados', OrderStatus.cancelled),
-                  ])),
-          Expanded(
-              child: StreamBuilder<List<OrderModel>>(
-            stream: FS.orderHistoryStream(status: _filter),
-            builder: (_, snap) {
-              final orders = DemoData.orEmpty(
-                  snap.data,
-                  _demo
-                      .where((o) => _filter == null || o.status == _filter)
-                      .toList());
-              if (orders.isEmpty)
-                return const EmptyState(
-                    emoji: '📋',
-                    title: 'Nenhum pedido',
-                    subtitle: 'Seus pedidos aparecerão aqui',
-                    asset: AppAssets.ilListaVazia);
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemCount: orders.length,
-                itemBuilder: (_, i) {
-                  final o = orders[i];
-                  final cat = Categories.byId(o.category);
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 10),
-                    decoration: AppDecorations.card(r: 16),
-                    padding: const EdgeInsets.all(14),
-                    child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(children: [
-                            Container(
-                                width: 42,
-                                height: 42,
-                                decoration: BoxDecoration(
-                                    color: (cat?.color ?? AppColors.primary)
-                                        .withValues(alpha: 0.12),
-                                    borderRadius: BorderRadius.circular(12)),
-                                alignment: Alignment.center,
-                                child: Text(cat?.emoji ?? '🔧',
-                                    style: const TextStyle(fontSize: 20))),
-                            const SizedBox(width: 12),
-                            Expanded(
-                                child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                  Text(o.title,
-                                      style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          fontSize: 14)),
-                                  Text(fmtDate(o.createdAt),
-                                      style: const TextStyle(
-                                          fontSize: 11,
-                                          color: AppColors.textLight)),
-                                ])),
-                            if (o.price != null)
-                              Text(PaySvc.fmt(o.price!),
-                                  style: const TextStyle(
-                                      fontWeight: FontWeight.w800,
-                                      fontSize: 14,
-                                      color: AppColors.secondary)),
-                          ]),
-                          const SizedBox(height: 10),
-                          Row(children: [
-                            AppTag(o.statusLabel,
-                                bg: _statusBg(o.status),
-                                fg: _statusFg(o.status)),
-                            const Spacer(),
-                            if (o.status == OrderStatus.pending ||
-                                o.status == OrderStatus.accepted)
-                              TextButton(
-                                  onPressed: () =>
-                                      _confirmCancel(context, o.id),
-                                  child: const Text('Cancelar',
-                                      style: TextStyle(
-                                          fontSize: 12,
-                                          color: AppColors.error))),
-                            if (o.status == OrderStatus.inProgress)
-                              TextButton(
-                                  onPressed: () => Navigator.pushNamed(
-                                          context, Routes.gps, arguments: {
-                                        'ctx': 'servico',
-                                        'orderId': o.id
-                                      }),
-                                  child: const Text('Rastrear',
-                                      style: TextStyle(fontSize: 12))),
-                            if (o.status == OrderStatus.completed &&
-                                !o.reviewed)
-                              TextButton(
-                                  onPressed: () => Navigator.pushNamed(
-                                      context, Routes.reviews,
-                                      arguments: {'orderId': o.id}),
-                                  child: const Text('Avaliar',
-                                      style: TextStyle(fontSize: 12))),
-                          ]),
+                    PopupMenuButton<int?>(
+                      tooltip: 'Período',
+                      onSelected: (v) => setState(() => _periodDays = v),
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: null, child: Text('Todo o período')),
+                        PopupMenuItem(value: 7, child: Text('Últimos 7 dias')),
+                        PopupMenuItem(value: 30, child: Text('Últimos 30 dias')),
+                        PopupMenuItem(value: 90, child: Text('Últimos 90 dias')),
+                      ],
+                      child: const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: Row(children: [
+                          Icon(Icons.calendar_month_rounded, size: 18),
+                          SizedBox(width: 4),
+                          Text('Período',
+                              style: TextStyle(fontWeight: FontWeight.w700)),
                         ]),
-                  );
-                },
-              );
-            },
-          )),
-        ]),
-      );
+                      ),
+                    ),
+                  ]),
+                  const SizedBox(height: 10),
+                  if (visible.isEmpty)
+                    const EmptyState(
+                        emoji: '📋',
+                        title: 'Nenhum pedido',
+                        subtitle: 'Seus pedidos aparecerão aqui',
+                        asset: AppAssets.ilListaVazia)
+                  else
+                    for (final order in visible) _orderRow(context, order),
+                ],
+              ],
+            );
+          },
+        ),
+      ),
+    ]);
 
-  Widget _filterChip(String label, OrderStatus? status) {
-    final sel = _filter == status;
+    if (widget.embedded) {
+      return ColoredBox(color: AppColors.background, child: content);
+    }
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textDark,
+        title: const Text('Meus Pedidos'),
+      ),
+      body: content,
+    );
+  }
+
+  Widget _orderRow(BuildContext context, OrderModel order) {
+    final cat = Categories.byId(order.category);
     return Padding(
-        padding: const EdgeInsets.only(right: 8),
-        child: GestureDetector(
-          onTap: () => setState(() => _filter = status),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      padding: const EdgeInsets.only(bottom: 10),
+      child: C360Card(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        child: LayoutBuilder(builder: (context, c) {
+          final wide = c.maxWidth > 760;
+          final info = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                  '#${order.id.length > 6 ? order.id.substring(0, 6) : order.id}',
+                  style: const TextStyle(
+                      fontSize: 11, color: AppColors.textLight)),
+              Text(order.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w800)),
+              Text(cat?.name ?? order.category,
+                  style: const TextStyle(
+                      fontSize: 12, color: AppColors.textLight)),
+            ],
+          );
+          final thumb = Container(
+            width: 46,
+            height: 46,
+            alignment: Alignment.center,
             decoration: BoxDecoration(
-                color: sel ? AppColors.primary : Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(
-                    color: sel ? AppColors.primary : AppColors.border)),
-            child: Text(label,
-                style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: sel ? Colors.white : AppColors.textDark)),
-          ),
-        ));
+              color: AppColors.primarySoft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(cat?.emoji ?? '🔧',
+                style: const TextStyle(fontSize: 20)),
+          );
+          final chip = C360StatusChip(labelForOrder(order.status),
+              tone: toneForOrder(order.status),
+              icon: iconForOrder(order.status));
+          final price = Text(order.price == null ? '—' : PaySvc.fmt(order.price!),
+              style: const TextStyle(
+                  fontWeight: FontWeight.w800, color: AppColors.primary));
+          if (!wide) {
+            return Row(children: [
+              thumb,
+              const SizedBox(width: 10),
+              Expanded(child: info),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                price,
+                const SizedBox(height: 6),
+                chip,
+              ]),
+              _actions(context, order),
+            ]);
+          }
+          return Row(children: [
+            thumb,
+            const SizedBox(width: 10),
+            Expanded(flex: 3, child: info),
+            Expanded(
+                child: Text(fmtDate(order.createdAt),
+                    style: const TextStyle(fontSize: 12))),
+            Expanded(child: price),
+            chip,
+            _actions(context, order),
+          ]);
+        }),
+      ),
+    );
   }
 
-  Color _statusBg(OrderStatus s) {
-    switch (s) {
-      case OrderStatus.pending:
-        return const Color(0xFFFFF8E1);
-      case OrderStatus.accepted:
-        return const Color(0xFFE3F0FF);
-      case OrderStatus.inProgress:
-        return const Color(0xFFE1F5FE);
-      case OrderStatus.completed:
-        return const Color(0xFFE8F5E9);
-      case OrderStatus.cancelled:
-        return const Color(0xFFFFEBEE);
-      case OrderStatus.disputed:
-        return const Color(0xFFFFF3E0);
-    }
-  }
-
-  Color _statusFg(OrderStatus s) {
-    switch (s) {
-      case OrderStatus.pending:
-        return AppColors.warning;
-      case OrderStatus.accepted:
-        return AppColors.primary;
-      case OrderStatus.inProgress:
-        return AppColors.info;
-      case OrderStatus.completed:
-        return AppColors.secondary;
-      case OrderStatus.cancelled:
-        return AppColors.error;
-      case OrderStatus.disputed:
-        return AppColors.orange;
-    }
+  Widget _actions(BuildContext context, OrderModel order) {
+    return PopupMenuButton<String>(
+      icon: const Icon(Icons.more_horiz_rounded),
+      onSelected: (v) {
+        if (v == 'cancel') _confirmCancel(context, order.id);
+        if (v == 'track') {
+          Navigator.pushNamed(context, Routes.gps,
+              arguments: {'ctx': 'servico', 'orderId': order.id});
+        }
+        if (v == 'review') {
+          Navigator.pushNamed(context, Routes.reviews,
+              arguments: {'orderId': order.id});
+        }
+      },
+      itemBuilder: (_) => [
+        if (order.status == OrderStatus.pending ||
+            order.status == OrderStatus.accepted)
+          const PopupMenuItem(value: 'cancel', child: Text('Cancelar')),
+        if (order.status == OrderStatus.inProgress)
+          const PopupMenuItem(value: 'track', child: Text('Rastrear')),
+        if (order.status == OrderStatus.completed && !order.reviewed)
+          const PopupMenuItem(value: 'review', child: Text('Avaliar')),
+        const PopupMenuItem(value: 'none', child: Text('Detalhes no card')),
+      ],
+    );
   }
 
   void _confirmCancel(BuildContext context, String orderId) => showDialog(
@@ -392,12 +491,14 @@ class _MyOrdersState extends State<MyOrdersScreen> {
 class RequestServiceScreen extends StatefulWidget {
   final String providerId, providerName, category;
   final Color providerColor;
+  final String? initialDescription;
   const RequestServiceScreen(
       {super.key,
       required this.providerId,
       required this.providerName,
       required this.category,
-      this.providerColor = AppColors.primary});
+      this.providerColor = AppColors.primary,
+      this.initialDescription});
   @override
   State<RequestServiceScreen> createState() => _RequestServiceState();
 }
@@ -412,6 +513,13 @@ class _RequestServiceState extends State<RequestServiceScreen> {
       _improvingDescription = false,
       _loadingBudget = false;
   String? _budgetSuggestion;
+
+  @override
+  void initState() {
+    super.initState();
+    final seed = widget.initialDescription?.trim();
+    if (seed != null && seed.isNotEmpty) _description.text = seed;
+  }
 
   @override
   void dispose() {

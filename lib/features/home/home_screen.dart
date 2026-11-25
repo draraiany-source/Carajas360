@@ -10,6 +10,10 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
 import '../../shared/widgets/micro_interactions.dart';
+import '../../shared/widgets/c360_nav.dart';
+import '../../shared/widgets/c360_ui.dart';
+import '../orders/orders_screen.dart';
+import 'provider_profile_screen.dart';
 
 /// Hub do módulo Serviços (núcleo original do Serviço Conecta).
 /// A Home da plataforma Carajás 360 fica em [HomeScreen] (carajas_home_screen.dart).
@@ -495,9 +499,15 @@ class _ServicesHubState extends State<ServicesHubScreen> {
 }
 
 class SearchScreen extends StatefulWidget {
-  /// Categoria pré-selecionada (usada ao vir de um chip de segmento).
   final String? initialCategory;
-  const SearchScreen({super.key, this.initialCategory});
+  final bool embedded;
+  final SearchMode mode;
+  const SearchScreen({
+    super.key,
+    this.initialCategory,
+    this.embedded = false,
+    this.mode = SearchMode.explore,
+  });
   @override
   State<SearchScreen> createState() => _SearchState();
 }
@@ -507,7 +517,15 @@ class _SearchState extends State<SearchScreen> {
   String _q = '';
   String? _cat;
   bool _onlineOnly = false;
+  bool _verifiedOnly = false;
+  bool _cityOnly = false;
+  bool _availableToday = false;
   String _sort = 'rating';
+  bool _grid = true;
+  int _page = 0;
+  static const _pageSize = 8;
+
+  bool get _explore => widget.mode == SearchMode.explore;
 
   @override
   void initState() {
@@ -521,9 +539,6 @@ class _SearchState extends State<SearchScreen> {
     super.dispose();
   }
 
-  // Busca inteligente (Vol.11: IA): interpreta a query em linguagem
-  // natural e pré-seleciona a categoria mais próxima do catálogo,
-  // em vez do usuário precisar navegar manualmente pelos chips.
   Future<void> _smartSearch() async {
     if (_q.trim().isEmpty) {
       snack(context, 'Digite o que você precisa primeiro');
@@ -540,8 +555,11 @@ class _SearchState extends State<SearchScreen> {
     if (result != null && result.isNotEmpty) {
       final matched = Categories.all.firstWhere((c) => c.name == result,
           orElse: () => Categories.all.first);
-      setState(() => _cat = matched.id);
-      snack(context, '🔍 Categoria sugerida: ${matched.name}',
+      setState(() {
+        _cat = matched.id;
+        _page = 0;
+      });
+      snack(context, 'Categoria sugerida: ${matched.name}',
           bg: AppColors.secondary);
     } else {
       snack(context,
@@ -550,139 +568,485 @@ class _SearchState extends State<SearchScreen> {
     }
   }
 
+  void _openProfile(ProviderModel provider, {ProviderDetailStyle style = ProviderDetailStyle.profile}) {
+    c360Open(
+      context,
+      route: Routes.providerProfile,
+      arguments: {
+        'providerId': provider.id,
+        'providerName': provider.name,
+        'category': provider.categories.isNotEmpty
+            ? provider.categories.first
+            : (_cat ?? ''),
+        'style': style == ProviderDetailStyle.service ? 'service' : 'profile',
+      },
+      page: ProviderProfileScreen(
+        providerId: provider.id,
+        providerName: provider.name,
+        category: provider.categories.isNotEmpty
+            ? provider.categories.first
+            : (_cat ?? ''),
+        style: style,
+      ),
+    );
+  }
+
+  void _request(ProviderModel provider) {
+    c360Open(
+      context,
+      route: Routes.requestService,
+      arguments: {
+        'providerId': provider.id,
+        'providerName': provider.name,
+        'category': provider.categories.isNotEmpty
+            ? provider.categories.first
+            : (_cat ?? ''),
+      },
+      page: RequestServiceScreen(
+        providerId: provider.id,
+        providerName: provider.name,
+        category: provider.categories.isNotEmpty
+            ? provider.categories.first
+            : (_cat ?? ''),
+      ),
+    );
+  }
+
   @override
-  Widget build(BuildContext context) => Scaffold(
-        appBar: AppBar(
-          titleSpacing: 0,
-          title: TextField(
-              controller: _ctrl,
-              autofocus: true,
-              onChanged: (v) => setState(() => _q = v),
-              style: const TextStyle(color: Colors.white, fontSize: 15),
-              decoration: const InputDecoration(
-                  hintText: 'Buscar profissionais...',
-                  hintStyle: TextStyle(color: Colors.white54, fontSize: 15),
-                  border: InputBorder.none,
-                  enabledBorder: InputBorder.none,
-                  focusedBorder: InputBorder.none,
-                  filled: false,
-                  contentPadding: EdgeInsets.symmetric(vertical: 14))),
-          actions: [
-            IconButton(
-                icon: const Icon(Icons.auto_awesome_rounded),
-                tooltip: 'Busca inteligente com IA',
-                onPressed: _smartSearch),
-            IconButton(
-                icon: const Icon(Icons.filter_list_rounded),
-                onPressed: _filters),
-          ],
+  Widget build(BuildContext context) {
+    final body = Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+        child: C360PageBanner(
+          icon: _explore ? Icons.travel_explore_rounded : Icons.groups_rounded,
+          title: _explore ? 'Explorar Serviços' : 'Profissionais',
+          subtitle: _explore
+              ? 'Encontre rapidamente o serviço ideal na sua região.'
+              : 'Encontre, avalie e contrate os melhores profissionais da região.',
         ),
-        body: Column(children: [
-          SizedBox(
-              height: 58,
-              child: ListView.separated(
-                  scrollDirection: Axis.horizontal,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-                  itemCount: Categories.all.length,
-                  separatorBuilder: (_, __) => const SizedBox(width: 8),
-                  itemBuilder: (_, i) {
-                    final c = Categories.all[i];
-                    return CatChip(
-                        emoji: c.emoji,
-                        name: c.name,
-                        categoryId: c.id,
-                        color: c.color,
-                        selected: _cat == c.id,
-                        onTap: () =>
-                            setState(() => _cat = _cat == c.id ? null : c.id));
-                  })),
-          if (_onlineOnly)
-            const InfoBanner(
-                icon: '📹',
-                text: 'Filtro ativo: somente atendimento online',
-                bg: Color(0xFFE3F0FF),
-                fg: AppColors.primary),
-          Expanded(
-              child: StreamBuilder<List<ProviderModel>>(
-            stream: FS.providersStream(category: _cat, limit: 30),
-            builder: (_, snap) {
-              var list = snap.data ?? [];
-              if (_q.isNotEmpty) {
-                final q = _q.toLowerCase();
-                list = list
-                    .where((p) =>
-                        p.name.toLowerCase().contains(q) ||
-                        p.categories.any((c) => c.contains(q)))
-                    .toList();
-              }
-              if (_onlineOnly)
-                list =
-                    list.where((p) => p.modalities.contains('online')).toList();
-              list = [...list];
-              if (_sort == 'reviews') {
-                list.sort((a, b) => b.totalReviews.compareTo(a.totalReviews));
-              } else if (_sort == 'price_asc') {
-                list.sort((a, b) => (a.minPrice ?? double.infinity)
-                    .compareTo(b.minPrice ?? double.infinity));
-              } else {
-                list.sort((a, b) => b.rating.compareTo(a.rating));
-              }
-              if (snap.data == null)
-                return ListView.builder(
-                    padding: const EdgeInsets.all(16),
-                    itemCount: 5,
-                    itemBuilder: (_, __) => const SkeletonCard());
-              if (list.isEmpty)
-                return const EmptyState(
-                    emoji: '🔍',
-                    title: 'Nenhum resultado',
-                    subtitle: 'Tente outros filtros ou palavras-chave',
-                    asset: AppAssets.estadoNenhumResultado);
+      ),
+      if (!_explore)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+          child: Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _ctrl,
+                onChanged: (v) => setState(() {
+                  _q = v;
+                  _page = 0;
+                }),
+                decoration: const InputDecoration(
+                  hintText: 'Buscar profissional, serviço ou empresa...',
+                  prefixIcon: Icon(Icons.search_rounded),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: () => Navigator.pushNamed(context, Routes.gps,
+                  arguments: {'ctx': 'servico'}),
+              icon: const Icon(Icons.map_outlined, size: 18),
+              label: const Text('Ver no Mapa'),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: _filters,
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: const Text('Filtros'),
+            ),
+          ]),
+        )
+      else
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
+          child: Row(children: [
+            Expanded(
+              child: TextField(
+                controller: _ctrl,
+                onChanged: (v) => setState(() {
+                  _q = v;
+                  _page = 0;
+                }),
+                decoration: const InputDecoration(
+                  hintText: 'Buscar serviço ou profissional...',
+                  prefixIcon: Icon(Icons.search_rounded),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Busca inteligente',
+              onPressed: _smartSearch,
+              icon: const Icon(Icons.auto_awesome_rounded,
+                  color: AppColors.primary),
+            ),
+          ]),
+        ),
+      const SizedBox(height: 10),
+      SizedBox(
+        height: 46,
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          children: _explore ? _exploreChips() : _proChips(),
+        ),
+      ),
+      if (_explore)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 0),
+          child: Wrap(spacing: 8, runSpacing: 8, children: [
+            _menuChip('Distância', Icons.place_outlined, () {
+              setState(() {
+                _cityOnly = !_cityOnly;
+                _page = 0;
+              });
+              snack(
+                  context,
+                  _cityOnly
+                      ? 'Mostrando profissionais da cidade selecionada.'
+                      : 'Filtro de cidade removido.');
+            }, selected: _cityOnly),
+            _menuChip('Avaliação', Icons.star_outline_rounded, () {
+              setState(() {
+                _sort = 'rating';
+                _page = 0;
+              });
+            }, selected: _sort == 'rating'),
+            _menuChip('Preço', Icons.payments_outlined, () {
+              setState(() {
+                _sort = 'price_asc';
+                _page = 0;
+              });
+            }, selected: _sort == 'price_asc'),
+            _menuChip('Tipo de serviço', Icons.category_outlined, _filters),
+            _menuChip('Atendimento', Icons.support_agent_rounded, () {
+              setState(() {
+                _onlineOnly = !_onlineOnly;
+                _page = 0;
+              });
+            }, selected: _onlineOnly),
+          ]),
+        ),
+      Expanded(
+        child: StreamBuilder<List<ProviderModel>>(
+          stream: c360Stream(() => FS.providersStream(category: _cat, limit: 40)),
+          builder: (context, snap) {
+            if (snap.hasError) {
+              return const EmptyState(
+                  emoji: '🔍',
+                  title: 'Não foi possível carregar',
+                  subtitle: 'Verifique a conexão e tente de novo.');
+            }
+            var list = snap.data ?? [];
+            if (snap.data == null) {
               return ListView.builder(
                   padding: const EdgeInsets.all(16),
-                  itemCount: list.length,
+                  itemCount: 4,
+                  itemBuilder: (_, __) => const SkeletonCard());
+            }
+            final city = RegionController.instance.city.value;
+            if (_q.isNotEmpty) {
+              final q = _q.toLowerCase();
+              list = list
+                  .where((p) =>
+                      p.name.toLowerCase().contains(q) ||
+                      p.categories.any((c) => c.toLowerCase().contains(q)) ||
+                      (p.bio ?? '').toLowerCase().contains(q))
+                  .toList();
+            }
+            if (_onlineOnly) {
+              list = list.where((p) => p.modalities.contains('online')).toList();
+            }
+            if (_verifiedOnly) {
+              list = list.where((p) => p.verified).toList();
+            }
+            if (_availableToday) {
+              list = list.where((p) => p.active).toList();
+            }
+            if (_cityOnly) {
+              list = list
+                  .where((p) => (p.city ?? '').toLowerCase() == city.toLowerCase())
+                  .toList();
+            }
+            list = [...list];
+            if (_sort == 'reviews') {
+              list.sort((a, b) => b.totalReviews.compareTo(a.totalReviews));
+            } else if (_sort == 'price_asc') {
+              list.sort((a, b) => (a.minPrice ?? double.infinity)
+                  .compareTo(b.minPrice ?? double.infinity));
+            } else {
+              list.sort((a, b) => b.rating.compareTo(a.rating));
+            }
+            if (list.isEmpty) {
+              return const EmptyState(
+                  emoji: '🔍',
+                  title: 'Nenhum resultado',
+                  subtitle: 'Tente outros filtros ou palavras-chave',
+                  asset: AppAssets.estadoNenhumResultado);
+            }
+            final pages = (list.length / _pageSize).ceil();
+            final safePage = _page.clamp(0, pages - 1).toInt();
+            final slice = list.skip(safePage * _pageSize).take(_pageSize).toList();
+            return Column(children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 12, 12, 4),
+                child: Row(children: [
+                  Expanded(
+                    child: Text(
+                      '${list.length} profissionais e serviços encontrados',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.textMedium),
+                    ),
+                  ),
+                  if (_explore) ...[
+                    DropdownButton<String>(
+                      value: _sort,
+                      underline: const SizedBox.shrink(),
+                      items: const [
+                        DropdownMenuItem(
+                            value: 'rating', child: Text('Mais relevantes')),
+                        DropdownMenuItem(
+                            value: 'reviews', child: Text('Mais avaliações')),
+                        DropdownMenuItem(
+                            value: 'price_asc', child: Text('Menor preço')),
+                      ],
+                      onChanged: (v) => setState(() {
+                        _sort = v ?? 'rating';
+                        _page = 0;
+                      }),
+                    ),
+                    IconButton(
+                      tooltip: 'Grade',
+                      onPressed: () => setState(() => _grid = true),
+                      icon: Icon(Icons.grid_view_rounded,
+                          color: _grid ? AppColors.primary : AppColors.textHint),
+                    ),
+                    IconButton(
+                      tooltip: 'Lista',
+                      onPressed: () => setState(() => _grid = false),
+                      icon: Icon(Icons.view_list_rounded,
+                          color: !_grid ? AppColors.primary : AppColors.textHint),
+                    ),
+                  ],
+                ]),
+              ),
+              Expanded(
+                child: GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
+                  itemCount: slice.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: _grid
+                        ? (MediaQuery.sizeOf(context).width > 1400
+                            ? 4
+                            : MediaQuery.sizeOf(context).width > 900
+                                ? 3
+                                : 2)
+                        : 1,
+                    mainAxisSpacing: 12,
+                    crossAxisSpacing: 12,
+                    childAspectRatio: _explore
+                        ? (_grid ? 0.62 : 1.8)
+                        : (_grid ? 0.72 : 2.1),
+                  ),
                   itemBuilder: (_, i) {
-                    final p = list[i];
+                    final p = slice[i];
                     final catName = _cat != null
                         ? (Categories.byId(_cat!)?.name ?? _cat!)
                         : (p.categories.isNotEmpty
                             ? (Categories.byId(p.categories.first)?.name ??
                                 p.categories.first)
                             : 'Profissional');
-                    return FadeSlideIn(
-                        index: i,
-                        child: ProvCard(
-                            key: ValueKey(p.id),
-                            name: p.name,
-                            role: catName,
-                            badge: p.badge,
-                            price: p.minPrice != null
-                                ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
-                                : 'Consultar',
-                            rating: p.rating,
-                            reviews: p.totalReviews,
-                            isOnline: p.modalities.contains('online'),
-                            photo: p.photoUrl,
-                            providerId: p.id,
-                            onTap: () => Navigator.pushNamed(
-                                    context, Routes.requestService, arguments: {
-                                  'providerId': p.id,
-                                  'providerName': p.name,
-                                  'category': p.categories.isNotEmpty
-                                      ? p.categories.first
-                                      : (_cat ?? '')
-                                }),
-                            onChat: () => ChatNav.open(context,
-                                otherUserId:
-                                    p.userId.isNotEmpty ? p.userId : p.id,
-                                otherName: p.name,
-                                otherPhoto: p.photoUrl)));
-                  });
-            },
-          )),
-        ]),
-      );
+                    final place = c360Place(p, city);
+                    if (_explore) {
+                      return C360ServiceCard(
+                        title: catName,
+                        subtitle: p.bio?.isNotEmpty == true ? p.bio! : p.name,
+                        rating: p.rating,
+                        reviews: p.totalReviews,
+                        photoUrl: p.photoUrl,
+                        verified: p.verified,
+                        place: place,
+                        onProfile: () => _openProfile(p,
+                            style: ProviderDetailStyle.service),
+                        onRequest: () => _request(p),
+                      );
+                    }
+                    return C360PersonCard(
+                      name: p.name,
+                      role: catName,
+                      bio: p.bio,
+                      rating: p.rating,
+                      reviews: p.totalReviews,
+                      photoUrl: p.photoUrl,
+                      verified: p.verified,
+                      place: place,
+                      onChat: () => ChatNav.open(context,
+                          otherUserId: p.userId.isNotEmpty ? p.userId : p.id,
+                          otherName: p.name,
+                          otherPhoto: p.photoUrl),
+                      onRequest: () => _request(p),
+                    );
+                  },
+                ),
+              ),
+              if (pages > 1)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      IconButton(
+                        onPressed: safePage == 0
+                            ? null
+                            : () => setState(() => _page = safePage - 1),
+                        icon: const Icon(Icons.chevron_left_rounded),
+                      ),
+                      for (var i = 0; i < pages && i < 6; i++)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 2),
+                          child: TextButton(
+                            onPressed: () => setState(() => _page = i),
+                            style: TextButton.styleFrom(
+                              backgroundColor: i == safePage
+                                  ? AppColors.primary
+                                  : Colors.transparent,
+                              foregroundColor: i == safePage
+                                  ? Colors.white
+                                  : AppColors.textDark,
+                              minimumSize: const Size(36, 36),
+                            ),
+                            child: Text('${i + 1}'),
+                          ),
+                        ),
+                      IconButton(
+                        onPressed: safePage >= pages - 1
+                            ? null
+                            : () => setState(() => _page = safePage + 1),
+                        icon: const Icon(Icons.chevron_right_rounded),
+                      ),
+                    ],
+                  ),
+                ),
+            ]);
+          },
+        ),
+      ),
+    ]);
+
+    if (widget.embedded) {
+      return ColoredBox(color: AppColors.background, child: body);
+    }
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      appBar: AppBar(
+        backgroundColor: AppColors.white,
+        foregroundColor: AppColors.textDark,
+        title: Text(_explore ? 'Explorar Serviços' : 'Profissionais'),
+      ),
+      body: body,
+    );
+  }
+
+  List<Widget> _exploreChips() {
+    return [
+      C360FilterChip(
+        label: 'Todos',
+        icon: Icons.apps_rounded,
+        selected: _cat == null,
+        onTap: () => setState(() {
+          _cat = null;
+          _page = 0;
+        }),
+      ),
+      for (final c in C360Categories.home.where((c) => c.categoryId != null))
+        C360FilterChip(
+          label: c.label,
+          icon: c.icon,
+          selected: _cat == c.categoryId,
+          onTap: () => setState(() {
+            _cat = _cat == c.categoryId ? null : c.categoryId;
+            _page = 0;
+          }),
+        ),
+    ];
+  }
+
+  List<Widget> _proChips() {
+    return [
+      C360FilterChip(
+        label: 'Todos',
+        icon: Icons.grid_view_rounded,
+        selected: !_verifiedOnly &&
+            !_cityOnly &&
+            _sort == 'rating' &&
+            !_onlineOnly &&
+            !_availableToday,
+        onTap: () => setState(() {
+          _verifiedOnly = false;
+          _cityOnly = false;
+          _onlineOnly = false;
+          _availableToday = false;
+          _sort = 'rating';
+          _cat = null;
+          _page = 0;
+        }),
+      ),
+      C360FilterChip(
+        label: 'Verificados',
+        icon: Icons.verified_outlined,
+        selected: _verifiedOnly,
+        onTap: () => setState(() {
+          _verifiedOnly = !_verifiedOnly;
+          _page = 0;
+        }),
+      ),
+      C360FilterChip(
+        label: 'Mais Bem Avaliados',
+        icon: Icons.star_rounded,
+        selected: _sort == 'reviews',
+        onTap: () => setState(() {
+          _sort = 'reviews';
+          _page = 0;
+        }),
+      ),
+      C360FilterChip(
+        label: 'Disponíveis Hoje',
+        icon: Icons.event_available_rounded,
+        selected: _availableToday,
+        onTap: () => setState(() {
+          _availableToday = !_availableToday;
+          _page = 0;
+        }),
+      ),
+      C360FilterChip(
+        label: 'Próximos de Você',
+        icon: Icons.near_me_outlined,
+        selected: _cityOnly,
+        onTap: () => setState(() {
+          _cityOnly = !_cityOnly;
+          _page = 0;
+        }),
+      ),
+    ];
+  }
+
+  Widget _menuChip(String label, IconData icon, VoidCallback onTap,
+      {bool selected = false}) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: Icon(icon, size: 16),
+      label: Text(label),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: selected ? AppColors.primary : AppColors.textDark,
+        backgroundColor: selected ? AppColors.primarySoft : AppColors.white,
+        side: BorderSide(
+            color: selected ? AppColors.primary : AppColors.border),
+        visualDensity: VisualDensity.compact,
+      ),
+    );
+  }
 
   void _filters() => showModalBottomSheet(
       context: context,
@@ -701,21 +1065,36 @@ class _SearchState extends State<SearchScreen> {
                             fontSize: 18, fontWeight: FontWeight.w800)),
                     const SizedBox(height: 14),
                     SwitchListTile(
-                        title: const Text('Somente online'),
-                        subtitle: const Text('Atendimento remoto disponível'),
+                        title: const Text('Somente atendimento online'),
                         value: _onlineOnly,
                         onChanged: (v) {
                           setS(() => _onlineOnly = v);
-                          setState(() {});
+                          setState(() => _page = 0);
+                        }),
+                    SwitchListTile(
+                        title: const Text('Somente verificados'),
+                        value: _verifiedOnly,
+                        onChanged: (v) {
+                          setS(() => _verifiedOnly = v);
+                          setState(() => _page = 0);
+                        }),
+                    SwitchListTile(
+                        title: const Text('Somente na cidade selecionada'),
+                        subtitle: const Text(
+                            'A distância em km depende de coordenadas que ainda não estão no cadastro.'),
+                        value: _cityOnly,
+                        onChanged: (v) {
+                          setS(() => _cityOnly = v);
+                          setState(() => _page = 0);
                         }),
                     const Divider(),
                     const Text('Ordenar por',
                         style: TextStyle(
                             fontWeight: FontWeight.w700, fontSize: 15)),
                     for (final e in {
-                      'rating': '⭐ Melhor avaliação',
-                      'reviews': '📊 Mais avaliações',
-                      'price_asc': '💰 Menor preço'
+                      'rating': 'Melhor avaliação',
+                      'reviews': 'Mais avaliações',
+                      'price_asc': 'Menor preço'
                     }.entries)
                       RadioListTile<String>(
                           title: Text(e.value),
@@ -723,7 +1102,7 @@ class _SearchState extends State<SearchScreen> {
                           groupValue: _sort,
                           onChanged: (v) {
                             setS(() => _sort = v!);
-                            setState(() {});
+                            setState(() => _page = 0);
                           }),
                     const SizedBox(height: 8),
                     SizedBox(
