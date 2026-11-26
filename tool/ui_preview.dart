@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:servico_conecta/core/theme/app_theme.dart';
+import 'package:servico_conecta/features/health/health_screen.dart';
 import 'package:servico_conecta/features/home/provider_profile_screen.dart';
 import 'package:servico_conecta/features/provider/provider_home_screen.dart';
+import 'package:servico_conecta/features/tia/tia_request_screen.dart';
+import 'package:servico_conecta/features/tia/tia_schedule_screen.dart';
 import 'package:servico_conecta/shared/widgets/c360_nav.dart';
 import 'package:servico_conecta/shared/widgets/c360_shell.dart';
 
@@ -9,8 +12,15 @@ import 'package:servico_conecta/shared/widgets/c360_shell.dart';
 /// Não entra no fluxo de produção.
 void main() {
   final page = Uri.base.queryParameters['page'] ?? 'home';
-  if (page != 'provider' && page != 'service' && page != 'profile') {
+  if (page != 'provider' &&
+      page != 'service' &&
+      page != 'profile' &&
+      page != 'request' &&
+      page != 'schedule' &&
+      page != 'health') {
     C360Memory.next = switch (page) {
+      'tia' => C360Dest.tia,
+      'agenda' => C360Dest.agenda,
       'explore' => C360Dest.explore,
       'professionals' => C360Dest.professionals,
       'orders' => C360Dest.orders,
@@ -47,6 +57,9 @@ class PreviewApp extends StatelessWidget {
             style: ProviderDetailStyle.profile,
           ),
         ),
+      'request' => const C360Shell(singlePage: TiaRequestScreen()),
+      'schedule' => const C360Shell(singlePage: TiaScheduleScreen()),
+      'health' => const C360Shell(singlePage: HealthScreen()),
       _ => const C360Shell(),
     };
     return MaterialApp(

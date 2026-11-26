@@ -11,6 +11,8 @@ import '../../features/provider/provider_home_screen.dart';
 import '../models/models.dart';
 import '../services/firebase_service.dart';
 import 'c360_nav.dart';
+import '../../features/tia/tia_schedule_screen.dart';
+import '../../features/tia/tia_screen.dart';
 import 'c360_ui.dart';
 import 'widgets.dart';
 
@@ -49,6 +51,8 @@ class _C360ShellState extends State<C360Shell> {
       const ChatInboxScreen(embedded: true),
       const FavoritesScreen(embedded: true),
       const ProfileScreen(),
+      const TiaCentralScreen(),
+      const AgendaScreen(),
     ];
     RegionController.instance.ensureLoaded();
   }
@@ -177,6 +181,8 @@ class _Sidebar extends StatelessWidget {
           Expanded(
             child: ListView(padding: EdgeInsets.zero, children: [
               _item(context, C360Dest.home, Icons.home_rounded, 'Início'),
+              _item(context, C360Dest.tia, Icons.auto_awesome_rounded,
+                  'Tia Carajás IA'),
               _item(context, C360Dest.explore, Icons.grid_view_rounded,
                   'Explorar Serviços'),
               _item(context, C360Dest.professionals, Icons.groups_rounded,
@@ -202,6 +208,7 @@ class _Sidebar extends StatelessWidget {
             ]),
           ),
           _location(context),
+          const TiaFloatingHelp(),
           const SizedBox(height: 12),
         ]),
       ),
@@ -616,10 +623,10 @@ class _BottomBar extends StatelessWidget {
   Widget build(BuildContext context) {
     const items = <(C360Dest, IconData, String)>[
       (C360Dest.home, Icons.home_rounded, 'Início'),
-      (C360Dest.explore, Icons.grid_view_rounded, 'Explorar'),
+      (C360Dest.tia, Icons.auto_awesome_rounded, 'Tia Carajás IA'),
+      (C360Dest.agenda, Icons.calendar_month_rounded, 'Agenda'),
       (C360Dest.orders, Icons.assignment_rounded, 'Pedidos'),
-      (C360Dest.messages, Icons.chat_bubble_outline_rounded, 'Mensagens'),
-      (C360Dest.account, Icons.person_outline_rounded, 'Conta'),
+      (C360Dest.account, Icons.person_outline_rounded, 'Perfil'),
     ];
     return Material(
       color: AppColors.white,

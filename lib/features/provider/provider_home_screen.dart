@@ -14,6 +14,7 @@ import '../../core/security/order_policy.dart';
 import '../../shared/widgets/c360_nav.dart';
 import '../../shared/widgets/c360_ui.dart';
 import '../../shared/widgets/widgets.dart';
+import '../tia/tia_screen.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PROVIDER HOME SCREEN (Vol.3: Perfil do Profissional — Serviços,
@@ -160,6 +161,20 @@ class _ProviderHomeState extends State<ProviderHomeScreen> {
                         ]),
                 );
               },
+            ),
+            const SizedBox(height: 12),
+            ListTile(
+              tileColor: AppColors.primarySoft,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              leading: const Icon(Icons.auto_awesome_rounded, color: AppColors.primary),
+              title: const Text('Tia Carajás IA para o seu perfil',
+                  style: TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: const Text('Ajuda a descrever serviços e responder pedidos. Nada é publicado sem a sua confirmação.'),
+              onTap: () => c360Open(
+                context,
+                route: Routes.aiAssistant,
+                page: const TiaCentralScreen(audience: 'provider'),
+              ),
             ),
             const SizedBox(height: 12),
             StreamBuilder<List<OrderModel>>(

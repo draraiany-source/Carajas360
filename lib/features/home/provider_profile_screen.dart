@@ -9,6 +9,7 @@ import '../../shared/widgets/c360_nav.dart';
 import '../../shared/widgets/c360_ui.dart';
 import '../../shared/widgets/widgets.dart';
 import '../orders/orders_screen.dart';
+import '../tia/tia_request_screen.dart';
 
 enum ProviderDetailStyle { service, profile }
 
@@ -489,6 +490,27 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
             child: Text(_estimating ? 'Estimando...' : 'Estimar com IA'),
           ),
         ),
+        const SizedBox(height: 8),
+        Row(children: [
+          OutlinedButton.icon(
+            onPressed: () => c360Open(
+              context,
+              route: Routes.tiaRequest,
+              arguments: {
+                'providerId': provider?.id ?? widget.providerId,
+                'providerName': provider?.name ?? widget.providerName,
+                'category': widget.category,
+              },
+              page: TiaRequestScreen(
+                providerId: provider?.id ?? widget.providerId,
+                providerName: provider?.name ?? widget.providerName,
+                category: widget.category,
+              ),
+            ),
+            icon: const Icon(Icons.attach_file_rounded, size: 18),
+            label: const Text('Anexar fotos'),
+          ),
+        ]),
         const SizedBox(height: 8),
         const Text('Contato e Horário',
             style: TextStyle(fontWeight: FontWeight.w800)),

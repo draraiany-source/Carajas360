@@ -11,6 +11,7 @@ import '../../core/constants/app_constants.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/widgets.dart';
+import '../tia/admin_ai_panel.dart';
 
 // ─────────────────────────────────────────────────────────────
 // PAINEL ADMINISTRATIVO (Vol.6 – Painel Administrativo)
@@ -35,6 +36,7 @@ class _AdminState extends State<AdminScreen>
     'Atendimento',
     'Denúncias',
     'Auditoria',
+    'Tia Carajás IA',
     'Configurações'
   ];
 
@@ -125,6 +127,7 @@ class _AdminState extends State<AdminScreen>
             _SupportTab(),
             _ReportsTab(),
             _AuditTab(),
+            const AdminAiPanel(),
             _SettingsTab(),
           ]),
         ),

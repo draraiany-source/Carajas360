@@ -73,6 +73,8 @@ abstract class Routes {
   static const support = '/support';
   static const coupons = '/coupons';
   static const aiAssistant = '/ai';
+  static const tiaRequest = '/tia-request';
+  static const tiaSchedule = '/tia-schedule';
   static const companyProfile = '/company';
   static const favorites = '/favorites';
   static const myOrders = '/my-orders';
