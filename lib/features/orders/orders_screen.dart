@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/auth/access_control.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_constants.dart';
@@ -568,7 +569,8 @@ class _RequestServiceState extends State<RequestServiceScreen> {
   }
 
   Future<void> _submit() async {
-    if (!_form.currentState!.validate()) return;
+    if (!await ensureSignedIn(context)) return;
+    if (!mounted || !_form.currentState!.validate()) return;
     setState(() => _loading = true);
 
     final orderId = await FS.createOrder({

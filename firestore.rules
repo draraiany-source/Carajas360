@@ -362,6 +362,35 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /serviceDrafts/{id} {
+      allow read: if isAuth() && resource.data.clientId == uid();
+      allow write: if false;
+    }
+
+    match /orderEvents/{id} {
+      allow read: if isAuth() && (
+        resource.data.clientId == uid() ||
+        resource.data.providerId == uid() ||
+        isAdmin()
+      );
+      allow write: if false;
+    }
+
+    match /paymentIntents/{id} {
+      allow read: if isAuth() && (resource.data.userId == uid() || isAdmin());
+      allow write: if false;
+    }
+
+    match /platformAudit/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /scheduleLocks/{id} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

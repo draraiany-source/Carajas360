@@ -95,10 +95,49 @@ class TiaService {
     }
   }
 
+  static Future<TiaHistory?> history() async {
+    if (_blocked != null) return null;
+    try {
+      final data = await CloudFn.call('tiaHistory');
+      final messages = <TiaHistoryMessage>[];
+      final raw = data['messages'];
+      if (raw is List) {
+        for (final item in raw) {
+          if (item is! Map) continue;
+          final text = '${item['text'] ?? ''}'.trim();
+          if (text.isEmpty) continue;
+          messages.add(TiaHistoryMessage(
+            text: text,
+            mine: item['role'] == 'user',
+          ));
+        }
+      }
+      return TiaHistory(
+        conversationId: data['conversationId'] as String?,
+        messages: messages,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static Future<Map<String, dynamic>?> status() async {
+    if (_blocked != null) return null;
+    try {
+      return await CloudFn.call('tiaStatus');
+    } catch (_) {
+      return null;
+    }
+  }
+
   static Future<Map<String, dynamic>> confirm(TiaProposedAction action) async {
     final blocked = _blocked;
     if (blocked != null) {
       return {'ok': false, 'error': blocked.reason};
+    }
+    if (action.type == 'request_quote') {
+      final via = await _confirmQuote(action);
+      if (via != null) return via;
     }
     try {
       return await CloudFn.call('tiaConfirm', action.toCall());
@@ -139,6 +178,51 @@ class TiaService {
     }
   }
 
+  static Future<Map<String, dynamic>?> _confirmQuote(TiaProposedAction action) async {
+    final payload = action.payload;
+    try {
+      final draft = await CloudFn.call('criarRascunhoSolicitacao', {
+        'category': payload['category'],
+        'title': payload['title'],
+        'description': payload['description'],
+        'address': payload['address'],
+        'city': payload['city'],
+        'providerId': payload['providerId'],
+      });
+      if (draft['ok'] != true) {
+        return {
+          'ok': false,
+          'error': draft['message'] ?? 'Não foi possível guardar o rascunho.',
+        };
+      }
+      final draftId = (draft['data'] as Map?)?['draftId'];
+      final confirmed = await CloudFn.call('confirmarSolicitacao', {
+        'draftId': draftId,
+        'confirmed': true,
+      });
+      if (confirmed['ok'] != true) {
+        return {
+          'ok': false,
+          'error': confirmed['message'] ?? 'A confirmação não foi gravada.',
+        };
+      }
+      final requestId = (confirmed['data'] as Map?)?['requestId'];
+      final sent = await CloudFn.call('enviarSolicitacao', {
+        'requestId': requestId,
+        'confirmed': true,
+      });
+      return {
+        'ok': sent['ok'] == true,
+        'message': sent['message'],
+        'error': sent['ok'] == true ? null : sent['message'],
+        'id': (confirmed['data'] as Map?)?['orderId'],
+      };
+    } on CloudCallException catch (e) {
+      if (e.code == 'not-found' || e.code == 'unimplemented') return null;
+      return {'ok': false, 'error': e.message};
+    }
+  }
+
   static Future<String?> deleteMine() async {
     final blocked = _blocked;
     if (blocked != null) return blocked.reason;
@@ -151,4 +235,16 @@ class TiaService {
       return 'Não foi possível apagar as conversas.';
     }
   }
+}
+
+class TiaHistoryMessage {
+  final String text;
+  final bool mine;
+  const TiaHistoryMessage({required this.text, required this.mine});
+}
+
+class TiaHistory {
+  final String? conversationId;
+  final List<TiaHistoryMessage> messages;
+  const TiaHistory({this.conversationId, this.messages = const []});
 }

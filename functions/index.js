@@ -627,6 +627,26 @@ exports.tiaAdminDeleteUser = tiaRun.https.onCall((data, context) => tia.tiaAdmin
 exports.tiaAnalyzePhoto = functions.region(REGION).runWith({ timeoutSeconds: 120, memory: '512MB' })
   .https.onCall((data, context) => tia.tiaAnalyzePhoto(tiaDb(), data, context, tiaRuntime));
 
+const { registerPlatform } = require('./platform/registry');
+registerPlatform(exports, {
+  functions,
+  region: REGION,
+  firestore: db,
+  adapter: () => tiaDb(),
+  requireAuth,
+  isAdmin,
+  enforceRateLimit,
+  notify,
+  paymentsEnabled: () => PAYMENTS_ENABLED,
+  gatewayConfigured: () => Boolean(getMpToken()),
+  whatsappConfigured: () => Boolean(process.env.WHATSAPP_TOKEN && process.env.WHATSAPP_PHONE_ID),
+});
+
+const { runReminders } = require('./agenda/reminders');
+exports.lembretesAgenda = functions.pubsub.schedule('every 60 minutes').onRun(async () => (
+  runReminders(tiaDb(), new Date(), notify)
+));
+
 exports.walletOp = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);
   const op = String(data?.op || '');

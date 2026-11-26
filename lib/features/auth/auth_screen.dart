@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../core/constants/runtime_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/theme/span_ds.dart';
@@ -40,8 +41,9 @@ class _SplashState extends State<SplashScreen>
 
   void _navigate() {
     if (!mounted) return;
-    if (!widget.firebaseReady) {
-      Navigator.pushReplacementNamed(context, Routes.onboarding);
+    if (RuntimeConfig.showLabeledDemo || !widget.firebaseReady) {
+      Navigator.pushReplacementNamed(
+          context, RuntimeConfig.showLabeledDemo ? Routes.main : Routes.onboarding);
       return;
     }
     Navigator.pushReplacementNamed(
@@ -280,6 +282,14 @@ class _OnboardState extends State<OnboardingScreen> {
                           style: const TextStyle(
                               fontWeight: FontWeight.w800, fontSize: 16)),
                     )),
+                TextButton(
+                    onPressed: () =>
+                        Navigator.pushReplacementNamed(context, Routes.main),
+                    child: Text('Explorar sem entrar',
+                        style: TextStyle(
+                            color: Colors.white.withOpacity(0.92),
+                            fontWeight: FontWeight.w700)),
+                ),
                 if (_cur < _slides.length - 1)
                   TextButton(
                       onPressed: () =>
@@ -663,6 +673,11 @@ class _LoginState extends State<LoginScreen>
                                                   fontWeight: FontWeight.w700,
                                                   fontSize: 13)))
                                     ]),
+                                TextButton(
+                                  onPressed: () => Navigator.pushReplacementNamed(
+                                      context, Routes.main),
+                                  child: const Text('Explorar sem entrar'),
+                                ),
                               ]),
                             ])),
                         const SizedBox(height: 16),

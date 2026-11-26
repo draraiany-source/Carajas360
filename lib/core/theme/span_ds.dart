@@ -1,7 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
+import 'app_theme.dart';
 
 /// Design System SpanEnglish adaptado para telas premium do ServiçoConecta.
 /// Paleta oficial: Petroleum #13647C · Vibrant #307ABA · Accent #C14344 · Soft #F0F5F4
@@ -75,7 +75,7 @@ abstract final class SpanDs {
     double? height,
     double? letterSpacing,
   }) =>
-      GoogleFonts.poppins(
+      sans(
         fontSize: size,
         fontWeight: weight,
         color: color ?? textPrimary,

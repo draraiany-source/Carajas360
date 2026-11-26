@@ -7,7 +7,7 @@ const { confirmAction } = require('./actions');
 const { CATEGORIES } = require('./tools');
 const { keysPresent } = require('./providers');
 const { adminDb } = require('./firestore');
-const { mergePlans } = require('./plans');
+const { mergePlans, monthKey, normalizePlanId } = require('./plans');
 
 const MAX_IMAGE_BYTES = 1.2 * 1024 * 1024;
 
@@ -98,14 +98,31 @@ async function tiaStatus(db, data, context, helpers) {
   const { auth, env } = depsOf(db, helpers, context);
   const loaded = await loadConfig(db);
   const user = (await db.get(`users/${auth.uid}`)) || {};
+  const month = monthKey(new Date());
+  const planId = normalizePlanId(user.plan);
+  const plan = loaded.plans[planId] || loaded.plans.gratuito;
+  const usage = (await db.get(`aiUsage/${auth.uid}_${month}`)) || {};
   return {
     intro: loaded.config.greeting || INTRO,
     enabled: loaded.config.enabled !== false,
     killSwitch: loaded.config.killSwitch === true,
     provider: loaded.config.provider || 'auto',
     keys: keysPresent(env),
-    plan: user.plan || 'gratuito',
+    plan: planId,
     plans: loaded.plans,
+    usage: {
+      month,
+      messages: Number(usage.messages || 0),
+      tokens: Number(usage.tokens || 0),
+      photos: Number(usage.photos || 0),
+      messageLimit: plan ? plan.monthlyMessages : null,
+      tokenLimit: plan ? plan.monthlyTokens : null,
+      photoLimit: plan ? plan.monthlyPhotos : null,
+    },
+    global: {
+      tokens: Number(loaded.config.spentTokens || 0),
+      tokenCap: Number(loaded.config.monthlyTokenCap || 0) || null,
+    },
   };
 }
 
