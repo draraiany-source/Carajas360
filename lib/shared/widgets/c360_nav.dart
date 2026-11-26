@@ -36,6 +36,8 @@ enum C360Dest {
   messages,
   favorites,
   account,
+  tia,
+  agenda,
 }
 
 /// Como a busca de profissionais é apresentada.

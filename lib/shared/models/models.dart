@@ -307,6 +307,13 @@ class ProviderModel {
   final int totalReviews;
   final bool active, verified;
   final double? minPrice;
+  final String? council;
+  final String? registrationNumber;
+  final bool registrationVerified;
+  final String? phone;
+  final List<String> specialties;
+  final List<String> availabilitySlots;
+  final bool availableToday;
   final DateTime createdAt;
 
   const ProviderModel({
@@ -327,6 +334,13 @@ class ProviderModel {
     this.active = true,
     this.verified = false,
     this.minPrice,
+    this.council,
+    this.registrationNumber,
+    this.registrationVerified = false,
+    this.phone,
+    this.specialties = const [],
+    this.availabilitySlots = const [],
+    this.availableToday = false,
     required this.createdAt,
   });
 
@@ -356,6 +370,13 @@ class ProviderModel {
         active: m['active'] ?? true,
         verified: m['verified'] ?? false,
         minPrice: (m['minPrice'] as num?)?.toDouble(),
+        council: m['council'] as String?,
+        registrationNumber: m['registrationNumber'] as String?,
+        registrationVerified: m['registrationVerified'] == true,
+        phone: m['phone'] as String?,
+        specialties: List<String>.from(m['specialties'] ?? const []),
+        availabilitySlots: List<String>.from(m['availabilitySlots'] ?? const []),
+        availableToday: m['availableToday'] == true,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       );
 }
@@ -375,6 +396,7 @@ class OrderModel {
   final double? price;
   final OrderStatus status;
   final bool urgent, reviewed;
+  final String? paymentStatus;
   final DateTime createdAt;
 
   const OrderModel({
@@ -389,6 +411,7 @@ class OrderModel {
     this.status = OrderStatus.pending,
     this.urgent = false,
     this.reviewed = false,
+    this.paymentStatus,
     required this.createdAt,
   });
 
@@ -423,6 +446,7 @@ class OrderModel {
             orElse: () => OrderStatus.pending),
         urgent: m['urgent'] ?? false,
         reviewed: m['reviewed'] ?? false,
+        paymentStatus: m['paymentStatus'] as String?,
         createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       );
 }

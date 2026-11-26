@@ -27,7 +27,9 @@ import 'package:servico_conecta/features/marketplace/store_screen.dart';
 import 'package:servico_conecta/features/rental/rental_screen.dart';
 import 'package:servico_conecta/features/profile/profile_screens.dart';
 import 'package:servico_conecta/features/support/support_screens.dart';
-import 'package:servico_conecta/features/ai_assistant/ai_screen.dart';
+import 'package:servico_conecta/features/tia/tia_request_screen.dart';
+import 'package:servico_conecta/features/tia/tia_schedule_screen.dart';
+import 'package:servico_conecta/features/tia/tia_screen.dart';
 import 'package:servico_conecta/features/admin/admin_screen.dart';
 import 'package:servico_conecta/features/company/company_screen.dart';
 import 'package:servico_conecta/features/orders/orders_screen.dart';
@@ -163,7 +165,28 @@ class ServicoConectaApp extends StatelessWidget {
               case Routes.coupons:
                 return _route(const CouponsScreen());
               case Routes.aiAssistant:
-                return _route(const RequireAuth(title: 'Assistente', child: AiAssistantScreen()));
+                return _route(const RequireAuth(
+                    title: 'Tia Carajás IA', child: TiaCentralScreen()));
+              case Routes.tiaRequest:
+                final rq = settings.arguments as Map<String, dynamic>?;
+                return _route(RequireAuth(
+                  title: 'Solicitar serviço',
+                  child: TiaRequestScreen(
+                    providerId: rq?['providerId'] as String?,
+                    providerName: rq?['providerName'] as String?,
+                    category: rq?['category'] as String?,
+                  ),
+                ));
+              case Routes.tiaSchedule:
+                final sq = settings.arguments as Map<String, dynamic>?;
+                return _route(RequireAuth(
+                  title: 'Agendamento',
+                  child: TiaScheduleScreen(
+                    category: sq?['category'] as String?,
+                    specialty: sq?['specialty'] as String?,
+                    providerId: sq?['providerId'] as String?,
+                  ),
+                ));
               case Routes.companyProfile:
                 return _route(const RequireAuth(title: 'Empresa', child: CompanyProfileScreen()));
               case Routes.favorites:

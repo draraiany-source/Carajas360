@@ -9,6 +9,7 @@ const functions = require('firebase-functions');
 const admin = require('firebase-admin');
 const axios = require('axios');
 const policy = require('./orderPolicy');
+const tia = require('./ai/handlers');
 
 admin.initializeApp();
 const db = admin.firestore();
@@ -20,10 +21,6 @@ const ALLOWED_PROFILE_TYPES = ['client', 'provider', 'deliverer', 'company'];
 
 function getMpToken() {
   return process.env.MERCADOPAGO_ACCESS_TOKEN || '';
-}
-
-function getAnthropicKey() {
-  return process.env.ANTHROPIC_API_KEY || '';
 }
 
 function httpsError(code, message) {
@@ -597,44 +594,38 @@ exports.processCardPayment = functions.region(REGION).https.onCall(async (data, 
   return { id: String(id), status, statusDetail: status_detail };
 });
 
+const tiaRuntime = {
+  requireAuth,
+  httpsError,
+  isAdmin,
+  enforceRateLimit,
+  notify,
+};
+
+function tiaDb() {
+  return tia.bind(db);
+}
+
 exports.aiAssistant = functions.region(REGION).https.onCall(async (data, context) => {
-  const auth = requireAuth(context);
-  await enforceRateLimit(auth.uid, 'ai', 40, 60 * 60 * 1000);
-  const apiKey = getAnthropicKey();
-  if (!apiKey) {
-    throw httpsError('failed-precondition', 'IA não configurada neste ambiente');
+  const result = await tia.tiaChat(tiaDb(), data, context, tiaRuntime);
+  if (!result.available) {
+    throw httpsError('failed-precondition', result.reason || 'IA indisponível');
   }
-  const message = String(data?.message || '').slice(0, 2000);
-  if (!message.trim()) throw httpsError('invalid-argument', 'Mensagem vazia');
-  const history = Array.isArray(data?.history) ? data.history.slice(-8) : [];
-
-  const systemPrompt = 'Você é o assistente virtual do Carajás 360, plataforma regional de serviços. '
-    + 'Responda sempre em português do Brasil, de forma breve (máx. 3 parágrafos curtos). '
-    + 'Não invente confirmações de pagamento nem dados pessoais.';
-
-  const messages = [
-    ...history.map((h) => ({
-      role: h && h.isAi ? 'assistant' : 'user',
-      content: String(h?.text || '').slice(0, 1000),
-    })),
-    { role: 'user', content: message },
-  ];
-
-  const response = await axios.post('https://api.anthropic.com/v1/messages', {
-    model: 'claude-sonnet-4-5',
-    max_tokens: 500,
-    system: systemPrompt,
-    messages,
-  }, {
-    headers: {
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'Content-Type': 'application/json',
-    },
-  });
-  const reply = response.data.content?.[0]?.text || 'Não consegui processar sua pergunta agora.';
-  return { reply };
+  return { reply: result.reply, providers: result.providers || [], actions: result.actions || [] };
 });
+
+const tiaRun = functions.region(REGION).runWith({ timeoutSeconds: 60, memory: '512MB' });
+exports.tiaChat = tiaRun.https.onCall((data, context) => tia.tiaChat(tiaDb(), data, context, tiaRuntime));
+exports.tiaEstimate = tiaRun.https.onCall((data, context) => tia.tiaEstimate(tiaDb(), data, context, tiaRuntime));
+exports.tiaConfirm = tiaRun.https.onCall((data, context) => tia.tiaConfirm(tiaDb(), data, context, tiaRuntime));
+exports.tiaStatus = tiaRun.https.onCall((data, context) => tia.tiaStatus(tiaDb(), data, context, tiaRuntime));
+exports.tiaHistory = tiaRun.https.onCall((data, context) => tia.tiaHistory(tiaDb(), data, context, tiaRuntime));
+exports.tiaDeleteMyData = tiaRun.https.onCall((data, context) => tia.tiaDeleteMyData(tiaDb(), data, context, tiaRuntime));
+exports.tiaAdminGet = tiaRun.https.onCall((data, context) => tia.tiaAdminGet(tiaDb(), data, context, tiaRuntime));
+exports.tiaAdminUpdate = tiaRun.https.onCall((data, context) => tia.tiaAdminUpdate(tiaDb(), data, context, tiaRuntime));
+exports.tiaAdminDeleteUser = tiaRun.https.onCall((data, context) => tia.tiaAdminDeleteUser(tiaDb(), data, context, tiaRuntime));
+exports.tiaAnalyzePhoto = functions.region(REGION).runWith({ timeoutSeconds: 120, memory: '512MB' })
+  .https.onCall((data, context) => tia.tiaAnalyzePhoto(tiaDb(), data, context, tiaRuntime));
 
 exports.walletOp = functions.region(REGION).https.onCall(async (data, context) => {
   const auth = requireAuth(context);

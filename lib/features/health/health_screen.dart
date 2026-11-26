@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_theme.dart';
 import '../../core/constants/app_assets.dart';
+import '../../core/constants/app_constants.dart';
 import '../../core/utils/chat_nav.dart';
-import '../../core/utils/demo_data.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
+import '../../shared/widgets/c360_nav.dart';
 import '../../shared/widgets/widgets.dart';
+import '../tia/tia_schedule_screen.dart';
 
 class HealthScreen extends StatefulWidget {
   const HealthScreen({super.key});
@@ -19,55 +21,16 @@ class _HealthState extends State<HealthScreen> {
   String? _sel;
 
   static const _specialties = [
-    {'id': 'medico', 'name': 'Médico', 'emoji': '🩺'},
-    {'id': 'psicologo', 'name': 'Psicólogo', 'emoji': '🧠'},
-    {'id': 'fisioterapeuta', 'name': 'Fisioterapeuta', 'emoji': '🦴'},
-    {'id': 'enfermeiro', 'name': 'Enfermeiro', 'emoji': '💉'},
-    {'id': 'nutricionista', 'name': 'Nutricionista', 'emoji': '🥗'},
-    {'id': 'home_care', 'name': 'Home Care', 'emoji': '🏠'},
-  ];
-
-  static final _demos = [
-    ProviderModel(
-        id: 'h1',
-        userId: 'u1',
-        name: 'Dra. Ana Lima',
-        categories: ['medico'],
-        rating: 5.0,
-        totalReviews: 480,
-        modalities: ['online', 'presential'],
-        minPrice: 120,
-        createdAt: DateTime.now()),
-    ProviderModel(
-        id: 'h2',
-        userId: 'u2',
-        name: 'Dr. Carlos Matos',
-        categories: ['psicologo'],
-        rating: 4.9,
-        totalReviews: 310,
-        modalities: ['online'],
-        minPrice: 150,
-        createdAt: DateTime.now()),
-    ProviderModel(
-        id: 'h3',
-        userId: 'u3',
-        name: 'Fis. Juliana',
-        categories: ['fisioterapeuta'],
-        rating: 4.8,
-        totalReviews: 220,
-        modalities: ['presential'],
-        minPrice: 100,
-        createdAt: DateTime.now()),
-    ProviderModel(
-        id: 'h4',
-        userId: 'u4',
-        name: 'Enf. Roberto',
-        categories: ['enfermeiro'],
-        rating: 4.7,
-        totalReviews: 180,
-        modalities: ['presential'],
-        minPrice: 80,
-        createdAt: DateTime.now()),
+    {'id': 'pediatria', 'name': 'Pediatria', 'emoji': '🧸', 'category': 'medico'},
+    {'id': 'clinica_geral', 'name': 'Clínica Geral', 'emoji': '🩺', 'category': 'medico'},
+    {'id': 'ginecologia', 'name': 'Ginecologia', 'emoji': '💗', 'category': 'medico'},
+    {'id': 'cardiologia', 'name': 'Cardiologia', 'emoji': '❤️', 'category': 'medico'},
+    {'id': 'neurologia', 'name': 'Neurologia', 'emoji': '🧠', 'category': 'medico'},
+    {'id': 'psicologia', 'name': 'Psicologia', 'emoji': '🗣️', 'category': 'psicologo'},
+    {'id': 'nutricao', 'name': 'Nutrição', 'emoji': '🥗', 'category': 'nutricionista'},
+    {'id': 'fisioterapia', 'name': 'Fisioterapia', 'emoji': '🦴', 'category': 'fisioterapeuta'},
+    {'id': 'odontologia', 'name': 'Odontologia', 'emoji': '😁', 'category': 'odontologia'},
+    {'id': 'exames', 'name': 'Exames e Laboratórios', 'emoji': '🧪', 'category': 'medico'},
   ];
 
   @override
@@ -84,12 +47,12 @@ class _HealthState extends State<HealthScreen> {
                           const Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('🏥 SaúdeConecta',
+                                Text('Saúde',
                                     style: TextStyle(
                                         color: Colors.white,
                                         fontWeight: FontWeight.w900,
                                         fontSize: 22)),
-                                Text('Médicos · Terapeutas · Home Care',
+                                Text('Busca e agendamento. Sem consulta nem diagnóstico.',
                                     style: TextStyle(
                                         color: Colors.white70, fontSize: 12))
                               ]),
@@ -205,15 +168,27 @@ class _HealthState extends State<HealthScreen> {
                   child: SecHeader(title: '👨‍⚕️ Profissionais disponíveis'))),
           SliverToBoxAdapter(
               child: StreamBuilder<List<ProviderModel>>(
-            stream: _sel != null
-                ? FS.providersStream(category: _sel, limit: 10)
-                : const Stream.empty(),
+            stream: c360Stream(() => FS.providersStream(
+                category: _sel == null ? null : _categoryOf(_sel!),
+                limit: 30,
+              )),
             builder: (_, snap) {
-              final provs = DemoData.orEmpty(
-                  snap.data,
-                  _demos
-                      .where((p) => _sel == null || p.categories.contains(_sel))
-                      .toList());
+              final provs = (snap.data ?? const <ProviderModel>[]).where((p) {
+                if (_sel == null) {
+                  const health = {
+                    'medico', 'psicologo', 'fisioterapeuta', 'nutricionista',
+                    'enfermeiro', 'odontologia', 'home_care'
+                  };
+                  return p.categories.any(health.contains) || p.specialties.isNotEmpty;
+                }
+                if (p.specialties.contains(_sel)) return true;
+                final category = _categoryOf(_sel!);
+                if (_sel == 'clinica_geral') {
+                  return p.categories.contains('medico') && p.specialties.isEmpty;
+                }
+                if (category != 'medico') return p.categories.contains(category);
+                return false;
+              }).toList();
               if (provs.isEmpty)
                 return const Padding(
                     padding: EdgeInsets.all(20),
@@ -226,23 +201,35 @@ class _HealthState extends State<HealthScreen> {
                   child: Column(
                       children: provs.map((p) {
                     final sp = _specialties.firstWhere(
-                        (s) => p.categories.contains(s['id']),
+                        (s) => p.specialties.contains(s['id']) || p.categories.contains(s['category']),
                         orElse: () => {'name': 'Saúde', 'emoji': '🩺'});
+                    final registro = (p.registrationNumber ?? '').isEmpty
+                        ? 'Registro não informado'
+                        : (p.registrationVerified
+                            ? '${p.council ?? 'Registro'} ${p.registrationNumber}'
+                            : 'Registro aguardando verificação');
                     return ProvCard(
                         name: p.name,
-                        role: '${sp['emoji']} ${sp['name']}',
+                        role: '${sp['emoji']} ${sp['name']} · $registro',
                         badge: p.badge,
                         price: p.minPrice != null
                             ? 'A partir de R\$ ${p.minPrice!.toStringAsFixed(0)}'
-                            : 'Consultar',
+                            : 'Valor a combinar',
                         rating: p.rating,
                         reviews: p.totalReviews,
                         isOnline: p.modalities.contains('online'),
                         photo: p.photoUrl,
                         avatarBg: AppColors.health,
                         providerId: p.id,
-                        onTap: () => _schedule(
-                            sp['name'] as String, p.minPrice?.toInt() ?? 150),
+                        onTap: () => c360Open(
+                          context,
+                          route: Routes.tiaSchedule,
+                          page: TiaScheduleScreen(
+                            providerId: p.id,
+                            specialty: _sel,
+                            category: p.categories.isEmpty ? null : p.categories.first,
+                          ),
+                        ),
                         onChat: () => ChatNav.open(context,
                             otherUserId:
                                 p.userId.isNotEmpty ? p.userId : p.id,
@@ -352,179 +339,22 @@ class _HealthState extends State<HealthScreen> {
                 ]),
               )));
 
-  void _schedule(String type, int price) => showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _ScheduleSheet(type: type, price: price));
-}
+  String _categoryOf(String specialty) {
+    final match = _specialties.where((s) => s['id'] == specialty);
+    if (match.isEmpty) return specialty;
+    return match.first['category'] ?? specialty;
+  }
 
-class _ScheduleSheet extends StatefulWidget {
-  final String type;
-  final int price;
-  const _ScheduleSheet({required this.type, required this.price});
-  @override
-  State<_ScheduleSheet> createState() => _ScheduleSheetState();
-}
-
-class _ScheduleSheetState extends State<_ScheduleSheet> {
-  int _step = 0;
-  String? _time, _mode;
-  bool _loading = false;
-  final _times = [
-    '08:00',
-    '09:00',
-    '10:00',
-    '11:00',
-    '14:00',
-    '15:00',
-    '16:00',
-    '17:00'
-  ];
-
-  @override
-  Widget build(BuildContext context) => Padding(
-        padding: EdgeInsets.fromLTRB(
-            20, 0, 20, MediaQuery.of(context).viewInsets.bottom + 32),
-        child: Column(mainAxisSize: MainAxisSize.min, children: [
-          const SizedBox(height: 8),
-          const SheetHandle(),
-          const SizedBox(height: 16),
-          Text('Agendar ${widget.type}',
-              style:
-                  const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-          const SizedBox(height: 20),
-          if (_step == 0) ...[
-            const Text('Modalidade do atendimento:',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            Row(children: [
-              for (final m in ['📹 Online', '🏠 Presencial', '🏡 Domiciliar'])
-                Expanded(
-                    child: GestureDetector(
-                        onTap: () => setState(() {
-                              _mode = m;
-                              _step = 1;
-                            }),
-                        child: Container(
-                            margin: EdgeInsets.only(
-                                right: m == '🏡 Domiciliar' ? 0 : 8),
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            decoration: AppDecorations.gradient(
-                                AppGradients.health,
-                                r: 14),
-                            child: Text(m,
-                                textAlign: TextAlign.center,
-                                style: const TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 11)))))
-            ]),
-          ] else if (_step == 1) ...[
-            Text('Modo: $_mode',
-                style: const TextStyle(
-                    color: AppColors.health, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 10),
-            const Text('Escolha o horário:',
-                style: TextStyle(fontWeight: FontWeight.w600)),
-            const SizedBox(height: 10),
-            GridView.count(
-                shrinkWrap: true,
-                crossAxisCount: 4,
-                mainAxisSpacing: 8,
-                crossAxisSpacing: 8,
-                childAspectRatio: 2.2,
-                children: _times
-                    .map((t) => GestureDetector(
-                        onTap: () => setState(() {
-                              _time = t;
-                              _step = 2;
-                            }),
-                        child: Container(
-                            decoration: AppDecorations.outlined(
-                                r: 10,
-                                color: _time == t ? AppColors.health : null),
-                            alignment: Alignment.center,
-                            child: Text(t,
-                                style: TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w700,
-                                    color: _time == t
-                                        ? AppColors.health
-                                        : AppColors.textDark)))))
-                    .toList()),
-          ] else ...[
-            Text('Modalidade: $_mode — Horário: $_time',
-                style: const TextStyle(
-                    color: AppColors.health, fontWeight: FontWeight.w700)),
-            const SizedBox(height: 14),
-            Container(
-                decoration: AppDecorations.card(r: 16),
-                padding: const EdgeInsets.all(16),
-                child: Column(children: [
-                  _row('Serviço', widget.type),
-                  _row('Modo', _mode ?? ''),
-                  _row('Horário', _time ?? ''),
-                  _row('Valor', PaySvc.fmt(widget.price.toDouble())),
-                  const Divider(),
-                  _row('Total', PaySvc.fmt(widget.price.toDouble()),
-                      bold: true),
-                ])),
-            const SizedBox(height: 14),
-            SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _loading
-                      ? null
-                      : () async {
-                          setState(() => _loading = true);
-                          await FS.createAppointment({
-                            'type': widget.type,
-                            'mode': _mode,
-                            'time': _time,
-                            'price': widget.price
-                          });
-                          final uid = AuthService.uid;
-                          if (uid != null)
-                            await FS.pushNotif(uid, '🏥 Consulta agendada!',
-                                '${widget.type} às $_time', 'health');
-                          if (mounted) {
-                            Navigator.pop(context);
-                            snack(context, '✅ Consulta agendada com sucesso!',
-                                bg: AppColors.health);
-                          }
-                        },
-                  style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.health,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14))),
-                  child: _loading
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2))
-                      : const Text('✓ Confirmar agendamento',
-                          style: TextStyle(
-                              fontWeight: FontWeight.w800,
-                              fontSize: 15,
-                              color: Colors.white)),
-                )),
-          ],
-        ]),
-      );
-
-  Widget _row(String label, String value, {bool bold = false}) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-        Text(label,
-            style: const TextStyle(fontSize: 13, color: AppColors.textLight)),
-        Text(value,
-            style: TextStyle(
-                fontSize: 13,
-                fontWeight: bold ? FontWeight.w800 : FontWeight.w600,
-                color: AppColors.textDark))
-      ]));
+  void _schedule(String type, int price) {
+    c360Open(
+      context,
+      route: Routes.tiaSchedule,
+      page: TiaScheduleScreen(
+        category: _sel == null ? null : _categoryOf(_sel!),
+        specialty: _sel,
+      ),
+    );
+  }
 }
 
 // ─────────────────────────────────────────────────────────────

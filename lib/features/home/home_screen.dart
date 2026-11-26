@@ -12,6 +12,8 @@ import '../../shared/widgets/widgets.dart';
 import '../../shared/widgets/micro_interactions.dart';
 import '../../shared/widgets/c360_nav.dart';
 import '../../shared/widgets/c360_ui.dart';
+import '../tia/tia_screen.dart';
+import '../tia/tia_widgets.dart';
 import '../orders/orders_screen.dart';
 import 'provider_profile_screen.dart';
 
@@ -625,6 +627,33 @@ class _SearchState extends State<SearchScreen> {
               : 'Encontre, avalie e contrate os melhores profissionais da região.',
         ),
       ),
+      if (_explore)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+          child: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              gradient: AppGradients.hero,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Row(children: [
+              const TiaPortrait(pose: 'apresentando', height: 72),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('Vamos encontrar o serviço ideal. Fale com a Tia Carajás IA.',
+                    style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+              ),
+              TiaTalkButton(
+                label: 'Fale com a IA',
+                onPressed: () => c360Open(
+                  context,
+                  route: Routes.aiAssistant,
+                  page: const TiaCentralScreen(),
+                ),
+              ),
+            ]),
+          ),
+        ),
       if (!_explore)
         Padding(
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 0),
@@ -655,6 +684,15 @@ class _SearchState extends State<SearchScreen> {
               icon: const Icon(Icons.tune_rounded, size: 18),
               label: const Text('Filtros'),
             ),
+            IconButton(
+              tooltip: 'Falar a busca',
+              onPressed: () => c360Open(
+                context,
+                route: Routes.aiAssistant,
+                page: TiaCentralScreen(seed: _q.isEmpty ? null : _q),
+              ),
+              icon: const Icon(Icons.mic_rounded, color: AppColors.primary),
+            ),
           ]),
         )
       else
@@ -680,6 +718,15 @@ class _SearchState extends State<SearchScreen> {
               onPressed: _smartSearch,
               icon: const Icon(Icons.auto_awesome_rounded,
                   color: AppColors.primary),
+            ),
+            IconButton(
+              tooltip: 'Falar a busca',
+              onPressed: () => c360Open(
+                context,
+                route: Routes.aiAssistant,
+                page: const TiaCentralScreen(),
+              ),
+              icon: const Icon(Icons.mic_rounded, color: AppColors.primary),
             ),
           ]),
         ),
@@ -762,7 +809,9 @@ class _SearchState extends State<SearchScreen> {
               list = list.where((p) => p.verified).toList();
             }
             if (_availableToday) {
-              list = list.where((p) => p.active).toList();
+              list = list
+                  .where((p) => p.availableToday || p.availabilitySlots.isNotEmpty)
+                  .toList();
             }
             if (_cityOnly) {
               list = list

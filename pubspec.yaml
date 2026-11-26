@@ -38,6 +38,8 @@ dependencies:
   shared_preferences: ^2.3.2
   flutter_svg: ^2.0.10+1
   lottie: ^3.1.2
+  speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.0
 
 dev_dependencies:
   flutter_test:
@@ -71,3 +73,4 @@ flutter:
     - assets/chat/
     - assets/gps/
     - assets/empty_states/
+    - assets/tia_carajas/

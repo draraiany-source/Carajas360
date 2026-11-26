@@ -52,7 +52,7 @@ service cloud.firestore {
       allow update: if isAdmin() || (
         isOwner(providerId) &&
         !request.resource.data.diff(resource.data).affectedKeys()
-          .hasAny(['verified', 'plan', 'status', 'rating', 'totalReviews', 'userId']) &&
+          .hasAny(['verified', 'plan', 'status', 'rating', 'totalReviews', 'userId', 'registrationVerified']) &&
         (
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['active']) ||
           resource.data.verified == true
@@ -307,7 +307,27 @@ service cloud.firestore {
     }
 
     match /config/{doc} {
-      allow read: if true;
+      allow read: if doc == 'ai' ? isAdmin() : true;
+      allow write: if isAdmin();
+    }
+
+    match /aiConversations/{id} {
+      allow read: if isAuth() && resource.data.userId == uid();
+      allow write: if false;
+    }
+
+    match /aiUsage/{id} {
+      allow read: if isAdmin() || (isAuth() && resource.data.userId == uid());
+      allow write: if false;
+    }
+
+    match /aiAudit/{id} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    match /aiKnowledge/{id} {
+      allow read: if isAuth();
       allow write: if isAdmin();
     }
 

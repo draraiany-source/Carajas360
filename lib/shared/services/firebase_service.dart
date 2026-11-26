@@ -925,7 +925,7 @@ class FS {
     final doc = await _db.collection(Col.appointments).add({
       ...data,
       'clientId': _uid,
-      'status': 'scheduled',
+      'status': data['status'] == 'requested' ? 'requested' : 'scheduled',
       'createdAt': FieldValue.serverTimestamp()
     });
     return doc.id;
@@ -2059,61 +2059,55 @@ class AiSvc {
   static Future<String?> ask(
       String message, List<Map<String, dynamic>> history) async {
     try {
-      final data = await CloudFn.call('aiAssistant', {
+      final data = await CloudFn.call('tiaChat', {
         'message': message,
         'history': history,
       });
-      return data['reply'] as String?;
+      if (data['available'] == false) return null;
+      final reply = data['reply'] as String?;
+      if (reply == null || reply.trim().isEmpty) return null;
+      return reply;
     } catch (e) {
       debugPrint('IA error: $e');
       return null;
     }
   }
 
-  // ── Sugestão automática de descrição (Vol.11: IA) ──────────────
-  // Usado em RequestServiceScreen: o cliente digita algumas palavras
-  // soltas e a IA transforma em uma descrição profissional e clara
-  // para o prestador entender o pedido.
   static Future<String?> suggestDescription(
       {required String category, required String draft}) async {
     if (draft.trim().isEmpty) return null;
     final prompt =
-        'Reescreva a seguinte descrição de um pedido de serviço de $category de forma clara, '
-        'profissional e objetiva, em no máximo 3 frases, sem inventar detalhes que não foram mencionados: "$draft"';
+        'Reescreva a descrição de um pedido de $category de forma clara e objetiva, '
+        'em no máximo 3 frases, sem inventar detalhes: "$draft"';
     final reply = await ask(prompt, const []);
     return reply?.trim();
   }
 
-  // ── Sugestão de orçamento (Vol.11: IA) ──────────────────────────
-  // Estima uma faixa de preço razoável com base na categoria e na
-  // descrição do serviço, para orientar o cliente antes de negociar
-  // com o prestador. Sempre deixa claro que é uma estimativa.
   static Future<String?> suggestBudget(
       {required String category, required String description}) async {
-    final prompt =
-        'Com base nesta descrição de serviço de $category: "$description", '
-        'sugira uma faixa de preço razoável em reais para o mercado brasileiro atual. '
-        'Responda em uma única frase curta, no formato "Entre R\$ X e R\$ Y", sem explicações adicionais.';
-    final reply = await ask(prompt, const []);
-    return reply?.trim();
+    try {
+      final data = await CloudFn.call('tiaEstimate', {'category': category});
+      if (data['sufficient'] != true) return null;
+      return data['message'] as String?;
+    } catch (e) {
+      debugPrint('Estimativa: $e');
+      return null;
+    }
   }
 
-  // ── Busca inteligente (Vol.11: IA) ──────────────────────────────
-  // Interpreta uma busca em linguagem natural (ex.: "preciso de
-  // alguém pra consertar vazamento no banheiro amanhã") e devolve a
-  // categoria mais próxima do catálogo do app, para pré-filtrar a
-  // busca em vez do usuário navegar pelas categorias manualmente.
   static Future<String?> smartSearchCategory(
       String query, List<String> availableCategories) async {
     if (query.trim().isEmpty) return null;
     final prompt =
-        'Dado o pedido do usuário: "$query", qual dessas categorias é a mais adequada? '
-        'Responda APENAS com o nome exato de uma categoria da lista, nada mais: ${availableCategories.join(", ")}';
+        'Dado o pedido: "$query", qual categoria da lista é a mais adequada? '
+        'Responda só com o nome exato, ou "nenhuma" se não houver: ${availableCategories.join(", ")}';
     final reply = await ask(prompt, const []);
     if (reply == null) return null;
     final cleaned = reply.trim().toLowerCase();
-    return availableCategories
-        .firstWhere((c) => cleaned.contains(c.toLowerCase()), orElse: () => '');
+    final match = availableCategories
+        .where((c) => cleaned.contains(c.toLowerCase()))
+        .toList();
+    return match.isEmpty ? null : match.first;
   }
 }
 

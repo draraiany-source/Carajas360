@@ -9,6 +9,7 @@ import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
 import '../../shared/widgets/c360_nav.dart';
 import '../../shared/widgets/c360_ui.dart';
+import '../tia/order_detail_panel.dart';
 import '../../shared/widgets/widgets.dart';
 import '../resolve/resolve_screen.dart';
 
@@ -438,6 +439,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
           Navigator.pushNamed(context, Routes.reviews,
               arguments: {'orderId': order.id});
         }
+        if (v == 'detail') openOrderDetail(context, order);
       },
       itemBuilder: (_) => [
         if (order.status == OrderStatus.pending ||
@@ -447,7 +449,7 @@ class _MyOrdersState extends State<MyOrdersScreen> {
           const PopupMenuItem(value: 'track', child: Text('Rastrear')),
         if (order.status == OrderStatus.completed && !order.reviewed)
           const PopupMenuItem(value: 'review', child: Text('Avaliar')),
-        const PopupMenuItem(value: 'none', child: Text('Detalhes no card')),
+        const PopupMenuItem(value: 'detail', child: Text('Acompanhar')),
       ],
     );
   }

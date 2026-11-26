@@ -8,6 +8,8 @@ import '../../shared/widgets/c360_nav.dart';
 import '../../shared/widgets/c360_ui.dart';
 import '../profile/plans_screen.dart';
 import '../provider/provider_home_screen.dart';
+import '../tia/tia_screen.dart';
+import '../tia/tia_widgets.dart';
 import 'home_screen.dart';
 import 'provider_profile_screen.dart';
 
@@ -91,6 +93,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPage: (i) => setState(() => _bannerPage = i),
                     onSearch: () =>
                         c360Go(context, C360Dest.explore, Routes.search),
+                    onTia: () => c360Open(
+                      context,
+                      route: Routes.aiAssistant,
+                      page: const TiaCentralScreen(),
+                    ),
                   ),
                   const SizedBox(height: 22),
                   if (wide)
@@ -327,11 +334,13 @@ class _Hero extends StatelessWidget {
   final int page;
   final ValueChanged<int> onPage;
   final VoidCallback onSearch;
+  final VoidCallback onTia;
   const _Hero({
     required this.controller,
     required this.page,
     required this.onPage,
     required this.onSearch,
+    required this.onTia,
   });
 
   @override
@@ -358,9 +367,17 @@ class _Hero extends StatelessWidget {
             ],
           ),
           Positioned(
+            right: 12,
+            top: 12,
+            bottom: 12,
+            child: const TiaPortrait(pose: 'apresentando', height: 180),
+          ),
+          Positioned(
             left: 22,
             bottom: 18,
-            child: Row(children: [
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
               ElevatedButton.icon(
                 onPressed: onSearch,
                 style: ElevatedButton.styleFrom(
@@ -371,6 +388,11 @@ class _Hero extends StatelessWidget {
                 ),
                 icon: const Icon(Icons.search_rounded, size: 18),
                 label: const Text('Buscar serviços agora'),
+              ),
+              const SizedBox(width: 8),
+              TiaTalkButton(
+                label: 'Conversar com a Tia Carajás IA',
+                onPressed: onTia,
               ),
               const SizedBox(width: 16),
               for (var i = 0; i < 2; i++)
@@ -386,6 +408,7 @@ class _Hero extends StatelessWidget {
                   ),
                 ),
             ]),
+            ),
           ),
         ]),
       ),
