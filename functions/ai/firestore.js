@@ -59,6 +59,18 @@ function memoryDb(seed = {}) {
     async query(col, pred) {
       return rows(col).filter((d) => !pred || pred(d.data));
     },
+    async runTransaction(fn) {
+      const tx = {
+        async get(path) {
+          return docs.has(path) ? clone(docs.get(path)) : null;
+        },
+        set(path, data, opts = {}) {
+          const prev = docs.get(path) || {};
+          docs.set(path, opts.merge ? { ...prev, ...clone(data) } : clone(data));
+        },
+      };
+      return fn(tx);
+    },
     dump() {
       return Object.fromEntries([...docs.entries()].map(([k, v]) => [k, clone(v)]));
     },

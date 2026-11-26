@@ -779,19 +779,21 @@ class _SearchState extends State<SearchScreen> {
         child: StreamBuilder<List<ProviderModel>>(
           stream: c360Stream(() => FS.providersStream(category: _cat, limit: 40)),
           builder: (context, snap) {
-            if (snap.hasError) {
+            final waiting = snap.connectionState == ConnectionState.waiting &&
+                !snap.hasData;
+            if (waiting) {
+              return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: 4,
+                  itemBuilder: (_, __) => const SkeletonCard());
+            }
+            if (snap.hasError || snap.data == null) {
               return const EmptyState(
                   emoji: '🔍',
                   title: 'Não foi possível carregar',
                   subtitle: 'Verifique a conexão e tente de novo.');
             }
             var list = snap.data ?? [];
-            if (snap.data == null) {
-              return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: 4,
-                  itemBuilder: (_, __) => const SkeletonCard());
-            }
             final city = RegionController.instance.city.value;
             if (_q.isNotEmpty) {
               final q = _q.toLowerCase();

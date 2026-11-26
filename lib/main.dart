@@ -10,6 +10,7 @@ import 'core/theme/app_theme.dart';
 import 'core/theme/theme_controller.dart';
 import 'shared/widgets/micro_interactions.dart';
 import 'core/constants/app_constants.dart';
+import 'core/constants/runtime_config.dart';
 import 'core/utils/firebase_bootstrap.dart';
 import 'shared/services/firebase_service.dart';
 
@@ -78,6 +79,7 @@ Future<void> main() async {
     debugPrint('Firebase nao configurado — modo demonstracao: $e');
   }
 
+  RuntimeConfig.firebaseReady = firebaseOk;
   runApp(ServicoConectaApp(firebaseOk: firebaseOk));
 }
 
@@ -165,8 +167,7 @@ class ServicoConectaApp extends StatelessWidget {
               case Routes.coupons:
                 return _route(const CouponsScreen());
               case Routes.aiAssistant:
-                return _route(const RequireAuth(
-                    title: 'Tia Carajás IA', child: TiaCentralScreen()));
+                return _route(const TiaCentralScreen());
               case Routes.tiaRequest:
                 final rq = settings.arguments as Map<String, dynamic>?;
                 return _route(RequireAuth(

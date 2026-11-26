@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../core/auth/access_control.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/utils/chat_nav.dart';
@@ -76,7 +77,9 @@ class _ProviderProfileScreenState extends State<ProviderProfileScreen>
     }
   }
 
-  void _request(ProviderModel? provider, {String? extra}) {
+  Future<void> _request(ProviderModel? provider, {String? extra}) async {
+    if (!await ensureSignedIn(context)) return;
+    if (!mounted) return;
     final parts = <String>[
       if (extra != null && extra.trim().isNotEmpty) extra.trim(),
       if (_date != null)

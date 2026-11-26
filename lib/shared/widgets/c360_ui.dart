@@ -1,5 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import '../../core/auth/access_control.dart';
 import '../../core/constants/app_constants.dart';
 import '../../core/modules/platform_modules.dart';
 import '../../core/theme/app_colors.dart';
@@ -14,28 +16,33 @@ class C360Category {
   final IconData icon;
   final String? categoryId;
   final String? route;
-  const C360Category(this.label, this.icon, {this.categoryId, this.route});
+  final String? iconAsset;
+  const C360Category(this.label, this.icon,
+      {this.categoryId, this.route, this.iconAsset});
 }
 
 abstract class C360Categories {
   static const home = <C360Category>[
     C360Category('Construção e Reforma', Icons.construction_rounded,
-        categoryId: 'pedreiro'),
-    C360Category('Elétrica', Icons.bolt_rounded, categoryId: 'eletricista'),
+        categoryId: 'pedreiro', iconAsset: 'assets/categories/pedreiro.svg'),
+    C360Category('Elétrica', Icons.bolt_rounded,
+        categoryId: 'eletricista',
+        iconAsset: 'assets/categories/eletricista.svg'),
     C360Category('Hidráulica', Icons.water_drop_rounded,
-        categoryId: 'encanador'),
+        categoryId: 'encanador', iconAsset: 'assets/categories/encanador.svg'),
     C360Category('Limpeza', Icons.cleaning_services_rounded,
-        categoryId: 'diarista'),
+        categoryId: 'diarista', iconAsset: 'assets/categories/diarista.svg'),
     C360Category('Beleza e Estética', Icons.spa_rounded,
-        categoryId: 'manicure'),
+        categoryId: 'manicure', iconAsset: 'assets/categories/manicure.svg'),
     C360Category('Saúde e Bem-estar', Icons.favorite_rounded,
-        categoryId: 'medico'),
+        categoryId: 'medico', iconAsset: 'assets/categories/medico.svg'),
     C360Category('Veículos e Oficinas', Icons.directions_car_rounded,
-        categoryId: 'mecanico'),
+        categoryId: 'mecanico', iconAsset: 'assets/categories/mecanico.svg'),
     C360Category('Agro e Rural', Icons.agriculture_rounded,
-        categoryId: 'jardineiro'),
+        categoryId: 'jardineiro',
+        iconAsset: 'assets/categories/jardinagem.svg'),
     C360Category('Máquinas e Equipamentos', Icons.precision_manufacturing_rounded,
-        route: Routes.rental),
+        route: Routes.rental, iconAsset: 'assets/icons/svg/hammer.svg'),
     C360Category('Mais Categorias', Icons.add_rounded),
   ];
 }
@@ -389,13 +396,17 @@ class C360CategoryTile extends StatelessWidget {
           ),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Container(
-              width: 46,
-              height: 46,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(
                 color: AppColors.primarySoft,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: BorderRadius.circular(12),
               ),
-              child: Icon(category.icon, color: AppColors.primary, size: 24),
+              clipBehavior: Clip.antiAlias,
+              child: category.iconAsset != null
+                  ? SvgPicture.asset(category.iconAsset!,
+                      width: 44, height: 44, fit: BoxFit.cover)
+                  : Icon(category.icon, color: AppColors.primary, size: 22),
             ),
             const SizedBox(height: 8),
             Text(category.label,
@@ -541,7 +552,13 @@ class _FavHeart extends StatelessWidget {
         final on = snap.data ?? false;
         return IconButton(
           visualDensity: VisualDensity.compact,
-          onPressed: () => FS.toggleFavorite(providerId),
+          onPressed: () {
+            if (!sessionActive()) {
+              Navigator.pushNamed(context, Routes.login);
+              return;
+            }
+            FS.toggleFavorite(providerId);
+          },
           icon: Icon(
             on ? Icons.favorite_rounded : Icons.favorite_border_rounded,
             color: on ? AppColors.error : AppColors.textHint,
@@ -605,6 +622,7 @@ class C360HighlightCard extends StatelessWidget {
   final String? place;
   final String? providerId;
   final VoidCallback? onProfile;
+  final String? demoLabel;
   const C360HighlightCard({
     super.key,
     required this.name,
@@ -616,6 +634,7 @@ class C360HighlightCard extends StatelessWidget {
     this.place,
     this.providerId,
     this.onProfile,
+    this.demoLabel,
   });
 
   @override
@@ -643,10 +662,19 @@ class C360HighlightCard extends StatelessWidget {
               style:
                   const TextStyle(fontSize: 12, color: AppColors.textLight)),
           const SizedBox(height: 6),
-          C360Rating(
-              rating: rating,
-              reviews: reviews,
-              trailing: place == null ? null : '· $place'),
+          if (demoLabel != null)
+            Text(demoLabel!,
+                maxLines: 2,
+                style: const TextStyle(
+                    fontSize: 11,
+                    height: 1.3,
+                    fontWeight: FontWeight.w700,
+                    color: Color(0xFF7A5B00)))
+          else
+            C360Rating(
+                rating: rating,
+                reviews: reviews,
+                trailing: place == null ? null : '· $place'),
           const SizedBox(height: 10),
           SizedBox(
             width: double.infinity,

@@ -1,6 +1,21 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+
+TextStyle sans({
+  double? fontSize,
+  FontWeight? fontWeight,
+  Color? color,
+  double? height,
+  double? letterSpacing,
+}) =>
+    TextStyle(
+      fontFamily: 'PlusJakartaSans',
+      fontSize: fontSize,
+      fontWeight: fontWeight,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+    );
 
 abstract class AppDecorations {
   static BoxDecoration card(
@@ -58,37 +73,37 @@ abstract class AppDecorations {
 
 class AppTheme {
   static TextTheme _textTheme(Color high, Color med, Color low) {
-    final base = GoogleFonts.plusJakartaSansTextTheme();
+    final base = ThemeData(fontFamily: 'PlusJakartaSans').textTheme;
     return base.copyWith(
-      displayLarge: GoogleFonts.plusJakartaSans(
+      displayLarge: sans(
           fontSize: 34,
           fontWeight: FontWeight.w800,
           color: high,
           letterSpacing: -1.2,
           height: 1.1),
-      headlineLarge: GoogleFonts.plusJakartaSans(
+      headlineLarge: sans(
           fontSize: 26, fontWeight: FontWeight.w800, color: high, height: 1.15),
-      headlineMedium: GoogleFonts.plusJakartaSans(
+      headlineMedium: sans(
           fontSize: 22, fontWeight: FontWeight.w700, color: high),
-      headlineSmall: GoogleFonts.plusJakartaSans(
+      headlineSmall: sans(
           fontSize: 18, fontWeight: FontWeight.w700, color: high),
-      titleLarge: GoogleFonts.plusJakartaSans(
+      titleLarge: sans(
           fontSize: 16, fontWeight: FontWeight.w700, color: high),
-      titleMedium: GoogleFonts.plusJakartaSans(
+      titleMedium: sans(
           fontSize: 14, fontWeight: FontWeight.w600, color: high),
-      bodyLarge: GoogleFonts.plusJakartaSans(
+      bodyLarge: sans(
           fontSize: 15, fontWeight: FontWeight.w400, color: high, height: 1.55),
-      bodyMedium: GoogleFonts.plusJakartaSans(
+      bodyMedium: sans(
           fontSize: 13, fontWeight: FontWeight.w400, color: med, height: 1.5),
-      bodySmall: GoogleFonts.plusJakartaSans(
+      bodySmall: sans(
           fontSize: 12, fontWeight: FontWeight.w400, color: low, height: 1.4),
-      labelLarge: GoogleFonts.plusJakartaSans(
+      labelLarge: sans(
           fontSize: 14, fontWeight: FontWeight.w700, color: high),
     );
   }
 
   static ThemeData get light {
-    final base = ThemeData(useMaterial3: true);
+    final base = ThemeData(useMaterial3: true, fontFamily: 'PlusJakartaSans');
     return base.copyWith(
       colorScheme: ColorScheme.fromSeed(
           seedColor: AppColors.primary,
@@ -105,7 +120,7 @@ class AppTheme {
           backgroundColor: AppColors.primary,
           foregroundColor: AppColors.white,
           centerTitle: true,
-          titleTextStyle: GoogleFonts.plusJakartaSans(
+          titleTextStyle: sans(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: AppColors.white),
@@ -124,7 +139,7 @@ class AppTheme {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
-              textStyle: GoogleFonts.plusJakartaSans(
+              textStyle: sans(
                   fontSize: 15, fontWeight: FontWeight.w700))),
       outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
@@ -153,7 +168,7 @@ class AppTheme {
             borderSide: const BorderSide(color: AppColors.error)),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
-        hintStyle: GoogleFonts.plusJakartaSans(
+        hintStyle: sans(
             fontSize: 14, color: AppColors.textHint),
       ),
       bottomNavigationBarTheme: const BottomNavigationBarThemeData(
@@ -177,7 +192,7 @@ class AppTheme {
       tabBarTheme: TabBarThemeData(
         labelColor: AppColors.primary,
         unselectedLabelColor: AppColors.textLight,
-        labelStyle: GoogleFonts.plusJakartaSans(
+        labelStyle: sans(
             fontWeight: FontWeight.w700, fontSize: 13),
         indicator: BoxDecoration(
             color: AppColors.primarySoft,
@@ -197,7 +212,10 @@ class AppTheme {
   }
 
   static ThemeData get dark {
-    final base = ThemeData(useMaterial3: true, brightness: Brightness.dark);
+    final base = ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        fontFamily: 'PlusJakartaSans');
     return base.copyWith(
       colorScheme: ColorScheme.fromSeed(
           seedColor: AppColors.primary,
@@ -215,7 +233,7 @@ class AppTheme {
           backgroundColor: AppColors.darkSurface,
           foregroundColor: AppColors.darkTextHigh,
           centerTitle: true,
-          titleTextStyle: GoogleFonts.plusJakartaSans(
+          titleTextStyle: sans(
               fontSize: 18,
               fontWeight: FontWeight.w700,
               color: AppColors.darkTextHigh)),
@@ -233,7 +251,7 @@ class AppTheme {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(14)),
-              textStyle: GoogleFonts.plusJakartaSans(
+              textStyle: sans(
                   fontSize: 15, fontWeight: FontWeight.w700))),
       outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
@@ -272,7 +290,7 @@ class AppTheme {
       tabBarTheme: TabBarThemeData(
         labelColor: AppColors.primaryLight,
         unselectedLabelColor: AppColors.darkTextLow,
-        labelStyle: GoogleFonts.plusJakartaSans(
+        labelStyle: sans(
             fontWeight: FontWeight.w700, fontSize: 13),
         dividerColor: Colors.transparent,
       ),

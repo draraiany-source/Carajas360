@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 /// Configuração de runtime via --dart-define (sem secrets no repositório).
 ///
 /// Exemplos:
@@ -7,6 +9,19 @@
 /// Android Maps nativo: defina MAPS_API_KEY em android/local.properties
 /// (ver comentário em android/app/build.gradle).
 abstract final class RuntimeConfig {
+  /// local | homolog | prod. Não troca chaves sozinho: cada ambiente
+  /// precisa do próprio `flutterfire configure`.
+  static const appEnv = String.fromEnvironment('APP_ENV', defaultValue: 'local');
+
+  /// Homologação web sem Firebase. Ignorado em release.
+  static const devBypassLogin =
+      bool.fromEnvironment('DEV_BYPASS_LOGIN', defaultValue: false);
+
+  static bool firebaseReady = false;
+
+  static bool get showLabeledDemo =>
+      devBypassLogin && !kReleaseMode && !firebaseReady;
+
   static const googleMapsApiKey = String.fromEnvironment(
     'GOOGLE_MAPS_API_KEY',
     defaultValue: 'COLE_SUA_GOOGLE_MAPS_API_KEY_AQUI',

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/constants/runtime_config.dart';
+import 'demo_banner.dart';
 import '../../core/theme/app_colors.dart';
 import '../../features/chat/chat_inbox_screen.dart';
 import '../../features/home/carajas_home_screen.dart';
@@ -125,6 +127,7 @@ class _C360ShellState extends State<C360Shell> {
               ),
             Expanded(
               child: Column(children: [
+                if (RuntimeConfig.showLabeledDemo) const DemoBanner(),
                 _TopBar(
                   showMenu: !wide,
                   showBack: _innerPop ||

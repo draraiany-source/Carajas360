@@ -1,2 +1,4 @@
-O app usa a fonte Poppins via pacote google_fonts (não precisa de .ttf local).
-Esta pasta existe para fontes customizadas futuras, se necessário.
+Plus Jakarta Sans (SIL Open Font License 1.1).
+Arquivo variável oficial: google/fonts, ofl/plusjakartasans.
+Empacotado no app para não depender da CDN do Google Fonts em runtime.
+https://github.com/google/fonts/tree/main/ofl/plusjakartasans

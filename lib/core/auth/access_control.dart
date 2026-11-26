@@ -70,6 +70,21 @@ class AdminGate extends StatelessWidget {
   }
 }
 
+bool sessionActive() {
+  try {
+    return AuthService.isAuth;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Leva ao login quando a ação grava dados. Explorar a plataforma não passa por aqui.
+Future<bool> ensureSignedIn(BuildContext context) async {
+  if (sessionActive()) return true;
+  await Navigator.pushNamed(context, Routes.login);
+  return sessionActive();
+}
+
 class RequireAuth extends StatelessWidget {
   final Widget child;
   final String title;

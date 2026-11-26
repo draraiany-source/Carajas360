@@ -3,8 +3,8 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 /// Voz no aparelho (Android, iOS e desktop com plugin). Sem envio de áudio ao servidor.
 class TiaVoice {
-  final _stt = SpeechToText();
-  final _tts = FlutterTts();
+  SpeechToText? _stt;
+  FlutterTts? _tts;
   bool listening = false;
   bool speaking = false;
   bool audioEnabled = true;
@@ -16,7 +16,8 @@ class TiaVoice {
 
   Future<bool> startListening(void Function(String text, bool isFinal) onText) async {
     try {
-      _ready = await _stt.initialize(
+      _stt ??= SpeechToText();
+      _ready = await _stt!.initialize(
         onError: (error) => limitation = 'Microfone: ${error.errorMsg}',
         onStatus: (status) {
           listening = status == 'listening';
@@ -28,7 +29,7 @@ class TiaVoice {
       }
       limitation = null;
       listening = true;
-      await _stt.listen(
+      await _stt!.listen(
         listenOptions: SpeechListenOptions(localeId: 'pt_BR'),
         onResult: (result) => onText(result.recognizedWords, result.finalResult),
       );
@@ -43,18 +44,20 @@ class TiaVoice {
   Future<void> stopListening() async {
     listening = false;
     try {
-      await _stt.stop();
+      await _stt?.stop();
     } catch (_) {}
   }
 
   Future<void> speak(String text) async {
     if (!audioEnabled || text.trim().isEmpty) return;
     try {
-      await _tts.setLanguage('pt-BR');
-      await _tts.setSpeechRate(0.48);
-      await _tts.setPitch(1.05);
+      _tts ??= FlutterTts();
+      await _tts!.setLanguage('pt-BR');
+      await _tts!.setSpeechRate(0.48);
+      await _tts!.setPitch(1.05);
+      await _tts!.setVolume(1.0);
       speaking = true;
-      await _tts.speak(text);
+      await _tts!.speak(text);
     } catch (_) {
       limitation = 'A leitura em voz não está disponível neste aparelho.';
     } finally {
@@ -65,7 +68,7 @@ class TiaVoice {
   Future<void> stopSpeaking() async {
     speaking = false;
     try {
-      await _tts.stop();
+      await _tts?.stop();
     } catch (_) {}
   }
 

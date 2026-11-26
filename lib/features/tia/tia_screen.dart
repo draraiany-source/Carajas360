@@ -43,11 +43,13 @@ class _TiaCentralScreenState extends State<TiaCentralScreen> {
   final _msgs = <_Msg>[];
   bool _busy = false;
   String? _conversationId;
+  String? _quotaLine;
   String _pose = 'recepcionando';
 
   @override
   void initState() {
     super.initState();
+    _restore();
     final seed = widget.seed?.trim();
     if (seed != null && seed.isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _send(seed));
@@ -60,6 +62,28 @@ class _TiaCentralScreenState extends State<TiaCentralScreen> {
     _input.dispose();
     _scroll.dispose();
     super.dispose();
+  }
+
+  Future<void> _restore() async {
+    final history = await TiaService.history();
+    final status = await TiaService.status();
+    if (!mounted) return;
+    final usage = status?['usage'];
+    String? line;
+    if (usage is Map) {
+      line =
+          'Uso neste mês: ${usage['messages'] ?? 0}/${usage['messageLimit'] ?? '—'} mensagens · '
+          '${usage['tokens'] ?? 0}/${usage['tokenLimit'] ?? '—'} tokens';
+    }
+    setState(() {
+      _quotaLine = line;
+      if (history != null && _msgs.isEmpty) {
+        _conversationId = history.conversationId ?? _conversationId;
+        for (final message in history.messages) {
+          _msgs.add(_Msg(text: message.text, mine: message.mine));
+        }
+      }
+    });
   }
 
   Future<void> _send(String raw) async {
@@ -245,6 +269,12 @@ class _TiaCentralScreenState extends State<TiaCentralScreen> {
           controller: _scroll,
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
           children: [
+            if (c360Uid() == null)
+              const TiaBubble(
+                text:
+                    'Você pode explorar a plataforma sem entrar. Para conversar com a Tia, enviar fotos e gravar pedidos, faça login. Nenhuma resposta é simulada.',
+                alert: true,
+              ),
             if (!wide) _mobileHeader(),
             if (wide) _desktopIntro(),
             for (final msg in _msgs) ...[
@@ -367,6 +397,12 @@ class _TiaCentralScreenState extends State<TiaCentralScreen> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
           child: Column(children: [
+            if (_quotaLine != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(_quotaLine!,
+                    style: const TextStyle(fontSize: 11, color: AppColors.textLight)),
+              ),
             if (_voice.listening || _voice.speaking)
               Row(children: [
                 TiaVoiceWaves(active: _voice.listening || _voice.speaking),
@@ -536,7 +572,7 @@ class TiaTalkButton extends StatelessWidget {
       ),
       onPressed: onPressed,
       icon: const Icon(Icons.mic_rounded, size: 18),
-      label: Text(label),
+      label: Text(label, maxLines: 2, overflow: TextOverflow.ellipsis),
     );
   }
 }

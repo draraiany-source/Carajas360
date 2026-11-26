@@ -85,6 +85,12 @@ function publicProvider(doc) {
 }
 
 function toolSchemas() {
+  const platform = require('../platform/tools');
+  const extras = platform.TOOL_NAMES.map((name) => ({
+    name,
+    description: 'Operação real da plataforma. O modelo não confirma contratação, cobrança nem agendamento: isso só acontece com o toque da pessoa.',
+    parameters: { type: 'object', properties: { confirmed: { type: 'boolean' } } },
+  }));
   return [
     {
       name: 'search_professionals',
@@ -176,7 +182,7 @@ function toolSchemas() {
         required: ['type', 'label'],
       },
     },
-  ];
+  ].concat(extras);
 }
 
 function orderView(doc) {
@@ -218,8 +224,18 @@ async function executeTool(name, args, ctx) {
       return estimatePrice(a, ctx);
     case 'propose_action':
       return proposeAction(a);
-    default:
+    default: {
+      const platform = require('../platform/tools');
+      if (platform.hasTool(name)) {
+        return platform.run(name, a, {
+          ...ctx,
+          actor: 'model',
+          now: ctx.now || (() => new Date()),
+          userName: ctx.userName || '',
+        });
+      }
       return { error: 'Ferramenta desconhecida' };
+    }
   }
 }
 

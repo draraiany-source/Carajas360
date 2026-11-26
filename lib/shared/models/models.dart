@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../core/security/order_lifecycle.dart';
 
 enum UserType { client, provider, deliverer, company, admin }
 
@@ -395,6 +396,7 @@ class OrderModel {
   final String? providerId;
   final double? price;
   final OrderStatus status;
+  final String? lifecycle;
   final bool urgent, reviewed;
   final String? paymentStatus;
   final DateTime createdAt;
@@ -409,6 +411,7 @@ class OrderModel {
     this.providerId,
     this.price,
     this.status = OrderStatus.pending,
+    this.lifecycle,
     this.urgent = false,
     this.reviewed = false,
     this.paymentStatus,
@@ -416,6 +419,8 @@ class OrderModel {
   });
 
   String get statusLabel {
+    final rich = OrderLifecycle.label(lifecycle);
+    if (rich != null) return rich;
     switch (status) {
       case OrderStatus.pending:
         return '⏳ Aguardando';
@@ -444,10 +449,13 @@ class OrderModel {
         status: OrderStatus.values.firstWhere(
             (s) => s.name == (m['status'] ?? 'pending'),
             orElse: () => OrderStatus.pending),
+        lifecycle: m['lifecycle'] as String?,
         urgent: m['urgent'] ?? false,
         reviewed: m['reviewed'] ?? false,
         paymentStatus: m['paymentStatus'] as String?,
-        createdAt: (m['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+        createdAt: m['createdAt'] is Timestamp
+            ? (m['createdAt'] as Timestamp).toDate()
+            : DateTime.tryParse('${m['createdAt']}') ?? DateTime.now(),
       );
 }
 

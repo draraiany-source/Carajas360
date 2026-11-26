@@ -72,6 +72,7 @@ async function requestQuote(ctx, payload) {
     preferredDate: clip(payload.preferredDate, 20) || null,
     preferredTime: clip(payload.preferredTime, 10) || null,
     status: 'pending',
+    lifecycle: 'aguardando_orcamentos',
     paymentStatus: 'unpaid',
     payoutProcessed: false,
     payoutStatus: 'none',
@@ -179,6 +180,12 @@ async function chooseProposal(ctx, payload) {
   if (!proposal || !request) return { ok: false, error: 'Proposta ou solicitação não encontrada' };
   if (request.clientId !== ctx.uid && !ctx.isAdmin) return { ok: false, error: 'Sem permissão' };
   if (proposal.requestId !== requestId) return { ok: false, error: 'Proposta não pertence à solicitação' };
+  if (request.chosenProposalId && request.chosenProposalId !== proposalId) {
+    return { ok: false, error: 'Esta solicitação já tem uma proposta aceita. Nada foi alterado.' };
+  }
+  if (request.chosenProposalId === proposalId) {
+    return { ok: true, already: true, kind: 'choose_proposal', id: proposalId, message: 'Proposta já escolhida.' };
+  }
   await ctx.db.set(`resolveProposals/${proposalId}`, { status: 'accepted' }, { merge: true });
   await ctx.db.set(`resolveRequests/${requestId}`, {
     status: 'accepted',

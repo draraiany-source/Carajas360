@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
+import '../../core/constants/runtime_config.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/utils/demo_data.dart';
+import 'home_layout.dart';
 import '../../core/modules/platform_modules.dart';
 import '../../shared/models/models.dart';
 import '../../shared/services/firebase_service.dart';
@@ -75,7 +78,15 @@ class _HomeScreenState extends State<HomeScreen> {
       child: StreamBuilder<List<ProviderModel>>(
         stream: c360Stream(() => FS.providersStream(limit: 12)),
         builder: (context, snap) {
-          final providers = snap.hasError ? <ProviderModel>[] : (snap.data ?? []);
+          final loading = snap.connectionState == ConnectionState.waiting &&
+              !snap.hasData;
+          final failed = snap.hasError;
+          final loaded = snap.data ?? <ProviderModel>[];
+          final showDemo = !loading &&
+              !failed &&
+              loaded.isEmpty &&
+              RuntimeConfig.showLabeledDemo;
+          final providers = showDemo ? DemoCatalog.providers : loaded;
           return LayoutBuilder(builder: (context, constraints) {
             final wide = constraints.maxWidth >= 1080;
             return RefreshIndicator(
@@ -104,13 +115,19 @@ class _HomeScreenState extends State<HomeScreen> {
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Expanded(flex: 7, child: _mainColumn(providers, wide)),
+                        Expanded(
+                            flex: 7,
+                            child: _mainColumn(providers,
+                                loading: loading,
+                                failed: failed,
+                                demo: showDemo)),
                         const SizedBox(width: 16),
                         SizedBox(width: 300, child: _rail()),
                       ],
                     )
                   else ...[
-                    _mainColumn(providers, wide),
+                    _mainColumn(providers,
+                        loading: loading, failed: failed, demo: showDemo),
                     const SizedBox(height: 16),
                     _rail(),
                   ],
@@ -125,7 +142,8 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _mainColumn(List<ProviderModel> providers, bool wide) {
+  Widget _mainColumn(List<ProviderModel> providers,
+      {required bool loading, required bool failed, required bool demo}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       C360SectionHeader(
         title: 'Categorias de Serviços',
@@ -137,11 +155,11 @@ class _HomeScreenState extends State<HomeScreen> {
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
         itemCount: C360Categories.home.length,
-        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: wide ? 5 : 2,
+        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+          maxCrossAxisExtent: HomeLayout.tileMaxCrossAxisExtent,
+          mainAxisExtent: HomeLayout.tileMainAxisExtent,
           mainAxisSpacing: 10,
           crossAxisSpacing: 10,
-          childAspectRatio: wide ? 1.05 : 1.15,
         ),
         itemBuilder: (_, i) {
           final category = C360Categories.home[i];
@@ -160,12 +178,37 @@ class _HomeScreenState extends State<HomeScreen> {
             c360Go(context, C360Dest.professionals, Routes.search),
       ),
       const SizedBox(height: 12),
-      if (providers.isEmpty)
+      if (loading)
+        const _LoadingRow()
+      else if (failed)
         const C360Card(
           child: Text(
-            'Os profissionais verificados da região aparecem aqui assim que estiverem disponíveis.',
+            'Não foi possível carregar os profissionais. Verifique a conexão e puxe a tela para tentar de novo.',
             style: TextStyle(color: AppColors.textMedium, height: 1.4),
           ),
+        )
+      else if (providers.isEmpty)
+        C360Card(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Text(
+              'Nenhum profissional verificado nesta cidade ainda.',
+              style: TextStyle(fontWeight: FontWeight.w800),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'A lista fica vazia de propósito: não completamos com nomes fictícios.',
+              style: TextStyle(color: AppColors.textMedium, height: 1.4),
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton(
+              onPressed: () => c360Open(
+                context,
+                route: Routes.aiAssistant,
+                page: const TiaCentralScreen(),
+              ),
+              child: const Text('Pedir ajuda à Tia Carajás'),
+            ),
+          ]),
         )
       else
         SizedBox(
@@ -191,6 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   verified: provider.verified,
                   place: c360Place(provider, city),
                   providerId: provider.id,
+                  demoLabel: demo ? 'Demonstração · sem avaliação real' : null,
                   onProfile: () => _openProfile(provider),
                 );
               },
@@ -345,56 +389,68 @@ class _Hero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
+    return LayoutBuilder(builder: (context, constraints) {
+      final narrow = HomeLayout.stackedHeroButtons(constraints.maxWidth);
+      return ClipRRect(
       borderRadius: BorderRadius.circular(22),
       child: SizedBox(
-        height: 250,
+        height: narrow ? 300 : 236,
         child: Stack(children: [
           PageView(
             controller: controller,
             onPageChanged: onPage,
-            children: const [
+            children: [
               _HeroSlide(
                 title: 'Encontre o profissional ideal para o seu dia a dia',
                 subtitle:
                     'Serviços, mão de obra, máquinas e muito mais em Canaã dos Carajás.',
+                compact: narrow,
               ),
               _HeroSlide(
                 title: 'Serviços confiáveis, perto de você',
                 subtitle:
                     'Profissionais verificados, pagamento seguro e suporte na região.',
+                compact: narrow,
               ),
             ],
           ),
+          if (HomeLayout.showHeroPortrait(constraints.maxWidth))
+            const Positioned(
+              right: 12,
+              top: 8,
+              child: TiaPortrait(pose: 'apresentando', height: 150),
+            ),
           Positioned(
-            right: 12,
-            top: 12,
-            bottom: 12,
-            child: const TiaPortrait(pose: 'apresentando', height: 180),
+            left: 16,
+            right: narrow ? 16 : 170,
+            bottom: 14,
+            child: narrow
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _searchButton(onSearch),
+                      const SizedBox(height: 8),
+                      TiaTalkButton(
+                        label: 'Falar com a Tia',
+                        onPressed: onTia,
+                      ),
+                    ],
+                  )
+                : Row(children: [
+                    _searchButton(onSearch),
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: TiaTalkButton(
+                        label: 'Conversar com a Tia Carajás IA',
+                        onPressed: onTia,
+                      ),
+                    ),
+                  ]),
           ),
           Positioned(
-            left: 22,
-            bottom: 18,
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(children: [
-              ElevatedButton.icon(
-                onPressed: onSearch,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.yellow,
-                  foregroundColor: AppColors.sidebar,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                ),
-                icon: const Icon(Icons.search_rounded, size: 18),
-                label: const Text('Buscar serviços agora'),
-              ),
-              const SizedBox(width: 8),
-              TiaTalkButton(
-                label: 'Conversar com a Tia Carajás IA',
-                onPressed: onTia,
-              ),
-              const SizedBox(width: 16),
+            left: 16,
+            top: 12,
+            child: Row(children: [
               for (var i = 0; i < 2; i++)
                 Container(
                   width: i == page ? 16 : 7,
@@ -408,10 +464,35 @@ class _Hero extends StatelessWidget {
                   ),
                 ),
             ]),
-            ),
           ),
         ]),
       ),
+    );
+    });
+  }
+
+  Widget _searchButton(VoidCallback onSearch) {
+    return ElevatedButton.icon(
+      onPressed: onSearch,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: AppColors.yellow,
+        foregroundColor: AppColors.sidebar,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      ),
+      icon: const Icon(Icons.search_rounded, size: 18),
+      label: const Text('Buscar serviços'),
+    );
+  }
+}
+
+class _LoadingRow extends StatelessWidget {
+  const _LoadingRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      height: 120,
+      child: Center(child: CircularProgressIndicator()),
     );
   }
 }
@@ -419,7 +500,12 @@ class _Hero extends StatelessWidget {
 class _HeroSlide extends StatelessWidget {
   final String title;
   final String subtitle;
-  const _HeroSlide({required this.title, required this.subtitle});
+  final bool compact;
+  const _HeroSlide({
+    required this.title,
+    required this.subtitle,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -428,7 +514,7 @@ class _HeroSlide extends StatelessWidget {
       child: Stack(children: [
         const Positioned.fill(child: CustomPaint(painter: C360LandscapePainter())),
         Padding(
-          padding: const EdgeInsets.fromLTRB(22, 22, 22, 72),
+          padding: EdgeInsets.fromLTRB(22, compact ? 36 : 22, compact ? 22 : 150, 88),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -448,9 +534,11 @@ class _HeroSlide extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(title,
-                  style: const TextStyle(
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
                       color: Colors.white,
-                      fontSize: 28,
+                      fontSize: compact ? 22 : 26,
                       fontWeight: FontWeight.w800,
                       height: 1.15,
                       letterSpacing: -0.4)),

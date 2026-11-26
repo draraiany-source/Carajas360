@@ -1,13 +1,15 @@
+import '../../core/constants/runtime_config.dart';
 import '../../core/utils/platform_info.dart';
 import 'firebase_service.dart';
 
 /// Métodos de pagamento suportados pela plataforma.
-enum PaymentMethod { pix, creditCard, googlePay, applePay, wallet }
+enum PaymentMethod { pix, creditCard, boleto, googlePay, applePay, wallet }
 
 extension PaymentMethodX on PaymentMethod {
   String get label => switch (this) {
         PaymentMethod.pix => 'PIX',
         PaymentMethod.creditCard => 'Cartão de crédito',
+        PaymentMethod.boleto => 'Boleto',
         PaymentMethod.googlePay => 'Google Pay',
         PaymentMethod.applePay => 'Apple Pay',
         PaymentMethod.wallet => 'Carteira ServiçoConecta',
@@ -16,6 +18,7 @@ extension PaymentMethodX on PaymentMethod {
   String get icon => switch (this) {
         PaymentMethod.pix => '⚡',
         PaymentMethod.creditCard => '💳',
+        PaymentMethod.boleto => '📄',
         PaymentMethod.googlePay => '🟢',
         PaymentMethod.applePay => '',
         PaymentMethod.wallet => '👜',
@@ -51,6 +54,7 @@ abstract class PaymentGateway {
     return [
       PaymentMethod.pix,
       PaymentMethod.creditCard,
+      PaymentMethod.boleto,
       if (apple) PaymentMethod.applePay else PaymentMethod.googlePay,
       PaymentMethod.wallet,
     ];
@@ -85,9 +89,13 @@ abstract class PaymentGateway {
             : PaymentResult.fail(
                 'Não foi possível pagar com a carteira. Confira o saldo e o preço do pedido.');
 
+      case PaymentMethod.boleto:
       case PaymentMethod.creditCard:
-        // O fluxo de cartão passa por tela dedicada (tokenização PCI).
-        // Este método fica reservado para cobranças com token já obtido.
+        if (method == PaymentMethod.boleto ||
+            RuntimeConfig.hasPlaceholderMercadoPago) {
+          return PaymentResult.fail(
+              'Gateway aguardando credenciais. Nenhum pagamento foi aprovado.');
+        }
         return PaymentResult.fail(
             'Use a tela de cartão para tokenizar antes de cobrar.');
 
@@ -104,5 +112,7 @@ abstract class PaymentGateway {
   /// Indica se o método precisa de uma tela dedicada (cartão) ou pode
   /// ser cobrado inline (carteira, carteiras digitais nativas).
   static bool needsDedicatedScreen(PaymentMethod method) =>
-      method == PaymentMethod.creditCard || method == PaymentMethod.pix;
+      method == PaymentMethod.creditCard ||
+      method == PaymentMethod.boleto ||
+      method == PaymentMethod.pix;
 }
